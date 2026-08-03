@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Women's Apex Hoops - Player Editor</title>
+  <script>window.BASE_SPRITE = 'BlankBaldwoman32.png';</script>
+<script>document.write('<script src="render.js?_=' + Date.now() + '"><\/script>');</script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      padding: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 { margin-top: 0; }
+    a { color: #aaa; }
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .sidebar {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    select, input, button {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #0f3460;
+      background: #16213e;
+      color: #eee;
+      font-size: 0.9rem;
+    }
+    button {
+      background: #e94560;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: #ff6b81; }
+    button.secondary {
+      background: #0f3460;
+    }
+    button.secondary:hover { background: #1a4a85; }
+    .player-list {
+      max-height: 70vh;
+      overflow-y: auto;
+      border-top: 1px solid #0f3460;
+      padding-top: 8px;
+    }
+    .player-item {
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .player-item:hover { background: #0f3460; }
+    .player-item.active {
+      background: #e94560;
+      color: white;
+    }
+    .player-item .team { color: #aaa; font-size: 0.78rem; }
+    .player-item.active .team { color: #ffd1d7; }
+
+    .main {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 8px;
+      padding: 24px;
+    }
+    .preview-wrap {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    #previewCanvas {
+      width: 192px;
+      height: 192px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #bfd4e8;
+      border-radius: 4px;
+    }
+    .editor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field label {
+      font-size: 0.8rem;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .field select, .field input {
+      width: 100%;
+    }
+    .actions {
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .hint {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: #888;
+      line-height: 1.4;
+    }
+    .error { color: #e94560; }
+  </style>
+</head>
+<body>
+  <div style="margin-bottom: 16px;">
+    <a href="index.html" style="color: #aaa; text-decoration: none;">&larr; Back to home</a>
+  </div>
+  <h1>Player Editor</h1>
+  <p class="hint">
+    Pick a player, tweak their face, then click <strong>Save to players.json</strong>. Locally this needs the wballers editor server (<code>python3 player_edit_server.py</code> on port 8001). On a PHP host it uses <code>save.php</code> to write the file directly.
+  </p>
+  <p class="hint">
+    The save button auto-detects whether it’s running locally or on a PHP host and posts to the right endpoint.
+  </p>
+  <p class="hint" id="diagnostic">Loading diagnostic info...</p>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="controls">
+        <select id="sortMode">
+          <option value="team">Sort by team</option>
+          <option value="surname">Sort by surname</option>
+        </select>
+        <input type="text" id="filter" placeholder="Search...">
+      </div>
+      <div class="player-list" id="playerList"></div>
+    </div>
+
+    <div class="main">
+      <div class="preview-wrap">
+        <canvas id="previewCanvas" width="128" height="128"></canvas>
+        <div id="playerName" style="margin-top: 8px; font-weight: 600;">Select a player</div>
+      </div>
+
+      <div class="editor-grid" id="editorGrid"></div>
+
+      <div class="actions">
+        <button id="saveBtn">Save to players.json</button>
+        <button id="downloadBtn" class="secondary">Download players.json</button>
+        <button id="copyBtn" class="secondary">Copy JSON to clipboard</button>
+        <span id="status" class="hint"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let players = [];
+    let manifest = {};
+    let teams = {};
+    let selectedIndex = -1;
+
+    const FACE_FIELDS = [
+      { key: 'hair', label: 'Hair', folder: 'hair' },
+      { key: 'topHairColor', label: 'Top Hair Color', type: 'hairColor' },
+      { key: 'hairColor', label: 'Hair/Brow/Facial Color', type: 'hairColor' },
+      { key: 'skinTone', label: 'Skin Tone', type: 'skinTone' },
+      { key: 'eyes', label: 'Eyes', folder: 'eyes' },
+      { key: 'eyebrows', label: 'Eyebrows', folder: 'eyebrows' },
+      { key: 'nose', label: 'Nose', folder: 'nose' },
+      { key: 'mouth', label: 'Mouth', folder: 'mouth' },
+      { key: 'facial', label: 'Facial Hair (coach only)', folder: 'facial', coachOnly: true, allowNone: true },
+      { key: 'accessories', label: 'Accessory', folder: 'accessories' },
+      { key: 'shoulders', label: 'Shoulders (coach only)', folder: 'shoulders', coachOnly: true },
+      { key: 'hat', label: 'Hat (coach only)', folder: 'hats', coachOnly: true, allowNone: true },
+      { key: 'glasses', label: 'Glasses (coach only)', folder: 'glasses', coachOnly: true, allowNone: true }
+    ];
+
+    function surname(name) {
+      const parts = name.trim().split(/\s+/);
+      return parts.length > 1 ? parts[parts.length - 1] : name;
+    }
+
+    function sortPlayers(mode) {
+      const list = [...players];
+      if (mode === 'surname') {
+        list.sort((a, b) => surname(a.name).localeCompare(surname(b.name)) || a.name.localeCompare(b.name));
+      } else {
+        list.sort((a, b) => (a.team || '').localeCompare(b.team || '') || a.name.localeCompare(b.name));
+      }
+      return list;
+    }
+
+    function renderList() {
+      const mode = document.getElementById('sortMode').value;
+      const filter = document.getElementById('filter').value.toLowerCase();
+      const container = document.getElementById('playerList');
+      container.innerHTML = '';
+
+      const sorted = sortPlayers(mode);
+      sorted.forEach((p, idx) => {
+        if (filter && !p.name.toLowerCase().includes(filter) && !(p.team || '').toLowerCase().includes(filter)) return;
+
+        const div = document.createElement('div');
+        div.className = 'player-item' + (players[selectedIndex] === p ? ' active' : '');
+        div.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="team">${escapeHtml(p.team || '')} &mdash; ${escapeHtml(p.position || '')}</div>`;
+        div.addEventListener('click', () => selectPlayer(players.indexOf(p)));
+        container.appendChild(div);
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function selectPlayer(idx) {
+      selectedIndex = idx;
+      const p = players[idx];
+      document.getElementById('playerName').textContent = p.name;
+      renderEditor();
+      renderList();
+      updatePreview();
+    }
+
+    function renderEditor() {
+      const grid = document.getElementById('editorGrid');
+      grid.innerHTML = '';
+      if (selectedIndex === -1) return;
+
+      const player = players[selectedIndex];
+      const face = player.face || {};
+      const isCoach = player.position === 'coach';
+
+      FACE_FIELDS.forEach(field => {
+        if (field.coachOnly && !isCoach) return;
+
+        const div = document.createElement('div');
+        div.className = 'field';
+
+        const label = document.createElement('label');
+        label.textContent = field.label;
+        div.appendChild(label);
+
+        const select = document.createElement('select');
+        select.dataset.key = field.key;
+
+        // Coach-only fields like shoulders should always have a value;
+        // don't offer a None option so a save can't accidentally wipe it.
+        // Hats/glasses are coach-only but optional, so they allow None.
+        if (!field.coachOnly || field.allowNone) {
+          const noneOption = document.createElement('option');
+          noneOption.value = '';
+          noneOption.textContent = 'None';
+          select.appendChild(noneOption);
+        }
+
+        if (field.type === 'hairColor') {
+          Object.entries(ALL_HAIR_COLORS).forEach(([key, hex]) => {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = key;
+            select.appendChild(opt);
+          });
+        } else if (field.type === 'skinTone') {
+          Object.keys(SKIN_TONES).forEach(key => {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = key;
+            select.appendChild(opt);
+          });
+        } else {
+          const files = manifest[field.folder] || [];
+          files.forEach(file => {
+            const opt = document.createElement('option');
+            opt.value = file;
+            opt.textContent = file.replace(/\.(png|jpg|jpeg|gif|webp)$/i, '').replace(/^(hair_|eyes_|eyebrows_|nose_|mouth_|facial_|accessories_|shoulder_|hat_|glasses_)/, '').replace(/_/g, ' ');
+            select.appendChild(opt);
+          });
+        }
+
+        let current = face[field.key] || '';
+        if (field.coachOnly && !field.allowNone && !current) {
+          current = (manifest[field.folder] || [])[0] || '';
+          players[selectedIndex].face[field.key] = current;
+        }
+        select.value = current;
+        select.addEventListener('change', () => {
+          players[selectedIndex].face[field.key] = select.value;
+          updatePreview();
+        });
+
+        div.appendChild(select);
+        grid.appendChild(div);
+      });
+    }
+
+    function updatePreview() {
+      if (selectedIndex === -1) return;
+      const canvas = document.getElementById('previewCanvas');
+      const player = players[selectedIndex];
+      drawFace(canvas, player.face, null, player.position === 'coach').catch(err => console.error(err));
+    }
+
+    function downloadJson() {
+      const blob = new Blob([JSON.stringify(players, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'players.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      document.getElementById('status').textContent = 'Downloaded players.json';
+    }
+
+    async function copyJson() {
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(players, null, 2));
+        document.getElementById('status').textContent = 'Copied JSON to clipboard';
+      } catch (err) {
+        document.getElementById('status').textContent = 'Could not copy automatically';
+      }
+    }
+
+    async function saveToServer() {
+      const status = document.getElementById('status');
+      status.textContent = 'Saving...';
+      try {
+        // Local Python server uses /save; PHP hosts use save.php
+        const isLocal = window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
+        const saveUrl = isLocal ? window.location.origin + '/save' : 'save.php';
+        const res = await fetch(saveUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(players, null, 2)
+        });
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || 'Server error ' + res.status);
+        status.textContent = 'Saved to players.json ✅';
+      } catch (err) {
+        status.innerHTML = '<span class="error">Save failed. Make sure this page is served by <code>python3 player_edit_server.py</code> locally, or <code>save.php</code> exists on the PHP host. Error: ' + escapeHtml(err.message) + '</span>';
+      }
+    }
+
+    const CACHE_BUST = '?_=' + Date.now();
+
+    async function init() {
+      try {
+        [players, manifest, teams] = await Promise.all([
+          fetch('players.json' + CACHE_BUST).then(r => r.json()),
+          fetch('manifest.json' + CACHE_BUST).then(r => r.json()),
+          fetch('teams.json' + CACHE_BUST).then(r => r.json()).catch(() => ({}))
+        ]);
+
+        document.getElementById('sortMode').addEventListener('change', renderList);
+        document.getElementById('filter').addEventListener('input', renderList);
+        document.getElementById('saveBtn').addEventListener('click', saveToServer);
+        document.getElementById('downloadBtn').addEventListener('click', downloadJson);
+        document.getElementById('copyBtn').addEventListener('click', copyJson);
+
+        // Diagnostic: warn if coaches look like stale/regenerated data
+        const coachCount = players.filter(p => p.position === 'coach').length;
+        const coachesWithShoulders = players.filter(p => p.position === 'coach' && p.face && p.face.shoulders).length;
+        const coachesWithGoggles = players.filter(p => p.position === 'coach' && p.face && p.face.accessories && p.face.accessories.includes('goggles')).length;
+        const diag = document.getElementById('diagnostic');
+        if (diag) {
+          diag.innerHTML = `Loaded ${players.length} players, ${coachCount} coaches. Coaches with shoulders: ${coachesWithShoulders}. Coaches with goggles: ${coachesWithGoggles}.`;
+          if (coachesWithGoggles > 0) {
+            diag.innerHTML += ' <span class="error">Warning: coaches still have goggles — data may be stale.</span>';
+          }
+        }
+
+        renderList();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('playerList').innerHTML = '<p class="error">Failed to load players.json or manifest.json</p>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

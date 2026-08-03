@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Women's Apex Hoops - Roster</title>
+<script>window.BASE_SPRITE = 'BlankBaldwoman32.png';</script>
+<script>document.write('<script src="render.js?_=' + Date.now() + '"><\/script>');</script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    padding: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  a.back { color: #aaa; text-decoration: none; font-size: 0.9rem; }
+  a.back:hover { color: #e94560; }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 12px 0 24px;
+  }
+  .header .swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    flex-shrink: 0;
+  }
+  h1 { margin: 0; }
+  h2.section {
+    color: #aaa;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 28px 0 10px;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 6px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+  .card canvas {
+    width: 100%;
+    aspect-ratio: 1;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #bfd4e8;
+    border-radius: 4px;
+  }
+  .card .name { font-weight: 600; font-size: 0.9rem; margin-top: 8px; }
+  .card .meta { color: #aaa; font-size: 0.78rem; margin-top: 2px; }
+  .error { color: #e94560; }
+</style>
+</head>
+<body>
+  <div style="margin-bottom: 12px;">
+    <a href="index.html" style="color: #aaa; text-decoration: none; margin-right: 16px;">&larr; Home</a>
+    <a href="player-edit.html" style="color: #aaa; text-decoration: none;">Player Editor</a>
+  </div>
+  <div class="header">
+    <div class="swatch" id="swatch"></div>
+    <h1 id="teamName">Loading...</h1>
+  </div>
+  <div id="content"></div>
+
+  <script>
+    const POSITION_ORDER = ['coach', 'PG', 'SG', 'SF', 'PF', 'C'];
+    const POSITION_LABELS = {
+      coach: 'Coaching Staff', PG: 'Point Guards', SG: 'Shooting Guards',
+      SF: 'Small Forwards', PF: 'Power Forwards', C: 'Centers'
+    };
+
+    function positionRank(pos) {
+      const i = POSITION_ORDER.indexOf(pos);
+      return i === -1 ? POSITION_ORDER.length : i;
+    }
+
+    const CACHE_BUST = '?_=' + Date.now();
+
+    async function main() {
+      const params = new URLSearchParams(location.search);
+      const code = params.get('team');
+
+      const [teams, players] = await Promise.all([
+        fetch('teams.json' + CACHE_BUST).then(r => r.json()),
+        fetch('players.json' + CACHE_BUST).then(r => r.json())
+      ]);
+
+      const team = teams[code];
+      const content = document.getElementById('content');
+      if (!team) {
+        document.getElementById('teamName').textContent = 'Team not found';
+        content.innerHTML = `<p class="error">No team with code "${code}". <a href="index.html">Back to home</a>.</p>`;
+        return;
+      }
+
+      document.getElementById('teamName').textContent = team.name;
+      document.getElementById('swatch').style.background = team.color;
+      document.title = team.name + ' - Women's Apex Hoops';
+
+      const roster = players.filter(p => p.team === code);
+      roster.sort((a, b) => positionRank(a.position) - positionRank(b.position));
+
+      const byPosition = {};
+      roster.forEach(p => {
+        const key = POSITION_ORDER.includes(p.position) ? p.position : 'other';
+        (byPosition[key] = byPosition[key] || []).push(p);
+      });
+
+      for (const pos of [...POSITION_ORDER, 'other']) {
+        const group = byPosition[pos];
+        if (!group || !group.length) continue;
+
+        const h2 = document.createElement('h2');
+        h2.className = 'section';
+        h2.textContent = POSITION_LABELS[pos] || 'Other';
+        content.appendChild(h2);
+
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+
+        group.forEach(p => {
+          const card = document.createElement('div');
+          card.className = 'card';
+
+          const canvas = document.createElement('canvas');
+          canvas.width = 128;
+          canvas.height = 128;
+          card.appendChild(canvas);
+
+          const name = document.createElement('div');
+          name.className = 'name';
+          name.textContent = p.name;
+          card.appendChild(name);
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          const bits = [p.position, p.archetype, p.age ? `Age ${p.age}` : null].filter(Boolean);
+          meta.textContent = bits.join(' - ');
+          card.appendChild(meta);
+
+          grid.appendChild(card);
+          drawFace(canvas, p.face, team.color, p.position === 'coach').catch(err => console.error(p.name, err));
+        });
+
+        content.appendChild(grid);
+      }
+    }
+
+    main().catch(err => console.error(err));
+  </script>
+</body>
+</html>

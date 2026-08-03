@@ -1,0 +1,82 @@
+{
+  "ABQ": {
+    "name": "Albuquerque Apaches",
+    "color": "#4b5320"
+  },
+  "AUS": {
+    "name": "Austin Decibels",
+    "color": "#e6e6fa"
+  },
+  "BAL": {
+    "name": "Baltimore Crabs",
+    "color": "#eaaa00"
+  },
+  "BUF": {
+    "name": "Buffalo War Mules",
+    "color": "#9bddff"
+  },
+  "CAR": {
+    "name": "Carolina Reapers",
+    "color": "#000000"
+  },
+  "CBUS": {
+    "name": "Columbus Vile",
+    "color": "#ff00ff"
+  },
+  "HAM": {
+    "name": "Hampton Roads Carriers",
+    "color": "#34a853"
+  },
+  "KY": {
+    "name": "Kentucky Colonels",
+    "color": "#005bac"
+  },
+  "MEX": {
+    "name": "Mexico City Spirits",
+    "color": "#f7cf4a"
+  },
+  "MTL": {
+    "name": "Montreal Voyageurs",
+    "color": "#006400"
+  },
+  "NSH": {
+    "name": "Nashville Dobros",
+    "color": "#8b4513"
+  },
+  "OMA": {
+    "name": "Omaha Ironhorse",
+    "color": "#666666"
+  },
+  "PAC": {
+    "name": "Pacific Waves",
+    "color": "#13233a"
+  },
+  "PVD": {
+    "name": "Providence Steamrollers",
+    "color": "#ddc1aa"
+  },
+  "SV": {
+    "name": "Silicon Valley Velocity",
+    "color": "#ccff01"
+  },
+  "SIN": {
+    "name": "Sin City Silverhawks",
+    "color": "#ba0c2f"
+  },
+  "STL": {
+    "name": "St. Louis Ragtime",
+    "color": "#000000"
+  },
+  "STP": {
+    "name": "St. Paul Snowshoes",
+    "color": "#7bbde6"
+  },
+  "TAM": {
+    "name": "Tampa Mayhem",
+    "color": "#81181a"
+  },
+  "WV": {
+    "name": "West Virginia Mothmen",
+    "color": "#1c2a59"
+  }
+}

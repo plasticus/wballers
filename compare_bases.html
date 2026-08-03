@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compare Base Sprites - Women's Apex Hoops</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { margin-top: 0; }
+    .controls {
+      margin-bottom: 20px;
+    }
+    .controls label {
+      margin-right: 20px;
+      cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    .card canvas, .card img {
+      width: 160px;
+      height: 160px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #bfd4e8;
+      border-radius: 4px;
+    }
+    .card .name {
+      margin-top: 10px;
+      font-weight: 600;
+    }
+    .card .note {
+      margin-top: 4px;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+    a { color: #aaa; }
+  </style>
+</head>
+<body>
+  <h1>Compare Base Sprites</h1>
+  <p><a href="index.html">&larr; Back to home</a></p>
+
+  <div class="controls">
+    <label><input type="radio" name="mode" value="bald"> Bald bases</label>
+    <label><input type="radio" name="mode" value="features" checked> With facial features</label>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <script src="render.js"></script>
+  <script>
+    const bases = [
+      { file: 'BlankBaldwoman_original.png', name: 'Original (male base)', note: 'Unmodified' },
+      { file: 'BlankBaldwoman_1.png', name: 'Variation 1', note: 'Slightly softer chin' },
+      { file: 'BlankBaldwoman_2.png', name: 'Variation 2', note: 'Rounder chin, narrower jaw' },
+      { file: 'BlankBaldwoman_3.png', name: 'Variation 3', note: 'Tapered chin, smaller face' },
+      { file: 'BlankBaldwoman32.png', name: 'Current default', note: 'Same as variation 3' }
+    ];
+
+    // Same face layered on every base so you can compare head shape.
+    const demoFace = {
+      hair: '',
+      topHairColor: '',
+      hairColor: 'darkbrown',
+      skinTone: 'light',
+      eyes: 'eyes_1center.png',
+      eyebrows: 'eyebrow_3.png',
+      nose: 'nose_1.png',
+      mouth: 'mouth_4.png',
+      facial: '',
+      accessories: '',
+      shoulders: '',
+      hat: '',
+      glasses: ''
+    };
+
+    const grid = document.getElementById('grid');
+
+    function renderBald() {
+      grid.innerHTML = '';
+      bases.forEach(b => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <img src="${b.file}?_=${Date.now()}" alt="${b.name}">
+          <div class="name">${b.name}</div>
+          <div class="note">${b.note}</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function renderWithFeatures() {
+      grid.innerHTML = '';
+      for (const b of bases) {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = b.name;
+
+        const note = document.createElement('div');
+        note.className = 'note';
+        note.textContent = b.note;
+
+        card.appendChild(canvas);
+        card.appendChild(name);
+        card.appendChild(note);
+        grid.appendChild(card);
+
+        try {
+          await drawFace(canvas, demoFace, null, false, b.file);
+        } catch (err) {
+          console.error(b.name, err);
+        }
+      }
+    }
+
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          if (radio.value === 'bald') renderBald();
+          else renderWithFeatures();
+        }
+      });
+    });
+
+    renderBald();
+  </script>
+</body>
+</html>

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Character Mixer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1, h2 { margin-top: 0; }
+    .main-section {
+      display: flex;
+      gap: 32px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+    .preview-box {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+    canvas#mainCanvas {
+      width: 288px;
+      height: 288px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #bfd4e8;
+      border-radius: 4px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+      flex: 1;
+      min-width: 280px;
+    }
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label { font-size: 0.85rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+    select {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #0f3460;
+      background: #16213e;
+      color: #eee;
+      min-width: 160px;
+      cursor: pointer;
+    }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 4px;
+      background: #e94560;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #ff6b81; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    .random-section { margin-top: 32px; }
+    .random-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .random-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .random-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .random-card {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    .random-card canvas {
+      width: 96px;
+      height: 96px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #bfd4e8;
+      border-radius: 4px;
+    }
+    .random-card .label {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+    .random-card .notes {
+      width: 100%;
+      margin-top: 8px;
+      padding: 6px;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      background: #16213e;
+      color: #eee;
+      font-size: 0.8rem;
+      resize: vertical;
+    }
+    .random-card .notes::placeholder {
+      color: #666;
+    }
+    .hint {
+      margin-top: 24px;
+      font-size: 0.85rem;
+      color: #888;
+    }
+    .error {
+      color: #e94560;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div style="margin-bottom: 16px;">
+    <a href="index.html" style="color: #aaa; text-decoration: none; margin-right: 16px;">&larr; Home</a>
+    <a href="index.html" style="color: #aaa; text-decoration: none; margin-right: 16px;">All Teams</a>
+    <a href="player-edit.html" style="color: #aaa; text-decoration: none;">Player Editor</a>
+  </div>
+  <h1>Character Mixer</h1>
+
+  <div class="main-section">
+    <div class="preview-box">
+      <!-- 288x288 = 32 * 9, blown-up preview -->
+      <canvas id="mainCanvas" width="288" height="288"></canvas>
+      <div style="margin-top: 8px; font-size: 0.85rem; color: #aaa;">Blown-up preview (9×)</div>
+    </div>
+
+    <div class="controls">
+      <div class="control">
+        <label for="hairSelect">Hair</label>
+        <select id="hairSelect"><option value="">None</option></select>
+      </div>
+      <div class="control">
+        <label for="hairColorSelect">Hair/Brow/Facial Color</label>
+        <select id="hairColorSelect">
+          <option value="">Original (magenta)</option>
+          <option value="black">Black</option>
+          <option value="darkbrown">Dark Brown</option>
+          <option value="brown">Brown</option>
+          <option value="lightbrown">Light Brown</option>
+          <option value="blonde">Blonde</option>
+          <option value="auburn">Auburn</option>
+          <option value="red">Red</option>
+          <option value="gray">Gray</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="skinToneSelect">Skin Tone</label>
+        <select id="skinToneSelect">
+          <option value="pale">Pale</option>
+          <option value="light" selected>Light Tan</option>
+          <option value="medium">Medium</option>
+          <option value="deep">Deep Brown</option>
+          <option value="chocolate">Chocolate</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="eyesSelect">Eyes</label>
+        <select id="eyesSelect"><option value="">None</option></select>
+      </div>
+      <div class="control">
+        <label for="eyebrowsSelect">Eyebrows</label>
+        <select id="eyebrowsSelect"><option value="">None</option></select>
+      </div>
+      <div class="control">
+        <label for="noseSelect">Nose</label>
+        <select id="noseSelect"><option value="">None</option></select>
+      </div>
+      <div class="control">
+        <label for="mouthSelect">Mouth</label>
+        <select id="mouthSelect"><option value="">None</option></select>
+      </div>
+      <div class="control">
+        <label for="accessoriesSelect">Accessory</label>
+        <select id="accessoriesSelect"><option value="">None</option></select>
+      </div>
+      <button id="rerollBtn" disabled>Re-roll 5</button>
+    </div>
+  </div>
+
+  <div class="random-section">
+    <h2>Randomized</h2>
+    <div class="random-grid" id="randomGrid"></div>
+  </div>
+
+  <div class="hint">
+    Tip: After adding your own images to the folders, run <code>python3 generate_manifest.py</code> to update the dropdowns.<br>
+    If images fail to load from <code>file://</code>, serve locally with <code>python3 -m http.server 8000</code>.
+  </div>
+
+  <script>
+    window.BASE_SPRITE = 'BlankBaldwoman32.png';
+    document.write('<script src="render.js?_=' + Date.now() + '"><\/script>');
+  </script>
+  <script>
+    const CATEGORY_FOLDERS = {
+      hair: 'hair',
+      eyes: 'eyes',
+      eyebrows: 'eyebrows',
+      nose: 'nose',
+      mouth: 'mouth',
+      facial: 'facial',
+      accessories: 'accessories'
+    };
+
+    let parts = {};
+
+    function niceName(filename) {
+      return filename
+        .replace(/\.(png|jpg|jpeg|gif|webp)$/i, '')
+        .replace(/^(hair_|eyes_|eyebrows_|nose_|mouth_|facial_|accessories_)/, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    async function loadManifest() {
+      const response = await fetch('manifest.json?_=' + Date.now());
+      if (!response.ok) throw new Error('Could not load manifest.json');
+      parts = await response.json();
+    }
+
+    let weights = {};
+
+    async function loadWeights() {
+      try {
+        const response = await fetch('weights.json?_=' + Date.now());
+        if (!response.ok) throw new Error('not found');
+        weights = await response.json();
+      } catch (err) {
+        console.warn('weights.json not found or unreadable, falling back to uniform random for all categories', err);
+        weights = {};
+      }
+    }
+
+    function populateSelect(id, files) {
+      const select = document.getElementById(id);
+      // keep the "None" option, remove any file options
+      select.innerHTML = '<option value="">None</option>';
+      files.forEach(file => {
+        const option = document.createElement('option');
+        option.value = file;
+        option.textContent = niceName(file);
+        select.appendChild(option);
+      });
+    }
+
+    function getSelection() {
+      return {
+        hair: document.getElementById('hairSelect').value,
+        hairColor: document.getElementById('hairColorSelect').value,
+        skinTone: document.getElementById('skinToneSelect').value,
+        eyes: document.getElementById('eyesSelect').value,
+        eyebrows: document.getElementById('eyebrowsSelect').value,
+        nose: document.getElementById('noseSelect').value,
+        mouth: document.getElementById('mouthSelect').value,
+        facial: '',
+        accessories: document.getElementById('accessoriesSelect').value
+      };
+    }
+
+    // The character mixer has no team context, so it never passes a
+    // jersey color - drawFace (render.js) leaves the shirt at its default
+    // navy in that case.
+    async function drawToCanvas(canvasId, selection) {
+      const canvas = document.getElementById(canvasId);
+      await drawFace(canvas, selection, null);
+    }
+
+    function updateMain() {
+      drawToCanvas('mainCanvas', getSelection()).catch(err => console.error(err));
+    }
+
+    function pick(arr) {
+      return arr.length ? arr[Math.floor(Math.random() * arr.length)] : '';
+    }
+
+    // Weighted pick over a set of candidates. `table` is a {key: weight}
+    // object from weights.json (e.g. weights.skin_tone). `keyFn` maps a
+    // candidate to its lookup key in the table - defaults to the candidate
+    // itself (fine for logical names like "pale"), but filename-backed
+    // categories (hair, facial, etc.) pass one that strips ".png" and maps
+    // '' to "none". Any candidate missing from the table, or a missing/empty
+    // table altogether, falls back to a uniform pick - so this degrades
+    // gracefully for categories we haven't assigned weights to yet.
+    function weightedPick(table, candidates, keyFn) {
+      if (!table) return pick(candidates);
+      const key = keyFn || (c => c);
+      const entries = candidates
+        .map(c => {
+          const w = table[key(c)];
+          return [c, w === undefined ? 1.0 : w];
+        })
+        .filter(([, w]) => typeof w === 'number' && w > 0);
+      if (entries.length === 0) return pick(candidates);
+
+      const total = entries.reduce((sum, [, w]) => sum + w, 0);
+      let roll = Math.random() * total;
+      for (const [c, w] of entries) {
+        roll -= w;
+        if (roll <= 0) return c;
+      }
+      return entries[entries.length - 1][0];
+    }
+
+    // Maps a filename (or '' for "none") to its weights.toml lookup key.
+    function fileKey(filename) {
+      return filename ? filename.replace(/\.png$/i, '') : 'none';
+    }
+
+    function randomSelection() {
+      // skin tone is rolled first; hair color is conditioned on it via
+      // weights.hair_color[skinTone] (falls back to uniform if that
+      // sub-table is missing).
+      const skinTone = weightedPick(weights.skin_tone, Object.keys(SKIN_TONES));
+      const hairColorTable = weights.hair_color ? weights.hair_color[skinTone] : null;
+      // '' (no hair file) is a valid candidate - a weighted "none"/bald outcome.
+      const hairCandidates = ['', ...(parts.hair || [])];
+
+      // Natural color - this is what eyebrows/facial always use.
+      const hairColor = weightedPick(hairColorTable, Object.keys(HAIR_COLORS));
+      // Rare neon dye job, top-of-head hair only. "natural" (the overwhelming
+      // majority) just means "keep using the natural hairColor above".
+      const neonRoll = weightedPick(weights.neon_hair, ['natural', ...Object.keys(NEON_COLORS)]);
+      const topHairColor = neonRoll === 'natural' ? hairColor : neonRoll;
+
+      return {
+        hair: weightedPick(weights.hair, hairCandidates, fileKey),
+        hairColor,
+        topHairColor,
+        skinTone,
+        eyes: weightedPick(weights.eyes, parts.eyes || [], fileKey),
+        eyebrows: weightedPick(weights.eyebrows, ['', ...(parts.eyebrows || [])], fileKey),
+        nose: weightedPick(weights.nose, parts.nose || [], fileKey),
+        mouth: weightedPick(weights.mouth, parts.mouth || [], fileKey),
+        facial: '',
+        accessories: weightedPick(weights.accessories, ['', ...(parts.accessories || [])], fileKey)
+      };
+    }
+
+    function renderRandomGrid() {
+      const grid = document.getElementById('randomGrid');
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 15; i++) {
+        const selection = randomSelection();
+        const card = document.createElement('div');
+        card.className = 'random-card';
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 96;
+        canvas.id = `randomCanvas${i}`;
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = `Version ${i + 1}`;
+
+        const notes = document.createElement('textarea');
+        notes.className = 'notes';
+        notes.rows = 2;
+        notes.placeholder = 'Notes...';
+
+        card.appendChild(canvas);
+        card.appendChild(label);
+        card.appendChild(notes);
+        grid.appendChild(card);
+
+        drawToCanvas(canvas.id, selection).catch(err => console.error(err));
+      }
+    }
+
+    async function init() {
+      try {
+        await loadManifest();
+        await loadWeights();
+
+        populateSelect('hairSelect', parts.hair || []);
+        populateSelect('eyesSelect', parts.eyes || []);
+        populateSelect('eyebrowsSelect', parts.eyebrows || []);
+        populateSelect('noseSelect', parts.nose || []);
+        populateSelect('mouthSelect', parts.mouth || []);
+        populateSelect('accessoriesSelect', parts.accessories || []);
+
+        ['hairSelect', 'hairColorSelect', 'skinToneSelect', 'eyesSelect', 'eyebrowsSelect', 'noseSelect', 'mouthSelect', 'accessoriesSelect']
+          .forEach(id => document.getElementById(id).addEventListener('change', updateMain));
+
+        document.getElementById('rerollBtn').disabled = false;
+        document.getElementById('rerollBtn').addEventListener('click', renderRandomGrid);
+
+        updateMain();
+        renderRandomGrid();
+      } catch (err) {
+        console.error(err);
+        const hint = document.querySelector('.hint');
+        const error = document.createElement('div');
+        error.className = 'error';
+        error.textContent = 'Error loading manifest.json. Run python3 generate_manifest.py first.';
+        hint.parentNode.insertBefore(error, hint);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
