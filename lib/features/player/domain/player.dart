@@ -13,9 +13,9 @@ enum Handedness { left, right }
 ///   chemistry, fatigue/readiness, morale, injury risk, development
 ///   trajectory — all depend on roster or simulation context, not just
 ///   this player alone.
-/// - Star-tier classification (5-star/4-star/etc., see `star_system.md`):
-///   it's a roster-legality concern, computed from [PlayerRatings.overall]
-///   once the roster system that enforces it exists.
+/// - Star-tier classification (5-star/4-star/etc.): it's a roster-legality
+///   concern, not a player attribute — see `StarTier.of` in the roster
+///   feature, which computes it from [PlayerRatings.overall] on demand.
 /// - Portrait appearance: the Flutter asset pipeline that would back it is
 ///   Phase 1.5 work (same reasoning as `Coach`).
 class Player {

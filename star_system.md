@@ -13,9 +13,12 @@ Designed for a **20-team league** with a standard 12-player active roster (240 t
 * **3-Star & Below (1–77 OVR):** Bench players, specialists, and developmental rookies (~130+ total in the league) filling out the remaining roster slots.
 
 ### Roster Configuration Options (12-Player Active Limit)
-Teams can choose between two distinct roster-building philosophies:
-* **Superstar-Heavy Configuration:** 2 (5-Star) + 3 (4-Star) + 7 (3-Star & Below) = 12
-* **Balanced Depth Configuration (Trade-Off):** If a franchise chooses to roster only **one** 5-star player instead of maxing out both slots, they receive a compensatory bonus allowing them to carry up to **five** 4-star players: 1 (5-Star) + 5 (4-Star) + 6 (3-Star & Below) = 12
+Rather than fixed recipes, roster construction is governed by two nested caps:
+* At most **2** players may be 5-Star.
+* At most **6** players total may be 4-Star-or-better (5-Star and 4-Star combined).
+* 3-Star & Below players are uncapped and fill whatever active roster slots remain, up to 12 total.
+
+This means a team with zero 5-Star players can carry up to six 4-Star players — the 4-Star cap doesn't shrink just because no 5-Star slots are used. Revised from an earlier two-fixed-configuration draft (2+3+7 or 1+5+6) because the nested-cap framing is simpler to reason about and produces the same spirit of constraint without hardcoding every valid distribution.
 
 ---
 

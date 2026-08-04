@@ -72,7 +72,7 @@ Superseded/folded into the full attribute architecture in decision 19 below — 
 
 ## 18. Roster star-rating system
 
-**Decision:** Replaces a salary cap with a structural star-rating system — see `star_system.md` for the full design. 1-99 OVR maps to stars: 5-star (90-99), 4-star (78-89), 3-star and below (1-77). A 12-player active roster is capped at 2 five-star + 3 four-star players, or a balanced-depth trade-off of 1 five-star + 5 four-star. Star limits lock only at the regular-season buzzer (mid-season moves are exempt), and rosters must be legal again before free agency and the draft — a mid-season breakout can temporarily overshoot the cap.
+**Decision:** Replaces a salary cap with a structural star-rating system — see `star_system.md` for the full design. 1-99 OVR maps to stars: 5-star (90-99), 4-star (78-89), 3-star and below (1-77). A 12-player active roster is governed by two nested caps rather than fixed recipes: at most 2 five-star players, and at most 6 players total who are four-star-or-better (five-star and four-star combined) — a team with zero five-stars can still carry up to six four-stars, since the four-star cap doesn't shrink when no five-star slots are used. Three-star-and-below players are uncapped and fill the rest of the 12. Star limits lock only at the regular-season buzzer (mid-season moves are exempt), and rosters must be legal again before free agency and the draft — a mid-season breakout can temporarily overshoot the cap.
 
 ## 19. Player attribute architecture
 
