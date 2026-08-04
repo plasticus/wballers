@@ -15,6 +15,7 @@ lib/
   app/                 app composition, theme, and shared preferences
   core/                cross-cutting contracts and utilities
     persistence/       local save abstractions and implementations
+    ratings/           shared 1-99 rating scale used by coaches and players
     widgets/            shared, feature-agnostic UI components
   features/            user-facing feature modules
     dashboard/
@@ -22,6 +23,8 @@ lib/
       domain/            Team, Conference, TeamColors, and the initial league
     coach/
       domain/            Coach, CoachStats
+    player/
+      domain/            Player, PlayerRatings, Position, Handedness
 ```
 
 Add feature modules as the game grows: `franchise_setup`, `roster`, `players`, `simulation`, `portraits`, and `game_day`. Keep their domain models and game rules free of Flutter widget imports.
