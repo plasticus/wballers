@@ -12,17 +12,20 @@ import 'package:womensbballmgr/features/franchise/presentation/team_roster_scree
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 
 Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
+  final roster = [...generateStartingRoster(1), ...?extraMembers];
   return Franchise(
     id: 'franchise-1',
     gmName: 'Taylor Reed',
     team: kInitialLeagueTeams.first,
     coach: const Coach(name: 'Jordan Ellis', stats: CoachStats.neutral),
-    roster: [...generateStartingRoster(1), ...?extraMembers],
+    roster: roster,
+    startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
   );
 }

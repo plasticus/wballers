@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
+import '../../roster/domain/starting_lineup.dart';
 import '../domain/franchise.dart';
 import '../persistence/franchise_json.dart';
 
@@ -13,10 +14,10 @@ const kCurrentFranchiseSaveId = 'current-franchise';
 
 const _franchiseSchemaVersion = 1;
 
-/// The coach's current franchise, if one has been created yet. `null`
-/// means no franchise exists (onboarding hasn't run). Loads from disk on
-/// first read; [createFranchise] both persists and updates this state, so
-/// nothing else needs to remember to save.
+/// The GM's current franchise, if one has been created yet. `null` means
+/// no franchise exists (onboarding hasn't run). Loads from disk on first
+/// read; [createFranchise] and [updateLineup] both persist and update this
+/// state, so nothing else needs to remember to save.
 class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   @override
   Future<Franchise?> build() async {
@@ -28,7 +29,23 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     return franchiseFromJson(envelope.payload);
   }
 
-  Future<void> createFranchise(Franchise franchise) async {
+  Future<void> createFranchise(Franchise franchise) => _persist(franchise);
+
+  /// Replaces the starting lineup on the current franchise and persists
+  /// it. Does nothing if there's no current franchise -- the lineup editor
+  /// shouldn't be reachable in that state anyway.
+  ///
+  /// Awaits [future] rather than reading [state] directly: [state] can
+  /// still be `AsyncLoading` (value `null`) if [build] hasn't resolved yet,
+  /// which would make this silently no-op even though a franchise really
+  /// is on its way. Awaiting guarantees the load has actually finished.
+  Future<void> updateLineup(StartingLineup newLineup) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    await _persist(franchise.copyWithLineup(newLineup));
+  }
+
+  Future<void> _persist(Franchise franchise) async {
     final repository = ref.read(saveRepositoryProvider);
     final envelope = SaveEnvelope(
       schemaVersion: _franchiseSchemaVersion,

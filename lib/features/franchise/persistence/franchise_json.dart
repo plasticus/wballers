@@ -1,6 +1,7 @@
 import '../../coach/persistence/coach_json.dart';
 import '../../league/persistence/team_json.dart';
 import '../../roster/persistence/roster_membership_json.dart';
+import '../../roster/persistence/starting_lineup_json.dart';
 import '../domain/franchise.dart';
 
 Map<String, dynamic> franchiseToJson(Franchise franchise) {
@@ -12,6 +13,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'roster': franchise.roster
         .map((membership) => rosterMembershipToJson(membership))
         .toList(),
+    'startingLineup': startingLineupToJson(franchise.startingLineup),
     'simulationSeed': franchise.simulationSeed,
   };
 }
@@ -25,6 +27,9 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     roster: (json['roster'] as List<dynamic>)
         .map((value) => rosterMembershipFromJson(value as Map<String, dynamic>))
         .toList(),
+    startingLineup: startingLineupFromJson(
+      json['startingLineup'] as Map<String, dynamic>,
+    ),
     simulationSeed: json['simulationSeed'] as int,
   );
 }

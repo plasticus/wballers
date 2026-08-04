@@ -7,11 +7,25 @@ import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
 import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _sampleFranchise() {
-  final starter = playerWithOverall(72, name: 'Riley Okafor');
+  final starter = playerWithOverall(72, id: 'p-starter', name: 'Riley Okafor');
+  final roster = [
+    RosterMembership(player: starter, status: RosterStatus.active),
+    RosterMembership(
+      player: playerWithOverall(
+        50,
+        id: 'p-bench',
+        name: 'Bench Player',
+        yearsOfService: 1,
+      ),
+      status: RosterStatus.developmental,
+    ),
+  ];
+
   return Franchise(
     id: 'franchise-1',
     gmName: 'Taylor Reed',
@@ -26,13 +40,10 @@ Franchise _sampleFranchise() {
         management: 50,
       ),
     ),
-    roster: [
-      RosterMembership(player: starter, status: RosterStatus.active),
-      RosterMembership(
-        player: playerWithOverall(50, name: 'Bench Player', yearsOfService: 1),
-        status: RosterStatus.developmental,
-      ),
-    ],
+    roster: roster,
+    startingLineup: const StartingLineup(
+      startersByPosition: {Position.pointGuard: 'p-starter'},
+    ),
     simulationSeed: 42,
   );
 }
@@ -55,12 +66,18 @@ void main() {
     expect(restored.coach.name, original.coach.name);
     expect(restored.coach.stats.overall, original.coach.stats.overall);
 
+    expect(
+      restored.startingLineup.startersByPosition,
+      original.startingLineup.startersByPosition,
+    );
+
     expect(restored.roster, hasLength(original.roster.length));
     for (var i = 0; i < original.roster.length; i++) {
       final originalMember = original.roster[i];
       final restoredMember = restored.roster[i];
 
       expect(restoredMember.status, originalMember.status);
+      expect(restoredMember.player.id, originalMember.player.id);
       expect(restoredMember.player.name, originalMember.player.name);
       expect(
         restoredMember.player.yearsOfService,
@@ -79,6 +96,7 @@ void main() {
 
   test('round-trips a player with secondary positions', () {
     final withSecondary = Player(
+      id: 'p-multi',
       name: 'Multi Position',
       age: 25,
       yearsOfService: 2,
@@ -97,6 +115,9 @@ void main() {
       roster: [
         RosterMembership(player: withSecondary, status: RosterStatus.active),
       ],
+      startingLineup: const StartingLineup(
+        startersByPosition: {Position.smallForward: 'p-multi'},
+      ),
       simulationSeed: 1,
     );
 
@@ -107,5 +128,9 @@ void main() {
       withSecondary.secondaryPositions,
     );
     expect(restored.roster.single.player.handedness, Handedness.left);
+    expect(
+      restored.startingLineup.startersByPosition[Position.smallForward],
+      'p-multi',
+    );
   });
 }

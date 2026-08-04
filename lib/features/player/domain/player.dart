@@ -26,6 +26,7 @@ enum Handedness { left, right }
 ///   them for a developmental slot is evaluated by the roster feature.
 class Player {
   Player({
+    required this.id,
     required this.name,
     required this.age,
     required this.yearsOfService,
@@ -41,6 +42,12 @@ class Player {
          !secondaryPositions.contains(primaryPosition),
          'secondaryPositions must not repeat primaryPosition',
        );
+
+  /// Stable identifier, independent of object identity or roster list
+  /// position -- both are lost across a save/reload, but a lineup slot
+  /// (`StartingLineup`, roster feature) needs to keep pointing at the same
+  /// player.
+  final String id;
 
   final String name;
   final int age;

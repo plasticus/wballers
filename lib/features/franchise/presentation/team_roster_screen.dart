@@ -11,9 +11,11 @@ import '../../roster/domain/star_tier.dart';
 import '../application/current_franchise_provider.dart';
 import '../domain/franchise.dart';
 import '../onboarding/onboarding_screen.dart';
+import 'lineup_editor_screen.dart';
 
-/// "Inspect a complete roster" -- the Team tab. Read-only for now; the
-/// lineup editor and player detail screen are separate, later work.
+/// "Inspect a complete roster" -- the Team tab. Read-only aside from the
+/// starting-lineup entry point; player comparison, search/filtering, and
+/// the player detail screen are separate, later work.
 class TeamRosterScreen extends ConsumerWidget {
   const TeamRosterScreen({super.key});
 
@@ -88,10 +90,24 @@ class _RosterView extends StatelessWidget {
         Text(franchise.team.name, style: theme.textTheme.headlineSmall),
         const SizedBox(height: AppSpacing.xs),
         Text('${franchise.team.location} · ${franchise.team.conference.name}'),
+        const SizedBox(height: AppSpacing.md),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => LineupEditorScreen(franchise: franchise),
+              ),
+            );
+          },
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Edit Starting Lineup'),
+        ),
         const SizedBox(height: AppSpacing.lg),
         _RosterSection(
           title: 'Active Roster (${active.length})',
           members: active,
+          starterIds: franchise.startingLineup.startersByPosition.values
+              .toSet(),
         ),
         if (developmental.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
@@ -113,10 +129,15 @@ class _RosterView extends StatelessWidget {
 }
 
 class _RosterSection extends StatelessWidget {
-  const _RosterSection({required this.title, required this.members});
+  const _RosterSection({
+    required this.title,
+    required this.members,
+    this.starterIds = const {},
+  });
 
   final String title;
   final List<RosterMembership> members;
+  final Set<String> starterIds;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +151,10 @@ class _RosterSection extends StatelessWidget {
           child: Column(
             children: [
               for (var i = 0; i < members.length; i++) ...[
-                _PlayerRow(membership: members[i]),
+                _PlayerRow(
+                  membership: members[i],
+                  isStarter: starterIds.contains(members[i].player.id),
+                ),
                 if (i != members.length - 1)
                   const Divider(height: AppSpacing.lg),
               ],
@@ -143,9 +167,10 @@ class _RosterSection extends StatelessWidget {
 }
 
 class _PlayerRow extends StatelessWidget {
-  const _PlayerRow({required this.membership});
+  const _PlayerRow({required this.membership, this.isStarter = false});
 
   final RosterMembership membership;
+  final bool isStarter;
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +192,25 @@ class _PlayerRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(player.name, style: theme.textTheme.bodyLarge),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        player.name,
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                    if (isStarter) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Icon(
+                        Icons.star,
+                        size: 16,
+                        color: theme.colorScheme.primary,
+                        semanticLabel: 'Starter',
+                      ),
+                    ],
+                  ],
+                ),
                 Text(
                   'Age ${player.age} · ${_starTierLabel(tier)}',
                   style: theme.textTheme.bodySmall,

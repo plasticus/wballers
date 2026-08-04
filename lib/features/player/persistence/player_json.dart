@@ -39,6 +39,7 @@ PlayerRatings playerRatingsFromJson(Map<String, dynamic> json) {
 
 Map<String, dynamic> playerToJson(Player player) {
   return {
+    'id': player.id,
     'name': player.name,
     'age': player.age,
     'yearsOfService': player.yearsOfService,
@@ -55,6 +56,7 @@ Map<String, dynamic> playerToJson(Player player) {
 
 Player playerFromJson(Map<String, dynamic> json) {
   return Player(
+    id: json['id'] as String,
     name: json['name'] as String,
     age: json['age'] as int,
     yearsOfService: json['yearsOfService'] as int,

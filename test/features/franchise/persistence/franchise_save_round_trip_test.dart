@@ -10,6 +10,7 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
 import '../../roster/domain/roster_test_helpers.dart';
 
@@ -34,22 +35,24 @@ void main() {
 
   test('a franchise survives being wrapped in a SaveEnvelope, written, and '
       're-read as a brand new repository instance', () async {
+    final roster = [
+      for (var i = 0; i < 12; i++)
+        RosterMembership(
+          player: playerWithOverall(50 + i, name: 'Player $i'),
+          status: RosterStatus.active,
+        ),
+      RosterMembership(
+        player: playerWithOverall(45, name: 'Prospect', yearsOfService: 0),
+        status: RosterStatus.developmental,
+      ),
+    ];
     final franchise = Franchise(
       id: 'franchise-1',
       gmName: 'Taylor Reed',
       team: kInitialLeagueTeams.first,
       coach: const Coach(name: 'Jordan Ellis', stats: CoachStats.neutral),
-      roster: [
-        for (var i = 0; i < 12; i++)
-          RosterMembership(
-            player: playerWithOverall(50 + i, name: 'Player $i'),
-            status: RosterStatus.active,
-          ),
-        RosterMembership(
-          player: playerWithOverall(45, name: 'Prospect', yearsOfService: 0),
-          status: RosterStatus.developmental,
-        ),
-      ],
+      roster: roster,
+      startingLineup: StartingLineup.bestAvailable(roster),
       simulationSeed: 12345,
     );
 

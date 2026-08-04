@@ -21,6 +21,7 @@ const _ratings = PlayerRatings(
 void main() {
   test('stores identity fields and defaults to no secondary positions', () {
     final player = Player(
+      id: 'p1',
       name: 'Riley Okafor',
       age: 24,
       yearsOfService: 2,
@@ -38,6 +39,7 @@ void main() {
 
   test('allows secondary positions distinct from the primary', () {
     final player = Player(
+      id: 'p1',
       name: 'Riley Okafor',
       age: 24,
       yearsOfService: 2,
@@ -55,6 +57,7 @@ void main() {
   test('rejects a secondary position that repeats the primary', () {
     expect(
       () => Player(
+        id: 'p1',
         name: 'Riley Okafor',
         age: 24,
         yearsOfService: 2,
@@ -72,6 +75,7 @@ void main() {
   test('rejects a non-positive age', () {
     expect(
       () => Player(
+        id: 'p1',
         name: 'Riley Okafor',
         age: 0,
         yearsOfService: 2,
@@ -88,6 +92,7 @@ void main() {
   test('rejects a negative yearsOfService', () {
     expect(
       () => Player(
+        id: 'p1',
         name: 'Riley Okafor',
         age: 24,
         yearsOfService: -1,

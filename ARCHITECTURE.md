@@ -32,15 +32,15 @@ lib/
       persistence/       player_json.dart
       generation/        generatePlayer -- seeded, deterministic
     roster/
-      domain/            StarTier, RosterStatus, RosterMembership, RosterLegality
-      persistence/       roster_membership_json.dart
+      domain/            StarTier, RosterStatus, RosterMembership, RosterLegality, StartingLineup, LineupLegality
+      persistence/       roster_membership_json.dart, starting_lineup_json.dart
       generation/        generateStartingRoster -- seeded, deterministic
     franchise/
       domain/            Franchise (save-game root), franchise_legality.dart
       persistence/       franchise_json.dart -- goes through SaveEnvelope/SaveRepository
-      application/       currentFranchiseProvider (Riverpod) -- load/create/persist
+      application/       currentFranchiseProvider (Riverpod) -- load/create/persist/updateLineup
       onboarding/        OnboardingScreen, createExpansionFranchise
-      presentation/       TeamRosterScreen -- the Team tab, read-only roster view
+      presentation/       TeamRosterScreen (Team tab), LineupEditorScreen
 ```
 
 Each feature with a `persistence/` subfolder owns manual `toJson`/`fromJson` functions for its own domain types (no codegen yet); a composing feature imports the pieces it needs rather than duplicating them. `franchise_json.dart` is the one that actually round-trips through `SaveEnvelope`.

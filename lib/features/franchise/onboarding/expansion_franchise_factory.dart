@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
+import '../../roster/domain/starting_lineup.dart';
 import '../../roster/generation/starting_roster_generator.dart';
 import '../domain/franchise.dart';
 
@@ -78,12 +79,15 @@ Franchise createExpansionFranchise({
     identityNote: 'A new franchise chasing its first banner.',
   );
 
+  final roster = generateStartingRoster(simulationSeed + 1);
+
   return Franchise(
     id: 'franchise-$simulationSeed',
     gmName: gmName,
     team: team,
     coach: generateCoach(Random(simulationSeed)),
-    roster: generateStartingRoster(simulationSeed + 1),
+    roster: roster,
+    startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: simulationSeed,
   );
 }

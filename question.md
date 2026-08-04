@@ -115,3 +115,15 @@ This actually resolves a latent inconsistency rather than creating new scope: `C
 Name pools moved from the player feature to `core/generation/name_pools.dart` since coach generation needed them too. `simulationSeed + 1` is used for roster generation (coach generation uses `simulationSeed` directly) so the two generated-random streams don't correlate just because they share a starting seed.
 
 Downstream implication for Phase 1.5 portraits, not resolved now: the GM presumably wants their own customizable persona/portrait distinct from the coach's `isCoach` portrait — worth revisiting when portraits are actually built.
+
+## 25. Starting lineup: one player per position, GM-editable
+
+**Decision:** `StartingLineup` (roster feature) is a `Map<Position, String playerId>` — one starter per position. A player fills a slot if it's their primary position or one of their secondary positions (`StartingLineup.isEligible`), so a combo guard can start at PG or SG.
+
+Default at franchise creation: `StartingLineup.bestAvailable` picks the highest-`overall` eligible active player per position, processed in `Position.values` order with each pick excluded from later positions so the default itself can never double-book a player. Not a global optimum, just a reasonable starting point — the GM is expected to adjust it.
+
+`evaluateLineupLegality` checks three independent rules (all positions filled, no player in two slots, every starter active and eligible for their slot) and exposes which one failed, not just pass/fail — same pattern as `RosterLegality`. `LineupEditorScreen` uses this to disable Save with a specific message rather than silently blocking or allowing an inconsistent state; it doesn't try to prevent an illegal pick at the dropdown level (e.g. a combo player selected for two slots), since making every position's dropdown reactive to every other position's current pick is more complexity than the problem needs when a save-time check with a clear message does the same job.
+
+This closes Phase 1's exit criteria: create, inspect, edit a legal lineup, and resume are all now real, working, tested end-to-end.
+
+Prerequisite fix along the way: `Player` had no stable identifier before this. Lineup slots need to keep pointing at the same player across a save/reload, where object identity and list position are both lost — so `Player.id` was added (generated from the same seeded `Random` stream as everything else, practically unique within one franchise's roster, not globally).

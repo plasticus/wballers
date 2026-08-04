@@ -6,6 +6,7 @@ import 'package:womensbballmgr/features/franchise/domain/franchise_legality.dart
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
 import '../../roster/domain/roster_test_helpers.dart';
 
@@ -16,6 +17,7 @@ Franchise _franchiseWithRoster(List<RosterMembership> roster) {
     team: kInitialLeagueTeams.first,
     coach: const Coach(name: 'Test Coach', stats: CoachStats.neutral),
     roster: roster,
+    startingLineup: const StartingLineup(startersByPosition: {}),
     simulationSeed: 1,
   );
 }

@@ -1,10 +1,11 @@
 import '../../coach/domain/coach.dart';
 import '../../league/domain/team.dart';
 import '../../roster/domain/roster_membership.dart';
+import '../../roster/domain/starting_lineup.dart';
 
 /// The player's save-game: their General Manager persona, their club, its
-/// hired coach, and its roster. This is the save-game root —
-/// `franchise_json.dart` is what actually goes through
+/// hired coach, its roster, and its starting lineup. This is the save-game
+/// root — `franchise_json.dart` is what actually goes through
 /// `SaveEnvelope`/`SaveRepository`.
 ///
 /// The player is the GM, not [coach] — see the note on [Coach]. [team] is
@@ -15,6 +16,7 @@ import '../../roster/domain/roster_membership.dart';
 /// not to Franchise itself.
 ///
 /// Roster legality isn't enforced here — see `evaluateFranchiseLegality`.
+/// Lineup legality isn't enforced here either — see `evaluateLineupLegality`.
 class Franchise {
   const Franchise({
     required this.id,
@@ -22,6 +24,7 @@ class Franchise {
     required this.team,
     required this.coach,
     required this.roster,
+    required this.startingLineup,
     required this.simulationSeed,
   });
 
@@ -35,9 +38,24 @@ class Franchise {
   final Team team;
   final Coach coach;
   final List<RosterMembership> roster;
+  final StartingLineup startingLineup;
 
   /// Seeds every deterministic random source this franchise's simulation
   /// uses — same seed plus same saved state must reproduce the same
   /// results.
   final int simulationSeed;
+
+  /// Returns a copy with [startingLineup] replaced -- the only field the
+  /// lineup editor needs to change.
+  Franchise copyWithLineup(StartingLineup newLineup) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      startingLineup: newLineup,
+      simulationSeed: simulationSeed,
+    );
+  }
 }

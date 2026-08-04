@@ -206,8 +206,12 @@ Player generatePlayer(
   final firstName = kFirstNames[random.nextInt(kFirstNames.length)];
   final lastName = kLastNames[random.nextInt(kLastNames.length)];
   final hometown = kHometowns[random.nextInt(kHometowns.length)];
+  // Practically-unique within one franchise's roster, not globally --
+  // that's all a lineup slot reference needs.
+  final id = random.nextInt(0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
 
   return Player(
+    id: id,
     name: '$firstName $lastName',
     age: age,
     yearsOfService: yearsOfService,
