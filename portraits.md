@@ -6,6 +6,10 @@ Portraits are a core customization feature, not decoration. Every fictional athl
 
 The existing artwork is the source set for the first release. It is all 32×32 transparent PNG pixel art, created for compositing without smoothing.
 
+## Provenance and license
+
+Every portrait sprite (base sprite, hair, eyes, eyebrows, nose, mouth, accessories, shoulders, hats, glasses) is original artwork hand-drawn by the developer in LibreSprite. No third-party or stock art is used, so there are no external licensing obligations to track.
+
 ## Asset audit
 
 | Asset group | Count | Used by | Notes |

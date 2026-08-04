@@ -27,12 +27,11 @@ The game works completely offline after installation. It has no accounts, cloud 
 - Set up feature modules, routing, state management, repositories, domain models, dependency injection, formatting, static analysis, and tests. Pick and document one approach.
 - Establish design foundations: color, typography, spacing, dark mode, accessibility rules, loading/empty/error states, and reusable components.
 - Implement local persistence, backup/export considerations, and versioned save-game migrations.
-- Create an ad service boundary with reserved banner placements on the dashboard and gameplay screens. Use test ads in development.
+- Reserve simple placeholder banner space on screens as they're designed, starting with the dashboard. No ad SDK integration yet — see Phase 5 for the real ad service boundary.
 - Audit and catalog the current portrait assets and manifest. Define a Flutter asset pipeline and licensing record; the initial migration specification lives in `portraits.md`.
 - Define the initial 20-team Atlantic/Pacific league template and rules for original names, colors, and branding.
 - Define 100 fake universities from which players could be drafted
 - Set up CI for formatting, static analysis, unit tests, and Android builds.
-- Add the operational basics: privacy policy, terms, support contact, and Play Store identifiers. Account deletion flows are unnecessary because the game has no accounts.
 
 ### Exit criteria
 
@@ -131,16 +130,19 @@ The game works completely offline after installation. It has no accounts, cloud 
 - Expand trades and add contracts, salary cap/budget, free agency, waivers, and staff/coaches as appropriate.
 - Add training plans, facilities, chemistry, player goals, story events, rivalries, branding, uniforms, and arenas.
 - Add historical records, Hall of Fame, achievements, and challenge scenarios.
+- Add a settings screen: light/dark theme, selectable court color themes, and adjustable text size for players who need larger text.
 
 ## Phase 5 — Launch and iteration
 
 **Goal:** Release a reliable offline Android game, learn from solo players, and prepare web support.
 
+- Integrate the real AdMob SDK behind an `AdService` boundary, using test ad units in development and production ad unit IDs at release, on the dashboard and gameplay screens' reserved placements.
 - Closed alpha and staged Android beta with structured feedback.
 - Privacy-conscious, optional analytics only if they preserve the offline product promise.
 - Measure onboarding completion, first lineup change, first game/season completion, crashes, and simulation abandonment.
 - Accessibility audit: scalable text, screen-reader labels, color-safe indicators, motion reduction, and offline behavior.
 - Performance and battery profiling across supported Android devices.
+- Operational basics: privacy policy, terms, support contact, and Play Store identifiers. Account deletion flows are unnecessary because the game has no accounts.
 - Play Store listing, screenshots/video, support documentation, release checklist, and post-launch improvement cadence.
 - Assess and build the web release once the Android experience is stable.
 
