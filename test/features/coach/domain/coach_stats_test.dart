@@ -27,21 +27,45 @@ void main() {
 
   test('overall rounds to the nearest int', () {
     const stats = CoachStats(
-      offense: 100,
-      defense: 100,
-      development: 100,
-      motivation: 100,
+      offense: 99,
+      defense: 99,
+      development: 99,
+      motivation: 99,
+      management: 98,
+    );
+
+    // 494 / 5 = 98.8 -> 99
+    expect(stats.overall, 99);
+  });
+
+  test('accepts the minimum rating of 1 on every stat', () {
+    const stats = CoachStats(
+      offense: 1,
+      defense: 1,
+      development: 1,
+      motivation: 1,
+      management: 1,
+    );
+
+    expect(stats.overall, 1);
+  });
+
+  test('accepts the maximum rating of 99 on every stat', () {
+    const stats = CoachStats(
+      offense: 99,
+      defense: 99,
+      development: 99,
+      motivation: 99,
       management: 99,
     );
 
-    // 499 / 5 = 99.8 -> 100
-    expect(stats.overall, 100);
+    expect(stats.overall, 99);
   });
 
-  test('rejects a stat below 0', () {
+  test('rejects a stat of 0', () {
     expect(
       () => CoachStats(
-        offense: -1,
+        offense: 0,
         defense: 50,
         development: 50,
         motivation: 50,
@@ -51,14 +75,14 @@ void main() {
     );
   });
 
-  test('rejects a stat above 100', () {
+  test('rejects a stat of 100', () {
     expect(
       () => CoachStats(
         offense: 50,
         defense: 50,
         development: 50,
         motivation: 50,
-        management: 101,
+        management: 100,
       ),
       throwsA(isA<AssertionError>()),
     );

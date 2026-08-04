@@ -59,3 +59,11 @@
 ## 15. Coach statistics
 
 **Decision:** Coaches carry a small stat block, deliberately much smaller than player ratings: Offense, Defense, Development, Motivation, and Management. Offense/Defense affect in-game tactical calls (Phase 3), Development affects player growth (Phase 2), Motivation affects morale/chemistry (Phase 2) and close-game resilience (Phase 3), and Management affects trade/draft shrewdness (Phase 2). Defined in Phase 1 alongside player identity, matching how player ratings are defined before their systems exist.
+
+## 16. Attribute rating scale
+
+**Decision:** Every coach and player numeric rating uses a shared 1-99 scale. 0 and 100 are deliberately excluded — a rating is never "nothing" or "perfect." Implemented once as `kMinRating`/`kMaxRating` in `lib/core/ratings/rating_scale.dart` so coach stats and (later) player ratings stay on the same scale without duplicating the bounds.
+
+## 17. Player shooting ratings
+
+**Decision:** Shooting splits into two ratings, not three: **Inside** (layups, close-range shots at the rim) and **Outside** (one combined rating spanning mid-range through three-point shooting). There is no separate Finishing rating — Inside scoring already covers what that was meant to capture, so it was dropped as redundant rather than kept alongside it.

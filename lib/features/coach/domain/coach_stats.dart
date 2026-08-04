@@ -1,6 +1,9 @@
+import '../../../core/ratings/rating_scale.dart';
+
 /// A coach's stat block — deliberately much smaller than player ratings
-/// (see `question.md` decision 15). Each stat is 0-100 and feeds a specific
-/// later-phase system rather than being a general-purpose rating:
+/// (see `question.md` decision 15). Each stat is on the shared 1-99 rating
+/// scale (decision 16) and feeds a specific later-phase system rather than
+/// being a general-purpose rating:
 ///
 /// - [offense] / [defense]: quality of in-game tactical calls (Phase 3
 ///   quarter-break/timeout choices).
@@ -16,14 +19,11 @@ class CoachStats {
     required this.development,
     required this.motivation,
     required this.management,
-  }) : assert(offense >= 0 && offense <= 100, 'offense must be 0-100'),
-       assert(defense >= 0 && defense <= 100, 'defense must be 0-100'),
-       assert(
-         development >= 0 && development <= 100,
-         'development must be 0-100',
-       ),
-       assert(motivation >= 0 && motivation <= 100, 'motivation must be 0-100'),
-       assert(management >= 0 && management <= 100, 'management must be 0-100');
+  }) : assert(offense >= kMinRating && offense <= kMaxRating),
+       assert(defense >= kMinRating && defense <= kMaxRating),
+       assert(development >= kMinRating && development <= kMaxRating),
+       assert(motivation >= kMinRating && motivation <= kMaxRating),
+       assert(management >= kMinRating && management <= kMaxRating);
 
   /// All stats at the midpoint — a neutral starting point before onboarding
   /// offers any real choice of coaching archetype.

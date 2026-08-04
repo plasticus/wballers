@@ -46,7 +46,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 ### Player system
 
 - Player identity: fictional name, age/experience, hometown, position(s), handedness, biography, personality/archetype, and status.
-- Basketball ratings: shooting by area, finishing, playmaking, ball handling, defense, rebounding, athleticism, stamina, discipline, and potential.
+- Basketball ratings, all on the shared 1-99 scale: **inside** (layups, close-range shots at the rim), **outside** (one combined rating spanning mid-range through three-point shooting), playmaking, ball handling, defense, rebounding, athleticism, stamina, discipline, and potential. No separate finishing rating — inside scoring already covers it.
 - Derived capabilities: overall, role fit, lineup chemistry, fatigue/readiness, morale, injury risk, and development trajectory.
 - Player detail screen with ratings, season statistics, portrait, role explanation, nickname, and earned cosmetics.
 - Seeded player generation and a curated initial pool. Each new franchise should receive a meaningfully different weak starting roster.
