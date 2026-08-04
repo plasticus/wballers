@@ -1,17 +1,21 @@
-# OS and editor metadata
-.DS_Store
-Thumbs.db
+# Flutter and Dart build artifacts
+.dart_tool/
+.packages
+build/
+
+# Android/Gradle local artifacts
+android/.gradle/
+android/local.properties
+
+# IDE metadata
 .idea/
-.vscode/
+*.iml
 
-# Python caches and local environments
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-venv/
+# Generated platform/plugin files
+.flutter-plugins
+.flutter-plugins-dependencies
 
-# Local configuration and logs
-.env
-.env.*
-*.log
+# Local environment and signing files
+*.jks
+*.keystore
+key.properties
