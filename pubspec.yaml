@@ -62,6 +62,8 @@ flutter:
 
   assets:
     - BlankBaldwoman32.png
+    - manifest.json
+    - weights.json
     - accessories/
     - eyebrows/
     - eyes/
