@@ -52,37 +52,11 @@ void main() {
     expect(lowPotential.overall, highPotential.overall);
   });
 
-  test('reboundingRating combines strength with the higher of inside scoring '
-      'or interior defense', () {
-    final scoringBig = _ratingsWith(
-      strength: 80,
-      insideScoring: 90,
-      interiorDefense: 40,
-    );
-    // (80 + max(90, 40)) / 2 = 85
-    expect(scoringBig.reboundingRating, 85);
-
-    final defensiveBig = _ratingsWith(
-      strength: 80,
-      insideScoring: 40,
-      interiorDefense: 90,
-    );
-    // (80 + max(40, 90)) / 2 = 85
-    expect(defensiveBig.reboundingRating, 85);
-  });
-
-  test('reboundingRating is excluded from overall', () {
-    // A huge rebounding rating (via strength + interiorDefense) shouldn't
-    // move overall on its own if the other ten stats stay put.
+  test('overall reflects a change to any stored rating', () {
     final baseline = _ratingsWith();
-    final strongRebounder = _ratingsWith(strength: 99, interiorDefense: 99);
+    final strongInside = _ratingsWith(strength: 99, interiorDefense: 99);
 
-    expect(
-      strongRebounder.overall,
-      greaterThan(baseline.overall),
-      reason: 'strength and interiorDefense are themselves in the average',
-    );
-    expect(strongRebounder.reboundingRating, 99);
+    expect(strongInside.overall, greaterThan(baseline.overall));
   });
 
   test('rejects a rating of 0', () {

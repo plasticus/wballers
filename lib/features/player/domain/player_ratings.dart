@@ -1,11 +1,15 @@
-import 'dart:math';
-
 import '../../../core/ratings/rating_scale.dart';
 
 /// A player's basketball ratings on the shared 1-99 scale (`question.md`
 /// decision 16), following the "Final Stat Architecture" in
 /// `star_system.md`: four physical, four offensive, and four defensive
 /// attributes, plus [potential] as a separate ceiling rating.
+///
+/// There's no stored or derived rebounding rating here. Rebounding isn't
+/// special — it's the same universal Physical + Skill/Defensive formula
+/// every other in-game action uses (offensive rebound: [strength] +
+/// [insideScoring]; defensive rebound: [strength] + [interiorDefense]).
+/// That check happens at simulation time in Phase 3's engine, not here.
 class PlayerRatings {
   const PlayerRatings({
     // Physical
@@ -61,24 +65,9 @@ class PlayerRatings {
   /// how good they are right now. Excluded from [overall].
   final int potential;
 
-  /// Derived, not stored — see `star_system.md`'s note on rebounding.
-  /// Combines [strength] with whichever of [insideScoring] or
-  /// [interiorDefense] is higher, so both scoring-oriented and
-  /// defense-oriented bigs can dominate the glass. The source doc says
-  /// "Strength with Inside Scoring or Defense" without specifying exactly
-  /// how to combine them — this averages the two so the result stays on
-  /// the same 1-99 scale as every stored rating. Flagged as an
-  /// interpretation, not a confirmed formula.
-  int get reboundingRating {
-    final scoringOrDefense = max(insideScoring, interiorDefense);
-    return ((strength + scoringOrDefense) / 2).round();
-  }
-
   /// Unweighted average of the twelve stored current-ability ratings.
-  /// [potential] is excluded (it's a ceiling, not current ability) and
-  /// [reboundingRating] is excluded (it's derived from stats already in
-  /// this average, so including it would double-count them). Position-aware
-  /// weighting is future work once role fit exists.
+  /// [potential] is excluded — it's a ceiling, not current ability.
+  /// Position-aware weighting is future work once role fit exists.
   int get overall {
     final sum =
         speed +
