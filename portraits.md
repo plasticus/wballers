@@ -157,6 +157,14 @@ The app UI should display the cached PNG for roster lists and use the live rende
 - Edited portraits immediately update and remain correct after save/reload.
 - Cached PNGs retain crisp pixel edges at supported display sizes.
 
+## Implementation status (question.md decision 28)
+
+Built: the domain models, seeded generation, the full `dart:ui` recoloring/compositing pipeline (pixel-for-pixel port of `render.js`), file-based PNG caching keyed on appearance version and jersey color, and display via `PortraitImage` (with the accessible fallback portrait) on `TeamRosterScreen`.
+
+Two departures from a literal reading of `weights.json`, both because this doc's own text overrides the source prototype's behavior: neon/special hair colors are never rolled at generation time (only via a future unlock system), and coach-only shoulders/hats/glasses are never auto-generated (`weights.json` has no weight tables for them at all -- pure customization).
+
+Still open: the portrait editor UI (skin tone/hair/etc. dropdowns, coach-only fields, unlock-gated special colors), wiring a portrait into any screen besides the roster list, and the achievement/nickname system that would actually grant a neon hair-color unlock.
+
 ## Future art work
 
 - Add more player hairstyles, accessories, face features, and diverse base sprites only after they follow the same 32×32 alignment and palette conventions.

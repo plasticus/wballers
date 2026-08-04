@@ -1,3 +1,4 @@
+import '../../portrait/persistence/portrait_appearance_json.dart';
 import '../domain/coach.dart';
 import '../domain/coach_stats.dart';
 
@@ -22,12 +23,23 @@ CoachStats coachStatsFromJson(Map<String, dynamic> json) {
 }
 
 Map<String, dynamic> coachToJson(Coach coach) {
-  return {'name': coach.name, 'stats': coachStatsToJson(coach.stats)};
+  return {
+    'name': coach.name,
+    'stats': coachStatsToJson(coach.stats),
+    'appearance': coach.appearance == null
+        ? null
+        : portraitAppearanceToJson(coach.appearance!),
+  };
 }
 
 Coach coachFromJson(Map<String, dynamic> json) {
   return Coach(
     name: json['name'] as String,
     stats: coachStatsFromJson(json['stats'] as Map<String, dynamic>),
+    appearance: json['appearance'] == null
+        ? null
+        : portraitAppearanceFromJson(
+            json['appearance'] as Map<String, dynamic>,
+          ),
   );
 }

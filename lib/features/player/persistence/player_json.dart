@@ -1,3 +1,4 @@
+import '../../portrait/persistence/portrait_appearance_json.dart';
 import '../domain/archetype.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
@@ -55,6 +56,9 @@ Map<String, dynamic> playerToJson(Player player) {
     'ratings': playerRatingsToJson(player.ratings),
     'archetype': player.archetype.name,
     'traits': player.traits.map((trait) => trait.name).toList(),
+    'appearance': player.appearance == null
+        ? null
+        : portraitAppearanceToJson(player.appearance!),
   };
 }
 
@@ -76,5 +80,10 @@ Player playerFromJson(Map<String, dynamic> json) {
     traits: (json['traits'] as List<dynamic>)
         .map((value) => Trait.values.byName(value as String))
         .toSet(),
+    appearance: json['appearance'] == null
+        ? null
+        : portraitAppearanceFromJson(
+            json['appearance'] as Map<String, dynamic>,
+          ),
   );
 }

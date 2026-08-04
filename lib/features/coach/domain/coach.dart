@@ -1,3 +1,4 @@
+import '../../portrait/domain/portrait_appearance.dart';
 import 'coach_stats.dart';
 
 /// A franchise's head coach — a hired NPC staff member, not the player.
@@ -6,14 +7,14 @@ import 'coach_stats.dart';
 /// who drives player development, per `CoachStats`. One per franchise for
 /// now, generated at onboarding (`generateCoach`) rather than player-named
 /// — hiring/firing a specific coach is future GM-decision work.
-///
-/// Portrait appearance isn't linked here yet: the portrait system (see
-/// `portraits.md`) already models coaches as a distinct entity, but the
-/// Flutter asset pipeline that would back a `portraitAppearance` field here
-/// is Phase 1.5 work.
 class Coach {
-  const Coach({required this.name, required this.stats});
+  const Coach({required this.name, required this.stats, this.appearance});
 
   final String name;
   final CoachStats stats;
+
+  /// Portrait source data (`portraits.md`), rendered with `isCoach: true`
+  /// (coach-only layers like hats/glasses/facial hair, no jersey recolor).
+  /// `null` falls back to a generic placeholder rather than an error state.
+  final PortraitAppearance? appearance;
 }

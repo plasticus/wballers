@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
+import '../../portrait/domain/portrait_weights.dart';
 import '../../roster/domain/starting_lineup.dart';
 import '../../roster/generation/starting_roster_generator.dart';
 import '../domain/franchise.dart';
@@ -63,12 +64,18 @@ String deriveTeamAbbreviation(String clubName) {
 /// that seed is deterministic. The coach and roster are generated from
 /// deliberately offset seeds derived from [simulationSeed] so their random
 /// streams don't correlate with each other.
+///
+/// [portraitWeights] is optional -- omit it (e.g. in tests) to skip
+/// portrait generation entirely, leaving every generated `Player`/`Coach`
+/// with `appearance: null`. The real onboarding flow awaits
+/// `portraitWeightsProvider` and passes the result in.
 Franchise createExpansionFranchise({
   required String gmName,
   required String clubName,
   required String homeCity,
   required Conference conference,
   required int simulationSeed,
+  PortraitWeights? portraitWeights,
 }) {
   final team = Team(
     abbreviation: deriveTeamAbbreviation(clubName),
@@ -79,13 +86,19 @@ Franchise createExpansionFranchise({
     identityNote: 'A new franchise chasing its first banner.',
   );
 
-  final roster = generateStartingRoster(simulationSeed + 1);
+  final roster = generateStartingRoster(
+    simulationSeed + 1,
+    portraitWeights: portraitWeights,
+  );
 
   return Franchise(
     id: 'franchise-$simulationSeed',
     gmName: gmName,
     team: team,
-    coach: generateCoach(Random(simulationSeed)),
+    coach: generateCoach(
+      Random(simulationSeed),
+      portraitWeights: portraitWeights,
+    ),
     roster: roster,
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: simulationSeed,

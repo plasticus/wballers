@@ -32,6 +32,12 @@ lib/
       domain/            Player, PlayerRatings, Position, Handedness, Archetype, Trait
       persistence/       player_json.dart
       generation/        generatePlayer, generateArchetype, generateTraits -- seeded, deterministic
+    portrait/
+      domain/            PortraitAppearance, PortraitManifest, PortraitWeights
+      persistence/       portrait_appearance_json.dart, portrait_catalog_loader.dart (loads manifest.json/weights.json as Flutter assets)
+      generation/        generatePortraitAppearance -- seeded, deterministic; never rolls neon hair (unlock-only)
+      rendering/         pixel_recolor.dart (pure pixel math), portrait_renderer.dart (dart:ui compositor), portrait_service.dart (cache-or-render orchestration)
+      presentation/      PortraitImage -- displays a rendered portrait or an accessible fallback
     roster/
       domain/            StarTier, RosterStatus, RosterMembership, RosterLegality, StartingLineup, LineupLegality
       persistence/       roster_membership_json.dart, starting_lineup_json.dart
@@ -60,7 +66,9 @@ Use Navigator 2.0 or a routing package when deep links and nested feature flows 
 
 `FileSaveRepository` (`lib/core/persistence/file_save_repository.dart`) is the current Android implementation, backed by `path_provider`'s application documents directory. Each save is one `<saveId>.json` file; writes go through a temp-file-then-rename so a crash mid-write can't corrupt a save. It's exposed to the app via `saveRepositoryProvider` (Riverpod) in `save_repository_provider.dart`. A web implementation (e.g. IndexedDB-backed) is deferred until the web build is prioritized.
 
-`SaveEnvelope` (`lib/core/persistence/save_envelope.dart`) wraps a feature's serialized payload with a `schemaVersion` before it's handed to `SaveRepository.writeSave`. Storage itself stays schema-agnostic; migrating a payload forward from an older `schemaVersion` is the responsibility of the feature that owns that schema (starting once a real franchise save schema exists in Phase 1) — store portrait appearance data as source data there too, and cache rendered portrait PNGs separately as rebuildable, non-authoritative files.
+`SaveEnvelope` (`lib/core/persistence/save_envelope.dart`) wraps a feature's serialized payload with a `schemaVersion` before it's handed to `SaveRepository.writeSave`. Storage itself stays schema-agnostic; migrating a payload forward from an older `schemaVersion` is the responsibility of the feature that owns that schema (starting once a real franchise save schema exists in Phase 1) — portrait appearance data goes through the same path as any other `Player`/`Coach` field, since `PortraitAppearance` is just source data.
+
+`PortraitCache` (`lib/core/persistence/portrait_cache.dart`) is the equivalent boundary for rendered portrait PNGs -- rebuildable, non-authoritative derived files, deliberately kept out of `SaveRepository`/`SaveEnvelope`. `FilePortraitCache` mirrors `FileSaveRepository`'s temp-file-then-rename pattern, at `saves/<saveId>/portraits/<key>.png`; the key encodes both the appearance version and jersey color so a trade or edit can't serve a stale cached image (`portraits.md`'s invalidation rules).
 
 ## Design foundations
 

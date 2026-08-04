@@ -3,6 +3,22 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/ratings/rating_scale.dart';
 import 'package:womensbballmgr/features/coach/generation/coach_generator.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
+
+final _portraitWeights = PortraitWeights(
+  skinTone: const {'medium': 1},
+  hairColorByTone: const {
+    'medium': {'black': 1},
+  },
+  hair: const {'hair_afro': 1},
+  neonHair: const {'natural': 1},
+  eyes: const {'eyes_1center': 1},
+  nose: const {'nose_1': 1},
+  mouth: const {'mouth_1': 1},
+  eyebrows: const {'eyebrow_1': 1},
+  facial: const {'facial_goat': 1},
+  accessories: const {'none': 1},
+);
 
 void main() {
   test('the same seed produces an identical coach', () {
@@ -50,4 +66,17 @@ void main() {
     }
     expect(sawVariance, isTrue);
   });
+
+  test('appearance stays null when portraitWeights is omitted', () {
+    expect(generateCoach(Random(9)).appearance, isNull);
+  });
+
+  test(
+    'appearance is generated with isCoach true when portraitWeights is given',
+    () {
+      final coach = generateCoach(Random(9), portraitWeights: _portraitWeights);
+      expect(coach.appearance, isNotNull);
+      expect(coach.appearance!.isCoach, isTrue);
+    },
+  );
 }

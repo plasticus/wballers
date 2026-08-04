@@ -1,7 +1,23 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+
+final _portraitWeights = PortraitWeights(
+  skinTone: const {'medium': 1},
+  hairColorByTone: const {
+    'medium': {'black': 1},
+  },
+  hair: const {'hair_afro': 1},
+  neonHair: const {'natural': 1},
+  eyes: const {'eyes_1center': 1},
+  nose: const {'nose_1': 1},
+  mouth: const {'mouth_1': 1},
+  eyebrows: const {'eyebrow_1': 1},
+  facial: const {'facial_goat': 1},
+  accessories: const {'none': 1},
+);
 
 void main() {
   group('deriveTeamAbbreviation', () {
@@ -80,6 +96,43 @@ void main() {
       expect(
         franchise.roster.where((m) => m.status == RosterStatus.active),
         hasLength(12),
+      );
+    });
+
+    test('leaves every appearance null when portraitWeights is omitted', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        simulationSeed: 1,
+      );
+
+      expect(franchise.coach.appearance, isNull);
+      expect(
+        franchise.roster.every((m) => m.player.appearance == null),
+        isTrue,
+      );
+    });
+
+    test('generates a coach and every roster player an appearance when '
+        'portraitWeights is given', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        simulationSeed: 1,
+        portraitWeights: _portraitWeights,
+      );
+
+      expect(franchise.coach.appearance, isNotNull);
+      expect(franchise.coach.appearance!.isCoach, isTrue);
+      expect(
+        franchise.roster.every(
+          (m) => m.player.appearance != null && !m.player.appearance!.isCoach,
+        ),
+        isTrue,
       );
     });
   });

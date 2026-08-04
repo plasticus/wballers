@@ -1,3 +1,4 @@
+import '../../portrait/domain/portrait_appearance.dart';
 import 'archetype.dart';
 import 'player_ratings.dart';
 import 'position.dart';
@@ -18,8 +19,6 @@ enum Handedness { left, right }
 /// - Star-tier classification (5-star/4-star/etc.): it's a roster-legality
 ///   concern, not a player attribute — see `StarTier.of` in the roster
 ///   feature, which computes it from [PlayerRatings.overall] on demand.
-/// - Portrait appearance: the Flutter asset pipeline that would back it is
-///   Phase 1.5 work (same reasoning as `Coach`).
 /// - Roster placement (active/developmental/reserve): a roster-membership
 ///   concern, not a player attribute — see `RosterStatus` in the roster
 ///   feature. [yearsOfService] lives here because it's intrinsic to the
@@ -40,6 +39,7 @@ class Player {
     required this.ratings,
     required this.archetype,
     this.traits = const {},
+    this.appearance,
   }) : assert(age > 0, 'age must be positive'),
        assert(yearsOfService >= 0, 'yearsOfService must not be negative'),
        assert(
@@ -91,4 +91,10 @@ class Player {
   /// (`traits.md`). Never contains both sides of an opposite pair (e.g.
   /// [Trait.leader] and [Trait.malcontent] together).
   final Set<Trait> traits;
+
+  /// Portrait source data (`portraits.md`); `null` means none has been
+  /// generated yet (e.g. `PortraitWeights` wasn't available at creation
+  /// time) -- the portrait UI falls back to a generic placeholder rather
+  /// than treating this as an error state.
+  final PortraitAppearance? appearance;
 }

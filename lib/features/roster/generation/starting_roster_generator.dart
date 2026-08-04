@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
+import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
 import '../domain/roster_status.dart';
 
@@ -35,8 +36,12 @@ const _startingRosterQualitySpread = 14;
 
 /// Generates a new expansion franchise's starting active roster.
 /// Deterministic: the same [seed] always produces the same 12 players in
-/// the same order.
-List<RosterMembership> generateStartingRoster(int seed) {
+/// the same order. [portraitWeights] is optional and threads straight
+/// through to `generatePlayer` -- see its doc comment.
+List<RosterMembership> generateStartingRoster(
+  int seed, {
+  PortraitWeights? portraitWeights,
+}) {
   final random = Random(seed);
 
   return [
@@ -47,6 +52,7 @@ List<RosterMembership> generateStartingRoster(int seed) {
           primaryPosition: position,
           qualityCenter: _startingRosterQualityCenter,
           qualitySpread: _startingRosterQualitySpread,
+          portraitWeights: portraitWeights,
         ),
         status: RosterStatus.active,
       ),

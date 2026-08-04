@@ -8,6 +8,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../league/domain/initial_league.dart';
 import '../../league/domain/team.dart';
 import '../../league/team_row.dart';
+import '../../portrait/persistence/portrait_catalog_loader.dart';
 import '../application/current_franchise_provider.dart';
 import 'expansion_franchise_factory.dart';
 
@@ -63,12 +64,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // The one place real (non-seeded) randomness enters the system --
     // everything the seed drives from here on is deterministic.
     final simulationSeed = Random().nextInt(1 << 31);
+    final portraitWeights = await ref.read(portraitWeightsProvider.future);
     final franchise = createExpansionFranchise(
       gmName: _gmNameController.text.trim(),
       clubName: _clubNameController.text.trim(),
       homeCity: _homeCityController.text.trim(),
       conference: _conference,
       simulationSeed: simulationSeed,
+      portraitWeights: portraitWeights,
     );
 
     await ref

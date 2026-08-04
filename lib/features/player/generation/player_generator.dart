@@ -2,6 +2,8 @@ import 'dart:math';
 
 import '../../../core/generation/name_pools.dart';
 import '../../../core/ratings/rating_scale.dart';
+import '../../portrait/domain/portrait_weights.dart';
+import '../../portrait/generation/portrait_generator.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
 import 'archetype_generator.dart';
@@ -131,11 +133,18 @@ int _generateStat(Random random, int qualityCenter, int spread, int bias) {
 /// center. [potential] gets its own wider, upward-skewed jitter so even a
 /// generated player with modest current ability can turn out to be a
 /// hidden gem.
+///
+/// [portraitWeights] is optional -- when omitted, [Player.appearance] stays
+/// `null` and no random numbers are consumed for it, so existing callers
+/// and their determinism tests are unaffected. Pass it (loaded from the
+/// bundled `weights.json` via `portraitWeightsProvider`) to also generate a
+/// portrait.
 Player generatePlayer(
   Random random, {
   required Position primaryPosition,
   int qualityCenter = 50,
   int qualitySpread = 12,
+  PortraitWeights? portraitWeights,
 }) {
   final bias = _positionBias[primaryPosition] ?? _zeroDeltas;
 
@@ -214,6 +223,13 @@ Player generatePlayer(
 
   final archetype = generateArchetype(random, primaryPosition);
   final traits = generateTraits(random);
+  final appearance = portraitWeights == null
+      ? null
+      : generatePortraitAppearance(
+          random,
+          isCoach: false,
+          weights: portraitWeights,
+        );
 
   return Player(
     id: id,
@@ -227,6 +243,7 @@ Player generatePlayer(
     ratings: ratings,
     archetype: archetype,
     traits: traits,
+    appearance: appearance,
   );
 }
 

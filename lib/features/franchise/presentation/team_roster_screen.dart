@@ -7,6 +7,8 @@ import '../../../core/widgets/state_views.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
+import '../../portrait/presentation/portrait_image.dart';
+import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../roster/domain/star_tier.dart';
@@ -106,6 +108,8 @@ class _RosterView extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         _RosterSection(
+          saveId: franchise.id,
+          jersey: parseHexColor(franchise.team.colors.primaryHex),
           title: 'Active Roster (${active.length})',
           members: active,
           starterIds: franchise.startingLineup.startersByPosition.values
@@ -114,6 +118,8 @@ class _RosterView extends StatelessWidget {
         if (developmental.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
           _RosterSection(
+            saveId: franchise.id,
+            jersey: parseHexColor(franchise.team.colors.primaryHex),
             title: 'Developmental (${developmental.length})',
             members: developmental,
           ),
@@ -121,6 +127,8 @@ class _RosterView extends StatelessWidget {
         if (reserve.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
           _RosterSection(
+            saveId: franchise.id,
+            jersey: parseHexColor(franchise.team.colors.primaryHex),
             title: 'Reserve / Inactive (${reserve.length})',
             members: reserve,
           ),
@@ -132,11 +140,15 @@ class _RosterView extends StatelessWidget {
 
 class _RosterSection extends StatelessWidget {
   const _RosterSection({
+    required this.saveId,
+    required this.jersey,
     required this.title,
     required this.members,
     this.starterIds = const {},
   });
 
+  final String saveId;
+  final RgbColor jersey;
   final String title;
   final List<RosterMembership> members;
   final Set<String> starterIds;
@@ -154,6 +166,8 @@ class _RosterSection extends StatelessWidget {
             children: [
               for (var i = 0; i < members.length; i++) ...[
                 _PlayerRow(
+                  saveId: saveId,
+                  jersey: jersey,
                   membership: members[i],
                   isStarter: starterIds.contains(members[i].player.id),
                 ),
@@ -169,8 +183,15 @@ class _RosterSection extends StatelessWidget {
 }
 
 class _PlayerRow extends StatelessWidget {
-  const _PlayerRow({required this.membership, this.isStarter = false});
+  const _PlayerRow({
+    required this.saveId,
+    required this.jersey,
+    required this.membership,
+    this.isStarter = false,
+  });
 
+  final String saveId;
+  final RgbColor jersey;
   final RosterMembership membership;
   final bool isStarter;
 
@@ -185,6 +206,14 @@ class _PlayerRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          PortraitImage(
+            saveId: saveId,
+            ownerId: player.id,
+            appearance: player.appearance,
+            jersey: jersey,
+            size: 40,
+          ),
+          const SizedBox(width: AppSpacing.sm),
           Text(
             _positionAbbreviation(player.primaryPosition),
             style: theme.textTheme.labelLarge,

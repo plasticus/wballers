@@ -6,6 +6,22 @@ import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/player/generation/player_generator.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
+
+final _portraitWeights = PortraitWeights(
+  skinTone: const {'medium': 1},
+  hairColorByTone: const {
+    'medium': {'black': 1},
+  },
+  hair: const {'hair_afro': 1},
+  neonHair: const {'natural': 1},
+  eyes: const {'eyes_1center': 1},
+  nose: const {'nose_1': 1},
+  mouth: const {'mouth_1': 1},
+  eyebrows: const {'eyebrow_1': 1},
+  facial: const {'none': 1},
+  accessories: const {'none': 1},
+);
 
 void main() {
   test('the same seed produces an identical player', () {
@@ -119,5 +135,39 @@ void main() {
         expect(opposite == null || !player.traits.contains(opposite), isTrue);
       }
     }
+  });
+
+  test('appearance stays null when portraitWeights is omitted', () {
+    final player = generatePlayer(Random(1), primaryPosition: Position.center);
+    expect(player.appearance, isNull);
+  });
+
+  test('appearance is generated (non-coach) when portraitWeights is given', () {
+    final player = generatePlayer(
+      Random(1),
+      primaryPosition: Position.center,
+      portraitWeights: _portraitWeights,
+    );
+    expect(player.appearance, isNotNull);
+    expect(player.appearance!.isCoach, isFalse);
+  });
+
+  test('omitting portraitWeights consumes no extra random numbers', () {
+    // Same seed, same non-portrait fields, whether or not portraitWeights
+    // is passed -- proves the appearance roll is fully additive, not
+    // interleaved with the rest of generation.
+    final withoutWeights = generatePlayer(
+      Random(55),
+      primaryPosition: Position.pointGuard,
+    );
+    final withWeights = generatePlayer(
+      Random(55),
+      primaryPosition: Position.pointGuard,
+      portraitWeights: _portraitWeights,
+    );
+    expect(withWeights.name, withoutWeights.name);
+    expect(withWeights.ratings.overall, withoutWeights.ratings.overall);
+    expect(withWeights.archetype, withoutWeights.archetype);
+    expect(withWeights.traits, withoutWeights.traits);
   });
 }
