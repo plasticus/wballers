@@ -3,6 +3,7 @@ import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
+import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
 
@@ -185,5 +186,74 @@ void main() {
     expect(updated.archetype, player.archetype);
     expect(updated.traits, player.traits);
     expect(updated.appearance, newAppearance);
+  });
+
+  test('defaults achievements to empty and nickname to null', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      archetype: Archetype.floorGeneral,
+    );
+
+    expect(player.achievements, isEmpty);
+    expect(player.nickname, isNull);
+  });
+
+  test('copyWithNickname replaces only the nickname', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      archetype: Archetype.floorGeneral,
+    );
+
+    final updated = player.copyWithNickname('The Wall');
+
+    expect(updated.nickname, 'The Wall');
+    expect(updated.name, player.name);
+    expect(updated.achievements, player.achievements);
+  });
+
+  test('copyWithAchievement appends without dropping existing ones', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      archetype: Archetype.floorGeneral,
+      achievements: const [
+        PlayerAchievementRecord(achievement: Achievement.leagueMvp, season: 0),
+      ],
+    );
+
+    final updated = player.copyWithAchievement(
+      const PlayerAchievementRecord(
+        achievement: Achievement.scoringLeader,
+        season: 1,
+      ),
+    );
+
+    expect(updated.achievements, hasLength(2));
+    expect(updated.achievements.first.achievement, Achievement.leagueMvp);
+    expect(updated.achievements.last.achievement, Achievement.scoringLeader);
+    expect(player.achievements, hasLength(1), reason: 'original is untouched');
   });
 }

@@ -279,4 +279,82 @@ void main() {
       }
     },
   );
+
+  test(
+    'updatePlayerNickname replaces only the targeted player\'s nickname',
+    () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final targetId = franchise.roster.first.player.id;
+      final otherId = franchise.roster[1].player.id;
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .updatePlayerNickname(targetId, 'The Wall');
+
+      final updated = container.read(currentFranchiseProvider).value;
+      expect(
+        updated!.roster
+            .firstWhere((m) => m.player.id == targetId)
+            .player
+            .nickname,
+        'The Wall',
+      );
+      expect(
+        updated.roster
+            .firstWhere((m) => m.player.id == otherId)
+            .player
+            .nickname,
+        isNull,
+      );
+    },
+  );
+
+  test('updatePlayerNickname can clear a nickname back to null', () async {
+    final repository = InMemorySaveRepository();
+    final container = ProviderContainer(
+      overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    final franchise = createExpansionFranchise(
+      gmName: 'Jordan Ellis',
+      clubName: 'Comets',
+      homeCity: 'Springfield, IL',
+      conference: Conference.atlantic,
+      simulationSeed: 1,
+    );
+    await container
+        .read(currentFranchiseProvider.notifier)
+        .createFranchise(franchise);
+    final targetId = franchise.roster.first.player.id;
+    await container
+        .read(currentFranchiseProvider.notifier)
+        .updatePlayerNickname(targetId, 'The Wall');
+
+    await container
+        .read(currentFranchiseProvider.notifier)
+        .updatePlayerNickname(targetId, null);
+
+    final updated = container.read(currentFranchiseProvider).value;
+    expect(
+      updated!.roster
+          .firstWhere((m) => m.player.id == targetId)
+          .player
+          .nickname,
+      isNull,
+    );
+  });
 }

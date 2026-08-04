@@ -1,8 +1,24 @@
 import '../../portrait/persistence/portrait_appearance_json.dart';
+import '../domain/achievement.dart';
 import '../domain/archetype.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
 import '../domain/trait.dart';
+
+Map<String, dynamic> playerAchievementRecordToJson(
+  PlayerAchievementRecord record,
+) {
+  return {'achievement': record.achievement.name, 'season': record.season};
+}
+
+PlayerAchievementRecord playerAchievementRecordFromJson(
+  Map<String, dynamic> json,
+) {
+  return PlayerAchievementRecord(
+    achievement: Achievement.values.byName(json['achievement'] as String),
+    season: json['season'] as int,
+  );
+}
 
 Map<String, dynamic> playerRatingsToJson(PlayerRatings ratings) {
   return {
@@ -59,6 +75,10 @@ Map<String, dynamic> playerToJson(Player player) {
     'appearance': player.appearance == null
         ? null
         : portraitAppearanceToJson(player.appearance!),
+    'achievements': player.achievements
+        .map(playerAchievementRecordToJson)
+        .toList(),
+    'nickname': player.nickname,
   };
 }
 
@@ -85,5 +105,12 @@ Player playerFromJson(Map<String, dynamic> json) {
         : portraitAppearanceFromJson(
             json['appearance'] as Map<String, dynamic>,
           ),
+    achievements: (json['achievements'] as List<dynamic>? ?? const [])
+        .map(
+          (value) =>
+              playerAchievementRecordFromJson(value as Map<String, dynamic>),
+        )
+        .toList(),
+    nickname: json['nickname'] as String?,
   );
 }

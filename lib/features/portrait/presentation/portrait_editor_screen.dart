@@ -8,6 +8,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../player/domain/player.dart';
 import '../domain/portrait_appearance.dart';
 import '../domain/portrait_manifest.dart';
 import '../domain/portrait_weights.dart';
@@ -93,20 +94,42 @@ class _EditorBody extends ConsumerStatefulWidget {
 
 class _EditorBodyState extends ConsumerState<_EditorBody> {
   late PortraitAppearance _draft;
+  late TextEditingController _nicknameController;
   var _isSaving = false;
+
+  /// `null` when editing the coach -- nicknames are earned through on-court
+  /// achievements (`achievement.dart`), which only players have.
+  Player? get _targetPlayer {
+    if (widget.isCoach) return null;
+    return widget.franchise.roster
+        .firstWhere((m) => m.player.id == widget.playerId)
+        .player;
+  }
+
+  /// Special/neon hair colors are unlock-only (`portraits.md`) -- gated on
+  /// having earned at least one achievement, the only unlock mechanism that
+  /// currently exists.
+  bool get _specialColorsUnlocked =>
+      _targetPlayer != null && _targetPlayer!.achievements.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _draft = _existingAppearance() ?? _defaultAppearance();
+    _nicknameController = TextEditingController(
+      text: _targetPlayer?.nickname ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    super.dispose();
   }
 
   PortraitAppearance? _existingAppearance() {
     if (widget.isCoach) return widget.franchise.coach.appearance;
-    final membership = widget.franchise.roster.firstWhere(
-      (m) => m.player.id == widget.playerId,
-    );
-    return membership.player.appearance;
+    return _targetPlayer!.appearance;
   }
 
   /// A starting point for a franchise old enough not to have generated
@@ -136,6 +159,11 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
       await notifier.updateCoachAppearance(_draft);
     } else {
       await notifier.updatePlayerAppearance(widget.playerId!, _draft);
+      final nickname = _nicknameController.text.trim();
+      await notifier.updatePlayerNickname(
+        widget.playerId!,
+        nickname.isEmpty ? null : nickname,
+      );
     }
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -165,6 +193,25 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
           Expanded(
             child: ListView(
               children: [
+                if (!widget.isCoach) ...[
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Nickname', style: theme.textTheme.titleSmall),
+                        const SizedBox(height: AppSpacing.xs),
+                        TextField(
+                          controller: _nicknameController,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            hintText: 'e.g. "The Wall"',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,6 +243,18 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
                         onChanged: (color) =>
                             _apply((d) => d.copyWith(hairColor: color)),
                       ),
+                      if (_specialColorsUnlocked)
+                        _optionalPicker(
+                          theme: theme,
+                          label: 'Special hair color (unlocked)',
+                          noneLabel: 'Use natural color',
+                          value: _draft.topHairColor,
+                          keys: widget.weights.neonHair.keys
+                              .where((key) => key != 'natural')
+                              .toList(),
+                          onChanged: (color) =>
+                              _apply((d) => d.copyWith(topHairColor: color)),
+                        ),
                       _optionalPicker(
                         theme: theme,
                         label: 'Hair style',

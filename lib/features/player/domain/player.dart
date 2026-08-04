@@ -1,4 +1,5 @@
 import '../../portrait/domain/portrait_appearance.dart';
+import 'achievement.dart';
 import 'archetype.dart';
 import 'player_ratings.dart';
 import 'position.dart';
@@ -40,6 +41,8 @@ class Player {
     required this.archetype,
     this.traits = const {},
     this.appearance,
+    this.achievements = const [],
+    this.nickname,
   }) : assert(age > 0, 'age must be positive'),
        assert(yearsOfService >= 0, 'yearsOfService must not be negative'),
        assert(
@@ -98,6 +101,17 @@ class Player {
   /// than treating this as an error state.
   final PortraitAppearance? appearance;
 
+  /// On-court awards this player has earned (`achievement.dart`) -- empty
+  /// until Phase 2's season simulation exists to determine a winner.
+  final List<PlayerAchievementRecord> achievements;
+
+  /// GM-chosen or game-suggested nickname (`FLUTTER_APP_PLAN.md`'s earned
+  /// identity system). `null` means none set. Unlike [achievements], this
+  /// is freely GM-editable at any time -- the plan only requires that an
+  /// *earned* nickname come with a game suggestion the GM can override, not
+  /// that nicknames are otherwise locked.
+  final String? nickname;
+
   /// Returns a copy with [newAppearance] replacing [appearance] -- the only
   /// field the portrait editor needs to change.
   Player copyWithAppearance(PortraitAppearance newAppearance) {
@@ -115,6 +129,50 @@ class Player {
       archetype: archetype,
       traits: traits,
       appearance: newAppearance,
+      achievements: achievements,
+      nickname: nickname,
+    );
+  }
+
+  /// Returns a copy with [newNickname] replacing [nickname].
+  Player copyWithNickname(String? newNickname) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      yearsOfService: yearsOfService,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: ratings,
+      archetype: archetype,
+      traits: traits,
+      appearance: appearance,
+      achievements: achievements,
+      nickname: newNickname,
+    );
+  }
+
+  /// Returns a copy with [record] appended to [achievements].
+  Player copyWithAchievement(PlayerAchievementRecord record) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      yearsOfService: yearsOfService,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: ratings,
+      archetype: archetype,
+      traits: traits,
+      appearance: appearance,
+      achievements: [...achievements, record],
+      nickname: nickname,
     );
   }
 }

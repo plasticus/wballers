@@ -276,7 +276,9 @@ class _PlayerRow extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          player.name,
+                          player.nickname == null
+                              ? player.name
+                              : '${player.name} "${player.nickname}"',
                           style: theme.textTheme.bodyLarge,
                         ),
                       ),

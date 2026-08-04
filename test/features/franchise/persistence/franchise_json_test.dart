@@ -4,6 +4,7 @@ import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
@@ -112,6 +113,14 @@ void main() {
       ratings: playerWithOverall(60).ratings,
       archetype: Archetype.versatileForward,
       traits: const {Trait.leader, Trait.gymRat},
+      nickname: 'The Wall',
+      achievements: const [
+        PlayerAchievementRecord(achievement: Achievement.leagueMvp, season: 0),
+        PlayerAchievementRecord(
+          achievement: Achievement.defensiveMvp,
+          season: 1,
+        ),
+      ],
     );
     final franchise = Franchise(
       id: 'franchise-2',
@@ -136,9 +145,30 @@ void main() {
     expect(restored.roster.single.player.handedness, Handedness.left);
     expect(restored.roster.single.player.archetype, withSecondary.archetype);
     expect(restored.roster.single.player.traits, withSecondary.traits);
+    expect(restored.roster.single.player.nickname, 'The Wall');
+    expect(restored.roster.single.player.achievements, hasLength(2));
+    expect(
+      restored.roster.single.player.achievements[0].achievement,
+      Achievement.leagueMvp,
+    );
+    expect(restored.roster.single.player.achievements[0].season, 0);
+    expect(
+      restored.roster.single.player.achievements[1].achievement,
+      Achievement.defensiveMvp,
+    );
+    expect(restored.roster.single.player.achievements[1].season, 1);
     expect(
       restored.startingLineup.startersByPosition[Position.smallForward],
       'p-multi',
     );
+  });
+
+  test('round-trips a player with no nickname and no achievements', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.roster.first.player.nickname, isNull);
+    expect(restored.roster.first.player.achievements, isEmpty);
   });
 }

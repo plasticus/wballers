@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
+import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
@@ -58,12 +59,35 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   }
 
   /// Replaces one roster player's portrait appearance and persists it.
-  /// Does nothing if [playerId] isn't on the roster (shouldn't happen from
-  /// the editor, which is only reachable for players actually on the
-  /// roster it was opened from).
   Future<void> updatePlayerAppearance(
     String playerId,
     PortraitAppearance appearance,
+  ) {
+    return _updatePlayer(
+      playerId,
+      (player) => player.copyWithAppearance(appearance),
+    );
+  }
+
+  /// Replaces one roster player's nickname (freely GM-editable, not gated
+  /// on having earned an achievement -- see the note on [Player.nickname])
+  /// and persists it.
+  Future<void> updatePlayerNickname(String playerId, String? nickname) {
+    return _updatePlayer(
+      playerId,
+      (player) => player.copyWithNickname(nickname),
+    );
+  }
+
+  /// Applies [transform] to the roster player with id [playerId] and
+  /// persists the result. Does nothing if there's no current franchise or
+  /// [playerId] isn't on the roster (shouldn't happen from the portrait
+  /// editor, which is only reachable for players actually on the roster it
+  /// was opened from). Same await-[future]-not-`state.value` rationale as
+  /// [updateLineup].
+  Future<void> _updatePlayer(
+    String playerId,
+    Player Function(Player) transform,
   ) async {
     final franchise = await future;
     if (franchise == null) return;
@@ -72,7 +96,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       for (final membership in franchise.roster)
         if (membership.player.id == playerId)
           RosterMembership(
-            player: membership.player.copyWithAppearance(appearance),
+            player: transform(membership.player),
             status: membership.status,
           )
         else

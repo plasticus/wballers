@@ -29,9 +29,9 @@ lib/
       persistence/       coach_json.dart
       generation/        generateCoach -- seeded, deterministic
     player/
-      domain/            Player, PlayerRatings, Position, Handedness, Archetype, Trait
+      domain/            Player, PlayerRatings, Position, Handedness, Archetype, Trait, Achievement, PlayerAchievementRecord
       persistence/       player_json.dart
-      generation/        generatePlayer, generateArchetype, generateTraits -- seeded, deterministic
+      generation/        generatePlayer, generateArchetype, generateTraits, grantAchievement/suggestNickname -- seeded, deterministic
     portrait/
       domain/            PortraitAppearance, PortraitManifest, PortraitWeights
       persistence/       portrait_appearance_json.dart, portrait_catalog_loader.dart (loads manifest.json/weights.json as Flutter assets)

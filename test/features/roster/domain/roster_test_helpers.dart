@@ -1,3 +1,4 @@
+import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
@@ -10,7 +11,7 @@ int _playerIdCounter = 0;
 /// Gets a unique [id] by default; pass one explicitly when a test needs to
 /// reference a specific player's id (e.g. building a `StartingLineup`).
 /// Defaults [archetype] to the first option valid for [primaryPosition]
-/// when not given, and [traits] to none.
+/// when not given, and [traits]/[achievements] to none.
 Player playerWithOverall(
   int overall, {
   String name = 'Test Player',
@@ -21,6 +22,8 @@ Player playerWithOverall(
   Set<Position> secondaryPositions = const {},
   Archetype? archetype,
   Set<Trait> traits = const {},
+  List<PlayerAchievementRecord> achievements = const [],
+  String? nickname,
 }) {
   return Player(
     id: id ?? 'test-player-${_playerIdCounter++}',
@@ -34,6 +37,8 @@ Player playerWithOverall(
     biography: '',
     archetype: archetype ?? kArchetypesByPosition[primaryPosition]!.first,
     traits: traits,
+    achievements: achievements,
+    nickname: nickname,
     ratings: PlayerRatings(
       speed: overall,
       agility: overall,
