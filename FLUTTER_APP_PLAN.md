@@ -82,7 +82,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 - Implement an achievement system for cosmetic unlocks and nickname suggestions.
 - Award triggers include league MVP, scoring leader, defensive MVP, most defensive disruptions (blocks + steals), and future achievement types. Across a 20-team, 240-player league, aim for roughly 5 nicknames earned per season.
 - Let the game suggest a nickname, while always allowing the coach to change it. On the 19 AI-run teams the suggestion is applied automatically; on the coach's own team, the coach can type their own instead.
-- Player traits (question.md decision 21): a catalog of at least a dozen earnable, visible traits (e.g. Leader, Highly Coachable, High Potential/Low Potential), replacing the hidden-stat idea entirely — traits are things a coach can scout for, not numbers they can't see. Some traits are assignable at generation/draft time (Phase 1 work); most are earned from in-season or in-game situations, so their triggers get wired up progressively as Phase 2's season sim and Phase 3's match engine come online — same shape as the coach stats defined in Phase 1 before anything could consume them.
+- Player traits: the full 27-trait catalog lives in `traits.md` (question.md decision 21) — earnable, visible traits replacing the hidden-stat idea entirely, so a coach can scout for them instead of them being numbers nobody can see. Some traits are assignable at generation/draft time (Phase 1 work); most are earned from in-season or in-game situations, so their triggers get wired up progressively as Phase 2's season sim and Phase 3's match engine come online — same shape as the coach stats defined in Phase 1 before anything could consume them.
 
 ### Exit criteria
 
