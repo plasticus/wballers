@@ -23,6 +23,7 @@ void main() {
     final player = Player(
       name: 'Riley Okafor',
       age: 24,
+      yearsOfService: 2,
       hometown: 'Fictional City',
       primaryPosition: Position.pointGuard,
       handedness: Handedness.right,
@@ -39,6 +40,7 @@ void main() {
     final player = Player(
       name: 'Riley Okafor',
       age: 24,
+      yearsOfService: 2,
       hometown: 'Fictional City',
       primaryPosition: Position.pointGuard,
       secondaryPositions: const {Position.shootingGuard},
@@ -55,6 +57,7 @@ void main() {
       () => Player(
         name: 'Riley Okafor',
         age: 24,
+        yearsOfService: 2,
         hometown: 'Fictional City',
         primaryPosition: Position.pointGuard,
         secondaryPositions: const {Position.pointGuard},
@@ -71,6 +74,23 @@ void main() {
       () => Player(
         name: 'Riley Okafor',
         age: 0,
+        yearsOfService: 2,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        handedness: Handedness.right,
+        biography: 'A steady floor general.',
+        ratings: _ratings,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
+  test('rejects a negative yearsOfService', () {
+    expect(
+      () => Player(
+        name: 'Riley Okafor',
+        age: 24,
+        yearsOfService: -1,
         hometown: 'Fictional City',
         primaryPosition: Position.pointGuard,
         handedness: Handedness.right,

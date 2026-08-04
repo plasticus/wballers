@@ -18,7 +18,7 @@ List<Player> _roster({
 
 void main() {
   test('an all below-four-star 12-player roster is legal', () {
-    final legality = evaluateRosterLegality(_roster(belowFourStar: 12));
+    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 12));
 
     expect(legality.isLegal, isTrue);
   });
@@ -27,7 +27,7 @@ void main() {
     'zero five-star players still allows the full six four-star players',
     () {
       final legality = evaluateRosterLegality(
-        _roster(fourStar: 6, belowFourStar: 6),
+        active: _roster(fourStar: 6, belowFourStar: 6),
       );
 
       expect(legality.isLegal, isTrue);
@@ -38,7 +38,7 @@ void main() {
 
   test('two five-star plus four four-star (six elite total) is legal', () {
     final legality = evaluateRosterLegality(
-      _roster(fiveStar: 2, fourStar: 4, belowFourStar: 6),
+      active: _roster(fiveStar: 2, fourStar: 4, belowFourStar: 6),
     );
 
     expect(legality.isLegal, isTrue);
@@ -48,7 +48,7 @@ void main() {
 
   test('three five-star players is illegal even though total is 12', () {
     final legality = evaluateRosterLegality(
-      _roster(fiveStar: 3, fourStar: 3, belowFourStar: 6),
+      active: _roster(fiveStar: 3, fourStar: 3, belowFourStar: 6),
     );
 
     expect(legality.isLegal, isFalse);
@@ -57,7 +57,7 @@ void main() {
 
   test('seven four-star-and-up players is illegal', () {
     final legality = evaluateRosterLegality(
-      _roster(fiveStar: 1, fourStar: 6, belowFourStar: 5),
+      active: _roster(fiveStar: 1, fourStar: 6, belowFourStar: 5),
     );
 
     expect(legality.isLegal, isFalse);
@@ -65,17 +65,62 @@ void main() {
     expect(legality.fourStarAndUpCount, 7);
   });
 
-  test('a roster with fewer than 12 players is illegal', () {
-    final legality = evaluateRosterLegality(_roster(belowFourStar: 11));
+  test('a roster with fewer than 12 players is legal -- no enforced floor', () {
+    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 8));
 
-    expect(legality.isLegal, isFalse);
-    expect(legality.hasLegalRosterSize, isFalse);
+    expect(legality.isLegal, isTrue);
+    expect(legality.hasLegalActiveRosterSize, isTrue);
   });
 
   test('a roster with more than 12 players is illegal', () {
-    final legality = evaluateRosterLegality(_roster(belowFourStar: 13));
+    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 13));
 
     expect(legality.isLegal, isFalse);
-    expect(legality.hasLegalRosterSize, isFalse);
+    expect(legality.hasLegalActiveRosterSize, isFalse);
+  });
+
+  test('an empty developmental list is legal by default', () {
+    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 12));
+
+    expect(legality.hasLegalDevelopmentalRosterSize, isTrue);
+    expect(legality.hasOnlyEligibleDevelopmentalPlayers, isTrue);
+  });
+
+  test('two eligible developmental players is legal', () {
+    final legality = evaluateRosterLegality(
+      active: _roster(belowFourStar: 12),
+      developmental: [
+        playerWithOverall(50, yearsOfService: 0),
+        playerWithOverall(50, yearsOfService: 3),
+      ],
+    );
+
+    expect(legality.isLegal, isTrue);
+    expect(legality.developmentalRosterSize, 2);
+  });
+
+  test('three developmental players is illegal', () {
+    final legality = evaluateRosterLegality(
+      active: _roster(belowFourStar: 12),
+      developmental: [
+        playerWithOverall(50, yearsOfService: 0),
+        playerWithOverall(50, yearsOfService: 0),
+        playerWithOverall(50, yearsOfService: 0),
+      ],
+    );
+
+    expect(legality.isLegal, isFalse);
+    expect(legality.hasLegalDevelopmentalRosterSize, isFalse);
+  });
+
+  test('a developmental player with too much service time is illegal', () {
+    final legality = evaluateRosterLegality(
+      active: _roster(belowFourStar: 12),
+      developmental: [playerWithOverall(50, yearsOfService: 4)],
+    );
+
+    expect(legality.isLegal, isFalse);
+    expect(legality.hasOnlyEligibleDevelopmentalPlayers, isFalse);
+    expect(legality.ineligibleDevelopmentalCount, 1);
   });
 }

@@ -18,10 +18,17 @@ enum Handedness { left, right }
 ///   feature, which computes it from [PlayerRatings.overall] on demand.
 /// - Portrait appearance: the Flutter asset pipeline that would back it is
 ///   Phase 1.5 work (same reasoning as `Coach`).
+/// - Roster placement (active/developmental/reserve): a roster-membership
+///   concern, not a player attribute — see `RosterStatus` in the roster
+///   feature. [yearsOfService] lives here because it's intrinsic to the
+///   player (age doesn't imply it — international rookies can enter the
+///   league well into their late twenties), but whether that qualifies
+///   them for a developmental slot is evaluated by the roster feature.
 class Player {
   Player({
     required this.name,
     required this.age,
+    required this.yearsOfService,
     required this.hometown,
     required this.primaryPosition,
     this.secondaryPositions = const {},
@@ -29,6 +36,7 @@ class Player {
     required this.biography,
     required this.ratings,
   }) : assert(age > 0, 'age must be positive'),
+       assert(yearsOfService >= 0, 'yearsOfService must not be negative'),
        assert(
          !secondaryPositions.contains(primaryPosition),
          'secondaryPositions must not repeat primaryPosition',
@@ -36,6 +44,12 @@ class Player {
 
   final String name;
   final int age;
+
+  /// Years played in the league. Not derived from [age] — a rookie can
+  /// enter the league at almost any age (e.g. an international veteran
+  /// making their league debut at 28), so this is tracked independently.
+  final int yearsOfService;
+
   final String hometown;
   final Position primaryPosition;
 

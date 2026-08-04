@@ -61,7 +61,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 
 - Expansion onboarding: name the club, choose Atlantic or Pacific, and begin with a weak generated roster. The new club replaces a randomly selected existing team in its chosen conference, keeping the league at 20 teams.
 - Team profile: original name, colors, city, prestige, and visual identity.
-- Roster rules: positions, active/inactive roster, starters, bench order, captain, depth chart, and validation warnings. Roster legality also enforces the star-rating system in `star_system.md` in place of a salary cap: a 12-player active roster capped at 2 five-star (90-99 OVR) + 3 four-star (78-89 OVR) players, or a balanced-depth trade-off of 1 five-star + 5 four-star. Star limits lock at the regular-season buzzer, not mid-season, and rosters must be legal again before free agency and the draft.
+- Roster rules: positions, starters, bench order, captain, depth chart, and validation warnings. Three roster statuses, loosely mirroring the real WNBA (question.md decision 22, `wnba_rules_reference.md`): **Active** (up to 12, capped at 2 five-star (90-99 OVR) plus at most 6 four-star-or-better (78-99 OVR) combined — the star-rating system in `star_system.md`, replacing a salary cap; no enforced minimum, running short-handed is just a disadvantage), **Developmental** (at most 2, exempt from the star caps, restricted to 3 years of service or fewer), and **Reserve/Inactive** (unconstrained catch-all for anyone under contract but not active). Star limits lock at the regular-season buzzer, not mid-season, and rosters must be legal again before free agency and the draft.
 - Roster screens: team hub, lineup editor, player comparison, player search/filtering, and roster summary.
 - Save-game schema for franchise, players, teams, roster memberships, league template, and simulation seed.
 
@@ -136,6 +136,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 - Add a simple court/shot-chart presentation that shows shot locations and key play context. Do not require full player animation.
 - Add scouting, richer draft classes, recruiting/international pipelines, and hidden information.
 - Expand trades and add contracts, salary cap/budget, free agency, waivers, and staff/coaches as appropriate.
+- Add an Assistant GM: a staff role that proactively surfaces roster suggestions (e.g. "player X would fill our open roster spot"). Not designed yet — question.md decision 22.
 - Add training plans, facilities, chemistry, player goals, story events, rivalries, branding, uniforms, and arenas.
 - Add historical records, Hall of Fame, achievements, and challenge scenarios.
 - Add a settings screen: light/dark theme, selectable court color themes, and adjustable text size for players who need larger text.

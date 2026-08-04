@@ -26,7 +26,7 @@ lib/
     player/
       domain/            Player, PlayerRatings, Position, Handedness
     roster/
-      domain/            StarTier, RosterLegality (active-roster caps)
+      domain/            StarTier, RosterStatus, RosterLegality
 ```
 
 Add feature modules as the game grows: `franchise_setup`, `roster`, `players`, `simulation`, `portraits`, and `game_day`. Keep their domain models and game rules free of Flutter widget imports.
