@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../app/app_spacing.dart';
+import '../../core/widgets/ad_placement_placeholder.dart';
+import '../../core/widgets/app_card.dart';
+
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -18,7 +22,7 @@ class _AppShellState extends State<AppShell> {
       appBar: AppBar(title: Text(_titles[_selectedIndex])),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: _selectedIndex == 0
               ? const DashboardScreen()
               : _ComingSoonPage(title: _titles[_selectedIndex]),
@@ -57,59 +61,49 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // The ad placeholder stays pinned outside the scroll view; only the
+    // content above it scrolls. A plain Column + Spacer here would overflow
+    // at large text scales instead of scrolling, so this shape is load-bearing.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Women\'s Basketball Manager',
-          style: theme.textTheme.headlineMedium,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Build a franchise. Shape a league. Leave a legacy.',
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 28),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
+        Expanded(
+          child: SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Foundation setup', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 8),
-                const Text(
-                  'The offline game shell is ready. Expansion franchises, rosters, and local saves are the next build targets.',
+                Text(
+                  'Women\'s Basketball Manager',
+                  style: theme.textTheme.headlineMedium,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Build a franchise. Shape a league. Leave a legacy.',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Foundation setup',
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      const Text(
+                        'The offline game shell is ready. Expansion franchises, rosters, and local saves are the next build targets.',
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.xl),
         const AdPlacementPlaceholder(placement: 'Dashboard banner'),
       ],
-    );
-  }
-}
-
-class AdPlacementPlaceholder extends StatelessWidget {
-  const AdPlacementPlaceholder({required this.placement, super.key});
-
-  final String placement;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$placement reserved for an advertisement',
-      child: Container(
-        height: 50,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outline),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text('$placement — reserved'),
-      ),
     );
   }
 }

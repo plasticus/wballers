@@ -12,9 +12,10 @@
 
 ```text
 lib/
-  app/                 app composition and theme
+  app/                 app composition, theme, and shared preferences
   core/                cross-cutting contracts and utilities
     persistence/       local save abstractions and implementations
+    widgets/            shared, feature-agnostic UI components
   features/            user-facing feature modules
     dashboard/
 ```
@@ -35,9 +36,27 @@ Use Navigator 2.0 or a routing package when deep links and nested feature flows 
 
 `SaveEnvelope` (`lib/core/persistence/save_envelope.dart`) wraps a feature's serialized payload with a `schemaVersion` before it's handed to `SaveRepository.writeSave`. Storage itself stays schema-agnostic; migrating a payload forward from an older `schemaVersion` is the responsibility of the feature that owns that schema (starting once a real franchise save schema exists in Phase 1) — store portrait appearance data as source data there too, and cache rendered portrait PNGs separately as rebuildable, non-authoritative files.
 
+## Design foundations
+
+**Theme.** `AppTheme.light()` and `AppTheme.dark()` (`lib/app/app_theme.dart`) are both real, Material 3 `ColorScheme.fromSeed` themes sharing one navy/gold identity and one type-scale override. `WomensBasketballManagerApp` sets both `theme` and `darkTheme` and switches between them via `themeModeProvider` (`lib/app/app_preferences.dart`), which defaults to following the OS. A settings screen to let the coach override this is Phase 4 work; the provider it will read/write already exists.
+
+**Text scale.** `textScaleProvider` (`lib/app/app_preferences.dart`) is a coach-controlled multiplier, independent of and combined with the OS text-size setting, applied app-wide through `MaterialApp.builder` in `lib/app/app.dart`. The pure function `resolveTextScale()` does the combining and clamps the result to `[kMinTextScale, kMaxTextScale]` so it's unit-testable without pumping a widget tree. Defaults to `1.0` (no change from the OS setting); the Phase 4 settings screen will let the coach raise it. Because this is wired now, no screen built from this point on needs its own text-scaling logic — just use normal `Text`/`TextStyle` and it inherits the ambient scale.
+
+**Spacing.** `AppSpacing` (`lib/app/app_spacing.dart`) is a five-step scale (`xs`–`xl`, 4–32px). Use it instead of ad hoc padding/gap numbers.
+
+**Reusable components** (`lib/core/widgets/`): `AppCard` (standard padded card surface), `LoadingView`/`EmptyStateView`/`ErrorStateView` (the three states any data-driven screen needs), and `AdPlacementPlaceholder` (see below). Build feature screens out of these rather than reinventing padding/card/state-handling per screen.
+
+**Accessibility rules:**
+
+- Never hardcode font sizes in a way that ignores the ambient text scale — use `Theme.of(context).textTheme.*` or a relative `TextStyle`, not a bare pixel size baked into layout math.
+- Icon-only or decorative-only elements need a `Semantics` label (see `AdPlacementPlaceholder`); purely decorative animation layers (e.g. the bouncing basketball in `LoadingView`) should be wrapped in `ExcludeSemantics` so they don't produce redundant announcements.
+- Empty and error states use `Semantics(liveRegion: true)` so a screen reader announces the state change without the coach having to find it manually.
+- Don't rely on color alone to convey status — pair it with an icon, label, or shape (this matters for the eventual court-color-theme setting too).
+- Avoid fixed-height containers around text that scales; let content grow instead of clipping at large text scales.
+
 ## Ads
 
-`AdPlacementPlaceholder` reserves dashboard layout for a future AdMob banner without integrating the SDK or showing production ads. Add the real ad adapter only after Android app IDs, test IDs, consent requirements, and an ad-free failure state are defined. Gameplay will receive a separate placement when that screen exists.
+`AdPlacementPlaceholder` (`lib/core/widgets/ad_placement_placeholder.dart`) reserves layout on the dashboard for a future AdMob banner, without integrating the SDK or showing production ads. Reuse it on the gameplay screen once that screen exists. The real `AdService`/AdMob adapter — test ad units in development, production units at release — is Phase 5 work, once Android app IDs and consent requirements are defined.
 
 ## Quality gates
 
