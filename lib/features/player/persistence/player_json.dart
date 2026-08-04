@@ -83,21 +83,29 @@ Map<String, dynamic> playerToJson(Player player) {
 }
 
 Player playerFromJson(Map<String, dynamic> json) {
+  final primaryPosition = Position.values.byName(
+    json['primaryPosition'] as String,
+  );
+
   return Player(
     id: json['id'] as String,
     name: json['name'] as String,
     age: json['age'] as int,
     yearsOfService: json['yearsOfService'] as int,
     hometown: json['hometown'] as String,
-    primaryPosition: Position.values.byName(json['primaryPosition'] as String),
+    primaryPosition: primaryPosition,
     secondaryPositions: (json['secondaryPositions'] as List<dynamic>)
         .map((value) => Position.values.byName(value as String))
         .toSet(),
     handedness: Handedness.values.byName(json['handedness'] as String),
     biography: json['biography'] as String,
     ratings: playerRatingsFromJson(json['ratings'] as Map<String, dynamic>),
-    archetype: Archetype.values.byName(json['archetype'] as String),
-    traits: (json['traits'] as List<dynamic>)
+    // A save from before question.md decision 27 has neither key -- fall
+    // back to a legal default rather than failing to load entirely.
+    archetype: json['archetype'] == null
+        ? kArchetypesByPosition[primaryPosition]!.first
+        : Archetype.values.byName(json['archetype'] as String),
+    traits: (json['traits'] as List<dynamic>? ?? const [])
         .map((value) => Trait.values.byName(value as String))
         .toSet(),
     appearance: json['appearance'] == null
