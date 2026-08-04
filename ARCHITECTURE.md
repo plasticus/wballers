@@ -36,6 +36,8 @@ lib/
     franchise/
       domain/            Franchise (save-game root), franchise_legality.dart
       persistence/       franchise_json.dart -- goes through SaveEnvelope/SaveRepository
+      application/       currentFranchiseProvider (Riverpod) -- load/create/persist
+      onboarding/        OnboardingScreen, createExpansionFranchise
 ```
 
 Each feature with a `persistence/` subfolder owns manual `toJson`/`fromJson` functions for its own domain types (no codegen yet); a composing feature imports the pieces it needs rather than duplicating them. `franchise_json.dart` is the one that actually round-trips through `SaveEnvelope`.
