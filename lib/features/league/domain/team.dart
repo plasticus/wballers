@@ -2,6 +2,17 @@ import 'dart:ui' show Color;
 
 enum Conference { atlantic, pacific }
 
+extension ConferenceLabel on Conference {
+  /// Display label, e.g. "Atlantic Conference" -- `.name` alone gives the
+  /// lowercase enum identifier, which isn't fit for UI display.
+  String get label {
+    return switch (this) {
+      Conference.atlantic => 'Atlantic Conference',
+      Conference.pacific => 'Pacific Conference',
+    };
+  }
+}
+
 /// A team's brand colors, stored as the canonical `#RRGGBB` hex strings from
 /// `teams.md` so this data stays trivially diffable against its source, with
 /// [Color] getters for the UI layer to consume directly.

@@ -9,6 +9,7 @@ import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/domain/franchise.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
 import '../franchise/presentation/team_roster_screen.dart';
+import '../league/domain/team.dart';
 import '../league/league_screen.dart';
 import '../roster/domain/roster_status.dart';
 
@@ -164,7 +165,7 @@ class _FranchiseSummaryCard extends StatelessWidget {
           Text(franchise.team.name, style: theme.textTheme.titleLarge),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            '${franchise.team.location} · ${franchise.team.conference.name}',
+            '${franchise.team.location} · ${franchise.team.conference.label}',
           ),
           Text('GM ${franchise.gmName}'),
           Text('Head Coach ${franchise.coach.name}'),

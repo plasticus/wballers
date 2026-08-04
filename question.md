@@ -127,3 +127,17 @@ Default at franchise creation: `StartingLineup.bestAvailable` picks the highest-
 This closes Phase 1's exit criteria: create, inspect, edit a legal lineup, and resume are all now real, working, tested end-to-end.
 
 Prerequisite fix along the way: `Player` had no stable identifier before this. Lineup slots need to keep pointing at the same player across a save/reload, where object identity and list position are both lost — so `Player.id` was added (generated from the same seeded `Random` stream as everything else, practically unique within one franchise's roster, not globally).
+
+## 26. Onboarding/dashboard polish; three items deferred to Phase 2
+
+**Decision:** From a round of hands-on feedback on the onboarding form, Dashboard, and League screen:
+
+Done immediately:
+- Club Name field was ambiguous (mascot only, e.g. "Dirtbags," or full name, e.g. "Des Moines Dirtbags"?) — added helper text with a concrete example, since `Team.name` has always meant the full branded name.
+- The conference picker now shows that conference's existing 10 teams underneath it (`TeamRow`, extracted as a shared widget so `LeagueScreen` and onboarding don't duplicate the row layout).
+- `Conference.name` (the raw lowercase enum identifier, e.g. `atlantic`) was leaking into the UI on the Dashboard summary and `TeamRosterScreen`. Added `Conference.label` ("Atlantic Conference") and fixed both call sites; `.name` stays reserved for JSON (de)serialization, where the raw identifier is exactly what's wanted.
+
+Deferred to Phase 2, noted in `FLUTTER_APP_PLAN.md`, because each depends on a system that doesn't exist yet:
+- **Team replacement selection**: a checkbox to choose which existing team in the conference your club replaces (defaulting to random) needs a real `League` runtime concept to persist "which 19 AI teams remain" against — doesn't exist yet (`kInitialLeagueTeams` is static reference data, not consumed as live league state anywhere).
+- **Fresh-league team quality**: target ~75-80 average overall once the other 19 teams get real generated rosters — they don't have rosters at all today, only identity (name/colors/city). This is genuinely new scope (full-league roster generation), not a tweak to what exists.
+- **League screen as a standings page**: win-loss records, and between seasons, last season's record plus the champion (🏆) — needs season simulation and playoffs to produce any of that data. Building the standings layout now would have nothing real to display.

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
@@ -89,7 +90,7 @@ class _RosterView extends StatelessWidget {
       children: [
         Text(franchise.team.name, style: theme.textTheme.headlineSmall),
         const SizedBox(height: AppSpacing.xs),
-        Text('${franchise.team.location} · ${franchise.team.conference.name}'),
+        Text('${franchise.team.location} · ${franchise.team.conference.label}'),
         const SizedBox(height: AppSpacing.md),
         OutlinedButton.icon(
           onPressed: () {

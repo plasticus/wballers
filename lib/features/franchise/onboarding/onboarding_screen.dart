@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../league/domain/initial_league.dart';
 import '../../league/domain/team.dart';
+import '../../league/team_row.dart';
 import '../application/current_franchise_provider.dart';
 import 'expansion_franchise_factory.dart';
 
@@ -44,6 +47,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _homeCityController.dispose();
     super.dispose();
   }
+
+  List<Team> get _conferenceTeams => kInitialLeagueTeams
+      .where((team) => team.conference == _conference)
+      .toList();
 
   bool get _isValid =>
       _gmNameController.text.trim().isNotEmpty &&
@@ -109,6 +116,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
                   labelText: 'Club name',
+                  helperText: 'The full team name, e.g. "Des Moines Dirtbags"',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -138,6 +146,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 selected: {_conference},
                 onSelectionChanged: (selection) =>
                     setState(() => _conference = selection.first),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                '${_conference.label} teams',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'For reference while you pick a name. Choosing which of '
+                'these your club replaces is coming later, once the league '
+                'itself is a running thing.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppCard(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _conferenceTeams.length; i++) ...[
+                      TeamRow(team: _conferenceTeams[i]),
+                      if (i != _conferenceTeams.length - 1)
+                        const Divider(height: AppSpacing.lg),
+                    ],
+                  ],
+                ),
               ),
               const SizedBox(height: AppSpacing.xl),
               FilledButton(

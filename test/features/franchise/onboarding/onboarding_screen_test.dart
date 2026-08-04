@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/onboarding_screen.dart';
+import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/league/domain/team.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 
@@ -69,6 +71,32 @@ void main() {
   });
 
   testWidgets(
+    'shows the selected conference\'s teams and updates when it changes',
+    (tester) async {
+      await pumpHarness(tester);
+
+      final firstAtlanticTeam = kInitialLeagueTeams.firstWhere(
+        (team) => team.conference == Conference.atlantic,
+      );
+      final firstPacificTeam = kInitialLeagueTeams.firstWhere(
+        (team) => team.conference == Conference.pacific,
+      );
+
+      // Atlantic is the default selection.
+      expect(find.text('Atlantic Conference teams'), findsOneWidget);
+      expect(find.text(firstAtlanticTeam.name), findsOneWidget);
+      expect(find.text(firstPacificTeam.name), findsNothing);
+
+      await tester.tap(find.text('Pacific'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pacific Conference teams'), findsOneWidget);
+      expect(find.text(firstPacificTeam.name), findsOneWidget);
+      expect(find.text(firstAtlanticTeam.name), findsNothing);
+    },
+  );
+
+  testWidgets(
     'creating a franchise saves it and returns to the previous screen',
     (tester) async {
       await pumpHarness(tester);
@@ -87,7 +115,14 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Create Franchise'));
+      // The conference team listing pushes the button below the fold.
+      final createButton = find.widgetWithText(
+        FilledButton,
+        'Create Franchise',
+      );
+      await tester.ensureVisible(createButton);
+      await tester.pumpAndSettle();
+      await tester.tap(createButton);
       await tester.pumpAndSettle();
 
       expect(find.text('Open onboarding'), findsOneWidget);

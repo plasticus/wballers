@@ -21,8 +21,9 @@ lib/
   features/            user-facing feature modules
     dashboard/
     league/
-      domain/            Team, Conference, TeamColors, and the initial league
+      domain/            Team, Conference (+ .label), TeamColors, and the initial league
       persistence/       team_json.dart
+      team_row.dart      shared team-identity row -- used by LeagueScreen and onboarding
     coach/
       domain/            Coach (a hired NPC staff member, not the player -- see Franchise.gmName), CoachStats
       persistence/       coach_json.dart
