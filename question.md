@@ -68,7 +68,7 @@
 
 **Decision:** Shooting splits into two ratings, not three: **Inside** (layups, close-range shots at the rim) and **Outside** (one combined rating spanning mid-range through three-point shooting). There is no separate Finishing rating — Inside scoring already covers what that was meant to capture, so it was dropped as redundant rather than kept alongside it.
 
-Superseded/folded into the full attribute architecture in decision 19 below — Inside/Outside survive as `insideScoring`/`outsideScoring`, now two of twelve stats rather than a standalone pair.
+Superseded/folded into the full attribute architecture in decision 19 below — Inside/Outside survive as `interiorOffense`/`perimeterOffense` (renamed from "Scoring" per decision 20), now two of twelve stats rather than a standalone pair.
 
 ## 18. Roster star-rating system
 
@@ -76,4 +76,8 @@ Superseded/folded into the full attribute architecture in decision 19 below — 
 
 ## 19. Player attribute architecture
 
-**Decision:** Twelve stored ratings — four physical (speed, agility, strength, stamina), four offensive (ball control, passing, inside scoring, outside scoring), four defensive/playmaking (perimeter defense, interior defense, disruption, blocking) — plus potential as a separate ceiling rating, all on the shared 1-99 scale. Full detail in `star_system.md`. In-game action success uses one universal formula: Physical Stat + Skill/Defensive Stat, applied per action at simulation time (Phase 3) rather than pre-computed on the player. Rebounding is not a stored or derived rating at all — it's just that formula applied twice: an offensive rebound checks strength + inside scoring, a defensive rebound checks strength + interior defense.
+**Decision:** Twelve stored ratings — four physical (speed, agility, strength, stamina), four offensive (ball control, passing, interior offense, perimeter offense), four defensive/playmaking (perimeter defense, interior defense, disruption, blocking) — plus potential as a separate ceiling rating, all on the shared 1-99 scale. Full detail in `star_system.md`. In-game action success uses one universal formula: Physical Stat + Skill/Defensive Stat, applied per action at simulation time (Phase 3) rather than pre-computed on the player. Rebounding is not a stored or derived rating at all — it's just that formula applied twice: an offensive rebound checks strength + interior offense, a defensive rebound checks strength + interior defense.
+
+## 20. Interior/Perimeter Offense naming
+
+**Decision:** Renamed Inside/Outside "Scoring" to **Interior Offense** and **Perimeter Offense**, mirroring Interior/Perimeter Defense so the sheet reads as one symmetric system. "Scoring" was too narrow — Interior Offense also covers offensive rebounding instinct and boxing out, Perimeter Offense also covers shot fakes and footwork, not just makes/misses.

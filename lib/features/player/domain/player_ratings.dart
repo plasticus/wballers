@@ -8,7 +8,7 @@ import '../../../core/ratings/rating_scale.dart';
 /// There's no stored or derived rebounding rating here. Rebounding isn't
 /// special — it's the same universal Physical + Skill/Defensive formula
 /// every other in-game action uses (offensive rebound: [strength] +
-/// [insideScoring]; defensive rebound: [strength] + [interiorDefense]).
+/// [interiorOffense]; defensive rebound: [strength] + [interiorDefense]).
 /// That check happens at simulation time in Phase 3's engine, not here.
 class PlayerRatings {
   const PlayerRatings({
@@ -20,8 +20,8 @@ class PlayerRatings {
     // Offensive
     required this.ballControl,
     required this.passing,
-    required this.insideScoring,
-    required this.outsideScoring,
+    required this.interiorOffense,
+    required this.perimeterOffense,
     // Defensive & playmaking
     required this.perimeterDefense,
     required this.interiorDefense,
@@ -35,8 +35,8 @@ class PlayerRatings {
        assert(stamina >= kMinRating && stamina <= kMaxRating),
        assert(ballControl >= kMinRating && ballControl <= kMaxRating),
        assert(passing >= kMinRating && passing <= kMaxRating),
-       assert(insideScoring >= kMinRating && insideScoring <= kMaxRating),
-       assert(outsideScoring >= kMinRating && outsideScoring <= kMaxRating),
+       assert(interiorOffense >= kMinRating && interiorOffense <= kMaxRating),
+       assert(perimeterOffense >= kMinRating && perimeterOffense <= kMaxRating),
        assert(perimeterDefense >= kMinRating && perimeterDefense <= kMaxRating),
        assert(interiorDefense >= kMinRating && interiorDefense <= kMaxRating),
        assert(disruption >= kMinRating && disruption <= kMaxRating),
@@ -52,8 +52,15 @@ class PlayerRatings {
   // Offensive
   final int ballControl;
   final int passing;
-  final int insideScoring;
-  final int outsideScoring;
+
+  /// Layups, post moves, offensive rebounding instinct, boxing out —
+  /// everything offensive that happens in the paint, not just finishing.
+  final int interiorOffense;
+
+  /// Jump shooting, shot fakes, and footwork from mid-range through the
+  /// three-point line — everything offensive that happens on the perimeter,
+  /// not just makes/misses.
+  final int perimeterOffense;
 
   // Defensive & playmaking
   final int perimeterDefense;
@@ -76,8 +83,8 @@ class PlayerRatings {
         stamina +
         ballControl +
         passing +
-        insideScoring +
-        outsideScoring +
+        interiorOffense +
+        perimeterOffense +
         perimeterDefense +
         interiorDefense +
         disruption +

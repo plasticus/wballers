@@ -8,8 +8,8 @@ const _base = (
   stamina: 50,
   ballControl: 50,
   passing: 50,
-  insideScoring: 50,
-  outsideScoring: 50,
+  interiorOffense: 50,
+  perimeterOffense: 50,
   perimeterDefense: 50,
   interiorDefense: 50,
   disruption: 50,
@@ -19,7 +19,7 @@ const _base = (
 
 PlayerRatings _ratingsWith({
   int? strength,
-  int? insideScoring,
+  int? interiorOffense,
   int? interiorDefense,
   int? potential,
 }) {
@@ -30,8 +30,8 @@ PlayerRatings _ratingsWith({
     stamina: _base.stamina,
     ballControl: _base.ballControl,
     passing: _base.passing,
-    insideScoring: insideScoring ?? _base.insideScoring,
-    outsideScoring: _base.outsideScoring,
+    interiorOffense: interiorOffense ?? _base.interiorOffense,
+    perimeterOffense: _base.perimeterOffense,
     perimeterDefense: _base.perimeterDefense,
     interiorDefense: interiorDefense ?? _base.interiorDefense,
     disruption: _base.disruption,
