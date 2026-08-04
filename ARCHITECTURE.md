@@ -21,15 +21,24 @@ lib/
     dashboard/
     league/
       domain/            Team, Conference, TeamColors, and the initial league
+      persistence/       team_json.dart
     coach/
       domain/            Coach, CoachStats
+      persistence/       coach_json.dart
     player/
       domain/            Player, PlayerRatings, Position, Handedness
+      persistence/       player_json.dart
     roster/
-      domain/            StarTier, RosterStatus, RosterLegality
+      domain/            StarTier, RosterStatus, RosterMembership, RosterLegality
+      persistence/       roster_membership_json.dart
+    franchise/
+      domain/            Franchise (save-game root), franchise_legality.dart
+      persistence/       franchise_json.dart -- goes through SaveEnvelope/SaveRepository
 ```
 
-Add feature modules as the game grows: `franchise_setup`, `roster`, `players`, `simulation`, `portraits`, and `game_day`. Keep their domain models and game rules free of Flutter widget imports.
+Each feature with a `persistence/` subfolder owns manual `toJson`/`fromJson` functions for its own domain types (no codegen yet); a composing feature imports the pieces it needs rather than duplicating them. `franchise_json.dart` is the one that actually round-trips through `SaveEnvelope`.
+
+Add feature modules as the game grows: `franchise_setup`, `simulation`, `portraits`, and `game_day`. Keep their domain models and game rules free of Flutter widget imports.
 
 ## State and navigation
 
