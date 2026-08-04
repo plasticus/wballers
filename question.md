@@ -81,3 +81,11 @@ Superseded/folded into the full attribute architecture in decision 19 below — 
 ## 20. Interior/Perimeter Offense naming
 
 **Decision:** Renamed Inside/Outside "Scoring" to **Interior Offense** and **Perimeter Offense**, mirroring Interior/Perimeter Defense so the sheet reads as one symmetric system. "Scoring" was too narrow — Interior Offense also covers offensive rebounding instinct and boxing out, Perimeter Offense also covers shot fakes and footwork, not just makes/misses.
+
+## 21. Player personality: traits, not hidden stats
+
+**Decision:** Dropped the hidden-numeric-stat idea (Ego, Motivation, Coachability, Composure, etc.) entirely in favor of a **Traits** system: a catalog of at least a dozen discrete, visible, earnable traits a coach can scout for — not numbers they can't see. Rationale: in a management game, an unmanageable hidden number is a worse fit than a visible, scoutable trait; Leadership was the case that made this obvious — it's clearly something a coach should be able to hunt for on the trade market, not something invisible.
+
+The "Potential" hidden-stat idea survives as two traits instead, **High Potential** and **Low Potential** — they don't replace the numeric `potential` rating in `PlayerRatings`, they modify how easy or hard the player is to train (interacts with Coach's `development` stat once Phase 2's development system exists). The naming collision with the existing `potential` rating is deliberate context, not a conflict: the rating is the ceiling, the trait is how easily a player closes the gap to it.
+
+Traits and the refined nickname-award criteria both live in Phase 1.5 (`FLUTTER_APP_PLAN.md`), alongside each other as the "earned identity" system. The trait catalog itself is still being drafted.
