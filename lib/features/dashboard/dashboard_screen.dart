@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_spacing.dart';
 import '../../core/widgets/ad_placement_placeholder.dart';
 import '../../core/widgets/app_card.dart';
+import '../league/league_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -23,9 +24,11 @@ class _AppShellState extends State<AppShell> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: _selectedIndex == 0
-              ? const DashboardScreen()
-              : _ComingSoonPage(title: _titles[_selectedIndex]),
+          child: switch (_selectedIndex) {
+            0 => const DashboardScreen(),
+            2 => const LeagueScreen(),
+            _ => _ComingSoonPage(title: _titles[_selectedIndex]),
+          },
         ),
       ),
       bottomNavigationBar: NavigationBar(
