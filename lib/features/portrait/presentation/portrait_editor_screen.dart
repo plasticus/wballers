@@ -94,11 +94,10 @@ class _EditorBody extends ConsumerStatefulWidget {
 
 class _EditorBodyState extends ConsumerState<_EditorBody> {
   late PortraitAppearance _draft;
-  late TextEditingController _nicknameController;
   var _isSaving = false;
 
-  /// `null` when editing the coach -- nicknames are earned through on-court
-  /// achievements (`achievement.dart`), which only players have.
+  /// `null` when editing the coach -- achievements (`achievement.dart`)
+  /// only players have.
   Player? get _targetPlayer {
     if (widget.isCoach) return null;
     return widget.franchise.roster
@@ -116,15 +115,6 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
   void initState() {
     super.initState();
     _draft = _existingAppearance() ?? _defaultAppearance();
-    _nicknameController = TextEditingController(
-      text: _targetPlayer?.nickname ?? '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _nicknameController.dispose();
-    super.dispose();
   }
 
   PortraitAppearance? _existingAppearance() {
@@ -159,11 +149,6 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
       await notifier.updateCoachAppearance(_draft);
     } else {
       await notifier.updatePlayerAppearance(widget.playerId!, _draft);
-      final nickname = _nicknameController.text.trim();
-      await notifier.updatePlayerNickname(
-        widget.playerId!,
-        nickname.isEmpty ? null : nickname,
-      );
     }
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -193,25 +178,6 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
           Expanded(
             child: ListView(
               children: [
-                if (!widget.isCoach) ...[
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Nickname', style: theme.textTheme.titleSmall),
-                        const SizedBox(height: AppSpacing.xs),
-                        TextField(
-                          controller: _nicknameController,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            hintText: 'e.g. "The Wall"',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

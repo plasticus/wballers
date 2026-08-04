@@ -69,9 +69,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     );
   }
 
-  /// Replaces one roster player's nickname (freely GM-editable, not gated
-  /// on having earned an achievement -- see the note on [Player.nickname])
-  /// and persists it.
+  /// Replaces one roster player's nickname and persists it. Infrastructure
+  /// for Phase 2's season-end ceremony (apply an earned nickname suggestion,
+  /// or the GM's override of it) -- no UI calls this yet, since nothing can
+  /// earn a [PlayerAchievementRecord] to earn a nickname from until then;
+  /// see the note on [Player.nickname].
   Future<void> updatePlayerNickname(String playerId, String? nickname) {
     return _updatePlayer(
       playerId,

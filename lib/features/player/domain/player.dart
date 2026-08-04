@@ -105,11 +105,13 @@ class Player {
   /// until Phase 2's season simulation exists to determine a winner.
   final List<PlayerAchievementRecord> achievements;
 
-  /// GM-chosen or game-suggested nickname (`FLUTTER_APP_PLAN.md`'s earned
-  /// identity system). `null` means none set. Unlike [achievements], this
-  /// is freely GM-editable at any time -- the plan only requires that an
-  /// *earned* nickname come with a game suggestion the GM can override, not
-  /// that nicknames are otherwise locked.
+  /// Game-suggested nickname, earned through play, that the GM can
+  /// override (`FLUTTER_APP_PLAN.md`'s earned identity system). `null`
+  /// means none earned. Deliberately *not* a general-purpose rename field
+  /// -- a GM can't assign one to an arbitrary player on a whim; it only
+  /// becomes settable in response to a real [PlayerAchievementRecord],
+  /// which needs Phase 2's season simulation to ever occur. No UI exposes
+  /// this yet for exactly that reason.
   final String? nickname;
 
   /// Returns a copy with [newAppearance] replacing [appearance] -- the only
