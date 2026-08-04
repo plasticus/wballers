@@ -36,6 +36,7 @@ void main() {
       're-read as a brand new repository instance', () async {
     final franchise = Franchise(
       id: 'franchise-1',
+      gmName: 'Taylor Reed',
       team: kInitialLeagueTeams.first,
       coach: const Coach(name: 'Jordan Ellis', stats: CoachStats.neutral),
       roster: [
@@ -69,6 +70,7 @@ void main() {
 
     expect(restoredEnvelope.schemaVersion, 1);
     expect(restored.id, franchise.id);
+    expect(restored.gmName, franchise.gmName);
     expect(restored.simulationSeed, franchise.simulationSeed);
     expect(restored.team.abbreviation, franchise.team.abbreviation);
     expect(restored.coach.name, franchise.coach.name);

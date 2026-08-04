@@ -1,6 +1,11 @@
 import 'coach_stats.dart';
 
-/// The coach — the player's persona in the game. One per franchise.
+/// A franchise's head coach — a hired NPC staff member, not the player.
+/// The player is the General Manager (see `Franchise.gmName`); the coach
+/// is who the GM instructs for in-game quarter-break/timeout decisions and
+/// who drives player development, per `CoachStats`. One per franchise for
+/// now, generated at onboarding (`generateCoach`) rather than player-named
+/// — hiring/firing a specific coach is future GM-decision work.
 ///
 /// Portrait appearance isn't linked here yet: the portrait system (see
 /// `portraits.md`) already models coaches as a distinct entity, but the

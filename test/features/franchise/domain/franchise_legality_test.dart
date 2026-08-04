@@ -12,6 +12,7 @@ import '../../roster/domain/roster_test_helpers.dart';
 Franchise _franchiseWithRoster(List<RosterMembership> roster) {
   return Franchise(
     id: 'test-franchise',
+    gmName: 'Test GM',
     team: kInitialLeagueTeams.first,
     coach: const Coach(name: 'Test Coach', stats: CoachStats.neutral),
     roster: roster,

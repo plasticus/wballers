@@ -46,7 +46,7 @@ void main() {
     expect(createButton().onPressed, isNull);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Coach name'),
+      find.widgetWithText(TextField, 'Your name (General Manager)'),
       'Jordan Ellis',
     );
     await tester.pump();
@@ -74,7 +74,7 @@ void main() {
       await pumpHarness(tester);
 
       await tester.enterText(
-        find.widgetWithText(TextField, 'Coach name'),
+        find.widgetWithText(TextField, 'Your name (General Manager)'),
         'Jordan Ellis',
       );
       await tester.enterText(
@@ -98,7 +98,8 @@ void main() {
       final franchise = container.read(currentFranchiseProvider).value;
 
       expect(franchise?.team.name, 'Comets');
-      expect(franchise?.coach.name, 'Jordan Ellis');
+      expect(franchise?.gmName, 'Jordan Ellis');
+      expect(franchise?.coach.name, isNot('Jordan Ellis'));
     },
   );
 }

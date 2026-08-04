@@ -8,8 +8,9 @@ import '../../league/domain/team.dart';
 import '../application/current_franchise_provider.dart';
 import 'expansion_franchise_factory.dart';
 
-/// Name the club, choose a conference, and generate a weak starting
-/// roster. Phase 1's expansion onboarding flow.
+/// Name yourself (the GM) and the club, choose a conference, and generate
+/// a weak starting roster with a hired coach. Phase 1's expansion
+/// onboarding flow.
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -18,7 +19,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  final _coachNameController = TextEditingController();
+  final _gmNameController = TextEditingController();
   final _clubNameController = TextEditingController();
   final _homeCityController = TextEditingController();
   var _conference = Conference.atlantic;
@@ -28,7 +29,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   void initState() {
     super.initState();
     for (final controller in [
-      _coachNameController,
+      _gmNameController,
       _clubNameController,
       _homeCityController,
     ]) {
@@ -38,14 +39,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   void dispose() {
-    _coachNameController.dispose();
+    _gmNameController.dispose();
     _clubNameController.dispose();
     _homeCityController.dispose();
     super.dispose();
   }
 
   bool get _isValid =>
-      _coachNameController.text.trim().isNotEmpty &&
+      _gmNameController.text.trim().isNotEmpty &&
       _clubNameController.text.trim().isNotEmpty &&
       _homeCityController.text.trim().isNotEmpty;
 
@@ -56,7 +57,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // everything the seed drives from here on is deterministic.
     final simulationSeed = Random().nextInt(1 << 31);
     final franchise = createExpansionFranchise(
-      coachName: _coachNameController.text.trim(),
+      gmName: _gmNameController.text.trim(),
       clubName: _clubNameController.text.trim(),
       homeCity: _homeCityController.text.trim(),
       conference: _conference,
@@ -87,12 +88,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 'Every legend starts with an expansion team.',
                 style: theme.textTheme.titleMedium,
               ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                "You're the General Manager: build the roster and set the "
+                'direction. Your coach handles in-game decisions.',
+                style: theme.textTheme.bodyMedium,
+              ),
               const SizedBox(height: AppSpacing.xl),
               TextField(
-                controller: _coachNameController,
+                controller: _gmNameController,
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
-                  labelText: 'Coach name',
+                  labelText: 'Your name (General Manager)',
                   border: OutlineInputBorder(),
                 ),
               ),

@@ -30,7 +30,7 @@ void main() {
     await container.read(currentFranchiseProvider.future);
 
     final franchise = createExpansionFranchise(
-      coachName: 'Jordan Ellis',
+      gmName: 'Jordan Ellis',
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
@@ -51,7 +51,7 @@ void main() {
     );
     await firstContainer.read(currentFranchiseProvider.future);
     final franchise = createExpansionFranchise(
-      coachName: 'Jordan Ellis',
+      gmName: 'Jordan Ellis',
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
@@ -72,6 +72,6 @@ void main() {
     );
 
     expect(reloaded?.team.name, 'Comets');
-    expect(reloaded?.coach.name, 'Jordan Ellis');
+    expect(reloaded?.gmName, 'Jordan Ellis');
   });
 }

@@ -16,6 +16,7 @@ lib/
   core/                cross-cutting contracts and utilities
     persistence/       local save abstractions and implementations
     ratings/           shared 1-99 rating scale used by coaches and players
+    generation/        shared name pools used by player and coach generation
     widgets/            shared, feature-agnostic UI components
   features/            user-facing feature modules
     dashboard/
@@ -23,8 +24,9 @@ lib/
       domain/            Team, Conference, TeamColors, and the initial league
       persistence/       team_json.dart
     coach/
-      domain/            Coach, CoachStats
+      domain/            Coach (a hired NPC staff member, not the player -- see Franchise.gmName), CoachStats
       persistence/       coach_json.dart
+      generation/        generateCoach -- seeded, deterministic
     player/
       domain/            Player, PlayerRatings, Position, Handedness
       persistence/       player_json.dart

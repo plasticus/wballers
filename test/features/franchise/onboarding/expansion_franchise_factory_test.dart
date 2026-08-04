@@ -23,14 +23,14 @@ void main() {
   group('createExpansionFranchise', () {
     test('the same seed produces an identical franchise', () {
       final a = createExpansionFranchise(
-        coachName: 'Jordan Ellis',
+        gmName: 'Jordan Ellis',
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
         simulationSeed: 555,
       );
       final b = createExpansionFranchise(
-        coachName: 'Jordan Ellis',
+        gmName: 'Jordan Ellis',
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
@@ -38,22 +38,41 @@ void main() {
       );
 
       expect(a.id, b.id);
+      expect(a.coach.name, b.coach.name);
+      expect(a.coach.stats.overall, b.coach.stats.overall);
       expect(a.team.colors.primaryHex, b.team.colors.primaryHex);
       for (var i = 0; i < a.roster.length; i++) {
         expect(a.roster[i].player.name, b.roster[i].player.name);
       }
     });
 
-    test('sets the coach, team identity, and a full active roster', () {
+    test('the GM is not the coach -- both are set, and distinctly', () {
       final franchise = createExpansionFranchise(
-        coachName: 'Jordan Ellis',
+        gmName: 'Jordan Ellis',
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
         simulationSeed: 1,
       );
 
-      expect(franchise.coach.name, 'Jordan Ellis');
+      expect(franchise.gmName, 'Jordan Ellis');
+      expect(franchise.coach.name, isNotEmpty);
+      expect(
+        franchise.coach.name,
+        isNot('Jordan Ellis'),
+        reason: 'the coach is a generated NPC, not the GM',
+      );
+    });
+
+    test('sets the team identity and a full active roster', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        simulationSeed: 1,
+      );
+
       expect(franchise.team.name, 'Comets');
       expect(franchise.team.location, 'Springfield, IL');
       expect(franchise.team.conference, Conference.pacific);

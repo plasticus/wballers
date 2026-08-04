@@ -6,6 +6,7 @@ import '../domain/franchise.dart';
 Map<String, dynamic> franchiseToJson(Franchise franchise) {
   return {
     'id': franchise.id,
+    'gmName': franchise.gmName,
     'team': teamToJson(franchise.team),
     'coach': coachToJson(franchise.coach),
     'roster': franchise.roster
@@ -18,6 +19,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
 Franchise franchiseFromJson(Map<String, dynamic> json) {
   return Franchise(
     id: json['id'] as String,
+    gmName: json['gmName'] as String,
     team: teamFromJson(json['team'] as Map<String, dynamic>),
     coach: coachFromJson(json['coach'] as Map<String, dynamic>),
     roster: (json['roster'] as List<dynamic>)

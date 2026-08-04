@@ -1,5 +1,6 @@
-import '../../coach/domain/coach.dart';
-import '../../coach/domain/coach_stats.dart';
+import 'dart:math';
+
+import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
 import '../../roster/generation/starting_roster_generator.dart';
 import '../domain/franchise.dart';
@@ -42,7 +43,7 @@ const _starterPalettes = <TeamColors>[
 
 /// Derives a 3-letter team abbreviation from a club name: the first three
 /// letters, uppercased, padded with `X` if the name is too short. Doesn't
-/// try to be clever about word boundaries -- a coach who wants a specific
+/// try to be clever about word boundaries -- a GM who wants a specific
 /// abbreviation can get that from the future team-profile editor.
 String deriveTeamAbbreviation(String clubName) {
   final lettersOnly = clubName.toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
@@ -50,14 +51,19 @@ String deriveTeamAbbreviation(String clubName) {
   return letters.substring(0, 3);
 }
 
-/// Builds a brand-new expansion franchise: a fresh [Team] (not tied to any
-/// of the 20 original teams -- see the note on [Franchise.team]), a coach
-/// with neutral starting stats, and a weak generated starting roster.
+/// Builds a brand-new expansion franchise: the GM persona [gmName], a
+/// fresh [Team] (not tied to any of the 20 original teams -- see the note
+/// on [Franchise.team]), a generated head coach (see the note on `Coach`
+/// -- the GM doesn't invent their own coach's identity, they get hired
+/// staff), and a weak generated starting roster.
+///
 /// [simulationSeed] should come from real entropy at creation time (e.g.
 /// `Random().nextInt(...)`, not a fixed seed); everything downstream of
-/// that seed is deterministic.
+/// that seed is deterministic. The coach and roster are generated from
+/// deliberately offset seeds derived from [simulationSeed] so their random
+/// streams don't correlate with each other.
 Franchise createExpansionFranchise({
-  required String coachName,
+  required String gmName,
   required String clubName,
   required String homeCity,
   required Conference conference,
@@ -74,9 +80,10 @@ Franchise createExpansionFranchise({
 
   return Franchise(
     id: 'franchise-$simulationSeed',
+    gmName: gmName,
     team: team,
-    coach: Coach(name: coachName, stats: CoachStats.neutral),
-    roster: generateStartingRoster(simulationSeed),
+    coach: generateCoach(Random(simulationSeed)),
+    roster: generateStartingRoster(simulationSeed + 1),
     simulationSeed: simulationSeed,
   );
 }

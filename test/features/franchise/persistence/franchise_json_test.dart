@@ -14,6 +14,7 @@ Franchise _sampleFranchise() {
   final starter = playerWithOverall(72, name: 'Riley Okafor');
   return Franchise(
     id: 'franchise-1',
+    gmName: 'Taylor Reed',
     team: kInitialLeagueTeams.first,
     coach: const Coach(
       name: 'Jordan Ellis',
@@ -43,6 +44,7 @@ void main() {
     final restored = franchiseFromJson(franchiseToJson(original));
 
     expect(restored.id, original.id);
+    expect(restored.gmName, original.gmName);
     expect(restored.simulationSeed, original.simulationSeed);
 
     expect(restored.team.abbreviation, original.team.abbreviation);
@@ -89,6 +91,7 @@ void main() {
     );
     final franchise = Franchise(
       id: 'franchise-2',
+      gmName: 'Taylor Reed',
       team: kInitialLeagueTeams.first,
       coach: const Coach(name: 'Coach', stats: CoachStats.neutral),
       roster: [

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../../core/generation/name_pools.dart';
 import '../../../core/ratings/rating_scale.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';

@@ -164,7 +164,8 @@ class _FranchiseSummaryCard extends StatelessWidget {
           Text(
             '${franchise.team.location} · ${franchise.team.conference.name}',
           ),
-          Text('Coach ${franchise.coach.name}'),
+          Text('GM ${franchise.gmName}'),
+          Text('Head Coach ${franchise.coach.name}'),
           const SizedBox(height: AppSpacing.sm),
           Text('$activeCount players on the active roster'),
         ],
