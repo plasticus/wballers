@@ -3,15 +3,18 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
 
 const _ratings = PlayerRatings(
-  inside: 50,
-  outside: 50,
-  playmaking: 50,
-  ballHandling: 50,
-  defense: 50,
-  rebounding: 50,
-  athleticism: 50,
+  speed: 50,
+  agility: 50,
+  strength: 50,
   stamina: 50,
-  discipline: 50,
+  ballControl: 50,
+  passing: 50,
+  insideScoring: 50,
+  outsideScoring: 50,
+  perimeterDefense: 50,
+  interiorDefense: 50,
+  disruption: 50,
+  blocking: 50,
   potential: 50,
 );
 

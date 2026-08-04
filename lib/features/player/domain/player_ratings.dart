@@ -1,65 +1,98 @@
+import 'dart:math';
+
 import '../../../core/ratings/rating_scale.dart';
 
-/// A player's basketball ratings, all on the shared 1-99 scale (`question.md`
-/// decision 16). Shooting is two ratings, not three — [inside] and
-/// [outside] — with no separate Finishing rating (decision 17).
+/// A player's basketball ratings on the shared 1-99 scale (`question.md`
+/// decision 16), following the "Final Stat Architecture" in
+/// `star_system.md`: four physical, four offensive, and four defensive
+/// attributes, plus [potential] as a separate ceiling rating.
 class PlayerRatings {
   const PlayerRatings({
-    required this.inside,
-    required this.outside,
-    required this.playmaking,
-    required this.ballHandling,
-    required this.defense,
-    required this.rebounding,
-    required this.athleticism,
+    // Physical
+    required this.speed,
+    required this.agility,
+    required this.strength,
     required this.stamina,
-    required this.discipline,
+    // Offensive
+    required this.ballControl,
+    required this.passing,
+    required this.insideScoring,
+    required this.outsideScoring,
+    // Defensive & playmaking
+    required this.perimeterDefense,
+    required this.interiorDefense,
+    required this.disruption,
+    required this.blocking,
+    // Ceiling, not current ability
     required this.potential,
-  }) : assert(inside >= kMinRating && inside <= kMaxRating),
-       assert(outside >= kMinRating && outside <= kMaxRating),
-       assert(playmaking >= kMinRating && playmaking <= kMaxRating),
-       assert(ballHandling >= kMinRating && ballHandling <= kMaxRating),
-       assert(defense >= kMinRating && defense <= kMaxRating),
-       assert(rebounding >= kMinRating && rebounding <= kMaxRating),
-       assert(athleticism >= kMinRating && athleticism <= kMaxRating),
+  }) : assert(speed >= kMinRating && speed <= kMaxRating),
+       assert(agility >= kMinRating && agility <= kMaxRating),
+       assert(strength >= kMinRating && strength <= kMaxRating),
        assert(stamina >= kMinRating && stamina <= kMaxRating),
-       assert(discipline >= kMinRating && discipline <= kMaxRating),
+       assert(ballControl >= kMinRating && ballControl <= kMaxRating),
+       assert(passing >= kMinRating && passing <= kMaxRating),
+       assert(insideScoring >= kMinRating && insideScoring <= kMaxRating),
+       assert(outsideScoring >= kMinRating && outsideScoring <= kMaxRating),
+       assert(perimeterDefense >= kMinRating && perimeterDefense <= kMaxRating),
+       assert(interiorDefense >= kMinRating && interiorDefense <= kMaxRating),
+       assert(disruption >= kMinRating && disruption <= kMaxRating),
+       assert(blocking >= kMinRating && blocking <= kMaxRating),
        assert(potential >= kMinRating && potential <= kMaxRating);
 
-  /// Layups and other close-range shots at the rim.
-  final int inside;
-
-  /// One combined rating spanning mid-range through three-point shooting.
-  final int outside;
-
-  final int playmaking;
-  final int ballHandling;
-  final int defense;
-  final int rebounding;
-  final int athleticism;
+  // Physical
+  final int speed;
+  final int agility;
+  final int strength;
   final int stamina;
-  final int discipline;
+
+  // Offensive
+  final int ballControl;
+  final int passing;
+  final int insideScoring;
+  final int outsideScoring;
+
+  // Defensive & playmaking
+  final int perimeterDefense;
+  final int interiorDefense;
+  final int disruption;
+  final int blocking;
 
   /// Ceiling, not current ability — how good this player could become, not
-  /// how good they are right now. Deliberately excluded from [overall].
+  /// how good they are right now. Excluded from [overall].
   final int potential;
 
-  /// Unweighted average of the nine current-ability ratings — [potential]
-  /// is a ceiling, not a current-ability stat, so it's excluded or it would
-  /// inflate the rating of a raw-but-promising player. Position-aware
-  /// weighting (a center's rebounding should count for more than a
-  /// guard's) is future work once role fit exists.
+  /// Derived, not stored — see `star_system.md`'s note on rebounding.
+  /// Combines [strength] with whichever of [insideScoring] or
+  /// [interiorDefense] is higher, so both scoring-oriented and
+  /// defense-oriented bigs can dominate the glass. The source doc says
+  /// "Strength with Inside Scoring or Defense" without specifying exactly
+  /// how to combine them — this averages the two so the result stays on
+  /// the same 1-99 scale as every stored rating. Flagged as an
+  /// interpretation, not a confirmed formula.
+  int get reboundingRating {
+    final scoringOrDefense = max(insideScoring, interiorDefense);
+    return ((strength + scoringOrDefense) / 2).round();
+  }
+
+  /// Unweighted average of the twelve stored current-ability ratings.
+  /// [potential] is excluded (it's a ceiling, not current ability) and
+  /// [reboundingRating] is excluded (it's derived from stats already in
+  /// this average, so including it would double-count them). Position-aware
+  /// weighting is future work once role fit exists.
   int get overall {
     final sum =
-        inside +
-        outside +
-        playmaking +
-        ballHandling +
-        defense +
-        rebounding +
-        athleticism +
+        speed +
+        agility +
+        strength +
         stamina +
-        discipline;
-    return (sum / 9).round();
+        ballControl +
+        passing +
+        insideScoring +
+        outsideScoring +
+        perimeterDefense +
+        interiorDefense +
+        disruption +
+        blocking;
+    return (sum / 12).round();
   }
 }

@@ -46,7 +46,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 ### Player system
 
 - Player identity: fictional name, age/experience, hometown, position(s), handedness, biography, personality/archetype, and status.
-- Basketball ratings, all on the shared 1-99 scale: **inside** (layups, close-range shots at the rim), **outside** (one combined rating spanning mid-range through three-point shooting), playmaking, ball handling, defense, rebounding, athleticism, stamina, discipline, and potential. No separate finishing rating — inside scoring already covers it.
+- Basketball ratings, all on the shared 1-99 scale, per the "Final Stat Architecture" in `star_system.md`: four physical (speed, agility, strength, stamina), four offensive (ball control, passing, inside scoring, outside scoring), and four defensive/playmaking (perimeter defense, interior defense, disruption, blocking), plus potential as a separate ceiling rating. Rebounding is derived, not stored — it combines strength with whichever of inside scoring or interior defense is higher. No separate finishing rating — inside scoring already covers it.
 - Derived capabilities: overall, role fit, lineup chemistry, fatigue/readiness, morale, injury risk, and development trajectory.
 - Player detail screen with ratings, season statistics, portrait, role explanation, nickname, and earned cosmetics.
 - Seeded player generation and a curated initial pool. Each new franchise should receive a meaningfully different weak starting roster.
@@ -61,7 +61,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 
 - Expansion onboarding: name the club, choose Atlantic or Pacific, and begin with a weak generated roster. The new club replaces a randomly selected existing team in its chosen conference, keeping the league at 20 teams.
 - Team profile: original name, colors, city, prestige, and visual identity.
-- Roster rules: positions, active/inactive roster, starters, bench order, captain, depth chart, and validation warnings.
+- Roster rules: positions, active/inactive roster, starters, bench order, captain, depth chart, and validation warnings. Roster legality also enforces the star-rating system in `star_system.md` in place of a salary cap: a 12-player active roster capped at 2 five-star (90-99 OVR) + 3 four-star (78-89 OVR) players, or a balanced-depth trade-off of 1 five-star + 5 four-star. Star limits lock at the regular-season buzzer, not mid-season, and rosters must be legal again before free agency and the draft.
 - Roster screens: team hub, lineup editor, player comparison, player search/filtering, and roster summary.
 - Save-game schema for franchise, players, teams, roster memberships, league template, and simulation seed.
 
@@ -115,7 +115,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 
 ### Deliverables
 
-- Possession-based engine: pace, shot selection, turnovers, fouls, rebounds, automatic substitutions, clock/game states, and end-game logic.
+- Possession-based engine: pace, shot selection, turnovers, fouls, rebounds, automatic substitutions, clock/game states, and end-game logic. Action success uses the universal formula from `star_system.md`: Physical Stat + Skill/Defensive Stat.
 - Live textual play-by-play, pre-game setup, post-game box score, advanced stats, and tactical recap.
 - Strategy choices at quarter breaks: offensive style, defensive coverage, pace, matchups, and shot priorities.
 - A limited timeout system for special plays and in-game adjustments.

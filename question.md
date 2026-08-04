@@ -67,3 +67,13 @@
 ## 17. Player shooting ratings
 
 **Decision:** Shooting splits into two ratings, not three: **Inside** (layups, close-range shots at the rim) and **Outside** (one combined rating spanning mid-range through three-point shooting). There is no separate Finishing rating — Inside scoring already covers what that was meant to capture, so it was dropped as redundant rather than kept alongside it.
+
+Superseded/folded into the full attribute architecture in decision 19 below — Inside/Outside survive as `insideScoring`/`outsideScoring`, now two of twelve stats rather than a standalone pair.
+
+## 18. Roster star-rating system
+
+**Decision:** Replaces a salary cap with a structural star-rating system — see `star_system.md` for the full design. 1-99 OVR maps to stars: 5-star (90-99), 4-star (78-89), 3-star and below (1-77). A 12-player active roster is capped at 2 five-star + 3 four-star players, or a balanced-depth trade-off of 1 five-star + 5 four-star. Star limits lock only at the regular-season buzzer (mid-season moves are exempt), and rosters must be legal again before free agency and the draft — a mid-season breakout can temporarily overshoot the cap.
+
+## 19. Player attribute architecture
+
+**Decision:** Twelve stored ratings — four physical (speed, agility, strength, stamina), four offensive (ball control, passing, inside scoring, outside scoring), four defensive/playmaking (perimeter defense, interior defense, disruption, blocking) — plus potential as a separate ceiling rating, all on the shared 1-99 scale. Full detail in `star_system.md`. Rebounding is explicitly not a stored rating; it's derived from strength combined with whichever of inside scoring or interior defense is higher, so both scoring-oriented and defense-oriented bigs can rebound well. In-game action success uses one universal formula: Physical Stat + Skill/Defensive Stat.
