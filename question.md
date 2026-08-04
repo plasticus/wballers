@@ -55,3 +55,7 @@
 ## 14. Game name
 
 **Decision:** The game is named **Women's Basketball Manager**.
+
+## 15. Coach statistics
+
+**Decision:** Coaches carry a small stat block, deliberately much smaller than player ratings: Offense, Defense, Development, Motivation, and Management. Offense/Defense affect in-game tactical calls (Phase 3), Development affects player growth (Phase 2), Motivation affects morale/chemistry (Phase 2) and close-game resilience (Phase 3), and Management affects trade/draft shrewdness (Phase 2). Defined in Phase 1 alongside player identity, matching how player ratings are defined before their systems exist.

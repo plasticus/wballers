@@ -51,6 +51,12 @@ The game works completely offline after installation. It has no accounts, cloud 
 - Player detail screen with ratings, season statistics, portrait, role explanation, nickname, and earned cosmetics.
 - Seeded player generation and a curated initial pool. Each new franchise should receive a meaningfully different weak starting roster.
 
+### Coach system
+
+- Coach identity: fictional name and portrait (the portrait system already treats the coach as a distinct entity — see `portraits.md`).
+- Coach stats — a small block, deliberately much smaller than player ratings: **Offense**, **Defense**, **Development**, **Motivation**, and **Management**. Offense/Defense affect the quality of in-game tactical calls (Phase 3 quarter-break/timeout choices); Development affects player growth speed (Phase 2); Motivation affects team morale/chemistry (Phase 2) and close-game resilience (Phase 3); Management affects trade and draft shrewdness (Phase 2).
+- Defined here alongside player identity even though most of these stats have no consumer yet — their effects get wired up progressively as Phase 2 and Phase 3 systems are built.
+
 ### Team and roster system
 
 - Expansion onboarding: name the club, choose Atlantic or Pacific, and begin with a weak generated roster. The new club replaces a randomly selected existing team in its chosen conference, keeping the league at 20 teams.

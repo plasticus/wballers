@@ -18,9 +18,13 @@ lib/
     widgets/            shared, feature-agnostic UI components
   features/            user-facing feature modules
     dashboard/
+    league/
+      domain/            Team, Conference, TeamColors, and the initial league
+    coach/
+      domain/            Coach, CoachStats
 ```
 
-Add feature modules as the game grows: `franchise_setup`, `roster`, `players`, `league`, `simulation`, `portraits`, and `game_day`. Keep their domain models and game rules free of Flutter widget imports.
+Add feature modules as the game grows: `franchise_setup`, `roster`, `players`, `simulation`, `portraits`, and `game_day`. Keep their domain models and game rules free of Flutter widget imports.
 
 ## State and navigation
 
