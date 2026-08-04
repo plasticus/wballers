@@ -12,6 +12,13 @@ import '../../portrait/persistence/portrait_catalog_loader.dart';
 import '../application/current_franchise_provider.dart';
 import 'expansion_franchise_factory.dart';
 
+String _randomTeamAbbreviation(Conference conference) {
+  final teams = kInitialLeagueTeams
+      .where((team) => team.conference == conference)
+      .toList();
+  return teams[Random().nextInt(teams.length)].abbreviation;
+}
+
 /// Name yourself (the GM) and the club, choose a conference, and generate
 /// a weak starting roster with a hired coach. Phase 1's expansion
 /// onboarding flow.
@@ -27,11 +34,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _clubNameController = TextEditingController();
   final _homeCityController = TextEditingController();
   var _conference = Conference.atlantic;
+  late String _replacedTeamAbbreviation;
   var _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
+    // A fresh random suggestion per playthrough (and per conference switch)
+    // -- the GM can always pick a different team instead.
+    _replacedTeamAbbreviation = _randomTeamAbbreviation(_conference);
     for (final controller in [
       _gmNameController,
       _clubNameController,
@@ -65,13 +76,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // everything the seed drives from here on is deterministic.
     final simulationSeed = Random().nextInt(1 << 31);
     final portraitWeights = await ref.read(portraitWeightsProvider.future);
+    final portraitManifest = await ref.read(portraitManifestProvider.future);
     final franchise = createExpansionFranchise(
       gmName: _gmNameController.text.trim(),
       clubName: _clubNameController.text.trim(),
       homeCity: _homeCityController.text.trim(),
       conference: _conference,
       simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: _replacedTeamAbbreviation,
       portraitWeights: portraitWeights,
+      portraitManifest: portraitManifest,
     );
 
     await ref
@@ -119,7 +133,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
                   labelText: 'Club name',
-                  helperText: 'The full team name, e.g. "Des Moines Dirtbags"',
+                  helperText: 'The full team name, e.g. "New Orleans Brass"',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -147,19 +161,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                 ],
                 selected: {_conference},
-                onSelectionChanged: (selection) =>
-                    setState(() => _conference = selection.first),
+                onSelectionChanged: (selection) => setState(() {
+                  _conference = selection.first;
+                  _replacedTeamAbbreviation = _randomTeamAbbreviation(
+                    _conference,
+                  );
+                }),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
-                '${_conference.label} teams',
+                'Choose the team to replace',
                 style: theme.textTheme.titleSmall,
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'For reference while you pick a name. Choosing which of '
-                'these your club replaces is coming later, once the league '
-                'itself is a running thing.',
+                'Your new club takes this team\'s place in the '
+                '${_conference.label}. We picked one at random -- check a '
+                'different one if you\'d rather replace them instead.',
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -167,7 +185,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 child: Column(
                   children: [
                     for (var i = 0; i < _conferenceTeams.length; i++) ...[
-                      TeamRow(team: _conferenceTeams[i]),
+                      Row(
+                        children: [
+                          Checkbox(
+                            value:
+                                _conferenceTeams[i].abbreviation ==
+                                _replacedTeamAbbreviation,
+                            onChanged: (checked) {
+                              if (checked != true) return;
+                              setState(
+                                () => _replacedTeamAbbreviation =
+                                    _conferenceTeams[i].abbreviation,
+                              );
+                            },
+                          ),
+                          Expanded(child: TeamRow(team: _conferenceTeams[i])),
+                        ],
+                      ),
                       if (i != _conferenceTeams.length - 1)
                         const Divider(height: AppSpacing.lg),
                     ],

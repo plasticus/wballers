@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../../core/generation/name_pools.dart';
 import '../../../core/ratings/rating_scale.dart';
+import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../portrait/generation/portrait_generator.dart';
 import '../domain/coach.dart';
@@ -20,12 +21,15 @@ int _generateStat(Random random, int qualityCenter, int spread) {
 ///
 /// [portraitWeights] is optional, same contract as `generatePlayer`'s: omit
 /// it to leave [Coach.appearance] `null` without consuming any random
-/// numbers for it.
+/// numbers for it. [portraitManifest] is separately optional -- without it,
+/// a generated coach's [PortraitAppearance.shoulders] stays `null`, same as
+/// before a manifest was threaded through at all.
 Coach generateCoach(
   Random random, {
   int qualityCenter = 50,
   int qualitySpread = 15,
   PortraitWeights? portraitWeights,
+  PortraitManifest? portraitManifest,
 }) {
   final firstName = kFirstNames[random.nextInt(kFirstNames.length)];
   final lastName = kLastNames[random.nextInt(kLastNames.length)];
@@ -35,6 +39,7 @@ Coach generateCoach(
           random,
           isCoach: true,
           weights: portraitWeights,
+          manifest: portraitManifest,
         );
 
   return Coach(

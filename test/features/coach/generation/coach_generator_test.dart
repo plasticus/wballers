@@ -3,7 +3,21 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/ratings/rating_scale.dart';
 import 'package:womensbballmgr/features/coach/generation/coach_generator.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
+
+final _portraitManifest = PortraitManifest(
+  hair: const ['hair_afro.png'],
+  eyes: const ['eyes_1center.png'],
+  eyebrows: const ['eyebrow_1.png'],
+  nose: const ['nose_1.png'],
+  mouth: const ['mouth_1.png'],
+  facial: const ['facial_goat.png'],
+  accessories: const ['goggles_1.png'],
+  shoulders: const ['shoulder_black.png', 'shoulder_grey.png'],
+  hats: const ['hat_fedora.png'],
+  glasses: const ['glasses_round.png'],
+);
 
 final _portraitWeights = PortraitWeights(
   skinTone: const {'medium': 1},
@@ -77,6 +91,23 @@ void main() {
       final coach = generateCoach(Random(9), portraitWeights: _portraitWeights);
       expect(coach.appearance, isNotNull);
       expect(coach.appearance!.isCoach, isTrue);
+    },
+  );
+
+  test('shoulders stay null when portraitManifest is omitted', () {
+    final coach = generateCoach(Random(9), portraitWeights: _portraitWeights);
+    expect(coach.appearance!.shoulders, isNull);
+  });
+
+  test(
+    'gets shoulders when both portraitWeights and portraitManifest are given',
+    () {
+      final coach = generateCoach(
+        Random(9),
+        portraitWeights: _portraitWeights,
+        portraitManifest: _portraitManifest,
+      );
+      expect(coach.appearance!.shoulders, isNotNull);
     },
   );
 }

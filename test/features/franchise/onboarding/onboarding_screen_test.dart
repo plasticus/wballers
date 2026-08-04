@@ -83,14 +83,14 @@ void main() {
       );
 
       // Atlantic is the default selection.
-      expect(find.text('Atlantic Conference teams'), findsOneWidget);
+      expect(find.text('Choose the team to replace'), findsOneWidget);
       expect(find.text(firstAtlanticTeam.name), findsOneWidget);
       expect(find.text(firstPacificTeam.name), findsNothing);
 
       await tester.tap(find.text('Pacific'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Pacific Conference teams'), findsOneWidget);
+      expect(find.text('Choose the team to replace'), findsOneWidget);
       expect(find.text(firstPacificTeam.name), findsOneWidget);
       expect(find.text(firstAtlanticTeam.name), findsNothing);
     },
@@ -135,6 +135,43 @@ void main() {
       expect(franchise?.team.name, 'Comets');
       expect(franchise?.gmName, 'Jordan Ellis');
       expect(franchise?.coach.name, isNot('Jordan Ellis'));
+      expect(
+        kInitialLeagueTeams
+            .where((team) => team.conference == Conference.atlantic)
+            .map((team) => team.abbreviation),
+        contains(franchise?.replacedTeamAbbreviation),
+        reason: 'defaults to a random team in the chosen (Atlantic) conference',
+      );
+    },
+  );
+
+  testWidgets(
+    'exactly one team is checked, and tapping a different one switches the '
+    'selection',
+    (tester) async {
+      await pumpHarness(tester);
+
+      Checkbox checkboxAt(int index) =>
+          tester.widget<Checkbox>(find.byType(Checkbox).at(index));
+
+      // A default selection is pre-checked -- exactly one, since it behaves
+      // like a radio group despite being drawn as checkboxes.
+      final checkedCount = List.generate(
+        10,
+        checkboxAt,
+      ).where((c) => c.value == true).length;
+      expect(checkedCount, 1);
+
+      final firstWasChecked = checkboxAt(0).value!;
+      final targetIndex = firstWasChecked ? 1 : 0;
+      final targetCheckbox = find.byType(Checkbox).at(targetIndex);
+      await tester.ensureVisible(targetCheckbox);
+      await tester.pumpAndSettle();
+      await tester.tap(targetCheckbox);
+      await tester.pump();
+
+      expect(checkboxAt(targetIndex).value, isTrue);
+      expect(checkboxAt(0).value, targetIndex == 0);
     },
   );
 }

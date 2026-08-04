@@ -54,6 +54,7 @@ void main() {
       roster: roster,
       startingLineup: StartingLineup.bestAvailable(roster),
       simulationSeed: 12345,
+      replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
     );
 
     final envelope = SaveEnvelope(

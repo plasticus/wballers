@@ -1,8 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+
+final _portraitManifest = PortraitManifest(
+  hair: const ['hair_afro.png'],
+  eyes: const ['eyes_1center.png'],
+  eyebrows: const ['eyebrow_1.png'],
+  nose: const ['nose_1.png'],
+  mouth: const ['mouth_1.png'],
+  facial: const ['facial_goat.png'],
+  accessories: const ['goggles_1.png'],
+  shoulders: const ['shoulder_black.png', 'shoulder_grey.png'],
+  hats: const ['hat_fedora.png'],
+  glasses: const ['glasses_round.png'],
+);
 
 final _portraitWeights = PortraitWeights(
   skinTone: const {'medium': 1},
@@ -43,6 +57,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
         simulationSeed: 555,
       );
       final b = createExpansionFranchise(
@@ -50,6 +65,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
         simulationSeed: 555,
       );
 
@@ -68,6 +84,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
+        replacedTeamAbbreviation: 'SDG',
         simulationSeed: 1,
       );
 
@@ -86,6 +103,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
+        replacedTeamAbbreviation: 'SDG',
         simulationSeed: 1,
       );
 
@@ -105,6 +123,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
+        replacedTeamAbbreviation: 'SDG',
         simulationSeed: 1,
       );
 
@@ -122,6 +141,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
+        replacedTeamAbbreviation: 'SDG',
         simulationSeed: 1,
         portraitWeights: _portraitWeights,
       );
@@ -132,6 +152,26 @@ void main() {
         franchise.roster.every(
           (m) => m.player.appearance != null && !m.player.appearance!.isCoach,
         ),
+        isTrue,
+      );
+    });
+
+    test('the coach gets shoulders when portraitManifest is also given, '
+        'players never do', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        replacedTeamAbbreviation: 'SDG',
+        simulationSeed: 1,
+        portraitWeights: _portraitWeights,
+        portraitManifest: _portraitManifest,
+      );
+
+      expect(franchise.coach.appearance!.shoulders, isNotNull);
+      expect(
+        franchise.roster.every((m) => m.player.appearance!.shoulders == null),
         isTrue,
       );
     });

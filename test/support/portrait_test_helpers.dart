@@ -37,6 +37,7 @@ Franchise franchiseForPortraitTests({bool firstPlayerHasAchievement = false}) {
     roster: roster,
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
+    replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
   );
 }
 

@@ -51,6 +51,7 @@ void main() {
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
       simulationSeed: 1,
     );
     await container
@@ -72,6 +73,7 @@ void main() {
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
       simulationSeed: 1,
     );
     await firstContainer
@@ -103,6 +105,7 @@ void main() {
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
       simulationSeed: 1,
     );
     await container
@@ -135,6 +138,7 @@ void main() {
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
       simulationSeed: 1,
     );
     final envelope = SaveEnvelope(
@@ -195,6 +199,7 @@ void main() {
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
       simulationSeed: 1,
     );
     await container
@@ -224,6 +229,7 @@ void main() {
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
       simulationSeed: 1,
     );
     await container
@@ -260,6 +266,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
         simulationSeed: 1,
       );
       await container
@@ -293,6 +300,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
         simulationSeed: 1,
       );
       await container
@@ -334,6 +342,7 @@ void main() {
       clubName: 'Comets',
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
       simulationSeed: 1,
     );
     await container

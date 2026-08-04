@@ -27,6 +27,7 @@ Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
     roster: roster,
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
+    replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
   );
 }
 

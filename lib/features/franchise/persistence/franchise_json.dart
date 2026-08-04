@@ -15,6 +15,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         .toList(),
     'startingLineup': startingLineupToJson(franchise.startingLineup),
     'simulationSeed': franchise.simulationSeed,
+    'replacedTeamAbbreviation': franchise.replacedTeamAbbreviation,
   };
 }
 
@@ -31,5 +32,6 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
       json['startingLineup'] as Map<String, dynamic>,
     ),
     simulationSeed: json['simulationSeed'] as int,
+    replacedTeamAbbreviation: json['replacedTeamAbbreviation'] as String,
   );
 }

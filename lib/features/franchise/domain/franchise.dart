@@ -1,4 +1,5 @@
 import '../../coach/domain/coach.dart';
+import '../../league/domain/initial_league.dart';
 import '../../league/domain/team.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
@@ -11,14 +12,17 @@ import '../../roster/domain/starting_lineup.dart';
 /// The player is the GM, not [coach] — see the note on [Coach]. [team] is
 /// the club's own identity (name/colors/city), chosen at onboarding — not
 /// a reference into `kInitialLeagueTeams`. Which of the 20 original teams
-/// this franchise notionally "replaced" in the league is bookkeeping that
-/// belongs to a future `League` concept (Phase 2's season/schedule work),
-/// not to Franchise itself.
+/// this franchise replaced is captured separately, in
+/// [replacedTeamAbbreviation] -- picked at onboarding, defaulting to a
+/// random team in the chosen conference but GM-overridable. Actually
+/// removing that team from the league (so only 19 AI teams remain) is
+/// still a future `League` concept (Phase 2's season/schedule work); this
+/// field is just the record of the GM's choice.
 ///
 /// Roster legality isn't enforced here — see `evaluateFranchiseLegality`.
 /// Lineup legality isn't enforced here either — see `evaluateLineupLegality`.
 class Franchise {
-  const Franchise({
+  Franchise({
     required this.id,
     required this.gmName,
     required this.team,
@@ -26,7 +30,12 @@ class Franchise {
     required this.roster,
     required this.startingLineup,
     required this.simulationSeed,
-  });
+    required this.replacedTeamAbbreviation,
+  }) : assert(
+         _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
+         'replacedTeamAbbreviation must be one of the 20 original teams, '
+         'in the same conference as team',
+       );
 
   /// Stable identifier for this save, independent of [team]'s name (which
   /// the GM could rebrand later).
@@ -45,6 +54,10 @@ class Franchise {
   /// results.
   final int simulationSeed;
 
+  /// The `kInitialLeagueTeams` abbreviation this franchise replaced.
+  /// Bookkeeping only for now -- see the class doc comment.
+  final String replacedTeamAbbreviation;
+
   /// Returns a copy with [startingLineup] replaced -- the only field the
   /// lineup editor needs to change.
   Franchise copyWithLineup(StartingLineup newLineup) {
@@ -56,6 +69,7 @@ class Franchise {
       roster: roster,
       startingLineup: newLineup,
       simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
     );
   }
 
@@ -70,6 +84,7 @@ class Franchise {
       roster: roster,
       startingLineup: startingLineup,
       simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
     );
   }
 
@@ -84,6 +99,18 @@ class Franchise {
       roster: newRoster,
       startingLineup: startingLineup,
       simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
     );
   }
+}
+
+bool _replacedTeamIsInSameConference(
+  Team team,
+  String replacedTeamAbbreviation,
+) {
+  return kInitialLeagueTeams.any(
+    (t) =>
+        t.abbreviation == replacedTeamAbbreviation &&
+        t.conference == team.conference,
+  );
 }

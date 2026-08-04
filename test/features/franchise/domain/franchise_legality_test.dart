@@ -19,6 +19,7 @@ Franchise _franchiseWithRoster(List<RosterMembership> roster) {
     roster: roster,
     startingLineup: const StartingLineup(startersByPosition: {}),
     simulationSeed: 1,
+    replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
   );
 }
 

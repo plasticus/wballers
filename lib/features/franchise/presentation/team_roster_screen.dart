@@ -12,7 +12,6 @@ import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
-import '../../roster/domain/star_tier.dart';
 import '../application/current_franchise_provider.dart';
 import '../domain/franchise.dart';
 import '../onboarding/onboarding_screen.dart';
@@ -239,7 +238,6 @@ class _PlayerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final player = membership.player;
-    final tier = StarTier.of(player);
 
     return InkWell(
       onTap: () {
@@ -263,9 +261,24 @@ class _PlayerRow extends StatelessWidget {
               size: 40,
             ),
             const SizedBox(width: AppSpacing.sm),
-            Text(
-              _positionAbbreviation(player.primaryPosition),
-              style: theme.textTheme.labelLarge,
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xs,
+                vertical: 2,
+              ),
+              decoration: BoxDecoration(
+                color: _positionColor(
+                  player.primaryPosition,
+                ).withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                _positionAbbreviation(player.primaryPosition),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: _positionColor(player.primaryPosition),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -294,8 +307,7 @@ class _PlayerRow extends StatelessWidget {
                     ],
                   ),
                   Text(
-                    '${player.archetype.label} · Age ${player.age} · '
-                    '${_starTierLabel(tier)}',
+                    '${player.archetype.label} · Age ${player.age}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -329,10 +341,15 @@ String _positionAbbreviation(Position position) {
   };
 }
 
-String _starTierLabel(StarTier tier) {
-  return switch (tier) {
-    StarTier.fiveStar => '5★',
-    StarTier.fourStar => '4★',
-    StarTier.belowFourStar => '3★ & below',
+/// A subtle per-position accent, purely decorative -- the position
+/// abbreviation text next to it already conveys the position on its own,
+/// so color isn't the only signal (accessibility rule in ARCHITECTURE.md).
+Color _positionColor(Position position) {
+  return switch (position) {
+    Position.pointGuard => Colors.blue,
+    Position.shootingGuard => Colors.teal,
+    Position.smallForward => Colors.green,
+    Position.powerForward => Colors.orange,
+    Position.center => Colors.purple,
   };
 }

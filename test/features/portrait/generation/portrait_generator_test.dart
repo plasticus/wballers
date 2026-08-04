@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
 
@@ -18,6 +19,19 @@ final _weights = PortraitWeights(
   eyebrows: const {'none': 1, 'eyebrow_1': 1},
   facial: const {'none': 1, 'facial_goat': 1},
   accessories: const {'none': 1, 'goggles_1': 1},
+);
+
+final _manifest = PortraitManifest(
+  hair: const ['hair_afro.png'],
+  eyes: const ['eyes_1center.png'],
+  eyebrows: const ['eyebrow_1.png'],
+  nose: const ['nose_1.png'],
+  mouth: const ['mouth_1.png'],
+  facial: const ['facial_goat.png'],
+  accessories: const ['goggles_1.png'],
+  shoulders: const ['shoulder_black.png', 'shoulder_grey.png'],
+  hats: const ['hat_fedora.png'],
+  glasses: const ['glasses_round.png'],
 );
 
 void main() {
@@ -101,7 +115,22 @@ void main() {
     expect(appearance.hair, isNull);
   });
 
-  test('coach-only fields other than facial stay null', () {
+  test(
+    'hat and glasses always stay null -- no weight table exists for them',
+    () {
+      final appearance = generatePortraitAppearance(
+        Random(9),
+        isCoach: true,
+        weights: _weights,
+        manifest: _manifest,
+      );
+
+      expect(appearance.hat, isNull);
+      expect(appearance.glasses, isNull);
+    },
+  );
+
+  test('shoulders stay null when no manifest is given', () {
     final appearance = generatePortraitAppearance(
       Random(9),
       isCoach: true,
@@ -109,7 +138,84 @@ void main() {
     );
 
     expect(appearance.shoulders, isNull);
-    expect(appearance.hat, isNull);
-    expect(appearance.glasses, isNull);
+  });
+
+  test('a coach always gets shoulders when a manifest is given -- '
+      'player-edit.html never leaves this blank for a coach', () {
+    final random = Random(13);
+    for (var i = 0; i < 50; i++) {
+      final appearance = generatePortraitAppearance(
+        random,
+        isCoach: true,
+        weights: _weights,
+        manifest: _manifest,
+      );
+      expect(appearance.shoulders, isNotNull);
+      expect(_manifest.shoulders, contains('${appearance.shoulders}.png'));
+    }
+  });
+
+  test('a player never gets shoulders, manifest or not', () {
+    final random = Random(17);
+    for (var i = 0; i < 50; i++) {
+      final appearance = generatePortraitAppearance(
+        random,
+        isCoach: false,
+        weights: _weights,
+        manifest: _manifest,
+      );
+      expect(appearance.shoulders, isNull);
+    }
+  });
+
+  test(
+    'a coach never gets goggles, even when they are the only other option',
+    () {
+      final gogglesOrNone = PortraitWeights(
+        skinTone: _weights.skinTone,
+        hairColorByTone: _weights.hairColorByTone,
+        hair: _weights.hair,
+        neonHair: _weights.neonHair,
+        eyes: _weights.eyes,
+        nose: _weights.nose,
+        mouth: _weights.mouth,
+        eyebrows: _weights.eyebrows,
+        facial: _weights.facial,
+        accessories: const {'goggles_1': 1, 'headband_black': 1},
+      );
+
+      final random = Random(19);
+      for (var i = 0; i < 50; i++) {
+        final appearance = generatePortraitAppearance(
+          random,
+          isCoach: true,
+          weights: gogglesOrNone,
+        );
+        expect(appearance.accessories, isNot(startsWith('goggles')));
+      }
+    },
+  );
+
+  test('a player can still get goggles', () {
+    final onlyGoggles = PortraitWeights(
+      skinTone: _weights.skinTone,
+      hairColorByTone: _weights.hairColorByTone,
+      hair: _weights.hair,
+      neonHair: _weights.neonHair,
+      eyes: _weights.eyes,
+      nose: _weights.nose,
+      mouth: _weights.mouth,
+      eyebrows: _weights.eyebrows,
+      facial: _weights.facial,
+      accessories: const {'goggles_1': 1},
+    );
+
+    final appearance = generatePortraitAppearance(
+      Random(21),
+      isCoach: false,
+      weights: onlyGoggles,
+    );
+
+    expect(appearance.accessories, 'goggles_1');
   });
 }

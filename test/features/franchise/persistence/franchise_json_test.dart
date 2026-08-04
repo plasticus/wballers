@@ -48,6 +48,7 @@ Franchise _sampleFranchise() {
       startersByPosition: {Position.pointGuard: 'p-starter'},
     ),
     simulationSeed: 42,
+    replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
   );
 }
 
@@ -60,6 +61,10 @@ void main() {
     expect(restored.id, original.id);
     expect(restored.gmName, original.gmName);
     expect(restored.simulationSeed, original.simulationSeed);
+    expect(
+      restored.replacedTeamAbbreviation,
+      original.replacedTeamAbbreviation,
+    );
 
     expect(restored.team.abbreviation, original.team.abbreviation);
     expect(restored.team.name, original.team.name);
@@ -134,6 +139,7 @@ void main() {
         startersByPosition: {Position.smallForward: 'p-multi'},
       ),
       simulationSeed: 1,
+      replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
     );
 
     final restored = franchiseFromJson(franchiseToJson(franchise));

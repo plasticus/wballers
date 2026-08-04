@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
+import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../roster/domain/starting_lineup.dart';
 import '../../roster/generation/starting_roster_generator.dart';
@@ -68,14 +69,22 @@ String deriveTeamAbbreviation(String clubName) {
 /// [portraitWeights] is optional -- omit it (e.g. in tests) to skip
 /// portrait generation entirely, leaving every generated `Player`/`Coach`
 /// with `appearance: null`. The real onboarding flow awaits
-/// `portraitWeightsProvider` and passes the result in.
+/// `portraitWeightsProvider`/`portraitManifestProvider` and passes both in.
+/// [portraitManifest] is only used for the coach's shoulders (see
+/// `generateCoach`'s doc comment) -- omitting it just leaves those `null`.
+///
+/// [replacedTeamAbbreviation] must be one of `kInitialLeagueTeams`'
+/// abbreviations, picked by the GM at onboarding -- see the note on
+/// [Franchise.replacedTeamAbbreviation].
 Franchise createExpansionFranchise({
   required String gmName,
   required String clubName,
   required String homeCity,
   required Conference conference,
   required int simulationSeed,
+  required String replacedTeamAbbreviation,
   PortraitWeights? portraitWeights,
+  PortraitManifest? portraitManifest,
 }) {
   final team = Team(
     abbreviation: deriveTeamAbbreviation(clubName),
@@ -98,9 +107,11 @@ Franchise createExpansionFranchise({
     coach: generateCoach(
       Random(simulationSeed),
       portraitWeights: portraitWeights,
+      portraitManifest: portraitManifest,
     ),
     roster: roster,
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: simulationSeed,
+    replacedTeamAbbreviation: replacedTeamAbbreviation,
   );
 }
