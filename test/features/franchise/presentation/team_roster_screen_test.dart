@@ -1,0 +1,125 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/save_envelope.dart';
+import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
+import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
+import 'package:womensbballmgr/features/franchise/presentation/team_roster_screen.dart';
+import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
+
+import '../../../support/in_memory_save_repository.dart';
+
+Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
+  return Franchise(
+    id: 'franchise-1',
+    gmName: 'Taylor Reed',
+    team: kInitialLeagueTeams.first,
+    coach: const Coach(name: 'Jordan Ellis', stats: CoachStats.neutral),
+    roster: [...generateStartingRoster(1), ...?extraMembers],
+    simulationSeed: 1,
+  );
+}
+
+Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
+  final repository = InMemorySaveRepository();
+  final envelope = SaveEnvelope(
+    schemaVersion: 1,
+    payload: franchiseToJson(franchise),
+  );
+  await repository.writeSave(kCurrentFranchiseSaveId, envelope.toJson());
+  return repository;
+}
+
+void main() {
+  testWidgets('with no franchise, prompts to create one', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+        child: const MaterialApp(home: TeamRosterScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('Create an expansion franchise to see your roster.'),
+      findsOneWidget,
+    );
+    expect(find.text('Create Expansion Franchise'), findsOneWidget);
+  });
+
+  testWidgets('with a franchise, shows the team and the active roster', (
+    tester,
+  ) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: TeamRosterScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text(franchise.team.name), findsOneWidget);
+    expect(find.text('Active Roster (12)'), findsOneWidget);
+    expect(find.text(franchise.roster.first.player.name), findsOneWidget);
+  });
+
+  testWidgets('a developmental player gets its own section', (tester) async {
+    final developmentalPlayer = generateStartingRoster(99).first.player;
+    final franchise = _franchiseWith(
+      extraMembers: [
+        RosterMembership(
+          player: developmentalPlayer,
+          status: RosterStatus.developmental,
+        ),
+      ],
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: TeamRosterScreen()),
+      ),
+    );
+    await tester.pump();
+
+    // The Developmental section is below the fold behind 12 active-roster
+    // rows; the ListView only builds slivers near the viewport.
+    await tester.scrollUntilVisible(
+      find.text('Developmental (1)'),
+      300,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Developmental (1)'), findsOneWidget);
+  });
+
+  testWidgets('with no developmental or reserve players, those sections '
+      'are hidden', (tester) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: TeamRosterScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Developmental'), findsNothing);
+    expect(find.textContaining('Reserve'), findsNothing);
+  });
+}

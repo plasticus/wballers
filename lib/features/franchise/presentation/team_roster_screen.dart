@@ -1,0 +1,211 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../app/app_spacing.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/state_views.dart';
+import '../../player/domain/player.dart';
+import '../../roster/domain/roster_membership.dart';
+import '../../roster/domain/roster_status.dart';
+import '../../roster/domain/star_tier.dart';
+import '../application/current_franchise_provider.dart';
+import '../domain/franchise.dart';
+import '../onboarding/onboarding_screen.dart';
+
+/// "Inspect a complete roster" -- the Team tab. Read-only for now; the
+/// lineup editor and player detail screen are separate, later work.
+class TeamRosterScreen extends ConsumerWidget {
+  const TeamRosterScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final franchiseState = ref.watch(currentFranchiseProvider);
+
+    return switch (franchiseState) {
+      AsyncData(:final value?) => _RosterView(franchise: value),
+      AsyncData() => const _NoFranchiseView(),
+      AsyncError() => const ErrorStateView(
+        message: 'Could not load your franchise save.',
+      ),
+      _ => const LoadingView(message: 'Loading your roster…'),
+    };
+  }
+}
+
+class _NoFranchiseView extends StatelessWidget {
+  const _NoFranchiseView();
+
+  @override
+  Widget build(BuildContext context) {
+    return EmptyStateView(
+      icon: Icons.groups_outlined,
+      message: 'Create an expansion franchise to see your roster.',
+      action: FilledButton(
+        onPressed: () {
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const OnboardingScreen()));
+        },
+        child: const Text('Create Expansion Franchise'),
+      ),
+    );
+  }
+}
+
+int _byPositionThenOverall(RosterMembership a, RosterMembership b) {
+  final positionCompare = Position.values
+      .indexOf(a.player.primaryPosition)
+      .compareTo(Position.values.indexOf(b.player.primaryPosition));
+  if (positionCompare != 0) return positionCompare;
+  return b.player.ratings.overall.compareTo(a.player.ratings.overall);
+}
+
+class _RosterView extends StatelessWidget {
+  const _RosterView({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final active =
+        franchise.roster.where((m) => m.status == RosterStatus.active).toList()
+          ..sort(_byPositionThenOverall);
+    final developmental =
+        franchise.roster
+            .where((m) => m.status == RosterStatus.developmental)
+            .toList()
+          ..sort(_byPositionThenOverall);
+    final reserve =
+        franchise.roster
+            .where((m) => m.status == RosterStatus.reserveInactive)
+            .toList()
+          ..sort(_byPositionThenOverall);
+
+    return ListView(
+      children: [
+        Text(franchise.team.name, style: theme.textTheme.headlineSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text('${franchise.team.location} · ${franchise.team.conference.name}'),
+        const SizedBox(height: AppSpacing.lg),
+        _RosterSection(
+          title: 'Active Roster (${active.length})',
+          members: active,
+        ),
+        if (developmental.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _RosterSection(
+            title: 'Developmental (${developmental.length})',
+            members: developmental,
+          ),
+        ],
+        if (reserve.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _RosterSection(
+            title: 'Reserve / Inactive (${reserve.length})',
+            members: reserve,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RosterSection extends StatelessWidget {
+  const _RosterSection({required this.title, required this.members});
+
+  final String title;
+  final List<RosterMembership> members;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.sm),
+        AppCard(
+          child: Column(
+            children: [
+              for (var i = 0; i < members.length; i++) ...[
+                _PlayerRow(membership: members[i]),
+                if (i != members.length - 1)
+                  const Divider(height: AppSpacing.lg),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlayerRow extends StatelessWidget {
+  const _PlayerRow({required this.membership});
+
+  final RosterMembership membership;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final player = membership.player;
+    final tier = StarTier.of(player);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _positionAbbreviation(player.primaryPosition),
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(player.name, style: theme.textTheme.bodyLarge),
+                Text(
+                  'Age ${player.age} · ${_starTierLabel(tier)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${player.ratings.overall}',
+                style: theme.textTheme.titleMedium,
+              ),
+              Text('OVR', style: theme.textTheme.labelSmall),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _positionAbbreviation(Position position) {
+  return switch (position) {
+    Position.pointGuard => 'PG',
+    Position.shootingGuard => 'SG',
+    Position.smallForward => 'SF',
+    Position.powerForward => 'PF',
+    Position.center => 'C',
+  };
+}
+
+String _starTierLabel(StarTier tier) {
+  return switch (tier) {
+    StarTier.fiveStar => '5★',
+    StarTier.fourStar => '4★',
+    StarTier.belowFourStar => '3★ & below',
+  };
+}

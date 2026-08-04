@@ -8,6 +8,7 @@ import '../../core/widgets/state_views.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/domain/franchise.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
+import '../franchise/presentation/team_roster_screen.dart';
 import '../league/league_screen.dart';
 import '../roster/domain/roster_status.dart';
 
@@ -32,8 +33,9 @@ class _AppShellState extends State<AppShell> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: switch (_selectedIndex) {
             0 => const DashboardScreen(),
+            1 => const TeamRosterScreen(),
             2 => const LeagueScreen(),
-            _ => _ComingSoonPage(title: _titles[_selectedIndex]),
+            _ => const SizedBox.shrink(),
           },
         ),
       ),
@@ -170,19 +172,6 @@ class _FranchiseSummaryCard extends StatelessWidget {
           Text('$activeCount players on the active roster'),
         ],
       ),
-    );
-  }
-}
-
-class _ComingSoonPage extends StatelessWidget {
-  const _ComingSoonPage({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text('$title is coming in the franchise vertical slice.'),
     );
   }
 }

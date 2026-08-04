@@ -61,11 +61,11 @@ The game works completely offline after installation. It has no accounts, cloud 
 
 ### Team and roster system
 
-- Expansion onboarding: name the club, choose Atlantic or Pacific, and begin with a weak generated roster. The new club replaces a randomly selected existing team in its chosen conference, keeping the league at 20 teams.
-- Team profile: original name, colors, city, prestige, and visual identity.
+- Expansion onboarding (`OnboardingScreen`, `createExpansionFranchise`): the GM (not the coach — question.md decision 24) names themselves and the club, picks a home city and conference, and gets a generated coach plus a weak generated roster. Does not yet replace a randomly selected existing team in its chosen conference — that's bookkeeping deferred to a future `League` concept (Phase 2), so the league isn't actually held at 20 teams yet once a franchise exists.
+- Team profile: original name, colors, city, prestige, and visual identity. Onboarding only covers name/colors(from a small starter palette)/city; prestige and a full custom identity editor are still open.
 - Roster rules: positions, starters, bench order, captain, depth chart, and validation warnings. Three roster statuses, loosely mirroring the real WNBA (question.md decision 22, `wnba_rules_reference.md`): **Active** (up to 12, capped at 2 five-star (90-99 OVR) plus at most 6 four-star-or-better (78-99 OVR) combined — the star-rating system in `star_system.md`, replacing a salary cap; no enforced minimum, running short-handed is just a disadvantage), **Developmental** (at most 2, exempt from the star caps, restricted to 3 years of service or fewer), and **Reserve/Inactive** (unconstrained catch-all for anyone under contract but not active). Star limits lock at the regular-season buzzer, not mid-season, and rosters must be legal again before free agency and the draft.
-- Roster screens: team hub, lineup editor, player comparison, player search/filtering, and roster summary.
-- Save-game schema for franchise, players, teams, roster memberships, league template, and simulation seed.
+- Roster screens: `TeamRosterScreen` covers the roster summary (grouped by status, sorted by position then overall) -- the Team tab. Team hub (beyond the roster list), lineup editor, player comparison, and player search/filtering are still open.
+- Save-game schema for franchise, players, teams, roster memberships, and simulation seed is built (`Franchise`, manual JSON serialization per feature, proven round-tripping through `SaveEnvelope`/`SaveRepository`). League template isn't part of the schema yet since franchises don't reference the league at all yet (see the onboarding note above).
 
 ### Exit criteria
 
