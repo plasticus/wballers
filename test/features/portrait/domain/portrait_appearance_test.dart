@@ -69,4 +69,47 @@ void main() {
     expect(coach.glasses, 'glasses_round');
     expect(coach.facial, 'facial_goat');
   });
+
+  group('copyWith', () {
+    test('leaves every field unchanged when nothing is passed', () {
+      final original = _athlete();
+      final copy = original.copyWith();
+
+      expect(copy.version, original.version);
+      expect(copy.skinTone, original.skinTone);
+      expect(copy.hairColor, original.hairColor);
+      expect(copy.hair, original.hair);
+    });
+
+    test('updates a non-nullable field without disturbing others', () {
+      final original = _athlete();
+      final copy = original.copyWith(skinTone: 'deep');
+
+      expect(copy.skinTone, 'deep');
+      expect(copy.hairColor, original.hairColor);
+      expect(copy.eyes, original.eyes);
+    });
+
+    test('setting a nullable field to a value works', () {
+      final original = _athlete();
+      final copy = original.copyWith(hair: 'hair_afro');
+
+      expect(copy.hair, 'hair_afro');
+    });
+
+    test('explicitly clearing a nullable field to null works', () {
+      final withHair = _athlete().copyWith(hair: 'hair_afro');
+      final bald = withHair.copyWith(hair: null);
+
+      expect(withHair.hair, 'hair_afro');
+      expect(bald.hair, isNull);
+    });
+
+    test('omitting a nullable field preserves its existing value', () {
+      final withHair = _athlete().copyWith(hair: 'hair_afro');
+      final stillHasHair = withHair.copyWith(skinTone: 'deep');
+
+      expect(stillHasHair.hair, 'hair_afro');
+    });
+  });
 }

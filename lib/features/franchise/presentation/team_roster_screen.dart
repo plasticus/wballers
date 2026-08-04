@@ -7,6 +7,7 @@ import '../../../core/widgets/state_views.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
+import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_membership.dart';
@@ -95,6 +96,8 @@ class _RosterView extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         Text('${franchise.team.location} · ${franchise.team.conference.label}'),
         const SizedBox(height: AppSpacing.md),
+        _CoachRow(franchise: franchise),
+        const SizedBox(height: AppSpacing.md),
         OutlinedButton.icon(
           onPressed: () {
             Navigator.of(context).push(
@@ -108,8 +111,7 @@ class _RosterView extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         _RosterSection(
-          saveId: franchise.id,
-          jersey: parseHexColor(franchise.team.colors.primaryHex),
+          franchise: franchise,
           title: 'Active Roster (${active.length})',
           members: active,
           starterIds: franchise.startingLineup.startersByPosition.values
@@ -118,8 +120,7 @@ class _RosterView extends StatelessWidget {
         if (developmental.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
           _RosterSection(
-            saveId: franchise.id,
-            jersey: parseHexColor(franchise.team.colors.primaryHex),
+            franchise: franchise,
             title: 'Developmental (${developmental.length})',
             members: developmental,
           ),
@@ -127,8 +128,7 @@ class _RosterView extends StatelessWidget {
         if (reserve.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
           _RosterSection(
-            saveId: franchise.id,
-            jersey: parseHexColor(franchise.team.colors.primaryHex),
+            franchise: franchise,
             title: 'Reserve / Inactive (${reserve.length})',
             members: reserve,
           ),
@@ -138,17 +138,60 @@ class _RosterView extends StatelessWidget {
   }
 }
 
+class _CoachRow extends StatelessWidget {
+  const _CoachRow({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final coach = franchise.coach;
+
+    return AppCard(
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PortraitEditorScreen(franchise: franchise),
+            ),
+          );
+        },
+        child: Row(
+          children: [
+            PortraitImage(
+              saveId: franchise.id,
+              ownerId: 'coach',
+              appearance: coach.appearance,
+              size: 40,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Head Coach', style: theme.textTheme.labelSmall),
+                  Text(coach.name, style: theme.textTheme.bodyLarge),
+                ],
+              ),
+            ),
+            Icon(Icons.edit_outlined, color: theme.colorScheme.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _RosterSection extends StatelessWidget {
   const _RosterSection({
-    required this.saveId,
-    required this.jersey,
+    required this.franchise,
     required this.title,
     required this.members,
     this.starterIds = const {},
   });
 
-  final String saveId;
-  final RgbColor jersey;
+  final Franchise franchise;
   final String title;
   final List<RosterMembership> members;
   final Set<String> starterIds;
@@ -166,8 +209,7 @@ class _RosterSection extends StatelessWidget {
             children: [
               for (var i = 0; i < members.length; i++) ...[
                 _PlayerRow(
-                  saveId: saveId,
-                  jersey: jersey,
+                  franchise: franchise,
                   membership: members[i],
                   isStarter: starterIds.contains(members[i].player.id),
                 ),
@@ -184,14 +226,12 @@ class _RosterSection extends StatelessWidget {
 
 class _PlayerRow extends StatelessWidget {
   const _PlayerRow({
-    required this.saveId,
-    required this.jersey,
+    required this.franchise,
     required this.membership,
     this.isStarter = false,
   });
 
-  final String saveId;
-  final RgbColor jersey;
+  final Franchise franchise;
   final RosterMembership membership;
   final bool isStarter;
 
@@ -201,67 +241,77 @@ class _PlayerRow extends StatelessWidget {
     final player = membership.player;
     final tier = StarTier.of(player);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PortraitImage(
-            saveId: saveId,
-            ownerId: player.id,
-            appearance: player.appearance,
-            jersey: jersey,
-            size: 40,
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                PortraitEditorScreen(franchise: franchise, playerId: player.id),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            _positionAbbreviation(player.primaryPosition),
-            style: theme.textTheme.labelLarge,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        player.name,
-                        style: theme.textTheme.bodyLarge,
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PortraitImage(
+              saveId: franchise.id,
+              ownerId: player.id,
+              appearance: player.appearance,
+              jersey: parseHexColor(franchise.team.colors.primaryHex),
+              size: 40,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              _positionAbbreviation(player.primaryPosition),
+              style: theme.textTheme.labelLarge,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          player.name,
+                          style: theme.textTheme.bodyLarge,
+                        ),
                       ),
-                    ),
-                    if (isStarter) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Icon(
-                        Icons.star,
-                        size: 16,
-                        color: theme.colorScheme.primary,
-                        semanticLabel: 'Starter',
-                      ),
+                      if (isStarter) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          Icons.star,
+                          size: 16,
+                          color: theme.colorScheme.primary,
+                          semanticLabel: 'Starter',
+                        ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                  Text(
+                    '${player.archetype.label} · Age ${player.age} · '
+                    '${_starTierLabel(tier)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
                 Text(
-                  '${player.archetype.label} · Age ${player.age} · '
-                  '${_starTierLabel(tier)}',
-                  style: theme.textTheme.bodySmall,
+                  '${player.ratings.overall}',
+                  style: theme.textTheme.titleMedium,
                 ),
+                Text('OVR', style: theme.textTheme.labelSmall),
               ],
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${player.ratings.overall}',
-                style: theme.textTheme.titleMedium,
-              ),
-              Text('OVR', style: theme.textTheme.labelSmall),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

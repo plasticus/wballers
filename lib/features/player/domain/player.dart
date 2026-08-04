@@ -97,4 +97,24 @@ class Player {
   /// time) -- the portrait UI falls back to a generic placeholder rather
   /// than treating this as an error state.
   final PortraitAppearance? appearance;
+
+  /// Returns a copy with [newAppearance] replacing [appearance] -- the only
+  /// field the portrait editor needs to change.
+  Player copyWithAppearance(PortraitAppearance newAppearance) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      yearsOfService: yearsOfService,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: ratings,
+      archetype: archetype,
+      traits: traits,
+      appearance: newAppearance,
+    );
+  }
 }

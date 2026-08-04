@@ -37,7 +37,7 @@ lib/
       persistence/       portrait_appearance_json.dart, portrait_catalog_loader.dart (loads manifest.json/weights.json as Flutter assets)
       generation/        generatePortraitAppearance -- seeded, deterministic; never rolls neon hair (unlock-only)
       rendering/         pixel_recolor.dart (pure pixel math), portrait_renderer.dart (dart:ui compositor), portrait_service.dart (cache-or-render orchestration)
-      presentation/      PortraitImage -- displays a rendered portrait or an accessible fallback
+      presentation/      PortraitImage (cached display, accessible fallback), PortraitEditorScreen (skin/hair/etc. pickers, live un-cached preview)
     roster/
       domain/            StarTier, RosterStatus, RosterMembership, RosterLegality, StartingLineup, LineupLegality
       persistence/       roster_membership_json.dart, starting_lineup_json.dart

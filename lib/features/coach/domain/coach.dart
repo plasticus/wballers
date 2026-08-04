@@ -17,4 +17,10 @@ class Coach {
   /// (coach-only layers like hats/glasses/facial hair, no jersey recolor).
   /// `null` falls back to a generic placeholder rather than an error state.
   final PortraitAppearance? appearance;
+
+  /// Returns a copy with [newAppearance] replacing [appearance] -- the only
+  /// field the portrait editor needs to change.
+  Coach copyWithAppearance(PortraitAppearance newAppearance) {
+    return Coach(name: name, stats: stats, appearance: newAppearance);
+  }
 }

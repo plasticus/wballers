@@ -3,6 +3,8 @@ import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
+import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
 
 const _ratings = PlayerRatings(
   speed: 50,
@@ -150,5 +152,38 @@ void main() {
       ),
       throwsA(isA<AssertionError>()),
     );
+  });
+
+  test('copyWithAppearance replaces only the appearance', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      archetype: Archetype.floorGeneral,
+      traits: const {Trait.leader},
+    );
+    const newAppearance = PortraitAppearance(
+      baseSprite: kDefaultBaseSprite,
+      skinTone: 'deep',
+      hairColor: 'black',
+      eyes: 'eyes_1center',
+      nose: 'nose_1',
+      mouth: 'mouth_1',
+      isCoach: false,
+    );
+
+    final updated = player.copyWithAppearance(newAppearance);
+
+    expect(updated.id, player.id);
+    expect(updated.name, player.name);
+    expect(updated.archetype, player.archetype);
+    expect(updated.traits, player.traits);
+    expect(updated.appearance, newAppearance);
   });
 }

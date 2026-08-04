@@ -85,4 +85,61 @@ class PortraitAppearance {
   /// A `PortraitManifest.facial` filename without extension, or `null`.
   /// Never generated for athletes (`portraits.md`).
   final String? facial;
+
+  /// Returns a copy with the given fields replaced. Nullable fields
+  /// distinguish "leave unchanged" (the parameter's default,
+  /// [_unsetSentinel]) from "explicitly set to null" (an actual `null`
+  /// argument) -- the portrait editor needs both, e.g. picking a new hair
+  /// style vs. picking "Bald".
+  PortraitAppearance copyWith({
+    int? version,
+    String? baseSprite,
+    String? skinTone,
+    Object? hair = _unsetSentinel,
+    String? hairColor,
+    Object? topHairColor = _unsetSentinel,
+    String? eyes,
+    Object? eyebrows = _unsetSentinel,
+    String? nose,
+    String? mouth,
+    Object? accessories = _unsetSentinel,
+    bool? isCoach,
+    Object? shoulders = _unsetSentinel,
+    Object? hat = _unsetSentinel,
+    Object? glasses = _unsetSentinel,
+    Object? facial = _unsetSentinel,
+  }) {
+    return PortraitAppearance(
+      version: version ?? this.version,
+      baseSprite: baseSprite ?? this.baseSprite,
+      skinTone: skinTone ?? this.skinTone,
+      hair: identical(hair, _unsetSentinel) ? this.hair : hair as String?,
+      hairColor: hairColor ?? this.hairColor,
+      topHairColor: identical(topHairColor, _unsetSentinel)
+          ? this.topHairColor
+          : topHairColor as String?,
+      eyes: eyes ?? this.eyes,
+      eyebrows: identical(eyebrows, _unsetSentinel)
+          ? this.eyebrows
+          : eyebrows as String?,
+      nose: nose ?? this.nose,
+      mouth: mouth ?? this.mouth,
+      accessories: identical(accessories, _unsetSentinel)
+          ? this.accessories
+          : accessories as String?,
+      isCoach: isCoach ?? this.isCoach,
+      shoulders: identical(shoulders, _unsetSentinel)
+          ? this.shoulders
+          : shoulders as String?,
+      hat: identical(hat, _unsetSentinel) ? this.hat : hat as String?,
+      glasses: identical(glasses, _unsetSentinel)
+          ? this.glasses
+          : glasses as String?,
+      facial: identical(facial, _unsetSentinel)
+          ? this.facial
+          : facial as String?,
+    );
+  }
 }
+
+const Object _unsetSentinel = Object();

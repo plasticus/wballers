@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
+import '../../portrait/domain/portrait_appearance.dart';
+import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
 import '../domain/franchise.dart';
 import '../persistence/franchise_json.dart';
@@ -43,6 +45,40 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final franchise = await future;
     if (franchise == null) return;
     await _persist(franchise.copyWithLineup(newLineup));
+  }
+
+  /// Replaces the coach's portrait appearance and persists it. Same
+  /// no-op-if-no-franchise and await-future rationale as [updateLineup].
+  Future<void> updateCoachAppearance(PortraitAppearance appearance) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    await _persist(
+      franchise.copyWithCoach(franchise.coach.copyWithAppearance(appearance)),
+    );
+  }
+
+  /// Replaces one roster player's portrait appearance and persists it.
+  /// Does nothing if [playerId] isn't on the roster (shouldn't happen from
+  /// the editor, which is only reachable for players actually on the
+  /// roster it was opened from).
+  Future<void> updatePlayerAppearance(
+    String playerId,
+    PortraitAppearance appearance,
+  ) async {
+    final franchise = await future;
+    if (franchise == null) return;
+
+    final newRoster = [
+      for (final membership in franchise.roster)
+        if (membership.player.id == playerId)
+          RosterMembership(
+            player: membership.player.copyWithAppearance(appearance),
+            status: membership.status,
+          )
+        else
+          membership,
+    ];
+    await _persist(franchise.copyWithRoster(newRoster));
   }
 
   Future<void> _persist(Franchise franchise) async {

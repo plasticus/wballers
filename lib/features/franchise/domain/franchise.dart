@@ -58,4 +58,32 @@ class Franchise {
       simulationSeed: simulationSeed,
     );
   }
+
+  /// Returns a copy with [newCoach] replacing [coach] -- the portrait
+  /// editor's coach-appearance path.
+  Franchise copyWithCoach(Coach newCoach) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: newCoach,
+      roster: roster,
+      startingLineup: startingLineup,
+      simulationSeed: simulationSeed,
+    );
+  }
+
+  /// Returns a copy with [newRoster] replacing [roster] -- the portrait
+  /// editor's player-appearance path.
+  Franchise copyWithRoster(List<RosterMembership> newRoster) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: newRoster,
+      startingLineup: startingLineup,
+      simulationSeed: simulationSeed,
+    );
+  }
 }
