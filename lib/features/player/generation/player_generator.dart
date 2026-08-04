@@ -4,7 +4,9 @@ import '../../../core/generation/name_pools.dart';
 import '../../../core/ratings/rating_scale.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
+import 'archetype_generator.dart';
 import 'player_generator_data.dart';
+import 'trait_generator.dart';
 
 /// Per-position rating adjustments, layered on top of a random base value
 /// before clamping to the 1-99 scale. Reflects standard basketball
@@ -210,6 +212,9 @@ Player generatePlayer(
   // that's all a lineup slot reference needs.
   final id = random.nextInt(0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
 
+  final archetype = generateArchetype(random, primaryPosition);
+  final traits = generateTraits(random);
+
   return Player(
     id: id,
     name: '$firstName $lastName',
@@ -220,6 +225,8 @@ Player generatePlayer(
     handedness: handedness,
     biography: '$hometown-born ${_positionLabel(primaryPosition)}.',
     ratings: ratings,
+    archetype: archetype,
+    traits: traits,
   );
 }
 

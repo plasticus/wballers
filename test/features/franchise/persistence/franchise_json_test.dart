@@ -4,7 +4,9 @@ import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
@@ -91,6 +93,8 @@ void main() {
         restoredMember.player.ratings.overall,
         originalMember.player.ratings.overall,
       );
+      expect(restoredMember.player.archetype, originalMember.player.archetype);
+      expect(restoredMember.player.traits, originalMember.player.traits);
     }
   });
 
@@ -106,6 +110,8 @@ void main() {
       handedness: Handedness.left,
       biography: '',
       ratings: playerWithOverall(60).ratings,
+      archetype: Archetype.versatileForward,
+      traits: const {Trait.leader, Trait.gymRat},
     );
     final franchise = Franchise(
       id: 'franchise-2',
@@ -128,6 +134,8 @@ void main() {
       withSecondary.secondaryPositions,
     );
     expect(restored.roster.single.player.handedness, Handedness.left);
+    expect(restored.roster.single.player.archetype, withSecondary.archetype);
+    expect(restored.roster.single.player.traits, withSecondary.traits);
     expect(
       restored.startingLineup.startersByPosition[Position.smallForward],
       'p-multi',

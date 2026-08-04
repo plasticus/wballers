@@ -1,5 +1,7 @@
+import '../domain/archetype.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
+import '../domain/trait.dart';
 
 Map<String, dynamic> playerRatingsToJson(PlayerRatings ratings) {
   return {
@@ -51,6 +53,8 @@ Map<String, dynamic> playerToJson(Player player) {
     'handedness': player.handedness.name,
     'biography': player.biography,
     'ratings': playerRatingsToJson(player.ratings),
+    'archetype': player.archetype.name,
+    'traits': player.traits.map((trait) => trait.name).toList(),
   };
 }
 
@@ -68,5 +72,9 @@ Player playerFromJson(Map<String, dynamic> json) {
     handedness: Handedness.values.byName(json['handedness'] as String),
     biography: json['biography'] as String,
     ratings: playerRatingsFromJson(json['ratings'] as Map<String, dynamic>),
+    archetype: Archetype.values.byName(json['archetype'] as String),
+    traits: (json['traits'] as List<dynamic>)
+        .map((value) => Trait.values.byName(value as String))
+        .toSet(),
   );
 }

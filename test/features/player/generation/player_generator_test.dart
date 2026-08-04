@@ -2,7 +2,9 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/ratings/rating_scale.dart';
+import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/player/generation/player_generator.dart';
 
 void main() {
@@ -18,6 +20,8 @@ void main() {
     expect(a.ratings.speed, b.ratings.speed);
     expect(a.ratings.strength, b.ratings.strength);
     expect(a.ratings.potential, b.ratings.potential);
+    expect(a.archetype, b.archetype);
+    expect(a.traits, b.traits);
   });
 
   test('different seeds usually produce different players', () {
@@ -98,5 +102,22 @@ void main() {
       centerSpeedTotal / sampleSize,
       lessThan(guardSpeedTotal / sampleSize),
     );
+  });
+
+  test('every generated player has an archetype valid for their position and '
+      'no opposite-pair traits, at most 3 traits, never Homegrown', () {
+    final random = Random(2024);
+    for (var i = 0; i < 200; i++) {
+      final position = Position.values[i % Position.values.length];
+      final player = generatePlayer(random, primaryPosition: position);
+
+      expect(kArchetypesByPosition[position], contains(player.archetype));
+      expect(player.traits.length, lessThanOrEqualTo(3));
+      expect(player.traits, isNot(contains(Trait.homegrown)));
+      for (final trait in player.traits) {
+        final opposite = oppositeOf(trait);
+        expect(opposite == null || !player.traits.contains(opposite), isTrue);
+      }
+    }
   });
 }

@@ -1,13 +1,15 @@
+import 'archetype.dart';
 import 'player_ratings.dart';
+import 'position.dart';
+import 'trait.dart';
 
-enum Position { pointGuard, shootingGuard, smallForward, powerForward, center }
+export 'position.dart';
 
 enum Handedness { left, right }
 
 /// A fictional athlete.
 ///
 /// Deliberately excluded for now, pending systems that don't exist yet:
-/// - Personality/archetype: no defined taxonomy yet.
 /// - Status (e.g. healthy/injured): depends on Phase 2's injury system.
 /// - Derived capabilities beyond [PlayerRatings.overall] — role fit, lineup
 ///   chemistry, fatigue/readiness, morale, injury risk, development
@@ -36,11 +38,24 @@ class Player {
     required this.handedness,
     required this.biography,
     required this.ratings,
+    required this.archetype,
+    this.traits = const {},
   }) : assert(age > 0, 'age must be positive'),
        assert(yearsOfService >= 0, 'yearsOfService must not be negative'),
        assert(
          !secondaryPositions.contains(primaryPosition),
          'secondaryPositions must not repeat primaryPosition',
+       ),
+       assert(
+         isArchetypeValidForPosition(archetype, primaryPosition),
+         'archetype must be valid for primaryPosition',
+       ),
+       assert(
+         traits.every((trait) {
+           final opposite = oppositeOf(trait);
+           return opposite == null || !traits.contains(opposite);
+         }),
+         'traits must not contain both sides of an opposite pair',
        );
 
   /// Stable identifier, independent of object identity or roster list
@@ -67,4 +82,13 @@ class Player {
   final Handedness handedness;
   final String biography;
   final PlayerRatings ratings;
+
+  /// This player's position-specific play style (`archetypes.md`). Always
+  /// one of [kArchetypesByPosition]'s entries for [primaryPosition].
+  final Archetype archetype;
+
+  /// Earned/assigned personality, career, and skill-badge traits
+  /// (`traits.md`). Never contains both sides of an opposite pair (e.g.
+  /// [Trait.leader] and [Trait.malcontent] together).
+  final Set<Trait> traits;
 }

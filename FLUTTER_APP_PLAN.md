@@ -45,7 +45,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 
 ### Player system
 
-- Player identity: fictional name, age/experience, hometown, position(s), handedness, biography, personality/archetype, and status.
+- Player identity: fictional name, age/experience, hometown, position(s), handedness, biography, archetype, traits, and status. Archetype and traits are built (question.md decision 27, Phase 1.5 work pulled forward): `Archetype` (`archetypes.md`) and `Trait` (`traits.md`) enums, generation (`generateArchetype`, `generateTraits`), persistence, and display in `TeamRosterScreen`'s roster row.
 - Basketball ratings, all on the shared 1-99 scale, per the "Final Stat Architecture" in `star_system.md`: four physical (speed, agility, strength, stamina), four offensive (ball control, passing, **interior offense**, **perimeter offense**), and four defensive/playmaking (perimeter defense, interior defense, disruption, blocking), plus potential as a separate ceiling rating. Interior/perimeter offense cover all offensive work in that zone (finishing, post moves, offensive rebounding instinct, boxing out for interior; jump shooting, shot fakes, footwork for perimeter), not just makes/misses — no separate finishing rating. Rebounding isn't stored or derived at all — it's the universal action-success formula applied twice at simulation time (offensive rebound: strength + interior offense; defensive rebound: strength + interior defense).
 - Derived capabilities: overall, role fit, lineup chemistry, fatigue/readiness, morale, injury risk, and development trajectory.
 - Player detail screen with ratings, season statistics, portrait, role explanation, nickname, and earned cosmetics.
@@ -84,14 +84,15 @@ The game works completely offline after installation. It has no accounts, cloud 
 - Implement an achievement system for cosmetic unlocks and nickname suggestions.
 - Award triggers include league MVP, scoring leader, defensive MVP, most defensive disruptions (blocks + steals), and future achievement types. Across a 20-team, 240-player league, aim for roughly 5 nicknames earned per season.
 - Let the game suggest a nickname, while always allowing the coach to change it. On the 19 AI-run teams the suggestion is applied automatically; on the coach's own team, the coach can type their own instead.
-- Player traits: the full 27-trait catalog lives in `traits.md` (question.md decision 21) — earnable, visible traits replacing the hidden-stat idea entirely, so a coach can scout for them instead of them being numbers nobody can see. Some traits are assignable at generation/draft time (Phase 1 work); most are earned from in-season or in-game situations, so their triggers get wired up progressively as Phase 2's season sim and Phase 3's match engine come online — same shape as the coach stats defined in Phase 1 before anything could consume them.
+- Player traits: the full trait catalog (29 traits, not 27 as decision 21 says — stale count) lives in `traits.md` (question.md decisions 21, 27) — earnable, visible traits replacing the hidden-stat idea entirely, so a coach can scout for them instead of them being numbers nobody can see. `Trait` domain model, generation-time rolling (`generateTraits`, 0-3 per player), and persistence are built. Most traits are still only assignable at generation/draft time in practice — their in-season/in-game triggers get wired up progressively as Phase 2's season sim and Phase 3's match engine come online, same shape as the coach stats defined in Phase 1 before anything could consume them. Still open: a dedicated trait display on the player detail screen (`TeamRosterScreen`'s roster row shows archetype but not traits yet — traits are more numerous and need their own treatment, e.g. icons or an expandable list).
+- Player archetypes: `archetypes.md`'s position-keyed play-style catalog is built (question.md decision 27) — `Archetype` domain model, `kArchetypesByPosition`, random-per-position generation (`generateArchetype`), persistence, and display in the roster row. Rating-threshold-based selection (so a "Sniper" actually correlates with high perimeter offense) is still explicitly open, per `archetypes.md`'s own note.
 
 ### Exit criteria
 
 - Every roster screen displays a fast, consistent portrait.
 - Portrait edits persist correctly, and rendering tests cover layering, recoloring, weights, and missing assets.
 - Earned nicknames and cosmetic unlocks are visible, editable where appropriate, and persistent.
-- Traits are visible on the player detail screen and persist correctly; draft-time trait assignment is testable even before any trait requiring a season/game situation can be earned.
+- Traits are visible on the player detail screen and persist correctly; draft-time trait assignment is testable even before any trait requiring a season/game situation can be earned. (Persistence and generation-time assignment are done; a dedicated player detail screen showing them individually is still open — today only the archetype shows, on the roster row.)
 
 ## Phase 2 — League, season, and franchise simulation
 

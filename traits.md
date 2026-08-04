@@ -13,6 +13,17 @@ they can actually trigger. Some (the Potential pair, and any trait
 rolled at generation time) are assignable at player generation/draft
 time, which Phase 1 already supports.
 
+**Implemented** (Phase 1.5, question.md decision 27): `Trait` enum,
+`kOppositeTraitPairs`/`oppositeOf`, and `kGenerationEligibleTraits` live in
+`lib/features/player/domain/trait.dart`. `generateTraits`
+(`lib/features/player/generation/trait_generator.dart`) rolls 0-3 distinct,
+non-opposite, non-Homegrown traits per generated player — every trait
+below is generation-eligible except Homegrown, which requires having
+been drafted by this franchise. The catalog below currently totals 29
+traits (5+2+4+5+4+2+7), not 27 — the "27-trait catalog" phrasing in
+question.md decision 21 and `FLUTTER_APP_PLAN.md` predates a couple of
+later additions and is stale.
+
 ## Work ethic / development
 
 - **High Potential** — trains faster, more likely to reach or exceed their ceiling.

@@ -29,9 +29,9 @@ lib/
       persistence/       coach_json.dart
       generation/        generateCoach -- seeded, deterministic
     player/
-      domain/            Player, PlayerRatings, Position, Handedness
+      domain/            Player, PlayerRatings, Position, Handedness, Archetype, Trait
       persistence/       player_json.dart
-      generation/        generatePlayer -- seeded, deterministic
+      generation/        generatePlayer, generateArchetype, generateTraits -- seeded, deterministic
     roster/
       domain/            StarTier, RosterStatus, RosterMembership, RosterLegality, StartingLineup, LineupLegality
       persistence/       roster_membership_json.dart, starting_lineup_json.dart

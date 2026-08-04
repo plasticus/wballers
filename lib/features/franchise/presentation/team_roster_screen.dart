@@ -5,6 +5,7 @@ import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../league/domain/team.dart';
+import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
@@ -213,7 +214,8 @@ class _PlayerRow extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  'Age ${player.age} · ${_starTierLabel(tier)}',
+                  '${player.archetype.label} · Age ${player.age} · '
+                  '${_starTierLabel(tier)}',
                   style: theme.textTheme.bodySmall,
                 ),
               ],

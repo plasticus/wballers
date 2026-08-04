@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
+import 'package:womensbballmgr/features/player/domain/trait.dart';
 
 const _ratings = PlayerRatings(
   speed: 50,
@@ -30,11 +32,14 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      archetype: Archetype.floorGeneral,
     );
 
     expect(player.name, 'Riley Okafor');
     expect(player.primaryPosition, Position.pointGuard);
     expect(player.secondaryPositions, isEmpty);
+    expect(player.archetype, Archetype.floorGeneral);
+    expect(player.traits, isEmpty);
   });
 
   test('allows secondary positions distinct from the primary', () {
@@ -49,6 +54,7 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      archetype: Archetype.floorGeneral,
     );
 
     expect(player.secondaryPositions, {Position.shootingGuard});
@@ -67,6 +73,7 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        archetype: Archetype.floorGeneral,
       ),
       throwsA(isA<AssertionError>()),
     );
@@ -84,6 +91,7 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        archetype: Archetype.floorGeneral,
       ),
       throwsA(isA<AssertionError>()),
     );
@@ -101,6 +109,44 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        archetype: Archetype.floorGeneral,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
+  test('rejects an archetype not valid for the primary position', () {
+    expect(
+      () => Player(
+        id: 'p1',
+        name: 'Riley Okafor',
+        age: 24,
+        yearsOfService: 2,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        handedness: Handedness.right,
+        biography: 'A steady floor general.',
+        ratings: _ratings,
+        archetype: Archetype.rimRunner,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
+  test('rejects traits containing both sides of an opposite pair', () {
+    expect(
+      () => Player(
+        id: 'p1',
+        name: 'Riley Okafor',
+        age: 24,
+        yearsOfService: 2,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        handedness: Handedness.right,
+        biography: 'A steady floor general.',
+        ratings: _ratings,
+        archetype: Archetype.floorGeneral,
+        traits: const {Trait.leader, Trait.malcontent},
       ),
       throwsA(isA<AssertionError>()),
     );
