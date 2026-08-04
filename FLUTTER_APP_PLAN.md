@@ -1,182 +1,167 @@
-# WBallers Flutter App Plan
+# Women's Basketball Manager: App Plan
 
 ## Product vision
 
-Build a mobile-first women's basketball management game: players build a club, develop a roster, compete through seasons, make tactical choices, and see an original league develop over time. The current web portrait tool is a useful seed asset; it is not the app itself.
+Build an Android-first, single-player women's basketball franchise game. Players create an expansion club, develop a changing roster through seasons, draft and trade players, and make limited but meaningful coaching choices during games. The league is entirely fictional.
 
-The recommended first release is a **single-player, offline-capable franchise mode** with optional account sync. Live head-to-head, social features, and monetization should wait until the core simulation is proven fun and reliable.
+The game works completely offline after installation. It has no accounts, cloud sync, multiplayer, or real-world player/team data. The existing web portrait tool and LibreSprite artwork are seed assets for a core in-game customization system.
 
 ## Guiding decisions
 
-- **Platforms:** Flutter for iOS and Android; design the domain layer so a web build remains possible later.
-- **Backend:** Supabase for authentication, PostgreSQL game data, Storage for uploaded images, Edge Functions for trusted multiplayer/server-side work, and optional Realtime later.
-- **Sign-in:** Google and Apple sign-in on mobile, plus an anonymous/guest path that can be upgraded to an account. Apple sign-in is required if iOS offers other third-party sign-in methods.
-- **Game model:** keep simulation logic deterministic and independent of Flutter widgets and Supabase. Use a seed plus saved game state so seasons and matches can be reproduced and tested.
-- **Visual identity:** use only original art, names, logos, data, and player likenesses, or assets with rights cleared for commercial use. Do not imply affiliation with real leagues or athletes.
+- **Title:** Women's Basketball Manager.
+- **Platforms:** Flutter for Android first, with a web build as the next priority. iOS is not currently in scope.
+- **Persistence:** Local-only saves, with explicit save-game versions and migrations. No backend or sign-in is required.
+- **Monetization:** Free with carefully placed AdMob banners on selected screens, including the dashboard and gameplay screen. Ads must not interrupt game flow.
+- **Game model:** Keep the simulator deterministic and independent of Flutter widgets. A seed plus saved game state must reproduce seasons and games for testing.
+- **League:** 20 original teams split evenly between Atlantic and Pacific conferences. Teams may use real U.S. and Canadian cities but must not resemble real organizations.
+- **Fictional world:** Use only original names, teams, portraits, logos, colleges, and player data. Build an eventual rookie pipeline of about 100 fictional colleges in plausible U.S. and Canadian locations.
+- **Portraits:** Port the existing layered rendering, weighted selection, and recoloring logic to Flutter. Store appearance data and cache completed portraits as PNGs. The coach can later edit individual players and coaches.
 
 ## Phase 0 — Foundation and product definition
 
-**Goal:** establish a shippable Flutter foundation before game features accumulate.
+**Goal:** Establish a shippable, offline Flutter foundation and a clear fictional world.
 
 ### Deliverables
 
-- Create the Flutter application with development, staging, and production configuration.
-- Set up a clean app architecture: feature modules, routing, state management, repositories, domain models, and dependency injection. Pick and document one approach (for example Riverpod + GoRouter + Freezed/json_serializable).
-- Establish design foundations: color, typography, spacing, dark mode, accessibility rules, loading/empty/error states, and a reusable component library.
-- Create Supabase projects and environments.
-- Configure Supabase Auth: anonymous guest access, Google sign-in, Apple sign-in, account linking, logout, and account deletion.
-- Define Row Level Security policies from day one. A user may read/write only her own franchise and saved-game data unless a later social feature explicitly grants access.
-- Set up Storage buckets and image constraints for future roster photos.
-- Add crash reporting, analytics with a privacy-conscious event list, remote configuration/feature flags, and basic in-app feedback.
-- Set up CI: formatting, static analysis, unit tests, Android/iOS builds, signed release workflow, and environment-secret handling.
-- Add the required operational materials: privacy policy, terms, support contact, data-deletion flow, App Store/Play Store identifiers, and consent choices where required.
-- Audit and catalog the current web assets/data (`teams.json`, portrait parts, and manifest) for possible migration. Define an asset pipeline and licensing status instead of copying the browser rendering code into the app.
+- Create the Flutter app with Android development and production configuration, structured so web support can follow.
+- Set up feature modules, routing, state management, repositories, domain models, dependency injection, formatting, static analysis, and tests. Pick and document one approach.
+- Establish design foundations: color, typography, spacing, dark mode, accessibility rules, loading/empty/error states, and reusable components.
+- Implement local persistence, backup/export considerations, and versioned save-game migrations.
+- Create an ad service boundary with reserved banner placements on the dashboard and gameplay screens. Use test ads in development.
+- Audit and catalog the current portrait assets and manifest. Define a Flutter asset pipeline and licensing record; the initial migration specification lives in `portraits.md`.
+- Define the initial 20-team Atlantic/Pacific league template and rules for original names, colors, and branding.
+- Define 100 fake universities from which players could be drafted
+- Set up CI for formatting, static analysis, unit tests, and Android builds.
+- Add the operational basics: privacy policy, terms, support contact, and Play Store identifiers. Account deletion flows are unnecessary because the game has no accounts.
 
 ### Exit criteria
 
-- A guest can open the app, create or restore an account, and reach a protected home screen.
-- A signed-in user has an isolated Supabase profile and a reliable local/offline cache.
-- CI produces installable builds; errors and key onboarding events are observable.
+- The player can open the app directly into a local game shell with no sign-in or network dependency.
+- Local saves survive app restarts and are versioned for safe future migrations.
+- CI produces an installable Android build.
 
-## Phase 1 — Players, teams, and rosters
+## Phase 1 — Expansion franchise, players, and rosters
 
-**Goal:** make the core collection and management loop satisfying before simulating a full league.
+**Goal:** Make the franchise setup and roster-management loop satisfying.
 
 ### Player system
 
-- Player identity: name, age/experience, nationality or hometown if desired, position(s), handedness, biography, personality/archetype, and status.
-- Basketball ratings: shooting by area, finishing, playmaking, ball handling, defense, rebounding, athleticism, stamina, discipline, and potential. Keep ratings data-driven and visible only at the level that supports the intended game style.
+- Player identity: fictional name, age/experience, hometown, position(s), handedness, biography, personality/archetype, and status.
+- Basketball ratings: shooting by area, finishing, playmaking, ball handling, defense, rebounding, athleticism, stamina, discipline, and potential.
 - Derived capabilities: overall, role fit, lineup chemistry, fatigue/readiness, morale, injury risk, and development trajectory.
-- Player detail screen with ratings, season statistics, contract/status, portrait, and role explanation.
-- Seeded player generator and a small curated starting set; no real-player data until rights are addressed.
+- Player detail screen with ratings, season statistics, portrait, role explanation, nickname, and earned cosmetics.
+- Seeded player generation and a curated initial pool. Each new franchise should receive a meaningfully different weak starting roster.
 
 ### Team and roster system
 
-- Team profile: original name, colors, city, prestige, finances/budget (if in initial scope), staff placeholders, and visual identity.
+- Expansion onboarding: name the club, choose Atlantic or Pacific, and begin with a weak generated roster. The new club replaces a randomly selected existing team in its chosen conference, keeping the league at 20 teams.
+- Team profile: original name, colors, city, prestige, and visual identity.
 - Roster rules: positions, active/inactive roster, starters, bench order, captain, depth chart, and validation warnings.
 - Roster screens: team hub, lineup editor, player comparison, player search/filtering, and roster summary.
-- Initial acquisition flow: draft/expansion draft or starting-team selection. Choose one simple onboarding route for the MVP.
-- Save-game schema for user franchises, players, teams, and roster memberships. Keep immutable league templates separate from player-owned saves.
+- Save-game schema for franchise, players, teams, roster memberships, league template, and simulation seed.
 
 ### Exit criteria
 
-- A new player can choose a club, inspect a complete roster, edit a legal lineup, and return later without losing progress.
-- Unit tests cover rating calculations, roster legality, persistence/migrations, and account isolation.
+- A new player can create an expansion club, inspect a complete roster, edit a legal lineup, and resume later without losing progress.
+- Unit tests cover rating calculations, roster legality, generated-roster constraints, and local persistence/migrations.
 
-## Phase 1.5 — Portraits and roster photos
+## Phase 1.5 — Portraits and earned identity
 
-**Goal:** add personality without making photography or image moderation a dependency for the core game.
-
-### Recommended rollout
-
-1. **Launch with generated portraits.** Port or recreate the current layered avatar system in Flutter, or pre-render portraits through a controlled asset pipeline. Store compact appearance data, not a unique full image for every generated player.
-2. **Add team/player images.** Support original in-game illustrations first; then allow a user to upload an image only for her own franchise if desired.
-3. **Add moderation and controls before social display.** Images that other users can see need reporting, review, removal, rate limits, and a clear acceptable-use policy.
-
-### Technical requirements
-
-- Supabase Storage paths scoped by user/franchise, image type/size validation, thumbnails, cache strategy, replacement/deletion behavior, and image-attribution metadata.
-- An accessible avatar fallback and a no-photo option.
-- Portrait rendering tests for layering order, recoloring, and missing assets.
-
-### Exit criteria
-
-- Every roster view has a fast, consistent portrait/avatar experience.
-- User-provided images are secure, bounded in cost, and can be removed by the owner or moderation process.
-
-## Phase 2 — League, season, and world simulation
-
-**Goal:** turn roster management into an ongoing basketball world.
+**Goal:** Make player identity and customization a defining part of the game.
 
 ### Deliverables
 
-- League configuration: divisions/conferences, schedule format, playoffs, tiebreakers, season calendar, and difficulty settings.
-- League screens: standings, schedule, results, team pages, player leaders, awards, injuries/news, and historical records.
-- A fast game simulator that can run AI-vs-AI results deterministically.
-- Progression between games: fatigue/recovery, injuries, morale, player development/regression, basic contracts/transactions, and event/news generation.
-- Season lifecycle: preseason, regular season, playoffs, offseason, draft/free agency (start simple), and multi-season history.
-- Balancing tools: simulation batches, exported diagnostics, distribution checks, and seeded regression scenarios.
+- Rebuild the current layered avatar system in Flutter using the existing artwork, including part weights, layering order, and magenta-placeholder recoloring.
+- Store compact appearance data and render/cache completed portraits as PNG files locally.
+- Provide coach editing for individual player and coach appearances, with an accessible fallback portrait.
+- Implement an achievement system for cosmetic unlocks and nickname suggestions.
+- Award triggers include league MVP, scoring leader, defensive MVP, and future achievement types.
+- Let the game suggest a nickname, while always allowing the coach to change it.
 
 ### Exit criteria
 
-- A player can simulate a complete season, understand every result, and begin the next season with persistent history.
-- Re-running the same game state with the same simulation version and seed produces the same result.
+- Every roster screen displays a fast, consistent portrait.
+- Portrait edits persist correctly, and rendering tests cover layering, recoloring, weights, and missing assets.
+- Earned nicknames and cosmetic unlocks are visible, editable where appropriate, and persistent.
 
-## Phase 3 — Head-to-head match engine and tactics
+## Phase 2 — League, season, and franchise simulation
 
-**Goal:** make individual games tense, legible, and strategically meaningful.
+**Goal:** Turn roster management into an ongoing fictional basketball world.
 
 ### Deliverables
 
-- Possession-based engine: pace, shot selection, turnovers, fouls, rebounds, substitutions, clock/game states, and end-game logic.
-- Team tactics: offensive style, defensive coverage, pace, rotation rules, matchups, shot priorities, and coaching adjustments.
+- League configuration for the 20-team Atlantic/Pacific format, schedule, playoffs, tiebreakers, season calendar, and difficulty.
+- League screens: standings, schedule, results, team pages, player leaders, awards, news, and historical records.
+- A fast deterministic simulator for AI-vs-AI results and full-season progression.
+- Player development/regression, fatigue/recovery, morale, injuries, news, and event generation.
+- Draft classes sourced from the fictional college pipeline; start with a simple, transparent draft.
+- Basic trade system with AI valuation and clear player-facing explanations.
+- Season lifecycle: preseason, regular season, playoffs, offseason, draft, and multi-season history.
+- Balancing tools: simulation batches, diagnostics, distribution checks, and seeded regression scenarios.
+
+### Exit criteria
+
+- A player can complete a season, develop a roster, draft and trade players, and begin the next season with persistent history.
+- Re-running the same state with the same simulator version and seed produces the same results.
+
+## Phase 3 — Match engine and tactical play-by-play
+
+**Goal:** Make individual games legible and strategically meaningful without making them a full animation project.
+
+### Deliverables
+
+- Possession-based engine: pace, shot selection, turnovers, fouls, rebounds, automatic substitutions, clock/game states, and end-game logic.
+- Live textual play-by-play, pre-game setup, post-game box score, advanced stats, and tactical recap.
+- Strategy choices at quarter breaks: offensive style, defensive coverage, pace, matchups, and shot priorities.
+- A limited timeout system for special plays and in-game adjustments.
 - Player roles and tactical fit that materially affect outcomes without reducing games to a single overall rating.
-- Match presentation: live play-by-play first, then a visual court/shot-chart layer if it improves understanding. Do not block Phase 3 on expensive animation.
-- Pre-game scouting, in-game timeouts/adjustments, post-game box score, advanced stats, and tactical recap.
 - Simulation and balance test suite covering edge cases, strategic viability, and statistical realism.
 
 ### Exit criteria
 
-- A player can explain why a game was won or lost and make a meaningful tactical adjustment for the rematch.
+- A player can understand why a game was won or lost and make a meaningful adjustment in a rematch.
 - Tactics, ratings, fatigue, and randomness each have tested, observable effects.
 
-## Phase 4 — Deeper franchise management
+## Phase 4 — Court presentation and deeper franchise management
 
-**Goal:** add long-term decisions after the fundamental loop is fun.
+**Goal:** Add visual clarity and long-term depth after the text-based game loop is proven.
 
-- Scouting, draft classes, recruiting/international pipeline, and hidden information.
-- Contracts, salary cap/budget, trades, free agency, waivers, and staff/coaches.
-- Training plans, facilities, chemistry, player goals, story events, and rivalries.
-- Team branding: original logos, uniforms, arena presentation, and franchise customization.
-- Historical league records, Hall of Fame, achievements, and challenge scenarios.
+- Add a simple court/shot-chart presentation that shows shot locations and key play context. Do not require full player animation.
+- Add scouting, richer draft classes, recruiting/international pipelines, and hidden information.
+- Expand trades and add contracts, salary cap/budget, free agency, waivers, and staff/coaches as appropriate.
+- Add training plans, facilities, chemistry, player goals, story events, rivalries, branding, uniforms, and arenas.
+- Add historical records, Hall of Fame, achievements, and challenge scenarios.
 
-## Phase 5 — Online, social, and live operations
+## Phase 5 — Launch and iteration
 
-**Goal:** add shared experiences only after authoritative game rules and safety controls are ready.
+**Goal:** Release a reliable offline Android game, learn from solo players, and prepare web support.
 
-- Cloud save conflict resolution and cross-device continuity.
-- Async head-to-head: submit tactics/lineups, run matches in a trusted server function, show replays/results. This is recommended before real-time play.
-- Friends, private leagues, leaderboard seasons, sharing controls, blocking/reporting, and moderation tooling.
-- If real-time head-to-head is desired: a separate authoritative match service, anti-cheat design, reconnection handling, matchmaking, load testing, and customer support plan. Supabase alone is not a complete real-time competitive game backend.
-- Live events and balance updates behind feature flags, with a rollback process and player-facing patch notes.
+- Closed alpha and staged Android beta with structured feedback.
+- Privacy-conscious, optional analytics only if they preserve the offline product promise.
+- Measure onboarding completion, first lineup change, first game/season completion, crashes, and simulation abandonment.
+- Accessibility audit: scalable text, screen-reader labels, color-safe indicators, motion reduction, and offline behavior.
+- Performance and battery profiling across supported Android devices.
+- Play Store listing, screenshots/video, support documentation, release checklist, and post-launch improvement cadence.
+- Assess and build the web release once the Android experience is stable.
 
-## Phase 6 — Launch, growth, and iteration
-
-**Goal:** release deliberately, learn from real play, and protect the community.
-
-- Closed alpha with telemetry and structured feedback; then staged regional/platform beta.
-- Funnel and gameplay metrics: onboarding completion, first lineup change, first completed game/season, retention, crash-free sessions, and simulation abandonment points.
-- Accessibility audit: scalable text, screen-reader labels, color-safe indicators, motion reduction, localization-ready strings, and offline behavior.
-- Performance/battery profiling on supported devices; database/storage cost monitoring; backups and incident runbooks.
-- Store listing, screenshots/video, support documentation, release checklist, and a small cadence of post-launch improvements.
-
-## Cross-cutting work to do throughout
+## Cross-cutting work
 
 - Version every simulation rule and saved-game migration; never silently invalidate a franchise.
-- Write automated tests for domain logic before UI-level tests. The simulation engine is the highest-value test target.
-- Keep authoritative rules and sensitive progression decisions off the client once competition or purchases exist.
-- Treat analytics, notifications, and any monetization as opt-in/product decisions with clear privacy and regional compliance review.
-- Maintain a playable vertical slice at all times: create/choose team → manage roster → play/simulate game → see consequences → save.
+- Prioritize automated tests for domain logic and the simulation engine before UI-level tests.
+- Keep the game playable without a connection at every stage.
+- Maintain a vertical slice at all times: create expansion team → manage roster → play/simulate game → see consequences → save.
 
 ## Suggested milestones
 
 | Milestone | Player-visible outcome |
 | --- | --- |
-| Foundation demo | Sign in or play as a guest, with a polished app shell. |
-| Roster vertical slice | Choose a team, inspect/edit a lineup, and save it. |
-| Season vertical slice | Simulate a short season, view standings, and reach playoffs. |
-| Tactical vertical slice | Make tactical choices in a playable game and receive an understandable box score. |
-| Beta candidate | Play multiple seasons reliably with balanced results and recovered saves. |
-
-## Decisions to make before implementation begins
-
-1. Is the MVP a pure franchise/GM game, a coach game with live tactical calls, or a hybrid? This determines the detail level of Phase 3.
-2. Should the initial release be completely offline after download, cloud-synced single-player, or online-first? The recommended answer is offline-capable with optional sign-in/sync.
-3. Are users creating fictional players only, or can they use real names, photos, and data? Rights and moderation scope change sharply if real people are involved.
-4. What is the intended business model: premium paid app, free with no monetization, cosmetic purchases, or something else? Avoid designing progression around monetization before this is settled.
-5. Is portrait customization a central creative feature or simply a way to distinguish players? That determines whether Phase 1.5 is minimal or substantial.
-6. Is cross-platform launch (iOS + Android) required on day one, and what accessibility/localization commitments are non-negotiable?
+| Foundation demo | Open an offline Android app and start/resume a local save. |
+| Expansion roster slice | Create a club, receive a varied weak roster, edit a lineup, and save it. |
+| Season slice | Simulate a short season, view standings, develop players, and reach a draft. |
+| Tactical slice | Follow live play-by-play, make quarter/timeout choices, and read a clear box score. |
+| Presentation slice | See shot locations on a simple court presentation. |
+| Release candidate | Play multiple reliable seasons with balanced results and recoverable saves. |
 
 ## First implementation target
 
-The best first build is a thin vertical slice, not all of Phase 1: guest sign-in → choose one of several original teams → browse generated players → set a valid starting five and bench → simulate one exhibition game → read the box score → save and restore. It validates the app foundation, data model, roster UX, and game loop before league and multiplayer scope expand.
+Build a thin vertical slice: create an expansion franchise → name it → receive a weak generated roster → browse generated, editable portraits → set a valid starting five and bench → simulate one exhibition through play-by-play → read the box score → save and restore. It validates the local app foundation, roster UX, portrait system, and core game loop before full-league depth is added.

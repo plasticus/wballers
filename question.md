@@ -1,25 +1,57 @@
-# Questions to settle before building WBallers
+# Decisions for Women's Basketball Manager
 
-1. Is the MVP primarily a franchise/GM game, a coach game with live tactical calls, or a hybrid?
+## 1. Core game
 
-2. Should the initial release work entirely offline after download, offer optional account-based cloud sync, or require an online connection? The roadmap recommends offline-capable play with optional sign-in and sync.
+**Decision:** A franchise-management-first hybrid. The player manages a roster over multiple seasons, while games provide play-by-play and limited coaching decisions. Automatic substitutions keep the player focused on strategy rather than micromanagement.
 
-3. Will the game use fictional players only, or may users include real names, photos, and player data? Real people substantially expand licensing, privacy, and moderation needs.
+## 2. Connectivity
 
-4. What business model do you want: paid premium app, free with no monetization, cosmetics, or another approach?
+**Decision:** Completely offline-capable. There is no planned multiplayer, account system, cloud sync, or online requirement.
 
-5. Is portrait customization a core creative feature, or mainly a practical way to distinguish fictional players?
+## 3. Fictional world
 
-6. Must iOS and Android launch together? Are there non-negotiable accessibility or localization requirements for version 1?
+**Decision:** Every team, athlete, coach, college, logo, and data point is fictional. Teams may use real U.S. and Canadian cities, but must not mirror real organizations. Rookie pipelines will include roughly 100 fictional colleges located in believable U.S. and Canadian places.
 
-7. How detailed should a single game be for the first release: quick simulation only, a tactical play-by-play experience, or a visual on-court presentation?
+## 4. Business model
 
-8. What should the first user experience be: choose an existing team, create an expansion franchise, or inherit a struggling club?
+**Decision:** Free-to-play with AdMob banner placements on selected screens, including the dashboard/home and gameplay screens. Ads should not appear on every screen or interrupt play.
 
-9. Which Phase 1 systems are essential for the first playable build: player development, injuries, contracts, drafts, trades, finances, or none of these yet?
+## 5. Portraits
 
-10. Is user-vs-user play a launch priority, or is a polished single-player franchise mode the goal before any online competition?
+**Decision:** Portrait customization is a core feature. The coach can customize player and coach portraits extensively, including editing individual players after they are generated.
 
-11. How much of the current portrait/asset system should survive: reuse the artwork directly, rebuild its avatar behavior in Flutter, or replace it with a new art direction?
+## 6. Platforms
 
-12. Are the existing fictional team names and colors the intended foundation for the league, or temporary placeholders?
+**Decision:** Android launches first. A web build is the next platform priority. iOS is not currently in scope.
+
+## 7. Match presentation
+
+**Decision:** Build in phases: play-by-play first; then quarter-break and timeout coaching choices; then a simple court visualization that shows shot locations and related game action. There is no need for full animated on-court play.
+
+## 8. New-game experience
+
+**Decision:** The player creates an expansion franchise, chooses its name and identity, and inherits a weak roster. Starting rosters should vary between new games.
+
+## 9. Essential franchise systems
+
+**Decision:** Player development, drafts, and trades are priorities for the first playable franchise experience. Other systems can follow after the core loop works.
+
+## 10. Competitive play
+
+**Decision:** No player-vs-player or other online competition is planned. This is a solo game.
+
+## 11. Existing portrait system
+
+**Decision:** Keep the existing LibreSprite artwork and port the layered rendering, weighted part selection, and recoloring behavior to Flutter. Persist the appearance data and render/cache the completed portrait as a PNG.
+
+## 12. League foundation
+
+**Decision:** Start fresh. Create 20 fictional teams with names that evoke professional women's basketball without resembling real teams. Organize the league into Atlantic and Pacific conferences, with 10 teams each.
+
+## 13. Earned identity system
+
+**Decision:** Players can earn nicknames and special hair colors through awards and achievements, such as league MVP, scoring leader, and defensive MVP. The game suggests a nickname, and the coach may edit it. Example: Olivia “The Spectacle” Miles.
+
+## 14. Game name
+
+**Decision:** The game is named **Women's Basketball Manager**.
