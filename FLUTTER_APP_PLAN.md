@@ -49,7 +49,7 @@ The game works completely offline after installation. It has no accounts, cloud 
 - Basketball ratings, all on the shared 1-99 scale, per the "Final Stat Architecture" in `star_system.md`: four physical (speed, agility, strength, stamina), four offensive (ball control, passing, **interior offense**, **perimeter offense**), and four defensive/playmaking (perimeter defense, interior defense, disruption, blocking), plus potential as a separate ceiling rating. Interior/perimeter offense cover all offensive work in that zone (finishing, post moves, offensive rebounding instinct, boxing out for interior; jump shooting, shot fakes, footwork for perimeter), not just makes/misses — no separate finishing rating. Rebounding isn't stored or derived at all — it's the universal action-success formula applied twice at simulation time (offensive rebound: strength + interior offense; defensive rebound: strength + interior defense).
 - Derived capabilities: overall, role fit, lineup chemistry, fatigue/readiness, morale, injury risk, and development trajectory.
 - Player detail screen with ratings, season statistics, portrait, role explanation, nickname, and earned cosmetics.
-- Seeded player generation and a curated initial pool. Each new franchise should receive a meaningfully different weak starting roster.
+- Seeded player generation (question.md decision 23): `generatePlayer` (name, hometown, age/service, position-biased ratings) and `generateStartingRoster` (a full 12-player weak active roster, guaranteed below the four-star threshold, with full position coverage). A curated initial pool beyond the generated starting rosters is still open.
 
 ### Coach system
 

@@ -28,9 +28,11 @@ lib/
     player/
       domain/            Player, PlayerRatings, Position, Handedness
       persistence/       player_json.dart
+      generation/        generatePlayer -- seeded, deterministic
     roster/
       domain/            StarTier, RosterStatus, RosterMembership, RosterLegality
       persistence/       roster_membership_json.dart
+      generation/        generateStartingRoster -- seeded, deterministic
     franchise/
       domain/            Franchise (save-game root), franchise_legality.dart
       persistence/       franchise_json.dart -- goes through SaveEnvelope/SaveRepository

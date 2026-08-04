@@ -99,3 +99,9 @@ Traits and the refined nickname-award criteria both live in Phase 1.5 (`FLUTTER_
 - **Reserve/Inactive** — a single catch-all for "under contract, not currently active, for any reason." Deliberately not split into injury/suspension/hardship sub-categories the way the real CBA is, since none of those distinctions currently affect anything in this game.
 
 Also captured: an **Assistant GM advice** feature idea (a staff member who proactively surfaces roster suggestions, e.g. "player X would fill our open roster spot") — parked for Phase 4 alongside the other staff/front-office deliverables, not designed yet.
+
+## 23. Seeded player generation
+
+**Decision:** `generatePlayer` (player feature) takes a seeded `Random` and a position, and returns a fully-formed `Player` — name and hometown drawn from small invented pools (`player_generator_data.dart`; not real athlete names), age 20-34 with `yearsOfService` derived from a separately-rolled debut age (19-28, so an international rookie debuting late is a natural outcome, not a special case), and ratings built from a quality center plus per-stat jitter plus a per-position bias table (e.g. centers skew strength/interior up and speed/perimeter down) reflecting standard basketball archetypes. `potential` gets its own wider, upward-skewed roll so even a weak roster can hide a gem.
+
+`generateStartingRoster` (roster feature) composes this into a new expansion franchise's 12-player active roster: a fixed position plan (2 PG, 3 SG, 3 SF, 2 PF, 2 C) guarantees full position coverage, and the quality center/spread (48 ± 14, positions bias further within that) is chosen so the roster average is *structurally* incapable of reaching the four-star threshold (78) even in the extreme case — verified by both the arithmetic and a 50-seed test loop, not just spot-checked. Different seeds produce different rosters by construction, satisfying the plan's "meaningfully different weak starting roster" requirement.
