@@ -139,7 +139,7 @@ Done immediately:
 
 Deferred to Phase 2, noted in `FLUTTER_APP_PLAN.md`, because each depends on a system that doesn't exist yet:
 - **Team replacement selection**: a checkbox to choose which existing team in the conference your club replaces (defaulting to random) needs a real `League` runtime concept to persist "which 19 AI teams remain" against — doesn't exist yet (`kInitialLeagueTeams` is static reference data, not consumed as live league state anywhere).
-- **Fresh-league team quality**: target ~75-80 average overall once the other 19 teams get real generated rosters — they don't have rosters at all today, only identity (name/colors/city). This is genuinely new scope (full-league roster generation), not a tweak to what exists.
+- **Fresh-league team quality**: target ~75-80 average overall once the other 19 teams get real generated rosters — they don't have rosters at all today, only identity (name/colors/city). This is genuinely new scope (full-league roster generation), not a tweak to what exists. Concretely (added later, direct from the user): each generated team should carry roughly 4 four-star-or-better players and at least 2 traited players, so a freshly generated roster already reads as a real team rather than 12 generic bodies -- see `FLUTTER_APP_PLAN.md`'s Phase 2 section.
 - **League screen as a standings page**: win-loss records, and between seasons, last season's record plus the champion (🏆) — needs season simulation and playoffs to produce any of that data. Building the standings layout now would have nothing real to display.
 
 ## 27. Traits and archetypes implemented on `Player`
