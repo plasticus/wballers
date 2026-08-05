@@ -10,12 +10,15 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/franchise/presentation/team_roster_screen.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
 import '../../../support/in_memory_save_repository.dart';
+import '../../../support/league_test_helpers.dart';
+import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
   final roster = [...generateStartingRoster(1), ...?extraMembers];
@@ -28,6 +31,10 @@ Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    league: testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    ),
   );
 }
 
@@ -108,6 +115,75 @@ void main() {
     );
 
     expect(find.text('Developmental (1)'), findsOneWidget);
+  });
+
+  testWidgets(
+    'shows a player\'s height and offense/defense/physical overalls',
+    (tester) async {
+      final player = playerWithOverall(70, heightInches: 74);
+      final franchise = _franchiseWith(
+        extraMembers: [
+          RosterMembership(player: player, status: RosterStatus.developmental),
+        ],
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: TeamRosterScreen()),
+        ),
+      );
+      await tester.pump();
+
+      await tester.scrollUntilVisible(
+        find.text('Developmental (1)'),
+        300,
+        scrollable: find.byType(Scrollable),
+      );
+
+      expect(find.textContaining('6\'2"'), findsWidgets);
+      expect(find.text('OFF 70 · DEF 70 · PHY 70'), findsOneWidget);
+    },
+  );
+
+  testWidgets('a player\'s traits show as chips naming each one', (
+    tester,
+  ) async {
+    final traitedPlayer = playerWithOverall(
+      70,
+      traits: {Trait.leader, Trait.sharpshooter},
+    );
+    final franchise = _franchiseWith(
+      extraMembers: [
+        RosterMembership(
+          player: traitedPlayer,
+          status: RosterStatus.developmental,
+        ),
+      ],
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: TeamRosterScreen()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.text('Developmental (1)'),
+      300,
+      scrollable: find.byType(Scrollable),
+    );
+
+    // findsWidgets, not findsOneWidget: the randomly generated active
+    // roster could coincidentally include another player with the same
+    // trait -- this test only cares that the deliberately-traited player's
+    // chips render, not roster-wide uniqueness.
+    expect(find.text('Leader'), findsWidgets);
+    expect(find.text('Sharpshooter'), findsWidgets);
   });
 
   testWidgets('with no developmental or reserve players, those sections '

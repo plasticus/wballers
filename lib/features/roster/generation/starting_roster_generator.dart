@@ -1,29 +1,10 @@
 import 'dart:math';
 
-import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
 import '../domain/roster_status.dart';
-
-/// Positions for a new expansion franchise's 12-player active roster.
-/// Guarantees at least two players at every position so a legal starting
-/// five and bench can always be fielded; guards and forwards get a third
-/// body since those rotations run deepest in practice.
-const _startingRosterPositionPlan = <Position>[
-  Position.pointGuard,
-  Position.pointGuard,
-  Position.shootingGuard,
-  Position.shootingGuard,
-  Position.shootingGuard,
-  Position.smallForward,
-  Position.smallForward,
-  Position.smallForward,
-  Position.powerForward,
-  Position.powerForward,
-  Position.center,
-  Position.center,
-];
+import 'roster_position_plan.dart';
 
 /// A new expansion franchise's roster should be weak — below the four-star
 /// threshold (see `star_system.md`) — and, per the Phase 1 plan,
@@ -45,7 +26,7 @@ List<RosterMembership> generateStartingRoster(
   final random = Random(seed);
 
   return [
-    for (final position in _startingRosterPositionPlan)
+    for (final position in kTwelvePlayerPositionPlan)
       RosterMembership(
         player: generatePlayer(
           random,

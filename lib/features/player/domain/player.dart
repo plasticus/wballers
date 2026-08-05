@@ -15,6 +15,13 @@ enum Handedness { left, right }
 const kMinHeightInches = 62;
 const kMaxHeightInches = 84;
 
+/// Formats a height in inches as feet'inches" (e.g. `74` -> `6'2"`).
+String formatHeightInches(int heightInches) {
+  final feet = heightInches ~/ 12;
+  final inches = heightInches % 12;
+  return "$feet'$inches\"";
+}
+
 /// A fictional athlete.
 ///
 /// Deliberately excluded for now, pending systems that don't exist yet:

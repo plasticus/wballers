@@ -19,6 +19,7 @@ import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
 import '../../../support/in_memory_save_repository.dart';
+import '../../../support/league_test_helpers.dart';
 
 Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
   final roster = [...generateStartingRoster(1), ...?extraMembers];
@@ -31,6 +32,10 @@ Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    league: testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    ),
   );
 }
 

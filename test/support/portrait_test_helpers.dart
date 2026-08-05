@@ -8,6 +8,8 @@ import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
+import 'league_test_helpers.dart';
+
 /// [firstPlayerHasAchievement] grants the roster's first player a League
 /// MVP record -- used to test the special-hair-color unlock gate, which
 /// otherwise never has anything to react to since nothing in the running
@@ -38,6 +40,10 @@ Franchise franchiseForPortraitTests({bool firstPlayerHasAchievement = false}) {
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    league: testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    ),
   );
 }
 

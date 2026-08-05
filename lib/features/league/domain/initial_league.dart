@@ -23,7 +23,7 @@ const kLeagueTeamPool = <Team>[
   Team(
     abbreviation: 'BKN',
     location: 'Brooklyn, NY',
-    name: 'Brooklyn Comets',
+    name: 'Brooklyn Express',
     conference: Conference.atlantic,
     colors: TeamColors(
       primaryHex: '#24124D',
@@ -191,7 +191,7 @@ const kLeagueTeamPool = <Team>[
   Team(
     abbreviation: 'ORL',
     location: 'Orlando, FL',
-    name: 'Orlando Spark',
+    name: 'Orlando Sunburst',
     conference: Conference.atlantic,
     colors: TeamColors(
       primaryHex: '#2E2A6E',

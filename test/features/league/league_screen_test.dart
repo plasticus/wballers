@@ -17,6 +17,7 @@ import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
 import '../../support/in_memory_save_repository.dart';
+import '../../support/league_test_helpers.dart';
 
 Future<void> _pumpWithRepository(
   WidgetTester tester,
@@ -75,6 +76,10 @@ void main() {
         startingLineup: StartingLineup.bestAvailable(roster),
         simulationSeed: simulationSeed,
         replacedTeamAbbreviation: replaced.abbreviation,
+        league: testLeague(
+          simulationSeed: simulationSeed,
+          replacedTeamAbbreviation: replaced.abbreviation,
+        ),
       );
 
       final repository = InMemorySaveRepository();

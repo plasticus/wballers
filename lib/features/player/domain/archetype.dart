@@ -12,7 +12,6 @@ enum Archetype {
   floorGeneral,
   scoringPoint,
   comboGuard,
-  pointGod,
 
   // Shared guard/wing
   scoringSpecialist,
@@ -38,7 +37,6 @@ extension ArchetypeLabel on Archetype {
     Archetype.floorGeneral => 'Floor General',
     Archetype.scoringPoint => 'Scoring Point',
     Archetype.comboGuard => 'Combo Guard',
-    Archetype.pointGod => 'POINT GOD',
     Archetype.scoringSpecialist => 'Scoring Specialist',
     Archetype.threeAndD => '3&D',
     Archetype.sniper => 'Sniper',
@@ -63,7 +61,6 @@ const Map<Position, List<Archetype>> kArchetypesByPosition = {
     Archetype.floorGeneral,
     Archetype.scoringPoint,
     Archetype.comboGuard,
-    Archetype.pointGod,
   ],
   Position.shootingGuard: [
     Archetype.scoringSpecialist,

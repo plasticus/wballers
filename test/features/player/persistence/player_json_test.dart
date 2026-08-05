@@ -76,12 +76,12 @@ void main() {
     'a save with an explicit archetype/traits still uses them, not the fallback',
     () {
       final json = _legacyPlayerJson()
-        ..['archetype'] = 'pointGod'
+        ..['archetype'] = 'comboGuard'
         ..['traits'] = ['leader'];
 
       final player = playerFromJson(json);
 
-      expect(player.archetype, Archetype.pointGod);
+      expect(player.archetype, Archetype.comboGuard);
       expect(player.traits, isNotEmpty);
     },
   );

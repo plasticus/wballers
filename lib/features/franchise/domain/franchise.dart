@@ -1,5 +1,6 @@
 import '../../coach/domain/coach.dart';
 import '../../league/domain/initial_league.dart';
+import '../../league/domain/league.dart';
 import '../../league/domain/team.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
@@ -19,8 +20,8 @@ import '../../roster/domain/starting_lineup.dart';
 /// random team in the chosen conference but GM-overridable. `LeagueScreen`
 /// uses it to substitute [team] in for the replaced original in the league
 /// listing, so the displayed league genuinely reads as 19 AI teams + 1 GM
-/// team. There's no real league *runtime* yet (no season, no generated
-/// rosters for the other 19 teams) -- that's still Phase 2's League concept.
+/// team. [league] is those 19 AI teams' real generated rosters
+/// (`generateLeague`) -- a real league runtime, not just identities.
 ///
 /// Roster legality isn't enforced here — see `evaluateFranchiseLegality`.
 /// Lineup legality isn't enforced here either — see `evaluateLineupLegality`.
@@ -34,10 +35,17 @@ class Franchise {
     required this.startingLineup,
     required this.simulationSeed,
     required this.replacedTeamAbbreviation,
+    required this.league,
   }) : assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
          'replacedTeamAbbreviation must be one of the league team pool, '
          'in the same conference as team',
+       ),
+       assert(
+         !league.aiTeams.any(
+           (aiTeam) => aiTeam.team.abbreviation == replacedTeamAbbreviation,
+         ),
+         'league.aiTeams must not include the team the GM replaced',
        );
 
   /// Stable identifier for this save, independent of [team]'s name (which
@@ -61,6 +69,10 @@ class Franchise {
   /// Bookkeeping only for now -- see the class doc comment.
   final String replacedTeamAbbreviation;
 
+  /// The other 19 teams in this playthrough's league, with real generated
+  /// rosters -- see the class doc comment and `generateLeague`.
+  final League league;
+
   /// Returns a copy with [startingLineup] replaced -- the only field the
   /// lineup editor needs to change.
   Franchise copyWithLineup(StartingLineup newLineup) {
@@ -73,6 +85,7 @@ class Franchise {
       startingLineup: newLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
     );
   }
 
@@ -88,6 +101,7 @@ class Franchise {
       startingLineup: startingLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
     );
   }
 
@@ -103,6 +117,7 @@ class Franchise {
       startingLineup: startingLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
     );
   }
 }

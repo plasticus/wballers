@@ -7,7 +7,7 @@ This is the editable design source for the league's team pool. Every team abbrev
 | Abbr. | City | Team | Primary | Secondary | Accent | Identity note |
 | --- | --- | --- | --- | --- | --- | --- |
 | BOS | Boston, MA | Boston Beacon | `#0B2D5C` | `#F4C542` | `#F4F1E8` | Harbor lights and historic grit. |
-| BKN | Brooklyn, NY | Brooklyn Comets | `#24124D` | `#63D2FF` | `#FFFFFF` | Fast, bright, and city-night energy. |
+| BKN | Brooklyn, NY | Brooklyn Express | `#24124D` | `#63D2FF` | `#FFFFFF` | Fast, bright, and city-night energy. |
 | BUF | Buffalo, NY | Buffalo Blizzard | `#173F5F` | `#B9E7F5` | `#FFFFFF` | Lake-effect toughness. |
 | CLT | Charlotte, NC | Charlotte Crown | `#4B1E3C` | `#E5B95C` | `#F7F0E3` | Regal without being precious. |
 | CIN | Cincinnati, OH | Cincinnati Riveters | `#8C1D40` | `#1A2639` | `#E8DCC4` | Industrious, physical, and blue-collar. |
@@ -21,7 +21,7 @@ This is the editable design source for the league's team pool. Every team abbrev
 | CHI | Chicago, IL | Chicago Windy | `#0C2340` | `#A5ACAF` | `#FFFFFF` | Lakefront gusts and blue-collar swagger. |
 | DET | Detroit, MI | Detroit Motors | `#1B1B1B` | `#C8102E` | `#A5ACAF` | Assembly-line precision and industrial pride. |
 | NYC | New York, NY | New York Empire | `#1B1F3B` | `#C9A227` | `#F4F1E8` | Skyline ambition that never sleeps. |
-| ORL | Orlando, FL | Orlando Spark | `#2E2A6E` | `#FFC72C` | `#F7F7F7` | Sunshine energy with a competitive flash. |
+| ORL | Orlando, FL | Orlando Sunburst | `#2E2A6E` | `#FFC72C` | `#F7F7F7` | Sunshine energy with a competitive flash. |
 | WAS | Washington, DC | Washington Anthem | `#14213D` | `#B22234` | `#F4F1E8` | Civic pride and disciplined resolve. |
 | PIT | Pittsburgh, PA | Pittsburgh Ironclad | `#2C2A29` | `#FFB612` | `#D9D9D6` | Forged tough, three rivers deep. |
 | MER | Mérida, Yucatán | Mérida Cenotes | `#0E7C7B` | `#F2C14E` | `#FDF6E3` | Yucatán limestone light and hidden depths. |

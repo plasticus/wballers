@@ -12,6 +12,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
+import '../../../support/league_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _sampleFranchise() {
@@ -48,7 +49,11 @@ Franchise _sampleFranchise() {
       startersByPosition: {Position.pointGuard: 'p-starter'},
     ),
     simulationSeed: 42,
-    replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    // Not kLeagueTeamPool.first (BOS) -- BOS isn't actually drawn for this
+    // seed, and generateLeague/testLeague asserts the replaced team is one
+    // of the 20 that are (see the note on createExpansionFranchise).
+    replacedTeamAbbreviation: 'ATL',
+    league: testLeague(simulationSeed: 42, replacedTeamAbbreviation: 'ATL'),
   );
 }
 
@@ -106,6 +111,22 @@ void main() {
       expect(restoredMember.player.archetype, originalMember.player.archetype);
       expect(restoredMember.player.traits, originalMember.player.traits);
     }
+
+    expect(restored.league.aiTeams, hasLength(original.league.aiTeams.length));
+    for (var i = 0; i < original.league.aiTeams.length; i++) {
+      final originalAiTeam = original.league.aiTeams[i];
+      final restoredAiTeam = restored.league.aiTeams[i];
+
+      expect(
+        restoredAiTeam.team.abbreviation,
+        originalAiTeam.team.abbreviation,
+      );
+      expect(restoredAiTeam.roster, hasLength(originalAiTeam.roster.length));
+      expect(
+        restoredAiTeam.roster.first.player.name,
+        originalAiTeam.roster.first.player.name,
+      );
+    }
   });
 
   test('round-trips a player with secondary positions', () {
@@ -145,6 +166,10 @@ void main() {
       ),
       simulationSeed: 1,
       replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      league: testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ),
     );
 
     final restored = franchiseFromJson(franchiseToJson(franchise));

@@ -12,6 +12,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
+import '../../../support/league_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
 /// Proves the Phase 0 persistence layer (`SaveEnvelope`/`SaveRepository`)
@@ -54,7 +55,13 @@ void main() {
       roster: roster,
       startingLineup: StartingLineup.bestAvailable(roster),
       simulationSeed: 12345,
-      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      // Not kLeagueTeamPool.first (BOS) -- BOS isn't actually drawn for
+      // this seed; see the note on createExpansionFranchise.
+      replacedTeamAbbreviation: 'CLT',
+      league: testLeague(
+        simulationSeed: 12345,
+        replacedTeamAbbreviation: 'CLT',
+      ),
     );
 
     final envelope = SaveEnvelope(

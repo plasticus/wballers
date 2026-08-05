@@ -162,11 +162,17 @@ int _generateHeight(Random random, Position position) {
 /// and their determinism tests are unaffected. Pass it (loaded from the
 /// bundled `weights.json` via `portraitWeightsProvider`) to also generate a
 /// portrait.
+///
+/// [minAge]/[maxAge] default to the full 20-34 range; a caller building a
+/// deliberately young, mid-career, or veteran player (e.g. league-wide AI
+/// roster generation) can narrow them.
 Player generatePlayer(
   Random random, {
   required Position primaryPosition,
   int qualityCenter = 50,
   int qualitySpread = 12,
+  int minAge = 20,
+  int maxAge = 34,
   PortraitWeights? portraitWeights,
 }) {
   final bias = _positionBias[primaryPosition] ?? _zeroDeltas;
@@ -229,7 +235,7 @@ Player generatePlayer(
     potential: _generateStat(random, qualityCenter + 10, qualitySpread + 10, 0),
   );
 
-  final age = 20 + random.nextInt(15); // 20-34
+  final age = minAge + random.nextInt(maxAge - minAge + 1);
   final debutAge = 19 + random.nextInt(10); // 19-28, covers late debuts
   final yearsOfService = max(0, age - debutAge);
 

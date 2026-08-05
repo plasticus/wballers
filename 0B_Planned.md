@@ -8,11 +8,6 @@ marked otherwise. See `0A_Completed.md` for what's already built and
 `0C_Vision_and_Ideas.md` for premise-level ideas that aren't phase-scoped
 yet.
 
-## Phase 1.5 remainder
-
-- A dedicated trait display (player detail screen, or an expandable section on the roster row) — traits are generated and persisted but have no UI surface yet.
-- The special/neon hair-color picker is built and gated correctly; it just has nothing to react to yet. See Phase 2's achievement/nickname ceremony below — that's what will actually open the gate.
-
 ## Phase 2 — League, season, and franchise simulation
 
 **Goal:** turn roster management into an ongoing fictional basketball world.
@@ -24,10 +19,9 @@ anything for the presentation layer or end-of-season systems to show.
 
 ### League and team structure
 
-- **League configuration and runtime.** The 20-team-per-playthrough Atlantic/Pacific format needs to become a real runtime concept — the drawn league (`drawLeagueTeams`) is derived on demand from `kLeagueTeamPool` and a franchise's `simulationSeed` today, not persisted as live league state anywhere. Includes tiebreakers and season calendar (schedule and playoffs are their own items below).
-- **Team replacement mechanics.** When a GM's new club replaces an existing team, it slots directly into that team's old spot — the league stays at 20 (drawn from the 40-team pool, see `0A_Completed.md`). The GM picks the new team's colors from a curated set of options, not a fully free color picker, so it's harder to accidentally collide with another team's existing palette.
-- **19 AI team rosters, generated for the first time** (this playthrough's drawn league teams have identity only today, no players). Target: every team carries exactly one 5-star player, leaning veteran, plus three 4-star players with a mixed young/mid/old spread — stays comfortably inside the star-system caps (≤2 five-star, ≤6 four-star-or-better combined). Concretely, aim for roughly 4 four-star-or-better players and at least 2 traited players per team, so a freshly generated roster already reads as a real team with texture. Whether this reuses `generatePlayer`/`generateStartingRoster` with a different quality center or a distinct generator function is an implementation detail, not a design constraint — outcome matters more than mechanism.
-- **Archetype-drives-stats generation reorder.** Currently archetype is assigned uniformly at random per position, independent of rolled ratings. Change the order: assign/roll the archetype *first*, then bias ratings to actually fit that archetype (a "Sniper" should end up with high perimeter offense). Once assigned, a player's archetype never changes. This is a Phase 1.5-originated idea, but it belongs here — league-wide roster generation is the next time generation logic actually gets opened up, so it should land alongside the AI-roster work above, not before it.
+- **League configuration and runtime, remaining piece: tiebreakers and the season calendar.** The 19 AI teams now have real, persisted rosters (`League`/`generateLeague`, see `0A_Completed.md`) — that half is done. What's still missing is anything that needs a *season* to exist: standings tiebreakers and the season calendar itself, both blocked on the season/schedule work below rather than being their own separable task.
+- **Team replacement mechanics, remaining piece: curated colors.** The roster-replacement mechanic itself is done — the GM's club now genuinely takes the replaced team's spot in a real 19-AI-plus-1-GM league, not just in the display. What's still open: the GM picks the new team's colors from a curated set of options, not a fully free color picker, so it's harder to accidentally collide with another team's existing palette. Onboarding currently just auto-assigns one of 6 starter palettes by seed, with no GM choice at all.
+- **Archetype-drives-stats generation reorder.** Currently archetype is assigned uniformly at random per position, independent of rolled ratings. Change the order: assign/roll the archetype *first*, then bias ratings to actually fit that archetype (a "Sniper" should end up with high perimeter offense). Once assigned, a player's archetype never changes. This is a Phase 1.5-originated idea that got explicitly deferred out of the AI-roster generation work (`0A_Completed.md`) rather than bundled in, since it changes `generatePlayer`'s shared random-draw sequence and has ripple effects on every seeded-determinism test — a separate, deliberate pass, not a quick add-on.
 
 ### Season mechanics and simulation
 

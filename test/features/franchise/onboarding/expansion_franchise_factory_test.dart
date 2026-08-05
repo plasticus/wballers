@@ -57,7 +57,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
+        replacedTeamAbbreviation: 'DET',
         simulationSeed: 555,
       );
       final b = createExpansionFranchise(
@@ -65,7 +65,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
+        replacedTeamAbbreviation: 'DET',
         simulationSeed: 555,
       );
 
@@ -84,7 +84,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
-        replacedTeamAbbreviation: 'SDG',
+        replacedTeamAbbreviation: 'DEN',
         simulationSeed: 1,
       );
 
@@ -103,7 +103,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
-        replacedTeamAbbreviation: 'SDG',
+        replacedTeamAbbreviation: 'DEN',
         simulationSeed: 1,
       );
 
@@ -123,7 +123,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
-        replacedTeamAbbreviation: 'SDG',
+        replacedTeamAbbreviation: 'DEN',
         simulationSeed: 1,
       );
 
@@ -141,7 +141,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
-        replacedTeamAbbreviation: 'SDG',
+        replacedTeamAbbreviation: 'DEN',
         simulationSeed: 1,
         portraitWeights: _portraitWeights,
       );
@@ -163,7 +163,7 @@ void main() {
         clubName: 'Comets',
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
-        replacedTeamAbbreviation: 'SDG',
+        replacedTeamAbbreviation: 'DEN',
         simulationSeed: 1,
         portraitWeights: _portraitWeights,
         portraitManifest: _portraitManifest,

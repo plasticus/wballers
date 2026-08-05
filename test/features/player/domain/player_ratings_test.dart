@@ -71,4 +71,36 @@ void main() {
     expect(() => _ratingsWith(strength: 1), returnsNormally);
     expect(() => _ratingsWith(strength: 99), returnsNormally);
   });
+
+  test('physicalOverall averages only the four physical ratings', () {
+    final baseline = _ratingsWith();
+    final strongInside = _ratingsWith(strength: 99, interiorDefense: 99);
+
+    // strength is physical, interiorDefense is not -- only strength should
+    // move physicalOverall.
+    expect(strongInside.physicalOverall, greaterThan(baseline.physicalOverall));
+    expect(strongInside.physicalOverall, lessThan(99));
+  });
+
+  test('offenseOverall averages only the four offensive ratings', () {
+    final baseline = _ratingsWith();
+    final strongOffense = _ratingsWith(interiorOffense: 99);
+
+    expect(strongOffense.offenseOverall, greaterThan(baseline.offenseOverall));
+    expect(strongOffense.defenseOverall, baseline.defenseOverall);
+  });
+
+  test(
+    'defenseOverall averages only the four defensive/playmaking ratings',
+    () {
+      final baseline = _ratingsWith();
+      final strongDefense = _ratingsWith(interiorDefense: 99);
+
+      expect(
+        strongDefense.defenseOverall,
+        greaterThan(baseline.defenseOverall),
+      );
+      expect(strongDefense.offenseOverall, baseline.offenseOverall);
+    },
+  );
 }

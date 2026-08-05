@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
+import '../../league/generation/league_generator.dart';
 import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../roster/domain/starting_lineup.dart';
@@ -73,8 +74,15 @@ String deriveTeamAbbreviation(String clubName) {
 /// [portraitManifest] is only used for the coach's shoulders (see
 /// `generateCoach`'s doc comment) -- omitting it just leaves those `null`.
 ///
-/// [replacedTeamAbbreviation] must be one of `kLeagueTeamPool`'s
-/// abbreviations, picked by the GM at onboarding -- see the note on
+/// [replacedTeamAbbreviation] must be one of the 20 teams
+/// `drawLeagueTeams(Random(simulationSeed + kLeagueDrawSeedOffset))`
+/// actually draws for this [simulationSeed] -- not just any
+/// `kLeagueTeamPool` abbreviation. `generateLeague` (called internally,
+/// see [Franchise.league]) asserts the resulting AI league has exactly 19
+/// teams, which fails if [replacedTeamAbbreviation] wasn't actually drawn.
+/// Onboarding gets this right by construction (it draws the league first,
+/// then only offers picks from within that draw); a caller building a
+/// franchise directly must keep the two in sync itself. See the note on
 /// [Franchise.replacedTeamAbbreviation].
 Franchise createExpansionFranchise({
   required String gmName,
@@ -100,6 +108,12 @@ Franchise createExpansionFranchise({
     portraitWeights: portraitWeights,
   );
 
+  final league = generateLeague(
+    simulationSeed: simulationSeed,
+    replacedTeamAbbreviation: replacedTeamAbbreviation,
+    portraitWeights: portraitWeights,
+  );
+
   return Franchise(
     id: 'franchise-$simulationSeed',
     gmName: gmName,
@@ -113,5 +127,6 @@ Franchise createExpansionFranchise({
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: simulationSeed,
     replacedTeamAbbreviation: replacedTeamAbbreviation,
+    league: league,
   );
 }

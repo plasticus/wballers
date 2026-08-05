@@ -1,3 +1,16 @@
+/// The seven groupings `traits.md` organizes the catalog into -- used to
+/// give a trait display something meaningful to color-code by, beyond an
+/// arbitrary per-trait color.
+enum TraitCategory {
+  workEthic,
+  durability,
+  leadership,
+  mental,
+  loyalty,
+  crowd,
+  skillBadge,
+}
+
 /// Discrete, visible, earnable player traits (`traits.md`, question.md
 /// decision 21) -- distinct from [Archetype], which describes playing
 /// style. Traits describe psychology, career, and (for the skill-specific
@@ -48,6 +61,36 @@ enum Trait {
 }
 
 extension TraitDetails on Trait {
+  TraitCategory get category => switch (this) {
+    Trait.highPotential ||
+    Trait.lowPotential ||
+    Trait.highlyCoachable ||
+    Trait.stubborn ||
+    Trait.gymRat => TraitCategory.workEthic,
+    Trait.ironMan || Trait.injuryProne => TraitCategory.durability,
+    Trait.leader ||
+    Trait.malcontent ||
+    Trait.noEgo ||
+    Trait.superEgo => TraitCategory.leadership,
+    Trait.clutch ||
+    Trait.choker ||
+    Trait.hotHead ||
+    Trait.primeTime ||
+    Trait.icyVeins => TraitCategory.mental,
+    Trait.loyal ||
+    Trait.flightRisk ||
+    Trait.ringChaser ||
+    Trait.homegrown => TraitCategory.loyalty,
+    Trait.homeCourtHero || Trait.roadWarrior => TraitCategory.crowd,
+    Trait.glassCleaner ||
+    Trait.pickpocket ||
+    Trait.rimGuardian ||
+    Trait.backcourtBarrier ||
+    Trait.sharpshooter ||
+    Trait.slashersTouch ||
+    Trait.automatic => TraitCategory.skillBadge,
+  };
+
   String get label => switch (this) {
     Trait.highPotential => 'High Potential',
     Trait.lowPotential => 'Low Potential',

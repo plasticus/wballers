@@ -302,4 +302,11 @@ void main() {
     expect(updated.achievements.last.achievement, Achievement.scoringLeader);
     expect(player.achievements, hasLength(1), reason: 'original is untouched');
   });
+
+  test('formatHeightInches formats feet and inches', () {
+    expect(formatHeightInches(74), "6'2\"");
+    expect(formatHeightInches(72), "6'0\"");
+    expect(formatHeightInches(kMinHeightInches), "5'2\"");
+    expect(formatHeightInches(kMaxHeightInches), "7'0\"");
+  });
 }

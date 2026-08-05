@@ -91,4 +91,20 @@ class PlayerRatings {
         blocking;
     return (sum / 12).round();
   }
+
+  /// Unweighted average of the four physical ratings -- a roster-screen
+  /// summary number, not consumed by simulation (which uses the individual
+  /// ratings directly per the universal Physical + Skill/Defensive formula).
+  int get physicalOverall =>
+      ((speed + agility + strength + stamina) / 4).round();
+
+  /// Unweighted average of the four offensive ratings.
+  int get offenseOverall =>
+      ((ballControl + passing + interiorOffense + perimeterOffense) / 4)
+          .round();
+
+  /// Unweighted average of the four defensive/playmaking ratings.
+  int get defenseOverall =>
+      ((perimeterDefense + interiorDefense + disruption + blocking) / 4)
+          .round();
 }

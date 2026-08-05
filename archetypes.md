@@ -8,7 +8,7 @@ still future work.
 
 | Position | Unique Archetypes |
 | --- | --- |
-| PG | Floor General, Scoring Point, Combo Guard, POINT GOD |
+| PG | Floor General, Scoring Point, Combo Guard |
 | SG | Scoring Specialist, 3&D, Sniper, Defensive Specialist |
 | SF | Versatile Forward, 3&D, Sniper, Point Forward, Defensive Specialist |
 | PF | Versatile Forward, Point Forward, Rebound King, Defensive Specialist, Low Post Monster, Stretch-4 |

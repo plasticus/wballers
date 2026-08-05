@@ -24,4 +24,26 @@ void main() {
     expect(kGenerationEligibleTraits, isNot(contains(Trait.homegrown)));
     expect(kGenerationEligibleTraits.length, Trait.values.length - 1);
   });
+
+  test(
+    'every trait has exactly one category, matching traits.md\'s counts',
+    () {
+      final byCategory = <TraitCategory, int>{};
+      for (final trait in Trait.values) {
+        byCategory[trait.category] = (byCategory[trait.category] ?? 0) + 1;
+      }
+
+      expect(byCategory[TraitCategory.workEthic], 5);
+      expect(byCategory[TraitCategory.durability], 2);
+      expect(byCategory[TraitCategory.leadership], 4);
+      expect(byCategory[TraitCategory.mental], 5);
+      expect(byCategory[TraitCategory.loyalty], 4);
+      expect(byCategory[TraitCategory.crowd], 2);
+      expect(byCategory[TraitCategory.skillBadge], 7);
+    },
+  );
+
+  test('Leader and Malcontent (opposite pair) share a category', () {
+    expect(Trait.leader.category, Trait.malcontent.category);
+  });
 }
