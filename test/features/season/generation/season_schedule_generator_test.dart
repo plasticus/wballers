@@ -1,0 +1,174 @@
+import 'dart:math';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
+import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
+
+List<Team> _leagueTeams() {
+  final atlantic = kLeagueTeamPool
+      .where((team) => team.conference == Conference.atlantic)
+      .take(10);
+  final pacific = kLeagueTeamPool
+      .where((team) => team.conference == Conference.pacific)
+      .take(10);
+  return [...atlantic, ...pacific];
+}
+
+Map<String, List<ScheduledGame>> _gamesByTeam(List<ScheduledGame> games) {
+  final byTeam = <String, List<ScheduledGame>>{};
+  for (final game in games) {
+    byTeam.putIfAbsent(game.homeTeamAbbreviation, () => []).add(game);
+    byTeam.putIfAbsent(game.awayTeamAbbreviation, () => []).add(game);
+  }
+  return byTeam;
+}
+
+void main() {
+  test('every team gets exactly 2 preseason games, both inter-conference', () {
+    final teams = _leagueTeams();
+    final byAbbreviation = {for (final team in teams) team.abbreviation: team};
+    final schedule = generateSeasonSchedule(teams, Random(1));
+
+    final preseasonByTeam = _gamesByTeam(
+      schedule.games.where((g) => g.type == GameType.preseason).toList(),
+    );
+
+    for (final team in teams) {
+      final games = preseasonByTeam[team.abbreviation]!;
+      expect(games, hasLength(2));
+      for (final game in games) {
+        final opponentAbbreviation =
+            game.homeTeamAbbreviation == team.abbreviation
+            ? game.awayTeamAbbreviation
+            : game.homeTeamAbbreviation;
+        expect(
+          byAbbreviation[opponentAbbreviation]!.conference,
+          isNot(team.conference),
+        );
+      }
+    }
+  });
+
+  test('every team gets exactly 28 regular-season games: 18 intra-conference '
+      '(2x each of 9 opponents) + 10 inter-conference (1x each of 10)', () {
+    final teams = _leagueTeams();
+    final byAbbreviation = {for (final team in teams) team.abbreviation: team};
+    final schedule = generateSeasonSchedule(teams, Random(2));
+
+    final regularSeasonByTeam = _gamesByTeam(
+      schedule.games.where((g) => g.type == GameType.regularSeason).toList(),
+    );
+
+    for (final team in teams) {
+      final games = regularSeasonByTeam[team.abbreviation]!;
+      expect(games, hasLength(28));
+
+      final opponentCounts = <String, int>{};
+      for (final game in games) {
+        final opponentAbbreviation =
+            game.homeTeamAbbreviation == team.abbreviation
+            ? game.awayTeamAbbreviation
+            : game.homeTeamAbbreviation;
+        opponentCounts[opponentAbbreviation] =
+            (opponentCounts[opponentAbbreviation] ?? 0) + 1;
+      }
+
+      for (final entry in opponentCounts.entries) {
+        final opponent = byAbbreviation[entry.key]!;
+        final expectedCount = opponent.conference == team.conference ? 2 : 1;
+        expect(entry.value, expectedCount, reason: entry.key);
+      }
+      expect(opponentCounts.keys, hasLength(19));
+    }
+  });
+
+  test('regular-season games stay within the regular season week window, '
+      'and no team ever gets more than 2 games in the same week', () {
+    final teams = _leagueTeams();
+    final schedule = generateSeasonSchedule(teams, Random(3));
+    final regularSeasonGames = schedule.games
+        .where((g) => g.type == GameType.regularSeason)
+        .toList();
+
+    for (final game in regularSeasonGames) {
+      expect(
+        game.week,
+        inInclusiveRange(kRegularSeasonStartWeek, kRegularSeasonEndWeek),
+      );
+    }
+
+    final countsByTeamAndWeek = <String, Map<int, int>>{};
+    for (final game in regularSeasonGames) {
+      for (final abbreviation in [
+        game.homeTeamAbbreviation,
+        game.awayTeamAbbreviation,
+      ]) {
+        final byWeek = countsByTeamAndWeek.putIfAbsent(abbreviation, () => {});
+        byWeek[game.week] = (byWeek[game.week] ?? 0) + 1;
+      }
+    }
+    for (final byWeek in countsByTeamAndWeek.values) {
+      for (final count in byWeek.values) {
+        expect(count, lessThanOrEqualTo(2));
+      }
+    }
+  });
+
+  test('Continental Cup Round 1 has 10 games, all 20 teams appear exactly '
+      'once, in week 4', () {
+    final teams = _leagueTeams();
+    final schedule = generateSeasonSchedule(teams, Random(4));
+    final cupGames = schedule.games
+        .where((g) => g.type == GameType.continentalCup)
+        .toList();
+
+    expect(cupGames, hasLength(10));
+    for (final game in cupGames) {
+      expect(game.week, kContinentalCupRound1Week);
+      expect(game.continentalCupRound, 1);
+    }
+
+    final appearances = <String>[
+      for (final game in cupGames) ...[
+        game.homeTeamAbbreviation,
+        game.awayTeamAbbreviation,
+      ],
+    ];
+    expect(appearances.toSet(), hasLength(20));
+    expect(appearances, hasLength(20));
+  });
+
+  test('is deterministic for the same random stream', () {
+    final teams = _leagueTeams();
+    final a = generateSeasonSchedule(teams, Random(9));
+    final b = generateSeasonSchedule(teams, Random(9));
+
+    expect(a.games, hasLength(b.games.length));
+    for (var i = 0; i < a.games.length; i++) {
+      expect(a.games[i].week, b.games[i].week);
+      expect(a.games[i].homeTeamAbbreviation, b.games[i].homeTeamAbbreviation);
+      expect(a.games[i].awayTeamAbbreviation, b.games[i].awayTeamAbbreviation);
+      expect(a.games[i].type, b.games[i].type);
+    }
+  });
+
+  test('total game count is 20 preseason + 280 regular season + 10 cup', () {
+    final teams = _leagueTeams();
+    final schedule = generateSeasonSchedule(teams, Random(5));
+
+    expect(
+      schedule.games.where((g) => g.type == GameType.preseason),
+      hasLength(20),
+    );
+    expect(
+      schedule.games.where((g) => g.type == GameType.regularSeason),
+      hasLength(280),
+    );
+    expect(
+      schedule.games.where((g) => g.type == GameType.continentalCup),
+      hasLength(10),
+    );
+  });
+}

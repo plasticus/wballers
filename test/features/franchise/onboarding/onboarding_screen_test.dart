@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart'
+    show kStarterPalettes;
 import 'package:womensbballmgr/features/franchise/onboarding/onboarding_screen.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
@@ -152,8 +154,40 @@ void main() {
         contains(franchise?.replacedTeamAbbreviation),
         reason: 'defaults to a random team in the chosen (Atlantic) conference',
       );
+      expect(
+        kStarterPalettes.map((palette) => palette.primaryHex),
+        contains(franchise?.team.colors.primaryHex),
+        reason: 'defaults to one of the curated starter palettes',
+      );
     },
   );
+
+  testWidgets('exactly one color palette is selected by default, and tapping a '
+      'different one switches the selection', (tester) async {
+    await pumpHarness(tester);
+
+    Finder swatchFinder(int index) =>
+        find.byKey(ValueKey(kStarterPalettes[index].primaryHex));
+    bool isSelected(int index) => find
+        .descendant(of: swatchFinder(index), matching: find.byIcon(Icons.check))
+        .evaluate()
+        .isNotEmpty;
+
+    final selectedIndices = [
+      for (var i = 0; i < kStarterPalettes.length; i++)
+        if (isSelected(i)) i,
+    ];
+    expect(selectedIndices, hasLength(1));
+
+    final targetIndex = (selectedIndices.first + 1) % kStarterPalettes.length;
+    await tester.ensureVisible(swatchFinder(targetIndex));
+    await tester.pumpAndSettle();
+    await tester.tap(swatchFinder(targetIndex));
+    await tester.pump();
+
+    expect(isSelected(targetIndex), isTrue);
+    expect(isSelected(selectedIndices.first), isFalse);
+  });
 
   testWidgets(
     'exactly one team is checked, and tapping a different one switches the '

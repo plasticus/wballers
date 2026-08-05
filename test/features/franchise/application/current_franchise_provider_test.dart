@@ -52,6 +52,7 @@ void main() {
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
       simulationSeed: 1,
     );
     await container
@@ -74,6 +75,7 @@ void main() {
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
       simulationSeed: 1,
     );
     await firstContainer
@@ -106,6 +108,7 @@ void main() {
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
       simulationSeed: 1,
     );
     await container
@@ -139,6 +142,7 @@ void main() {
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
       simulationSeed: 1,
     );
     final envelope = SaveEnvelope(
@@ -200,6 +204,7 @@ void main() {
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
       simulationSeed: 1,
     );
     await container
@@ -230,6 +235,7 @@ void main() {
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
       simulationSeed: 1,
     );
     await container
@@ -267,6 +273,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
         simulationSeed: 1,
       );
       await container
@@ -301,6 +308,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
         simulationSeed: 1,
       );
       await container
@@ -343,6 +351,7 @@ void main() {
       homeCity: 'Springfield, IL',
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
       simulationSeed: 1,
     );
     await container

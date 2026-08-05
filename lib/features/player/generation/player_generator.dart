@@ -5,11 +5,11 @@ import '../../../core/ratings/rating_scale.dart';
 import '../../portrait/domain/portrait_height_tier.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../portrait/generation/portrait_generator.dart';
+import '../domain/archetype.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
 import 'archetype_generator.dart';
 import 'player_generator_data.dart';
-import 'trait_generator.dart';
 
 /// Per-position rating adjustments, layered on top of a random base value
 /// before clamping to the 1-99 scale. Reflects standard basketball
@@ -119,6 +119,250 @@ const Map<Position, _RatingDeltas> _positionBias = {
   ),
 };
 
+/// Rating adjustments layered on top of the position bias once an
+/// archetype is picked, so a "Sniper" actually ends up with high
+/// perimeter offense instead of the position bias alone deciding
+/// everything -- `archetypes.md`'s previously-open rating-correlation
+/// item. Smaller magnitudes than the position table since these are
+/// fine-tuning on top of an already-plausible position baseline, not a
+/// second full personality.
+const Map<Archetype, _RatingDeltas> _archetypeBias = {
+  // Point guard
+  Archetype.floorGeneral: (
+    speed: 0,
+    agility: 0,
+    strength: 0,
+    stamina: 0,
+    ballControl: 8,
+    passing: 12,
+    interiorOffense: 0,
+    perimeterOffense: -2,
+    perimeterDefense: 2,
+    interiorDefense: 0,
+    disruption: 2,
+    blocking: 0,
+  ),
+  Archetype.scoringPoint: (
+    speed: 0,
+    agility: 2,
+    strength: 0,
+    stamina: 0,
+    ballControl: 4,
+    passing: -4,
+    interiorOffense: 2,
+    perimeterOffense: 12,
+    perimeterDefense: -2,
+    interiorDefense: 0,
+    disruption: 0,
+    blocking: 0,
+  ),
+  Archetype.comboGuard: (
+    speed: 2,
+    agility: 2,
+    strength: 0,
+    stamina: 0,
+    ballControl: 6,
+    passing: 4,
+    interiorOffense: 0,
+    perimeterOffense: 6,
+    perimeterDefense: 4,
+    interiorDefense: 0,
+    disruption: 2,
+    blocking: 0,
+  ),
+
+  // Shared guard/wing
+  Archetype.scoringSpecialist: (
+    speed: 0,
+    agility: 2,
+    strength: 0,
+    stamina: 0,
+    ballControl: 2,
+    passing: -4,
+    interiorOffense: 4,
+    perimeterOffense: 12,
+    perimeterDefense: -4,
+    interiorDefense: 0,
+    disruption: -2,
+    blocking: 0,
+  ),
+  Archetype.threeAndD: (
+    speed: 0,
+    agility: 0,
+    strength: 0,
+    stamina: 0,
+    ballControl: 0,
+    passing: 0,
+    interiorOffense: 0,
+    perimeterOffense: 8,
+    perimeterDefense: 10,
+    interiorDefense: 2,
+    disruption: 4,
+    blocking: 0,
+  ),
+  Archetype.sniper: (
+    speed: -2,
+    agility: 0,
+    strength: -2,
+    stamina: 0,
+    ballControl: 0,
+    passing: 0,
+    interiorOffense: -2,
+    perimeterOffense: 16,
+    perimeterDefense: -4,
+    interiorDefense: -2,
+    disruption: -2,
+    blocking: -2,
+  ),
+  Archetype.defensiveSpecialist: (
+    speed: 2,
+    agility: 2,
+    strength: 2,
+    stamina: 0,
+    ballControl: -2,
+    passing: 0,
+    interiorOffense: -4,
+    perimeterOffense: -6,
+    perimeterDefense: 10,
+    interiorDefense: 8,
+    disruption: 10,
+    blocking: 4,
+  ),
+
+  // Shared forward
+  Archetype.versatileForward: (
+    speed: 0,
+    agility: 0,
+    strength: 0,
+    stamina: 2,
+    ballControl: 4,
+    passing: 4,
+    interiorOffense: 2,
+    perimeterOffense: 4,
+    perimeterDefense: 2,
+    interiorDefense: 2,
+    disruption: 0,
+    blocking: 0,
+  ),
+  Archetype.pointForward: (
+    speed: 0,
+    agility: 0,
+    strength: 0,
+    stamina: 0,
+    ballControl: 8,
+    passing: 12,
+    interiorOffense: -2,
+    perimeterOffense: 0,
+    perimeterDefense: 2,
+    interiorDefense: -2,
+    disruption: 2,
+    blocking: -2,
+  ),
+  Archetype.reboundKing: (
+    speed: -2,
+    agility: -2,
+    strength: 10,
+    stamina: 0,
+    ballControl: -4,
+    passing: -4,
+    interiorOffense: 6,
+    perimeterOffense: -6,
+    perimeterDefense: -2,
+    interiorDefense: 8,
+    disruption: -2,
+    blocking: 4,
+  ),
+  Archetype.lowPostMonster: (
+    speed: -4,
+    agility: -4,
+    strength: 10,
+    stamina: 0,
+    ballControl: -4,
+    passing: -4,
+    interiorOffense: 16,
+    perimeterOffense: -10,
+    perimeterDefense: -4,
+    interiorDefense: 4,
+    disruption: -2,
+    blocking: 2,
+  ),
+  Archetype.stretchFour: (
+    speed: 0,
+    agility: 0,
+    strength: -2,
+    stamina: 0,
+    ballControl: 2,
+    passing: 0,
+    interiorOffense: -6,
+    perimeterOffense: 14,
+    perimeterDefense: 0,
+    interiorDefense: -4,
+    disruption: -2,
+    blocking: -2,
+  ),
+
+  // Center
+  Archetype.rimRunner: (
+    speed: 4,
+    agility: 4,
+    strength: 2,
+    stamina: 2,
+    ballControl: 0,
+    passing: 0,
+    interiorOffense: 10,
+    perimeterOffense: -4,
+    perimeterDefense: -2,
+    interiorDefense: 2,
+    disruption: 0,
+    blocking: 2,
+  ),
+  Archetype.shotBlocker: (
+    speed: -2,
+    agility: -2,
+    strength: 4,
+    stamina: 0,
+    ballControl: -2,
+    passing: -2,
+    interiorOffense: -2,
+    perimeterOffense: -6,
+    perimeterDefense: 0,
+    interiorDefense: 8,
+    disruption: 4,
+    blocking: 16,
+  ),
+  Archetype.stretchFive: (
+    speed: -2,
+    agility: -2,
+    strength: -2,
+    stamina: 0,
+    ballControl: 2,
+    passing: 0,
+    interiorOffense: -8,
+    perimeterOffense: 16,
+    perimeterDefense: -2,
+    interiorDefense: -4,
+    disruption: -2,
+    blocking: -4,
+  ),
+};
+
+_RatingDeltas _combineDeltas(_RatingDeltas a, _RatingDeltas b) {
+  return (
+    speed: a.speed + b.speed,
+    agility: a.agility + b.agility,
+    strength: a.strength + b.strength,
+    stamina: a.stamina + b.stamina,
+    ballControl: a.ballControl + b.ballControl,
+    passing: a.passing + b.passing,
+    interiorOffense: a.interiorOffense + b.interiorOffense,
+    perimeterOffense: a.perimeterOffense + b.perimeterOffense,
+    perimeterDefense: a.perimeterDefense + b.perimeterDefense,
+    interiorDefense: a.interiorDefense + b.interiorDefense,
+    disruption: a.disruption + b.disruption,
+    blocking: a.blocking + b.blocking,
+  );
+}
+
 int _generateStat(Random random, int qualityCenter, int spread, int bias) {
   final jitter = random.nextInt(spread * 2 + 1) - spread;
   return (qualityCenter + bias + jitter).clamp(kMinRating, kMaxRating);
@@ -150,8 +394,10 @@ int _generateHeight(Random random, Position position) {
 /// stream — the same seeded [Random], called in the same order, always
 /// produces the same player.
 ///
-/// [qualityCenter] is roughly where this player's current-ability stats
-/// will cluster before per-stat jitter and positional bias are applied;
+/// The archetype is rolled *first*, before ratings -- `archetype.dart`'s
+/// previously-open item. [qualityCenter] is roughly where this player's
+/// current-ability stats will cluster before per-stat jitter, positional
+/// bias, and the chosen archetype's bias (`_archetypeBias`) are applied;
 /// [qualitySpread] controls how much a single stat can wander from that
 /// center. [potential] gets its own wider, upward-skewed jitter so even a
 /// generated player with modest current ability can turn out to be a
@@ -166,16 +412,27 @@ int _generateHeight(Random random, Position position) {
 /// [minAge]/[maxAge] default to the full 20-34 range; a caller building a
 /// deliberately young, mid-career, or veteran player (e.g. league-wide AI
 /// roster generation) can narrow them.
+///
+/// [yearsOfService] defaults to `null`, meaning "derive it from a randomly
+/// rolled debut age" (19-28, covering late debuts) -- the normal behavior
+/// for filling out an existing roster. Pass `0` explicitly for a freshly
+/// drafted prospect, who by definition hasn't played professionally yet
+/// regardless of what a random debut age would otherwise imply
+/// (`draft_generator.dart`).
 Player generatePlayer(
   Random random, {
   required Position primaryPosition,
   int qualityCenter = 50,
   int qualitySpread = 12,
+  int? yearsOfService,
   int minAge = 20,
   int maxAge = 34,
   PortraitWeights? portraitWeights,
 }) {
-  final bias = _positionBias[primaryPosition] ?? _zeroDeltas;
+  final archetype = generateArchetype(random, primaryPosition);
+  final positionBias = _positionBias[primaryPosition] ?? _zeroDeltas;
+  final archetypeBias = _archetypeBias[archetype] ?? _zeroDeltas;
+  final bias = _combineDeltas(positionBias, archetypeBias);
 
   final ratings = PlayerRatings(
     speed: _generateStat(random, qualityCenter, qualitySpread, bias.speed),
@@ -236,8 +493,10 @@ Player generatePlayer(
   );
 
   final age = minAge + random.nextInt(maxAge - minAge + 1);
-  final debutAge = 19 + random.nextInt(10); // 19-28, covers late debuts
-  final yearsOfService = max(0, age - debutAge);
+  // Only roll a debut age (and consume a random draw for it) when the
+  // caller didn't already pin yearsOfService.
+  final resolvedYearsOfService =
+      yearsOfService ?? max(0, age - (19 + random.nextInt(10)));
 
   final handedness = random.nextDouble() < 0.85
       ? Handedness.right
@@ -251,8 +510,6 @@ Player generatePlayer(
   final id = random.nextInt(0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
 
   final heightInches = _generateHeight(random, primaryPosition);
-  final archetype = generateArchetype(random, primaryPosition);
-  final traits = generateTraits(random);
   final appearance = portraitWeights == null
       ? null
       : generatePortraitAppearance(
@@ -266,7 +523,7 @@ Player generatePlayer(
     id: id,
     name: '$firstName $lastName',
     age: age,
-    yearsOfService: yearsOfService,
+    yearsOfService: resolvedYearsOfService,
     hometown: hometown,
     primaryPosition: primaryPosition,
     handedness: handedness,
@@ -274,7 +531,6 @@ Player generatePlayer(
     ratings: ratings,
     heightInches: heightInches,
     archetype: archetype,
-    traits: traits,
     appearance: appearance,
   );
 }

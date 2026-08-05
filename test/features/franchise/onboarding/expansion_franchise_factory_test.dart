@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart'
+    show createExpansionFranchise, deriveTeamAbbreviation, kStarterPalettes;
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
@@ -58,6 +59,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'DET',
+        colors: kStarterPalettes.first,
         simulationSeed: 555,
       );
       final b = createExpansionFranchise(
@@ -66,6 +68,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'DET',
+        colors: kStarterPalettes.first,
         simulationSeed: 555,
       );
 
@@ -85,6 +88,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
         simulationSeed: 1,
       );
 
@@ -104,6 +108,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
         simulationSeed: 1,
       );
 
@@ -124,6 +129,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
         simulationSeed: 1,
       );
 
@@ -142,6 +148,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
         simulationSeed: 1,
         portraitWeights: _portraitWeights,
       );
@@ -164,6 +171,7 @@ void main() {
         homeCity: 'Springfield, IL',
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
         simulationSeed: 1,
         portraitWeights: _portraitWeights,
         portraitManifest: _portraitManifest,

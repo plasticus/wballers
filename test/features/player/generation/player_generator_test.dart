@@ -92,6 +92,20 @@ void main() {
     }
   });
 
+  test('an explicit yearsOfService overrides the debut-age roll', () {
+    final random = Random(321);
+    for (var i = 0; i < 50; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.pointGuard,
+        minAge: 21,
+        maxAge: 23,
+        yearsOfService: 0,
+      );
+      expect(player.yearsOfService, 0);
+    }
+  });
+
   test('every generated height stays within bounds, for every position', () {
     final random = Random(17);
     for (var i = 0; i < 200; i++) {
@@ -163,6 +177,56 @@ void main() {
       centerSpeedTotal / sampleSize,
       lessThan(guardSpeedTotal / sampleSize),
     );
+  });
+
+  test('a Sniper ends up with higher perimeter offense than other archetypes '
+      'at the same position, on average', () {
+    const sampleSize = 400;
+    final random = Random(99);
+
+    var sniperTotal = 0;
+    var sniperCount = 0;
+    var otherTotal = 0;
+    var otherCount = 0;
+    for (var i = 0; i < sampleSize; i++) {
+      final p = generatePlayer(random, primaryPosition: Position.shootingGuard);
+      if (p.archetype == Archetype.sniper) {
+        sniperTotal += p.ratings.perimeterOffense;
+        sniperCount++;
+      } else {
+        otherTotal += p.ratings.perimeterOffense;
+        otherCount++;
+      }
+    }
+
+    expect(sniperCount, greaterThan(0));
+    expect(otherCount, greaterThan(0));
+    expect(sniperTotal / sniperCount, greaterThan(otherTotal / otherCount));
+  });
+
+  test('a Low Post Monster ends up with higher interior offense than other '
+      'archetypes at the same position, on average', () {
+    const sampleSize = 400;
+    final random = Random(123);
+
+    var monsterTotal = 0;
+    var monsterCount = 0;
+    var otherTotal = 0;
+    var otherCount = 0;
+    for (var i = 0; i < sampleSize; i++) {
+      final p = generatePlayer(random, primaryPosition: Position.center);
+      if (p.archetype == Archetype.lowPostMonster) {
+        monsterTotal += p.ratings.interiorOffense;
+        monsterCount++;
+      } else {
+        otherTotal += p.ratings.interiorOffense;
+        otherCount++;
+      }
+    }
+
+    expect(monsterCount, greaterThan(0));
+    expect(otherCount, greaterThan(0));
+    expect(monsterTotal / monsterCount, greaterThan(otherTotal / otherCount));
   });
 
   test('every generated player has an archetype valid for their position and '

@@ -3,10 +3,12 @@ import 'position.dart';
 /// Position-specific play-style labels (`archetypes.md`). Distinct from
 /// [Trait], which describes psychology/career, not playing style.
 ///
-/// Not yet wired to [PlayerRatings] or any rating thresholds -- selection
-/// is currently random among the options valid for a player's position
-/// (see `generateArchetype`), not rating-correlated. A rating-threshold
-/// mapping is still open, per the source doc's own note.
+/// [generateArchetype] still picks the archetype uniformly at random among
+/// the options valid for a player's position -- but `generatePlayer` now
+/// rolls it *first* and biases [PlayerRatings] generation to actually fit
+/// it (`_archetypeBias`, `player_generator.dart`), so a "Sniper" ends up
+/// with high perimeter offense instead of the position bias alone
+/// deciding everything.
 enum Archetype {
   // Point guard
   floorGeneral,

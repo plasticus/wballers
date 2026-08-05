@@ -162,6 +162,30 @@ class Player {
     );
   }
 
+  /// Returns a copy with [newTraits] replacing [traits] -- used by
+  /// `distributeTraits` (`trait_generator.dart`), which assigns traits
+  /// across a roster after every player in it already exists.
+  Player copyWithTraits(Set<Trait> newTraits) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      yearsOfService: yearsOfService,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: ratings,
+      heightInches: heightInches,
+      archetype: archetype,
+      traits: newTraits,
+      appearance: appearance,
+      achievements: achievements,
+      nickname: nickname,
+    );
+  }
+
   /// Returns a copy with [newNickname] replacing [nickname].
   Player copyWithNickname(String? newNickname) {
     return Player(

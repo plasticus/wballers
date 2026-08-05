@@ -6,6 +6,7 @@ import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
 import '../domain/roster_status.dart';
 import 'roster_position_plan.dart';
+import 'trait_distribution.dart';
 
 /// Target composition for a freshly generated AI team (`0B_Planned.md`):
 /// exactly one 5-star player, leaning veteran, plus three 4-star players
@@ -14,8 +15,17 @@ import 'roster_position_plan.dart';
 /// four-star-or-better combined). The other eight are role players,
 /// centered well below the four-star threshold so the roster still reads
 /// as a real team with a top-heavy shape, not 12 similar bodies.
-const _starQualityCenter = 94;
-const _starQualitySpread = 3;
+/// Tight and close to the ceiling on purpose: `generatePlayer` now also
+/// layers an archetype-specific bias on top of the position bias
+/// (`_archetypeBias`, `player_generator.dart`), and clamping to the 1-99
+/// scale isn't symmetric for a center this high -- a stat that would
+/// exceed 99 just gets capped there (no headroom lost), but one pulled
+/// down by a negative archetype delta has nothing to compensate,
+/// dragging the 12-stat average down. 94/3 let real archetype+position
+/// combinations occasionally land below the 90 five-star cutoff; 97/2
+/// verified empirically (500-roster sample) to always clear it.
+const _starQualityCenter = 97;
+const _starQualitySpread = 2;
 const _starMinAge = 29;
 const _starMaxAge = 34;
 
@@ -101,5 +111,5 @@ List<RosterMembership> generateAiRoster(
     );
   }
 
-  return roster;
+  return distributeTraits(random, roster);
 }

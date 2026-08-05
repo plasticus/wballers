@@ -19,9 +19,7 @@ anything for the presentation layer or end-of-season systems to show.
 
 ### League and team structure
 
-- **League configuration and runtime, remaining piece: tiebreakers and the season calendar.** The 19 AI teams now have real, persisted rosters (`League`/`generateLeague`, see `0A_Completed.md`) — that half is done. What's still missing is anything that needs a *season* to exist: standings tiebreakers and the season calendar itself, both blocked on the season/schedule work below rather than being their own separable task.
-- **Team replacement mechanics, remaining piece: curated colors.** The roster-replacement mechanic itself is done — the GM's club now genuinely takes the replaced team's spot in a real 19-AI-plus-1-GM league, not just in the display. What's still open: the GM picks the new team's colors from a curated set of options, not a fully free color picker, so it's harder to accidentally collide with another team's existing palette. Onboarding currently just auto-assigns one of 6 starter palettes by seed, with no GM choice at all.
-- **Archetype-drives-stats generation reorder.** Currently archetype is assigned uniformly at random per position, independent of rolled ratings. Change the order: assign/roll the archetype *first*, then bias ratings to actually fit that archetype (a "Sniper" should end up with high perimeter offense). Once assigned, a player's archetype never changes. This is a Phase 1.5-originated idea that got explicitly deferred out of the AI-roster generation work (`0A_Completed.md`) rather than bundled in, since it changes `generatePlayer`'s shared random-draw sequence and has ripple effects on every seeded-determinism test — a separate, deliberate pass, not a quick add-on.
+- **League configuration and runtime, remaining piece: standings tiebreakers.** The 19 AI teams have real, persisted rosters (`League`/`generateLeague`), and the season schedule itself is generated (`generateSeasonSchedule`, see `0A_Completed.md`). What's still missing needs actual game *results* to exist first: standings tiebreakers can't be designed against real data until the simulator below produces some.
 
 ### Season mechanics and simulation
 
@@ -42,18 +40,8 @@ anything for the presentation layer or end-of-season systems to show.
   | 22 (~September 25) | Postseason Round 2 / Semifinals (best-of-5) |
   | 24 (~October 9) | Postseason Finals (best-of-7) concludes |
 
-- **Schedule: 28 regular-season games.** Each team plays every other team in its own conference twice (9 opponents × 2 = 18) and every team in the other conference once (10 × 1 = 10), plus the 2-game pre-season set above. 28 is a starting point — revisit if a season plays too fast or too slow in practice once it's real.
-- **WBL Continental Cup.** A mid-season, all-20-team single-elimination bracket slotted into the weeks above — explicitly *not* a WNBA-style Commissioner's Cup group stage. Cup games do **not** count toward regular-season standings.
-  - Teams: all 20, randomly seeded.
-  - Round 1: 10 games, all 20 teams play; 10 winners advance.
-  - Round 2: the 4 highest-margin-of-victory Round 1 winners get byes (tiebreaker: coin flip); the remaining 6 play 3 games; 3 winners advance. 7 teams remain (4 byes + 3 winners).
-  - Round 3 (Quarterfinals): 3 of the 4 bye teams (random draw) join the 3 Round 2 winners — 6 teams play 3 games; 3 winners advance. The last bye team (highest remaining margin-of-victory; tiebreaker: coin flip) sits out again, carrying a second bye straight to the Semifinals.
-  - Round 4 (Semifinals): 4 teams (3 Round 3 winners + the double-bye team) play 2 games; 2 winners advance.
-  - Round 5 (Championship): 1 game for the title.
-  - Total: 19 games (10 + 3 + 3 + 2 + 1) — checks out against 20 teams needing 19 games to reach a single champion.
-- **A fast, deterministic simulator** for AI-vs-AI results and full-season progression — the engine the schedule above actually runs on.
-- **Postseason.** Best-of-3 first round, best-of-5 semifinals, best-of-7 finals — see the season calendar above for timing. Simulate postseason games in Phase 2 using a placeholder formula, ahead of Phase 3's real match engine existing — don't wait for Phase 3 to let a season actually finish.
-- **Draft.** Mirror the real WNBA's pick-order mechanism (lottery/order specifics TBD against that reference), sourced from the fictional college pipeline (`colleges.md`). College prestige has **zero mechanical effect** on prospect quality — it's flavor text only; potential, growth, and outcomes are still generated independently of it.
+- **Schedule, the full match engine (contest resolver → possession loop → fouls → game loop → overtime), a season simulator, the full Continental Cup bracket (Rounds 1-5), and the postseason bracket (best-of-3/5/7): all built** — see `0A_Completed.md`'s match-engine, season-simulator, Continental Cup, and postseason entries (`simulateMatch`, `simulateSeason`, `computeStandings`, `generateContinentalCupRound2`-`5`, `postseasonSeeds`, `generatePostseasonFirstRound`/`Semifinals`/`Finals`). A real standings table can now be produced from a full 20-team, 310-game season in ~200ms, a full Continental Cup bracket resolves end to end to a single champion, and so does the postseason bracket (real 2022+ WNBA format: top 8 seeds, standard bracket, best-of-3 → best-of-5 → best-of-7). Still open in this area: wiring any of this into `Franchise`/persistence/a screen — these are all standalone functions nothing calls yet, same "not prematurely plumbed" posture the schedule generator had before them; and a real home-court-advantage mechanic in the match engine itself (postseason home/away assignment currently has no mechanical effect on outcomes).
+- **Draft: built** — see `0A_Completed.md`'s draft entry (`generateDraftClass`, `generateDraftOrder`, `simulateDraft`, `College`/`kColleges`). Lottery/order specifics are decided now (weighted lottery for the 12 non-playoff teams, reverse-standings order for the 8 playoff teams, same order repeats for all 3 rounds) rather than left TBD, and college prestige affects only prospect exposure (which college a prospect happens to attend), never quality, as originally intended. Still open: wiring it into `Franchise`/persistence/a screen, and any real GM AI for draft-day decisions beyond "best player available" (no team-needs modeling yet).
 
 ### Presentation
 
@@ -76,11 +64,13 @@ anything for the presentation layer or end-of-season systems to show.
 
 ## Phase 3 — Match engine and tactical play-by-play
 
+**Being built alongside Phase 2, not deferred until it exits** (decided 2026-08-05, see the "simulator" bullet under Phase 2's season mechanics) — the possession engine below *is* what Phase 2's simulator needs to produce real game results, so it's being built now rather than gated behind a Phase 2/3 boundary. Left as its own phase heading here since the goal and exit criteria are still a coherent unit of work, not because it's on hold.
+
 **Goal:** make individual games legible and strategically meaningful without a full animation project.
 
-- **Possession-based engine**: pace, shot selection, turnovers, fouls, rebounds, automatic substitutions, clock/game states, end-game logic. Action success uses the universal formula already established: Physical Stat + Skill/Defensive Stat.
+- **Possession-based engine.** Core possession loop, fouls/free throws, and the full quarters-and-scoreboard game loop are all **built** — see `0A_Completed.md`'s three match-engine entries (`simulatePossession`, `resolveTipOff`, `simulateMatch`). Alternating possession falls out of the engine automatically. A first round of pacing/scoring/bench-rotation calibration is done too (same entry) — combined score down to ~201 average from ~420, bench players now actually see the floor — though it's still not exact and the full "batch-simulate thousands of games against real WNBA numbers" pass is still open. Overtime is built too (5-minute periods until the tie breaks — a season simulator needs a winner out of every game). Still open here: a live/paced play-by-play presentation of the event log (the engine currently just returns the whole game's events at once, not a feed you watch unfold).
 - **Live scrolling play-by-play feed** (not instant computation presented as a log afterward). Stops automatically for coaching adjustments at the end of each quarter, and additionally at the 2:00 mark of any quarter if the score is within 10 points.
-- **Fully automatic substitutions**, driven by a target-minutes ranking the GM sets (not fixed rotation minutes the GM babysits in real time). A reference starting point for that ranking, summing to a full 200-minute game across a 12-player active roster:
+- **Fully automatic substitutions: built, using a default ranking, not a GM-set one yet.** `substitution_policy.dart`'s `targetMinutesFor` assigns the reference table below by rating rank (best players play the most) since there's no UI yet for the GM to set their own ranking — same "sensible default, later overridable" shape used elsewhere. `pickOnCourt` re-picks the 5 furthest-behind-schedule players every 2 simulated minutes (foul-outs substitute immediately on top of that). Reference table, summing to a full 200-minute game across a 12-player active roster:
 
   | Rank | Target minutes |
   | --- | --- |
@@ -91,6 +81,8 @@ anything for the presentation layer or end-of-season systems to show.
   | 10 | 6 |
   | 11-12 | 4 each |
   | 13-14 (developmental) | 0 |
+
+  Still open: a real GM-set target-minutes ranking (and the UI for it) — the periodic in-quarter recheck that gets low-minute bench players actual playing time is built (see `0A_Completed.md`).
 
 - **Quarter-break/timeout choices.** A pool of roughly a dozen possible options (improve offense, improve defense, fire the team up, reduce stamina drain, full-court press, park the bus, mount a comeback push, pace yourselves, etc.); the GM sees only ~3 choices at a time, situationally selected from the pool depending on game state. Full option catalog and selection logic still to be worked out.
 - **Timeout system specifics** (count per game, what a "special play" modifies) — parked, deliberately not designed yet. Get the quarter-break check-ins working first.
@@ -118,6 +110,7 @@ anything for the presentation layer or end-of-season systems to show.
 - An Assistant GM: a staff role that proactively surfaces roster suggestions ("player X would fill our open roster spot"). Not designed yet.
 - Training plans, facilities, chemistry, player goals, story events, rivalries, branding, uniforms, arenas.
 - Historical records, Hall of Fame, achievements, challenge scenarios.
+- **Trophy Room screen** (noted 2026-08-05, not designed yet): a GM-facing franchise page showing every championship and cup won by the club, plus individual player awards (MVP, Defensive MVP, whatever other award types get built) earned by any player *while they were on the roster* — not a career-wide stat dump, scoped to what happened under this franchise. Depends on awards/achievements existing as trackable data first (see the achievement/nickname ceremony item under Phase 2 above, and this section's Hall of Fame item).
 - A settings screen: light/dark theme override, selectable court color themes, adjustable text size (the text-scale provider this depends on already exists from Phase 0).
 
 ## Phase 5 — Launch and iteration

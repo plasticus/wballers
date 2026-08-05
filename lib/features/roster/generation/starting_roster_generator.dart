@@ -5,6 +5,7 @@ import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
 import '../domain/roster_status.dart';
 import 'roster_position_plan.dart';
+import 'trait_distribution.dart';
 
 /// A new expansion franchise's roster should be weak — below the four-star
 /// threshold (see `star_system.md`) — and, per the Phase 1 plan,
@@ -19,13 +20,16 @@ const _startingRosterQualitySpread = 14;
 /// Deterministic: the same [seed] always produces the same 12 players in
 /// the same order. [portraitWeights] is optional and threads straight
 /// through to `generatePlayer` -- see its doc comment.
+///
+/// Traits are assigned team-wide after all 12 players exist, not per
+/// player during generation -- see `distributeTraits`.
 List<RosterMembership> generateStartingRoster(
   int seed, {
   PortraitWeights? portraitWeights,
 }) {
   final random = Random(seed);
 
-  return [
+  final roster = [
     for (final position in kTwelvePlayerPositionPlan)
       RosterMembership(
         player: generatePlayer(
@@ -38,4 +42,6 @@ List<RosterMembership> generateStartingRoster(
         status: RosterStatus.active,
       ),
   ];
+
+  return distributeTraits(random, roster);
 }

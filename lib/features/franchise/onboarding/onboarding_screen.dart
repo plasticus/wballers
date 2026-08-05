@@ -30,6 +30,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   late final int _simulationSeed;
   late final List<Team> _leagueTeams;
   late String _replacedTeamAbbreviation;
+  late TeamColors _selectedColors;
   var _isSubmitting = false;
 
   @override
@@ -45,6 +46,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // A fresh random suggestion per playthrough (and per conference switch)
     // -- the GM can always pick a different team instead.
     _replacedTeamAbbreviation = _randomTeamAbbreviation(_conference);
+    // Same pattern: a random default from the curated set, GM-overridable.
+    _selectedColors =
+        kStarterPalettes[Random().nextInt(kStarterPalettes.length)];
     for (final controller in [
       _gmNameController,
       _clubNameController,
@@ -89,6 +93,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       conference: _conference,
       simulationSeed: _simulationSeed,
       replacedTeamAbbreviation: _replacedTeamAbbreviation,
+      colors: _selectedColors,
       portraitWeights: portraitWeights,
       portraitManifest: portraitManifest,
     );
@@ -174,6 +179,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 }),
               ),
               const SizedBox(height: AppSpacing.lg),
+              Text('Team colors', style: theme.textTheme.titleSmall),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'We picked one at random -- tap a different palette if '
+                'you\'d rather use that instead.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final palette in kStarterPalettes)
+                    _PaletteSwatch(
+                      key: ValueKey(palette.primaryHex),
+                      colors: palette,
+                      isSelected: palette == _selectedColors,
+                      onTap: () => setState(() => _selectedColors = palette),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
               Text(
                 'Choose the team to replace',
                 style: theme.textTheme.titleSmall,
@@ -226,6 +253,52 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One curated color option: a filled circle in the palette's primary
+/// color, with a checkmark (not just a border/color change) when selected
+/// -- color alone never carries the only signal (accessibility rule in
+/// ARCHITECTURE.md).
+class _PaletteSwatch extends StatelessWidget {
+  const _PaletteSwatch({
+    required this.colors,
+    required this.isSelected,
+    required this.onTap,
+    super.key,
+  });
+
+  final TeamColors colors;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: isSelected ? 'Team colors, selected' : 'Team colors',
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: colors.primary,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+              width: isSelected ? 3 : 1,
+            ),
+          ),
+          child: isSelected ? Icon(Icons.check, color: colors.accent) : null,
         ),
       ),
     );

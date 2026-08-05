@@ -9,10 +9,13 @@ import '../../roster/domain/starting_lineup.dart';
 import '../../roster/generation/starting_roster_generator.dart';
 import '../domain/franchise.dart';
 
-/// A handful of curated starter palettes for a new expansion club, picked
-/// deterministically from [simulationSeed]. Full custom color picking is
+/// A curated set of starter palettes for a new expansion club -- onboarding
+/// shows these as swatches and the GM picks one (default: a random pick,
+/// same "random default, GM-overridable" pattern as the team-to-replace
+/// checkbox), rather than a fully free color picker that could collide
+/// with another team's existing palette. Full custom color picking is
 /// future "Team profile" work (`FLUTTER_APP_PLAN.md`), not onboarding.
-const _starterPalettes = <TeamColors>[
+const kStarterPalettes = <TeamColors>[
   TeamColors(
     primaryHex: '#14213D',
     secondaryHex: '#FCA311',
@@ -84,6 +87,11 @@ String deriveTeamAbbreviation(String clubName) {
 /// then only offers picks from within that draw); a caller building a
 /// franchise directly must keep the two in sync itself. See the note on
 /// [Franchise.replacedTeamAbbreviation].
+///
+/// [colors] should be one of [kStarterPalettes] -- the GM's pick from
+/// onboarding's curated swatch picker. Not asserted here (unlike
+/// [replacedTeamAbbreviation]'s pool membership); an arbitrary [TeamColors]
+/// is harmless, just outside the curated set onboarding actually offers.
 Franchise createExpansionFranchise({
   required String gmName,
   required String clubName,
@@ -91,6 +99,7 @@ Franchise createExpansionFranchise({
   required Conference conference,
   required int simulationSeed,
   required String replacedTeamAbbreviation,
+  required TeamColors colors,
   PortraitWeights? portraitWeights,
   PortraitManifest? portraitManifest,
 }) {
@@ -99,7 +108,7 @@ Franchise createExpansionFranchise({
     location: homeCity,
     name: clubName,
     conference: conference,
-    colors: _starterPalettes[simulationSeed.abs() % _starterPalettes.length],
+    colors: colors,
     identityNote: 'A new franchise chasing its first banner.',
   );
 
