@@ -22,12 +22,12 @@ Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
   return Franchise(
     id: 'franchise-1',
     gmName: 'Taylor Reed',
-    team: kInitialLeagueTeams.first,
+    team: kLeagueTeamPool.first,
     coach: const Coach(name: 'Jordan Ellis', stats: CoachStats.neutral),
     roster: roster,
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
-    replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
+    replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
   );
 }
 

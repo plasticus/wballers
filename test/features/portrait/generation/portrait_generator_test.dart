@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_height_tier.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
@@ -195,6 +196,36 @@ void main() {
       }
     },
   );
+
+  test('defaults to the baseline base sprite when no heightTier is given', () {
+    final appearance = generatePortraitAppearance(
+      Random(1),
+      isCoach: false,
+      weights: _weights,
+    );
+    expect(appearance.baseSprite, PortraitHeightTier.baseline.baseSpriteAsset);
+  });
+
+  test('heightTier selects the matching base sprite', () {
+    for (final tier in PortraitHeightTier.values) {
+      final appearance = generatePortraitAppearance(
+        Random(1),
+        isCoach: false,
+        weights: _weights,
+        heightTier: tier,
+      );
+      expect(appearance.baseSprite, tier.baseSpriteAsset);
+    }
+  });
+
+  test('a coach always renders at the baseline tier -- no height stat', () {
+    final appearance = generatePortraitAppearance(
+      Random(1),
+      isCoach: true,
+      weights: _weights,
+    );
+    expect(appearance.baseSprite, PortraitHeightTier.baseline.baseSpriteAsset);
+  });
 
   test('a player can still get goggles', () {
     final onlyGoggles = PortraitWeights(

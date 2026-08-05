@@ -5,19 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../league/domain/initial_league.dart';
+import '../../league/domain/league_draw.dart';
 import '../../league/domain/team.dart';
 import '../../league/team_row.dart';
 import '../../portrait/persistence/portrait_catalog_loader.dart';
 import '../application/current_franchise_provider.dart';
 import 'expansion_franchise_factory.dart';
-
-String _randomTeamAbbreviation(Conference conference) {
-  final teams = kInitialLeagueTeams
-      .where((team) => team.conference == conference)
-      .toList();
-  return teams[Random().nextInt(teams.length)].abbreviation;
-}
 
 /// Name yourself (the GM) and the club, choose a conference, and generate
 /// a weak starting roster with a hired coach. Phase 1's expansion
@@ -34,12 +27,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _clubNameController = TextEditingController();
   final _homeCityController = TextEditingController();
   var _conference = Conference.atlantic;
+  late final int _simulationSeed;
+  late final List<Team> _leagueTeams;
   late String _replacedTeamAbbreviation;
   var _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
+    // The one place real (non-seeded) randomness enters the system --
+    // everything downstream, including which 20 of the 40-team pool this
+    // playthrough's league actually draws, is deterministic from here.
+    _simulationSeed = Random().nextInt(1 << 31);
+    _leagueTeams = drawLeagueTeams(
+      Random(_simulationSeed + kLeagueDrawSeedOffset),
+    );
     // A fresh random suggestion per playthrough (and per conference switch)
     // -- the GM can always pick a different team instead.
     _replacedTeamAbbreviation = _randomTeamAbbreviation(_conference);
@@ -60,9 +62,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     super.dispose();
   }
 
-  List<Team> get _conferenceTeams => kInitialLeagueTeams
-      .where((team) => team.conference == _conference)
-      .toList();
+  List<Team> get _conferenceTeams =>
+      _leagueTeams.where((team) => team.conference == _conference).toList();
+
+  String _randomTeamAbbreviation(Conference conference) {
+    final teams = _leagueTeams
+        .where((team) => team.conference == conference)
+        .toList();
+    return teams[Random().nextInt(teams.length)].abbreviation;
+  }
 
   bool get _isValid =>
       _gmNameController.text.trim().isNotEmpty &&
@@ -72,9 +80,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _createFranchise() async {
     setState(() => _isSubmitting = true);
 
-    // The one place real (non-seeded) randomness enters the system --
-    // everything the seed drives from here on is deterministic.
-    final simulationSeed = Random().nextInt(1 << 31);
     final portraitWeights = await ref.read(portraitWeightsProvider.future);
     final portraitManifest = await ref.read(portraitManifestProvider.future);
     final franchise = createExpansionFranchise(
@@ -82,7 +87,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       clubName: _clubNameController.text.trim(),
       homeCity: _homeCityController.text.trim(),
       conference: _conference,
-      simulationSeed: simulationSeed,
+      simulationSeed: _simulationSeed,
       replacedTeamAbbreviation: _replacedTeamAbbreviation,
       portraitWeights: portraitWeights,
       portraitManifest: portraitManifest,

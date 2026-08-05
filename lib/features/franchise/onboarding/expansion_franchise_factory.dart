@@ -73,7 +73,7 @@ String deriveTeamAbbreviation(String clubName) {
 /// [portraitManifest] is only used for the coach's shoulders (see
 /// `generateCoach`'s doc comment) -- omitting it just leaves those `null`.
 ///
-/// [replacedTeamAbbreviation] must be one of `kInitialLeagueTeams`'
+/// [replacedTeamAbbreviation] must be one of `kLeagueTeamPool`'s
 /// abbreviations, picked by the GM at onboarding -- see the note on
 /// [Franchise.replacedTeamAbbreviation].
 Franchise createExpansionFranchise({

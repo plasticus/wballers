@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_height_tier.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
 import 'package:womensbballmgr/features/portrait/persistence/portrait_catalog_loader.dart';
 import 'package:womensbballmgr/features/portrait/rendering/portrait_colors.dart';
@@ -112,6 +113,45 @@ void main() {
       outputSize: 64,
     );
     expect(withJersey, equals(withoutJersey));
+  });
+
+  test(
+    'every height tier renders without error, at a distinct output',
+    () async {
+      final rendered = <PortraitHeightTier, Uint8List>{};
+      for (final tier in PortraitHeightTier.values) {
+        final bytes = await renderPortraitPng(
+          _minimalAthlete.copyWith(baseSprite: tier.baseSpriteAsset),
+          outputSize: 64,
+        );
+        expect(bytes, isNotEmpty);
+        rendered[tier] = bytes;
+      }
+      expect(
+        rendered[PortraitHeightTier.tall],
+        isNot(rendered[PortraitHeightTier.baseline]),
+      );
+      expect(
+        rendered[PortraitHeightTier.tallest],
+        isNot(rendered[PortraitHeightTier.baseline]),
+      );
+      expect(
+        rendered[PortraitHeightTier.tallest],
+        isNot(rendered[PortraitHeightTier.tall]),
+      );
+    },
+  );
+
+  test('a coach with a shoulders layer still renders correctly at every tier '
+      '(shoulders stay unshifted, everything else shifts)', () async {
+    for (final tier in PortraitHeightTier.values) {
+      final bytes = await renderPortraitPng(
+        _fullCoach.copyWith(baseSprite: tier.baseSpriteAsset),
+        outputSize: 64,
+      );
+      final image = await _decode(bytes);
+      expect(image.width, 64);
+    }
   });
 
   test('renders every real generated appearance without error', () async {

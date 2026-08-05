@@ -61,7 +61,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - BlankBaldwoman32.png
+    - base/
     - manifest.json
     - weights.json
     - accessories/

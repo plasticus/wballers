@@ -14,12 +14,12 @@ Franchise _franchiseWithRoster(List<RosterMembership> roster) {
   return Franchise(
     id: 'test-franchise',
     gmName: 'Test GM',
-    team: kInitialLeagueTeams.first,
+    team: kLeagueTeamPool.first,
     coach: const Coach(name: 'Test Coach', stats: CoachStats.neutral),
     roster: roster,
     startingLineup: const StartingLineup(startersByPosition: {}),
     simulationSeed: 1,
-    replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
+    replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
   );
 }
 

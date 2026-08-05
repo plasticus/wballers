@@ -11,13 +11,16 @@ import '../../roster/domain/starting_lineup.dart';
 ///
 /// The player is the GM, not [coach] — see the note on [Coach]. [team] is
 /// the club's own identity (name/colors/city), chosen at onboarding — not
-/// a reference into `kInitialLeagueTeams`. Which of the 20 original teams
-/// this franchise replaced is captured separately, in
+/// a reference into `kLeagueTeamPool`. [simulationSeed] also determines
+/// which 20 of the pool's 40 candidate teams actually exist in this
+/// playthrough's league (`drawLeagueTeams`, `league_draw.dart`). Which of
+/// those 20 this franchise replaced is captured separately, in
 /// [replacedTeamAbbreviation] -- picked at onboarding, defaulting to a
-/// random team in the chosen conference but GM-overridable. Actually
-/// removing that team from the league (so only 19 AI teams remain) is
-/// still a future `League` concept (Phase 2's season/schedule work); this
-/// field is just the record of the GM's choice.
+/// random team in the chosen conference but GM-overridable. `LeagueScreen`
+/// uses it to substitute [team] in for the replaced original in the league
+/// listing, so the displayed league genuinely reads as 19 AI teams + 1 GM
+/// team. There's no real league *runtime* yet (no season, no generated
+/// rosters for the other 19 teams) -- that's still Phase 2's League concept.
 ///
 /// Roster legality isn't enforced here — see `evaluateFranchiseLegality`.
 /// Lineup legality isn't enforced here either — see `evaluateLineupLegality`.
@@ -33,7 +36,7 @@ class Franchise {
     required this.replacedTeamAbbreviation,
   }) : assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
-         'replacedTeamAbbreviation must be one of the 20 original teams, '
+         'replacedTeamAbbreviation must be one of the league team pool, '
          'in the same conference as team',
        );
 
@@ -54,7 +57,7 @@ class Franchise {
   /// results.
   final int simulationSeed;
 
-  /// The `kInitialLeagueTeams` abbreviation this franchise replaced.
+  /// The `kLeagueTeamPool` abbreviation this franchise replaced.
   /// Bookkeeping only for now -- see the class doc comment.
   final String replacedTeamAbbreviation;
 
@@ -108,7 +111,7 @@ bool _replacedTeamIsInSameConference(
   Team team,
   String replacedTeamAbbreviation,
 ) {
-  return kInitialLeagueTeams.any(
+  return kLeagueTeamPool.any(
     (t) =>
         t.abbreviation == replacedTeamAbbreviation &&
         t.conference == team.conference,

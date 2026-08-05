@@ -70,6 +70,7 @@ Map<String, dynamic> playerToJson(Player player) {
     'handedness': player.handedness.name,
     'biography': player.biography,
     'ratings': playerRatingsToJson(player.ratings),
+    'heightInches': player.heightInches,
     'archetype': player.archetype.name,
     'traits': player.traits.map((trait) => trait.name).toList(),
     'appearance': player.appearance == null
@@ -100,6 +101,7 @@ Player playerFromJson(Map<String, dynamic> json) {
     handedness: Handedness.values.byName(json['handedness'] as String),
     biography: json['biography'] as String,
     ratings: playerRatingsFromJson(json['ratings'] as Map<String, dynamic>),
+    heightInches: json['heightInches'] as int,
     // A save from before question.md decision 27 has neither key -- fall
     // back to a legal default rather than failing to load entirely.
     archetype: json['archetype'] == null

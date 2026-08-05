@@ -1,9 +1,12 @@
 import 'team.dart';
 
-/// The initial 20-team league template: 10 Atlantic teams, 10 Pacific
-/// teams. Transcribed from `teams.md`, which remains the editable design
-/// source — update both together.
-const kInitialLeagueTeams = <Team>[
+/// The 40-team design pool this league draws from: 20 Atlantic candidates,
+/// 20 Pacific candidates. Transcribed from `teams.md`, which remains the
+/// editable design source — update both together. A given playthrough
+/// doesn't use all 40 -- see `drawLeagueTeams` in `league_draw.dart`, which
+/// randomly draws 10 per conference at franchise-creation time so which
+/// teams actually exist varies game to game.
+const kLeagueTeamPool = <Team>[
   // Atlantic Conference
   Team(
     abbreviation: 'BOS',
@@ -124,6 +127,126 @@ const kInitialLeagueTeams = <Team>[
       accentHex: '#A8DADC',
     ),
     identityNote: 'Sharp, athletic, and international.',
+  ),
+  Team(
+    abbreviation: 'ATL',
+    location: 'Atlanta, GA',
+    name: 'Atlanta Pulse',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#C8102E',
+      secondaryHex: '#1B1B1B',
+      accentHex: '#F2C14E',
+    ),
+    identityNote: 'Electric energy and a fast, confident pulse.',
+  ),
+  Team(
+    abbreviation: 'BAL',
+    location: 'Baltimore, MD',
+    name: 'Baltimore Bay',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#002B5C',
+      secondaryHex: '#FF8200',
+      accentHex: '#E8DCC4',
+    ),
+    identityNote: 'Harborfront hustle and steady nerve.',
+  ),
+  Team(
+    abbreviation: 'CHI',
+    location: 'Chicago, IL',
+    name: 'Chicago Windy',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#0C2340',
+      secondaryHex: '#A5ACAF',
+      accentHex: '#FFFFFF',
+    ),
+    identityNote: 'Lakefront gusts and blue-collar swagger.',
+  ),
+  Team(
+    abbreviation: 'DET',
+    location: 'Detroit, MI',
+    name: 'Detroit Motors',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#1B1B1B',
+      secondaryHex: '#C8102E',
+      accentHex: '#A5ACAF',
+    ),
+    identityNote: 'Assembly-line precision and industrial pride.',
+  ),
+  Team(
+    abbreviation: 'NYC',
+    location: 'New York, NY',
+    name: 'New York Empire',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#1B1F3B',
+      secondaryHex: '#C9A227',
+      accentHex: '#F4F1E8',
+    ),
+    identityNote: 'Skyline ambition that never sleeps.',
+  ),
+  Team(
+    abbreviation: 'ORL',
+    location: 'Orlando, FL',
+    name: 'Orlando Spark',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#2E2A6E',
+      secondaryHex: '#FFC72C',
+      accentHex: '#F7F7F7',
+    ),
+    identityNote: 'Sunshine energy with a competitive flash.',
+  ),
+  Team(
+    abbreviation: 'WAS',
+    location: 'Washington, DC',
+    name: 'Washington Anthem',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#14213D',
+      secondaryHex: '#B22234',
+      accentHex: '#F4F1E8',
+    ),
+    identityNote: 'Civic pride and disciplined resolve.',
+  ),
+  Team(
+    abbreviation: 'PIT',
+    location: 'Pittsburgh, PA',
+    name: 'Pittsburgh Ironclad',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#2C2A29',
+      secondaryHex: '#FFB612',
+      accentHex: '#D9D9D6',
+    ),
+    identityNote: 'Forged tough, three rivers deep.',
+  ),
+  Team(
+    abbreviation: 'MER',
+    location: 'Mérida, Yucatán',
+    name: 'Mérida Cenotes',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#0E7C7B',
+      secondaryHex: '#F2C14E',
+      accentHex: '#FDF6E3',
+    ),
+    identityNote: 'Yucatán limestone light and hidden depths.',
+  ),
+  Team(
+    abbreviation: 'MTY',
+    location: 'Monterrey, Nuevo León',
+    name: 'Monterrey Acero',
+    conference: Conference.atlantic,
+    colors: TeamColors(
+      primaryHex: '#2B2D2F',
+      secondaryHex: '#C8102E',
+      accentHex: '#E5E5E5',
+    ),
+    identityNote: 'Sultana del Norte grit, forged in steel.',
   ),
 
   // Pacific Conference
@@ -246,5 +369,125 @@ const kInitialLeagueTeams = <Team>[
       accentHex: '#E9D8A6',
     ),
     identityNote: 'Coastal motion and Pacific confidence.',
+  ),
+  Team(
+    abbreviation: 'SEA',
+    location: 'Seattle, WA',
+    name: 'Seattle Surge',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#005A5B',
+      secondaryHex: '#6DC0BB',
+      accentHex: '#F1FAEE',
+    ),
+    identityNote: 'Rain-fed momentum that never lets up.',
+  ),
+  Team(
+    abbreviation: 'SAC',
+    location: 'Sacramento, CA',
+    name: 'Sacramento Sentinels',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#5B3A29',
+      secondaryHex: '#63A375',
+      accentHex: '#F4F1DE',
+    ),
+    identityNote: 'Steady watch over the capital.',
+  ),
+  Team(
+    abbreviation: 'LAX',
+    location: 'Los Angeles, CA',
+    name: 'Los Angeles Vanguard',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#1B1B3A',
+      secondaryHex: '#FDB927',
+      accentHex: '#F7F7F7',
+    ),
+    identityNote: 'Trendsetting confidence, front of the pack.',
+  ),
+  Team(
+    abbreviation: 'SFO',
+    location: 'San Francisco, CA',
+    name: 'San Francisco Sirens',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#7A1F3D',
+      secondaryHex: '#B0BEC5',
+      accentHex: '#F1FAEE',
+    ),
+    identityNote: 'Foghorn cool with a magnetic pull.',
+  ),
+  Team(
+    abbreviation: 'OKC',
+    location: 'Oklahoma City, OK',
+    name: 'Oklahoma City Wildfire',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#B33A1E',
+      secondaryHex: '#F2C14E',
+      accentHex: '#FFF3E0',
+    ),
+    identityNote: 'Prairie heat that spreads fast.',
+  ),
+  Team(
+    abbreviation: 'BOI',
+    location: 'Boise, ID',
+    name: 'Boise Timberline',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#1F5F4A',
+      secondaryHex: '#E5B95C',
+      accentHex: '#EAF4F4',
+    ),
+    identityNote: 'Mountain endurance and quiet confidence.',
+  ),
+  Team(
+    abbreviation: 'CAL',
+    location: 'Calgary, AB',
+    name: 'Calgary Chinook',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#8C1D40',
+      secondaryHex: '#E6B566',
+      accentHex: '#F4F1DE',
+    ),
+    identityNote: 'A sudden warm gust that changes the game.',
+  ),
+  Team(
+    abbreviation: 'WPG',
+    location: 'Winnipeg, MB',
+    name: 'Winnipeg Frost',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#1C3D5A',
+      secondaryHex: '#A9C6D8',
+      accentHex: '#F1FAEE',
+    ),
+    identityNote: 'Prairie cold, unshakeable resolve.',
+  ),
+  Team(
+    abbreviation: 'TIJ',
+    location: 'Tijuana, Baja California',
+    name: 'Tijuana Frontera',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#C8102E',
+      secondaryHex: '#F2C14E',
+      accentHex: '#1B1B1B',
+    ),
+    identityNote: 'Border-city hustle, two cultures, one drive.',
+  ),
+  Team(
+    abbreviation: 'JUA',
+    location: 'Juárez, Chihuahua',
+    name: 'Juárez Rayo',
+    conference: Conference.pacific,
+    colors: TeamColors(
+      primaryHex: '#F2A900',
+      secondaryHex: '#1B1B3A',
+      accentHex: '#F7F7F7',
+    ),
+    identityNote: 'Desert lightning, fast and electric.',
   ),
 ];

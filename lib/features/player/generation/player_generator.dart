@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../../core/generation/name_pools.dart';
 import '../../../core/ratings/rating_scale.dart';
+import '../../portrait/domain/portrait_height_tier.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../portrait/generation/portrait_generator.dart';
 import '../domain/player.dart';
@@ -123,6 +124,28 @@ int _generateStat(Random random, int qualityCenter, int spread, int bias) {
   return (qualityCenter + bias + jitter).clamp(kMinRating, kMaxRating);
 }
 
+/// Per-position height centers in inches, roughly following real
+/// professional women's basketball height distributions. [_generateHeight]
+/// jitters around these by [_heightJitterInches], so a generated player's
+/// actual height can meaningfully deviate from their position's norm (a
+/// tall point guard, a shorter center) rather than being implied by
+/// position alone.
+const Map<Position, int> _heightCenterInches = {
+  Position.pointGuard: 70, // 5'10"
+  Position.shootingGuard: 71, // 5'11"
+  Position.smallForward: 73, // 6'1"
+  Position.powerForward: 75, // 6'3"
+  Position.center: 77, // 6'5"
+};
+const _heightJitterInches = 4;
+
+int _generateHeight(Random random, Position position) {
+  final center = _heightCenterInches[position]!;
+  final jitter =
+      random.nextInt(_heightJitterInches * 2 + 1) - _heightJitterInches;
+  return (center + jitter).clamp(kMinHeightInches, kMaxHeightInches);
+}
+
 /// Generates one fictional player. Deterministic for a given [random]
 /// stream — the same seeded [Random], called in the same order, always
 /// produces the same player.
@@ -221,6 +244,7 @@ Player generatePlayer(
   // that's all a lineup slot reference needs.
   final id = random.nextInt(0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
 
+  final heightInches = _generateHeight(random, primaryPosition);
   final archetype = generateArchetype(random, primaryPosition);
   final traits = generateTraits(random);
   final appearance = portraitWeights == null
@@ -229,6 +253,7 @@ Player generatePlayer(
           random,
           isCoach: false,
           weights: portraitWeights,
+          heightTier: portraitHeightTierForInches(heightInches),
         );
 
   return Player(
@@ -241,6 +266,7 @@ Player generatePlayer(
     handedness: handedness,
     biography: '$hometown-born ${_positionLabel(primaryPosition)}.',
     ratings: ratings,
+    heightInches: heightInches,
     archetype: archetype,
     traits: traits,
     appearance: appearance,

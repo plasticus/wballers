@@ -32,7 +32,7 @@ Franchise _sampleFranchise() {
   return Franchise(
     id: 'franchise-1',
     gmName: 'Taylor Reed',
-    team: kInitialLeagueTeams.first,
+    team: kLeagueTeamPool.first,
     coach: const Coach(
       name: 'Jordan Ellis',
       stats: CoachStats(
@@ -48,7 +48,7 @@ Franchise _sampleFranchise() {
       startersByPosition: {Position.pointGuard: 'p-starter'},
     ),
     simulationSeed: 42,
-    replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
+    replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
   );
 }
 
@@ -99,6 +99,10 @@ void main() {
         restoredMember.player.ratings.overall,
         originalMember.player.ratings.overall,
       );
+      expect(
+        restoredMember.player.heightInches,
+        originalMember.player.heightInches,
+      );
       expect(restoredMember.player.archetype, originalMember.player.archetype);
       expect(restoredMember.player.traits, originalMember.player.traits);
     }
@@ -116,6 +120,7 @@ void main() {
       handedness: Handedness.left,
       biography: '',
       ratings: playerWithOverall(60).ratings,
+      heightInches: 74,
       archetype: Archetype.versatileForward,
       traits: const {Trait.leader, Trait.gymRat},
       nickname: 'The Wall',
@@ -130,7 +135,7 @@ void main() {
     final franchise = Franchise(
       id: 'franchise-2',
       gmName: 'Taylor Reed',
-      team: kInitialLeagueTeams.first,
+      team: kLeagueTeamPool.first,
       coach: const Coach(name: 'Coach', stats: CoachStats.neutral),
       roster: [
         RosterMembership(player: withSecondary, status: RosterStatus.active),
@@ -139,7 +144,7 @@ void main() {
         startersByPosition: {Position.smallForward: 'p-multi'},
       ),
       simulationSeed: 1,
-      replacedTeamAbbreviation: kInitialLeagueTeams.first.abbreviation,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
     );
 
     final restored = franchiseFromJson(franchiseToJson(franchise));

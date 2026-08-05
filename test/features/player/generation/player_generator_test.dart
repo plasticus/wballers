@@ -6,6 +6,7 @@ import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/player/generation/player_generator.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_height_tier.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 
 final _portraitWeights = PortraitWeights(
@@ -36,6 +37,7 @@ void main() {
     expect(a.ratings.speed, b.ratings.speed);
     expect(a.ratings.strength, b.ratings.strength);
     expect(a.ratings.potential, b.ratings.potential);
+    expect(a.heightInches, b.heightInches);
     expect(a.archetype, b.archetype);
     expect(a.traits, b.traits);
   });
@@ -88,6 +90,49 @@ void main() {
       expect(player.yearsOfService, greaterThanOrEqualTo(0));
       expect(player.yearsOfService, lessThanOrEqualTo(player.age - 19));
     }
+  });
+
+  test('every generated height stays within bounds, for every position', () {
+    final random = Random(17);
+    for (var i = 0; i < 200; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.values[i % Position.values.length],
+      );
+      expect(player.heightInches, greaterThanOrEqualTo(kMinHeightInches));
+      expect(player.heightInches, lessThanOrEqualTo(kMaxHeightInches));
+    }
+  });
+
+  test('centers skew taller than point guards on average, but individual '
+      'players can still be outliers', () {
+    const sampleSize = 300;
+    final random = Random(11);
+
+    var centerHeightTotal = 0;
+    var guardHeightTotal = 0;
+    final centerHeights = <int>{};
+    final guardHeights = <int>{};
+    for (var i = 0; i < sampleSize; i++) {
+      final center = generatePlayer(random, primaryPosition: Position.center);
+      centerHeightTotal += center.heightInches;
+      centerHeights.add(center.heightInches);
+
+      final guard = generatePlayer(
+        random,
+        primaryPosition: Position.pointGuard,
+      );
+      guardHeightTotal += guard.heightInches;
+      guardHeights.add(guard.heightInches);
+    }
+
+    expect(
+      centerHeightTotal / sampleSize,
+      greaterThan(guardHeightTotal / sampleSize),
+    );
+    // The per-position jitter is wide enough that a large enough sample
+    // produces real overlap -- height isn't a rigid function of position.
+    expect(centerHeights.intersection(guardHeights), isNotEmpty);
   });
 
   test('centers skew stronger and slower than point guards on average', () {
@@ -151,6 +196,22 @@ void main() {
     expect(player.appearance, isNotNull);
     expect(player.appearance!.isCoach, isFalse);
   });
+
+  test(
+    "a generated player's portrait base sprite matches their height tier",
+    () {
+      final random = Random(31);
+      for (var i = 0; i < 100; i++) {
+        final player = generatePlayer(
+          random,
+          primaryPosition: Position.values[i % Position.values.length],
+          portraitWeights: _portraitWeights,
+        );
+        final expectedTier = portraitHeightTierForInches(player.heightInches);
+        expect(player.appearance!.baseSprite, expectedTier.baseSpriteAsset);
+      }
+    },
+  );
 
   test('omitting portraitWeights consumes no extra random numbers', () {
     // Same seed, same non-portrait fields, whether or not portraitWeights

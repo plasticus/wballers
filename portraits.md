@@ -14,7 +14,7 @@ Every portrait sprite (base sprite, hair, eyes, eyebrows, nose, mouth, accessori
 
 | Asset group | Count | Used by | Notes |
 | --- | ---: | --- | --- |
-| Base sprite | 1 | Player and coach | `BlankBaldwoman32.png`; the available base is feminine and must be the Flutter default. |
+| Base sprite | 3 | Player and coach | `base/BlankBaldwoman32H0.png` (baseline), `H1.png`, `H2.png`; feminine, H0 is the Flutter default. H1/H2 exist for the still-unbuilt portrait height-shift-by-position feature (`0B_Planned.md`) -- not selected anywhere yet. |
 | Hair | 41 | Player and coach | Recolored from magenta placeholders. |
 | Eyes | 11 | Player and coach | Drawn unchanged. |
 | Eyebrows | 10 | Player and coach | Recolored from magenta placeholders. |
@@ -26,18 +26,18 @@ Every portrait sprite (base sprite, hair, eyes, eyebrows, nose, mouth, accessori
 | Glasses | 7 | Coach only | Coach-only overlays. |
 | Facial hair | 14 | Coach only | Existing legacy assets; keep unavailable to women athletes. |
 
-**Total:** 141 PNG assets, all 32×32 pixels.
+**Total:** 143 PNG assets, all 32×32 pixels.
 
 ## Existing source files
 
 - `manifest.json` lists the available asset filenames by category.
 - `weights.json` defines weighted random generation for skin tone, hair color, hair style, facial features, accessories, and rare novelty hair colors.
 - `render.js` is the browser reference implementation for layer order and per-pixel recoloring.
-- `BlankBaldwoman32.png` is the actual base sprite in this repository.
+- `base/BlankBaldwoman32H0.png` is the actual baseline base sprite in this repository (`player-edit.html` points `window.BASE_SPRITE` at this same file -- keep both in sync if it moves again).
 
 ### Migration note
 
-`render.js` currently falls back to `BlankBaldman32.png`, which is not present in this project. Flutter must use `BlankBaldwoman32.png` as the explicit default base asset. Do not carry over that fallback filename.
+`render.js` currently falls back to `BlankBaldman32.png`, which is not present in this project. Flutter must use `base/BlankBaldwoman32H0.png` as the explicit default base asset. Do not carry over that fallback filename.
 
 ## Appearance model
 

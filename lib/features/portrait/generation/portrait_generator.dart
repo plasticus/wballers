@@ -1,13 +1,14 @@
 import 'dart:math';
 
 import '../domain/portrait_appearance.dart';
+import '../domain/portrait_height_tier.dart';
 import '../domain/portrait_manifest.dart';
 import '../domain/portrait_weights.dart';
 
-/// The only base sprite currently available (`portraits.md`'s asset
-/// audit): feminine, and the Flutter default for both athletes and
-/// coaches.
-const kDefaultBaseSprite = 'BlankBaldwoman32.png';
+/// The baseline-height base sprite (`portraits.md`'s asset audit):
+/// feminine, and the Flutter default for both athletes and coaches (coaches
+/// have no height stat, so they always render at this tier).
+const kDefaultBaseSprite = kBaselineBaseSprite;
 
 /// "Goggles" read as athletic eyewear, not something a coach would wear on
 /// the sideline -- the original portrait-creator tool (`player-edit.html`)
@@ -36,11 +37,17 @@ Map<String, double> _coachEligibleAccessories(Map<String, double> pool) {
 /// [pickWeighted] draw. A coach without a manifest keeps the old
 /// null-shoulders behavior rather than throwing; every real call site
 /// passes one.
+///
+/// [heightTier] selects which base-sprite variant to render with --
+/// defaults to [PortraitHeightTier.baseline], correct for a coach (no
+/// height stat) or any caller that doesn't have a player's height handy.
+/// Real athlete generation passes `portraitHeightTierForInches(heightInches)`.
 PortraitAppearance generatePortraitAppearance(
   Random random, {
   required bool isCoach,
   required PortraitWeights weights,
   PortraitManifest? manifest,
+  PortraitHeightTier heightTier = PortraitHeightTier.baseline,
 }) {
   final skinTone = pickWeighted(random, weights.skinTone);
   final hairColor = pickWeighted(random, weights.hairColorByTone[skinTone]!);
@@ -57,7 +64,7 @@ PortraitAppearance generatePortraitAppearance(
       : null;
 
   return PortraitAppearance(
-    baseSprite: kDefaultBaseSprite,
+    baseSprite: heightTier.baseSpriteAsset,
     skinTone: skinTone,
     hair: hair == 'none' ? null : hair,
     hairColor: hairColor,

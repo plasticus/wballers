@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../domain/portrait_appearance.dart';
+import '../domain/portrait_height_tier.dart';
 import 'pixel_recolor.dart';
 import 'portrait_colors.dart';
 import 'portrait_image_loader.dart';
@@ -60,18 +61,25 @@ Future<ui.Image> _loadRecoloredNose(PortraitAppearance appearance) async {
 /// [outputSize]x[outputSize]. [jersey] recolors the shirt collar for
 /// athletes only -- coaches never get a jersey recolor, matching
 /// `render.js`'s `isCoach` handling.
+///
+/// The base sprite (and a coach's shoulders, which stay anchored to the
+/// body) render unshifted -- taller [PortraitHeightTier]s bake their extra
+/// height directly into that art. Every other layer (hair through
+/// accessories) shifts up by [PortraitHeightTierAsset.overlayShiftPixels]
+/// to land back on the taller sprite's higher head position.
 Future<Uint8List> renderPortraitPng(
   PortraitAppearance appearance, {
   RgbColor? jersey,
   int outputSize = kPortraitOutputSize,
 }) async {
-  final layers = <ui.Image>[await _loadRecoloredBase(appearance, jersey)];
-
+  final bodyLayers = <ui.Image>[await _loadRecoloredBase(appearance, jersey)];
   if (appearance.isCoach && appearance.shoulders != null) {
-    layers.add(await _loadPlain('shoulders', appearance.shoulders!));
+    bodyLayers.add(await _loadPlain('shoulders', appearance.shoulders!));
   }
+
+  final faceLayers = <ui.Image>[];
   if (appearance.hair != null) {
-    layers.add(
+    faceLayers.add(
       await _loadMagentaRecolored(
         'hair',
         appearance.hair!,
@@ -80,11 +88,11 @@ Future<Uint8List> renderPortraitPng(
     );
   }
   if (appearance.isCoach && appearance.hat != null) {
-    layers.add(await _loadPlain('hats', appearance.hat!));
+    faceLayers.add(await _loadPlain('hats', appearance.hat!));
   }
-  layers.add(await _loadPlain('eyes', appearance.eyes));
+  faceLayers.add(await _loadPlain('eyes', appearance.eyes));
   if (appearance.eyebrows != null) {
-    layers.add(
+    faceLayers.add(
       await _loadMagentaRecolored(
         'eyebrows',
         appearance.eyebrows!,
@@ -93,12 +101,12 @@ Future<Uint8List> renderPortraitPng(
     );
   }
   if (appearance.isCoach && appearance.glasses != null) {
-    layers.add(await _loadPlain('glasses', appearance.glasses!));
+    faceLayers.add(await _loadPlain('glasses', appearance.glasses!));
   }
-  layers.add(await _loadRecoloredNose(appearance));
-  layers.add(await _loadPlain('mouth', appearance.mouth));
+  faceLayers.add(await _loadRecoloredNose(appearance));
+  faceLayers.add(await _loadPlain('mouth', appearance.mouth));
   if (appearance.isCoach && appearance.facial != null) {
-    layers.add(
+    faceLayers.add(
       await _loadMagentaRecolored(
         'facial',
         appearance.facial!,
@@ -107,7 +115,7 @@ Future<Uint8List> renderPortraitPng(
     );
   }
   if (appearance.accessories != null) {
-    layers.add(await _loadPlain('accessories', appearance.accessories!));
+    faceLayers.add(await _loadPlain('accessories', appearance.accessories!));
   }
 
   final recorder = ui.PictureRecorder();
@@ -115,8 +123,15 @@ Future<Uint8List> renderPortraitPng(
   final paint = ui.Paint()..filterQuality = ui.FilterQuality.none;
   final zoom = outputSize / kPortraitAssetSize;
   canvas.scale(zoom);
-  for (final layer in layers) {
+  for (final layer in bodyLayers) {
     canvas.drawImage(layer, ui.Offset.zero, paint);
+  }
+  final shiftPixels = portraitHeightTierForBaseSprite(
+    appearance.baseSprite,
+  ).overlayShiftPixels;
+  final faceOffset = ui.Offset(0, -shiftPixels.toDouble());
+  for (final layer in faceLayers) {
+    canvas.drawImage(layer, faceOffset, paint);
   }
   final picture = recorder.endRecording();
   final image = await picture.toImage(outputSize, outputSize);

@@ -48,6 +48,16 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     await _persist(franchise.copyWithLineup(newLineup));
   }
 
+  /// Replaces the roster with [newRoster] -- same players, reordered. Used
+  /// by the bench-order (depth chart) screen, where list position is the
+  /// minutes-ranked order (see `target_minutes.dart`). Same
+  /// no-op-if-no-franchise and await-future rationale as [updateLineup].
+  Future<void> updateRosterOrder(List<RosterMembership> newRoster) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    await _persist(franchise.copyWithRoster(newRoster));
+  }
+
   /// Replaces the coach's portrait appearance and persists it. Same
   /// no-op-if-no-franchise and await-future rationale as [updateLineup].
   Future<void> updateCoachAppearance(PortraitAppearance appearance) async {

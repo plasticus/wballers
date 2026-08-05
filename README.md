@@ -4,7 +4,7 @@ This is a separate portrait system for the women's league. It shares the renderi
 
 ## Getting Started
 
-1. Replace `BlankBaldwoman32.png` with a female base sprite.
+1. Replace `base/BlankBaldwoman32H0.png` with a female base sprite (`H1.png`/`H2.png` are taller variants for the portrait height-shift feature).
 2. Draw parts in the folders below.
 3. Run `python3 ../generate_manifest.py .` from this folder to regenerate `manifest.json`.
 4. Add players to `players.json` (or generate them from a spreadsheet later).

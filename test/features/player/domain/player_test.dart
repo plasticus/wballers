@@ -35,6 +35,7 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      heightInches: 73,
       archetype: Archetype.floorGeneral,
     );
 
@@ -57,6 +58,7 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      heightInches: 73,
       archetype: Archetype.floorGeneral,
     );
 
@@ -76,6 +78,42 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        heightInches: 73,
+        archetype: Archetype.floorGeneral,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
+  test('rejects a height outside kMinHeightInches..kMaxHeightInches', () {
+    expect(
+      () => Player(
+        id: 'p1',
+        name: 'Riley Okafor',
+        age: 24,
+        yearsOfService: 2,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        handedness: Handedness.right,
+        biography: 'A steady floor general.',
+        ratings: _ratings,
+        heightInches: kMinHeightInches - 1,
+        archetype: Archetype.floorGeneral,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+    expect(
+      () => Player(
+        id: 'p1',
+        name: 'Riley Okafor',
+        age: 24,
+        yearsOfService: 2,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        handedness: Handedness.right,
+        biography: 'A steady floor general.',
+        ratings: _ratings,
+        heightInches: kMaxHeightInches + 1,
         archetype: Archetype.floorGeneral,
       ),
       throwsA(isA<AssertionError>()),
@@ -94,6 +132,7 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        heightInches: 73,
         archetype: Archetype.floorGeneral,
       ),
       throwsA(isA<AssertionError>()),
@@ -112,6 +151,7 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        heightInches: 73,
         archetype: Archetype.floorGeneral,
       ),
       throwsA(isA<AssertionError>()),
@@ -130,6 +170,7 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        heightInches: 73,
         archetype: Archetype.rimRunner,
       ),
       throwsA(isA<AssertionError>()),
@@ -148,6 +189,7 @@ void main() {
         handedness: Handedness.right,
         biography: 'A steady floor general.',
         ratings: _ratings,
+        heightInches: 73,
         archetype: Archetype.floorGeneral,
         traits: const {Trait.leader, Trait.malcontent},
       ),
@@ -166,6 +208,7 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      heightInches: 73,
       archetype: Archetype.floorGeneral,
       traits: const {Trait.leader},
     );
@@ -199,6 +242,7 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      heightInches: 73,
       archetype: Archetype.floorGeneral,
     );
 
@@ -217,6 +261,7 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      heightInches: 73,
       archetype: Archetype.floorGeneral,
     );
 
@@ -238,6 +283,7 @@ void main() {
       handedness: Handedness.right,
       biography: 'A steady floor general.',
       ratings: _ratings,
+      heightInches: 73,
       archetype: Archetype.floorGeneral,
       achievements: const [
         PlayerAchievementRecord(achievement: Achievement.leagueMvp, season: 0),

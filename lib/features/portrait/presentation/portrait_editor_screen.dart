@@ -10,9 +10,9 @@ import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/player.dart';
 import '../domain/portrait_appearance.dart';
+import '../domain/portrait_height_tier.dart';
 import '../domain/portrait_manifest.dart';
 import '../domain/portrait_weights.dart';
-import '../generation/portrait_generator.dart' show kDefaultBaseSprite;
 import '../persistence/portrait_catalog_loader.dart';
 import '../rendering/portrait_colors.dart';
 import '../rendering/portrait_renderer.dart';
@@ -124,11 +124,16 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
 
   /// A starting point for a franchise old enough not to have generated
   /// portraits at all -- built straight from the loaded catalog rather
-  /// than leaving the editor with nothing to show.
+  /// than leaving the editor with nothing to show. Picks the base sprite
+  /// for the target player's actual height (baseline for a coach, who has
+  /// no height stat) rather than always defaulting to baseline.
   PortraitAppearance _defaultAppearance() {
     final skinTone = widget.weights.skinTone.keys.first;
+    final heightTier = _targetPlayer == null
+        ? PortraitHeightTier.baseline
+        : PortraitHeightTier.of(_targetPlayer!);
     return PortraitAppearance(
-      baseSprite: kDefaultBaseSprite,
+      baseSprite: heightTier.baseSpriteAsset,
       skinTone: skinTone,
       hairColor: widget.weights.hairColorByTone[skinTone]!.keys.first,
       eyes: _stripPngExtension(widget.manifest.eyes.first),

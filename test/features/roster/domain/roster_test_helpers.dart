@@ -24,6 +24,7 @@ Player playerWithOverall(
   Set<Trait> traits = const {},
   List<PlayerAchievementRecord> achievements = const [],
   String? nickname,
+  int heightInches = 73,
 }) {
   return Player(
     id: id ?? 'test-player-${_playerIdCounter++}',
@@ -35,6 +36,7 @@ Player playerWithOverall(
     secondaryPositions: secondaryPositions,
     handedness: Handedness.right,
     biography: '',
+    heightInches: heightInches,
     archetype: archetype ?? kArchetypesByPosition[primaryPosition]!.first,
     traits: traits,
     achievements: achievements,

@@ -71,28 +71,38 @@ void main() {
   });
 
   testWidgets(
-    'shows the selected conference\'s teams and updates when it changes',
+    'shows 10 of the conference\'s 20-team pool, and swaps when it changes',
     (tester) async {
       await pumpHarness(tester);
 
-      final firstAtlanticTeam = kInitialLeagueTeams.firstWhere(
-        (team) => team.conference == Conference.atlantic,
-      );
-      final firstPacificTeam = kInitialLeagueTeams.firstWhere(
-        (team) => team.conference == Conference.pacific,
-      );
+      // Each conference now has a 20-team candidate pool, of which this
+      // playthrough draws 10 -- so the test can't assert a specific named
+      // team is shown (that varies run to run), only that exactly 10 of
+      // the right conference's pool render, and none of the other
+      // conference's pool does. Team names are unique across both pools
+      // (`initial_league_test.dart`), so name-matching can't cross-count.
+      final atlanticPool = kLeagueTeamPool
+          .where((team) => team.conference == Conference.atlantic)
+          .toList();
+      final pacificPool = kLeagueTeamPool
+          .where((team) => team.conference == Conference.pacific)
+          .toList();
+
+      int shownCount(List<Team> pool) => pool
+          .where((team) => find.text(team.name).evaluate().isNotEmpty)
+          .length;
 
       // Atlantic is the default selection.
       expect(find.text('Choose the team to replace'), findsOneWidget);
-      expect(find.text(firstAtlanticTeam.name), findsOneWidget);
-      expect(find.text(firstPacificTeam.name), findsNothing);
+      expect(shownCount(atlanticPool), 10);
+      expect(shownCount(pacificPool), 0);
 
       await tester.tap(find.text('Pacific'));
       await tester.pumpAndSettle();
 
       expect(find.text('Choose the team to replace'), findsOneWidget);
-      expect(find.text(firstPacificTeam.name), findsOneWidget);
-      expect(find.text(firstAtlanticTeam.name), findsNothing);
+      expect(shownCount(pacificPool), 10);
+      expect(shownCount(atlanticPool), 0);
     },
   );
 
@@ -136,7 +146,7 @@ void main() {
       expect(franchise?.gmName, 'Jordan Ellis');
       expect(franchise?.coach.name, isNot('Jordan Ellis'));
       expect(
-        kInitialLeagueTeams
+        kLeagueTeamPool
             .where((team) => team.conference == Conference.atlantic)
             .map((team) => team.abbreviation),
         contains(franchise?.replacedTeamAbbreviation),

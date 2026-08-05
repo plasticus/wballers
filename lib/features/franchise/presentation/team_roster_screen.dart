@@ -15,6 +15,7 @@ import '../../roster/domain/roster_status.dart';
 import '../application/current_franchise_provider.dart';
 import '../domain/franchise.dart';
 import '../onboarding/onboarding_screen.dart';
+import 'depth_chart_screen.dart';
 import 'lineup_editor_screen.dart';
 
 /// "Inspect a complete roster" -- the Team tab. Read-only aside from the
@@ -97,16 +98,36 @@ class _RosterView extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         _CoachRow(franchise: franchise),
         const SizedBox(height: AppSpacing.md),
-        OutlinedButton.icon(
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => LineupEditorScreen(franchise: franchise),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => LineupEditorScreen(franchise: franchise),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit Starting Lineup'),
               ),
-            );
-          },
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Edit Starting Lineup'),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DepthChartScreen(franchise: franchise),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.format_list_numbered),
+                label: const Text('Bench Order'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.lg),
         _RosterSection(

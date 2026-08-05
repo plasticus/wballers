@@ -9,6 +9,12 @@ export 'position.dart';
 
 enum Handedness { left, right }
 
+/// Bounds for [Player.heightInches] -- 5'2" to 7'0", wide enough to cover a
+/// generated player at any position (including outliers -- a tall point
+/// guard or a shorter center) without producing an implausible height.
+const kMinHeightInches = 62;
+const kMaxHeightInches = 84;
+
 /// A fictional athlete.
 ///
 /// Deliberately excluded for now, pending systems that don't exist yet:
@@ -38,6 +44,7 @@ class Player {
     required this.handedness,
     required this.biography,
     required this.ratings,
+    required this.heightInches,
     required this.archetype,
     this.traits = const {},
     this.appearance,
@@ -45,6 +52,10 @@ class Player {
     this.nickname,
   }) : assert(age > 0, 'age must be positive'),
        assert(yearsOfService >= 0, 'yearsOfService must not be negative'),
+       assert(
+         heightInches >= kMinHeightInches && heightInches <= kMaxHeightInches,
+         'heightInches must be within [$kMinHeightInches, $kMaxHeightInches]',
+       ),
        assert(
          !secondaryPositions.contains(primaryPosition),
          'secondaryPositions must not repeat primaryPosition',
@@ -85,6 +96,13 @@ class Player {
   final Handedness handedness;
   final String biography;
   final PlayerRatings ratings;
+
+  /// Standing height in inches. A physical fact, not a 1-99 [ratings]
+  /// entry -- see `kMinHeightInches`/`kMaxHeightInches` for its range.
+  /// Generated per-position with enough spread to allow real outliers (a
+  /// tall point guard, a shorter center), rather than being implied by
+  /// [primaryPosition] alone.
+  final int heightInches;
 
   /// This player's position-specific play style (`archetypes.md`). Always
   /// one of [kArchetypesByPosition]'s entries for [primaryPosition].
@@ -128,6 +146,7 @@ class Player {
       handedness: handedness,
       biography: biography,
       ratings: ratings,
+      heightInches: heightInches,
       archetype: archetype,
       traits: traits,
       appearance: newAppearance,
@@ -149,6 +168,7 @@ class Player {
       handedness: handedness,
       biography: biography,
       ratings: ratings,
+      heightInches: heightInches,
       archetype: archetype,
       traits: traits,
       appearance: appearance,
@@ -170,6 +190,7 @@ class Player {
       handedness: handedness,
       biography: biography,
       ratings: ratings,
+      heightInches: heightInches,
       archetype: archetype,
       traits: traits,
       appearance: appearance,

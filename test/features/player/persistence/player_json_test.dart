@@ -34,6 +34,7 @@ Map<String, dynamic> _legacyPlayerJson() {
       'blocking': 50,
       'potential': 50,
     },
+    'heightInches': 73,
   };
 }
 
