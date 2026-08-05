@@ -73,6 +73,17 @@ const _neutralFreeThrowDefense = 50;
 const _freeThrowFloor = 0.55;
 const _freeThrowCeiling = 0.95;
 
+/// Chance that an already-missed, non-fouled shot gets specifically
+/// attributed to the contesting defender as a block, via
+/// [PlayerRatings.blocking] against the shooter's own shot rating.
+/// Doesn't change whether the shot goes in -- that's already decided by
+/// the time this rolls -- just whether this particular miss gets
+/// credited as a block for box-score purposes. Initial guess, not yet
+/// calibrated.
+const _blockRateFloor = 0.03;
+const _blockRateCeiling = 0.25;
+const _blockRateSteepness = 0.03;
+
 /// How often a pass attempt stays clean. Raised alongside `_passWeight`
 /// (2026-08-05): with possessions now averaging several pass attempts
 /// instead of ~1, the original 0.55/0.95 (25% disruption chance at equal
@@ -209,6 +220,11 @@ PossessionResult simulatePossession(
   var shotClock = _shotClockSeconds;
   var totalElapsed = 0.0;
   var ballHandler = _randomOf(random, offense);
+  // Whoever threw the most recent clean pass -- credited with an assist
+  // if [ballHandler] scores on the very next shot attempt, cleared after
+  // any shot attempt (make or miss) so it never carries across more than
+  // one beat.
+  Player? assistCandidate;
 
   PossessionResult finish(PossessionEnd end, int points) {
     return PossessionResult(
@@ -262,10 +278,15 @@ PossessionResult simulatePossession(
         ),
       );
       if (clean) {
+        assistCandidate = ballHandler;
         ballHandler = target;
         continue;
       }
 
+      // Any disruption breaks the clean flow of the play, whether or not
+      // the offense ends up keeping the ball -- no assist survives a
+      // scramble.
+      assistCandidate = null;
       events.add(
         MatchEvent(
           type: MatchEventType.passDisrupted,
@@ -293,6 +314,7 @@ PossessionResult simulatePossession(
             type: MatchEventType.passRedirected,
             secondsElapsed: 0,
             player: recoverer,
+            secondPlayer: ballHandler,
           ),
         );
         if (offense.contains(recoverer)) {
@@ -362,16 +384,17 @@ PossessionResult simulatePossession(
             defender.ratings.perimeterDefense,
           );
 
+    final isThree = !isDrive && random.nextDouble() < _threePointAttemptRate;
+    final attemptPoints = isThree ? 3 : 2;
     events.add(
       MatchEvent(
         type: MatchEventType.shotAttempt,
         secondsElapsed: actionSeconds,
         player: ballHandler,
         secondPlayer: defender,
+        isThreePointAttempt: isThree,
       ),
     );
-    final isThree = !isDrive && random.nextDouble() < _threePointAttemptRate;
-    final attemptPoints = isThree ? 3 : 2;
     final made = resolveContest(
       random,
       attackerRating: shooterRating,
@@ -382,6 +405,10 @@ PossessionResult simulatePossession(
     );
     final fouled =
         random.nextDouble() < (isDrive ? _driveFoulRate : _jumperFoulRate);
+    // The assist window only ever covers the very next shot attempt --
+    // consumed here regardless of what happens to this one.
+    final scoringAssist = assistCandidate;
+    assistCandidate = null;
 
     if (fouled) {
       events.add(
@@ -390,8 +417,19 @@ PossessionResult simulatePossession(
           secondsElapsed: 0,
           player: ballHandler,
           points: made ? attemptPoints : null,
+          isThreePointAttempt: isThree,
         ),
       );
+      if (made && scoringAssist != null) {
+        events.add(
+          MatchEvent(
+            type: MatchEventType.assist,
+            secondsElapsed: 0,
+            player: scoringAssist,
+            secondPlayer: ballHandler,
+          ),
+        );
+      }
       events.add(
         MatchEvent(
           type: MatchEventType.shootingFoul,
@@ -421,8 +459,19 @@ PossessionResult simulatePossession(
           secondsElapsed: 0,
           player: ballHandler,
           points: attemptPoints,
+          isThreePointAttempt: isThree,
         ),
       );
+      if (scoringAssist != null) {
+        events.add(
+          MatchEvent(
+            type: MatchEventType.assist,
+            secondsElapsed: 0,
+            player: scoringAssist,
+            secondPlayer: ballHandler,
+          ),
+        );
+      }
       return finish(PossessionEnd.scored, attemptPoints);
     }
 
@@ -431,8 +480,27 @@ PossessionResult simulatePossession(
         type: MatchEventType.shotMissed,
         secondsElapsed: 0,
         player: ballHandler,
+        isThreePointAttempt: isThree,
       ),
     );
+    final blocked = resolveContest(
+      random,
+      attackerRating: defender.ratings.blocking,
+      defenderRating: shooterRating,
+      floor: _blockRateFloor,
+      ceiling: _blockRateCeiling,
+      steepness: _blockRateSteepness,
+    );
+    if (blocked) {
+      events.add(
+        MatchEvent(
+          type: MatchEventType.shotBlocked,
+          secondsElapsed: 0,
+          player: defender,
+          secondPlayer: ballHandler,
+        ),
+      );
+    }
     final rebound = _resolveRebound(random, offense, defense);
     events.add(
       MatchEvent(

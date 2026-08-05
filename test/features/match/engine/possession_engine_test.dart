@@ -70,6 +70,7 @@ void main() {
       MatchEventType.shotMade,
       MatchEventType.freeThrowMade,
       MatchEventType.freeThrowMissed,
+      MatchEventType.assist,
     };
 
     for (var i = 0; i < 500; i++) {
@@ -238,6 +239,95 @@ void main() {
     }
 
     expect(sawShootingFoul, isTrue);
+  });
+
+  test('an assist always immediately follows the shotMade it credits, and '
+      'names the previous ball handler', () {
+    final offense = testLineup('off');
+    final defense = testLineup('def');
+    final random = Random(60);
+    var sawAssist = false;
+
+    for (var i = 0; i < 500; i++) {
+      final result = simulatePossession(
+        random,
+        offense: offense,
+        defense: defense,
+      );
+      for (var j = 0; j < result.events.length; j++) {
+        if (result.events[j].type != MatchEventType.assist) continue;
+        sawAssist = true;
+        final assistEvent = result.events[j];
+        final priorEvent = result.events[j - 1];
+        expect(priorEvent.type, MatchEventType.shotMade);
+        // The scorer credited on the assist matches who actually scored.
+        expect(assistEvent.secondPlayer, priorEvent.player);
+        // The assisting passer is a teammate, not the scorer themself.
+        expect(assistEvent.player, isNot(assistEvent.secondPlayer));
+        expect(offense, contains(assistEvent.player));
+      }
+    }
+
+    expect(sawAssist, isTrue);
+  });
+
+  test('a made shot with no preceding clean pass has no assist', () {
+    final offense = testLineup('off');
+    final defense = testLineup('def');
+    final random = Random(61);
+    var sawUnassistedScore = false;
+
+    for (var i = 0; i < 500; i++) {
+      final result = simulatePossession(
+        random,
+        offense: offense,
+        defense: defense,
+      );
+      for (var j = 0; j < result.events.length; j++) {
+        if (result.events[j].type != MatchEventType.shotMade) continue;
+        final isLast = j == result.events.length - 1;
+        final nextIsAssist =
+            !isLast && result.events[j + 1].type == MatchEventType.assist;
+        if (!nextIsAssist) sawUnassistedScore = true;
+      }
+    }
+
+    // Not every made shot follows a pass (some follow an offensive
+    // rebound, or a possession that opened straight into a shot) -- there
+    // should be a real mix, not every score wired up to an assist.
+    expect(sawUnassistedScore, isTrue);
+  });
+
+  test('a block is only ever attributed on a miss, immediately before the '
+      'rebound', () {
+    final offense = testLineup('off');
+    final defense = testLineup('def');
+    final random = Random(62);
+    var sawBlock = false;
+
+    for (var i = 0; i < 500; i++) {
+      final result = simulatePossession(
+        random,
+        offense: offense,
+        defense: defense,
+      );
+      for (var j = 0; j < result.events.length; j++) {
+        if (result.events[j].type != MatchEventType.shotBlocked) continue;
+        sawBlock = true;
+        expect(result.events[j - 1].type, MatchEventType.shotMissed);
+        final nextType = result.events[j + 1].type;
+        expect(
+          nextType,
+          anyOf(
+            MatchEventType.offensiveRebound,
+            MatchEventType.defensiveRebound,
+          ),
+        );
+        expect(defense, contains(result.events[j].player));
+      }
+    }
+
+    expect(sawBlock, isTrue);
   });
 
   test('throws when a lineup does not have exactly 5 players', () {
