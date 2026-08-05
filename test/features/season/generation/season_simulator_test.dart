@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
@@ -120,7 +121,24 @@ void main() {
       rostersByAbbreviation: _rosters(),
     );
 
-    final standings = computeStandings(results);
+    final standings = computeStandings(
+      results,
+      leagueTeams: [
+        for (final abbr in ['AAA', 'BBB', 'CCC', 'DDD'])
+          Team(
+            abbreviation: abbr,
+            location: 'Testville',
+            name: abbr,
+            conference: Conference.atlantic,
+            colors: const TeamColors(
+              primaryHex: '#000000',
+              secondaryHex: '#111111',
+              accentHex: '#222222',
+            ),
+            identityNote: '',
+          ),
+      ],
+    );
     final totalGamesPlayed = standings.fold<int>(
       0,
       (sum, e) => sum + e.gamesPlayed,

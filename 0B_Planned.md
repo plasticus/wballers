@@ -17,10 +17,6 @@ before rosters can be generated for it, which has to exist before a season
 can be scheduled and simulated, which has to happen before there's
 anything for the presentation layer or end-of-season systems to show.
 
-### League and team structure
-
-- **League configuration and runtime, remaining piece: standings tiebreakers.** The 19 AI teams have real, persisted rosters (`League`/`generateLeague`), and the season schedule itself is generated (`generateSeasonSchedule`, see `0A_Completed.md`). What's still missing needs actual game *results* to exist first: standings tiebreakers can't be designed against real data until the simulator below produces some.
-
 ### Season mechanics and simulation
 
 - **Season calendar: 24 weeks**, running roughly May-October in fictional time. Regular-season games and Continental Cup rounds (below) interleave within this skeleton:

@@ -1,3 +1,4 @@
+import '../../league/domain/team.dart';
 import 'game_result.dart';
 import 'scheduled_game.dart';
 
@@ -26,18 +27,28 @@ class StandingsEntry {
 
 /// Builds a standings table from every [GameResult.game] with
 /// [GameType.regularSeason] in [results] -- preseason and Continental Cup
-/// games don't count. Sorted best-to-worst by win percentage, then point
-/// differential as a tiebreaker -- a placeholder ordering, not the real
-/// tiebreaker system `0B_Planned.md` still has as an open item.
-List<StandingsEntry> computeStandings(List<GameResult> results) {
+/// games don't count. Sorted best-to-worst by win percentage; teams that
+/// tie exactly on win percentage are broken by [leagueTeams]' conference
+/// assignments through a tiebreaker cascade: head-to-head record among
+/// just the tied teams, then in-conference record, then point
+/// differential, then team abbreviation as a final, purely-for-
+/// determinism fallback. This project's own resolution of a real
+/// standings tiebreaker system (`0B_Planned.md`), not a literal replica
+/// of the WNBA's own tiebreaker rules.
+List<StandingsEntry> computeStandings(
+  List<GameResult> results, {
+  required List<Team> leagueTeams,
+}) {
+  final regularSeasonResults = results
+      .where((r) => r.game.type == GameType.regularSeason)
+      .toList();
+
   final wins = <String, int>{};
   final losses = <String, int>{};
   final pointsFor = <String, int>{};
   final pointsAgainst = <String, int>{};
 
-  for (final result in results) {
-    if (result.game.type != GameType.regularSeason) continue;
-
+  for (final result in regularSeasonResults) {
     final home = result.game.homeTeamAbbreviation;
     final away = result.game.awayTeamAbbreviation;
     pointsFor[home] = (pointsFor[home] ?? 0) + result.match.homeScore;
@@ -62,10 +73,106 @@ List<StandingsEntry> computeStandings(List<GameResult> results) {
         pointsAgainst: pointsAgainst[team] ?? 0,
       ),
   ];
-  entries.sort((a, b) {
-    final byWinPercentage = b.winPercentage.compareTo(a.winPercentage);
-    if (byWinPercentage != 0) return byWinPercentage;
-    return b.pointDifferential.compareTo(a.pointDifferential);
-  });
-  return entries;
+  entries.sort((a, b) => b.winPercentage.compareTo(a.winPercentage));
+
+  final conferenceByAbbreviation = {
+    for (final team in leagueTeams) team.abbreviation: team.conference,
+  };
+
+  final resolved = <StandingsEntry>[];
+  var i = 0;
+  while (i < entries.length) {
+    var j = i + 1;
+    while (j < entries.length &&
+        entries[j].winPercentage == entries[i].winPercentage) {
+      j++;
+    }
+    final group = entries.sublist(i, j);
+    resolved.addAll(
+      group.length == 1
+          ? group
+          : _resolveTieGroup(
+              group,
+              regularSeasonResults,
+              conferenceByAbbreviation,
+            ),
+    );
+    i = j;
+  }
+  return resolved;
+}
+
+/// Breaks a tie among [group] (2+ teams sharing the same win percentage):
+/// head-to-head win percentage in games played only against each other,
+/// then win percentage in games played only against same-conference
+/// opponents, then point differential, then abbreviation (alphabetical,
+/// purely to guarantee a deterministic result if every real tiebreaker
+/// above is also exactly tied).
+List<StandingsEntry> _resolveTieGroup(
+  List<StandingsEntry> group,
+  List<GameResult> regularSeasonResults,
+  Map<String, Conference> conferenceByAbbreviation,
+) {
+  final groupAbbreviations = group.map((e) => e.teamAbbreviation).toSet();
+
+  double winPercentageAgainst(
+    String team,
+    bool Function(String opponent) opponentMatches,
+  ) {
+    var w = 0;
+    var l = 0;
+    for (final result in regularSeasonResults) {
+      final home = result.game.homeTeamAbbreviation;
+      final away = result.game.awayTeamAbbreviation;
+      if (home != team && away != team) continue;
+      final opponent = home == team ? away : home;
+      if (!opponentMatches(opponent)) continue;
+      if (result.winningTeamAbbreviation == team) {
+        w++;
+      } else {
+        l++;
+      }
+    }
+    final total = w + l;
+    // No games played against that group -- stay neutral rather than
+    // letting an empty sample masquerade as a 0% or 100% record.
+    return total == 0 ? 0.5 : w / total;
+  }
+
+  final sorted = [...group]
+    ..sort((a, b) {
+      final byHeadToHead =
+          winPercentageAgainst(
+            b.teamAbbreviation,
+            groupAbbreviations.contains,
+          ).compareTo(
+            winPercentageAgainst(
+              a.teamAbbreviation,
+              groupAbbreviations.contains,
+            ),
+          );
+      if (byHeadToHead != 0) return byHeadToHead;
+
+      final byConference =
+          winPercentageAgainst(
+            b.teamAbbreviation,
+            (opponent) =>
+                conferenceByAbbreviation[opponent] ==
+                conferenceByAbbreviation[b.teamAbbreviation],
+          ).compareTo(
+            winPercentageAgainst(
+              a.teamAbbreviation,
+              (opponent) =>
+                  conferenceByAbbreviation[opponent] ==
+                  conferenceByAbbreviation[a.teamAbbreviation],
+            ),
+          );
+      if (byConference != 0) return byConference;
+
+      final byDifferential = b.pointDifferential.compareTo(a.pointDifferential);
+      if (byDifferential != 0) return byDifferential;
+
+      return a.teamAbbreviation.compareTo(b.teamAbbreviation);
+    });
+  return sorted;
 }
