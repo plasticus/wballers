@@ -98,6 +98,12 @@ int _generateStat(Random random, int qualityCenter, int spread, int bias) {
 /// franchise's starting coach feels like a distinct individual the same
 /// way a generated player does. Deterministic for a given [random] stream.
 ///
+/// [archetype] defaults to a random roll; pass one explicitly to force a
+/// specific style instead -- what [generateCoachCandidates] does to build
+/// a set of head-coach options the GM picks between at onboarding, each
+/// with a different, already-known philosophy rather than another random
+/// roll.
+///
 /// [portraitWeights] is optional, same contract as `generatePlayer`'s: omit
 /// it to leave [Coach.appearance] `null` without consuming any random
 /// numbers for it. [portraitManifest] is separately optional -- without it,
@@ -107,12 +113,14 @@ Coach generateCoach(
   Random random, {
   int qualityCenter = 50,
   int qualitySpread = 15,
+  CoachArchetype? archetype,
   PortraitWeights? portraitWeights,
   PortraitManifest? portraitManifest,
 }) {
-  final archetypes = CoachArchetype.values;
-  final archetype = archetypes[random.nextInt(archetypes.length)];
-  final bias = _archetypeBias[archetype] ?? _zeroDeltas;
+  final resolvedArchetype =
+      archetype ??
+      CoachArchetype.values[random.nextInt(CoachArchetype.values.length)];
+  final bias = _archetypeBias[resolvedArchetype] ?? _zeroDeltas;
 
   final firstName = kFirstNames[random.nextInt(kFirstNames.length)];
   final lastName = kLastNames[random.nextInt(kLastNames.length)];
@@ -159,7 +167,40 @@ Coach generateCoach(
         bias.management,
       ),
     ),
-    archetype: archetype,
+    archetype: resolvedArchetype,
     appearance: appearance,
   );
+}
+
+/// A set of [count] head-coach candidates for the GM to choose between at
+/// onboarding, each a different, already-known [CoachArchetype] (a
+/// shuffle of [CoachArchetype.values], not [count] independent random
+/// rolls, so two candidates never duplicate a philosophy) -- one
+/// offense-minded, one defense-minded, one player-development-minded,
+/// whatever the shuffle happens to land on, "pull from the archetypes at
+/// random" per the GM's own framing. [qualitySpread] defaults tighter
+/// than [generateCoach]'s own default so the archetype's philosophy
+/// reads clearly rather than getting drowned out by jitter noise --
+/// candidates should feel "super comparable, just different goals," not
+/// randomly stronger or weaker than each other.
+List<Coach> generateCoachCandidates(
+  Random random, {
+  int count = 3,
+  int qualityCenter = 50,
+  int qualitySpread = 6,
+  PortraitWeights? portraitWeights,
+  PortraitManifest? portraitManifest,
+}) {
+  final archetypes = [...CoachArchetype.values]..shuffle(random);
+  return [
+    for (final archetype in archetypes.take(count))
+      generateCoach(
+        random,
+        qualityCenter: qualityCenter,
+        qualitySpread: qualitySpread,
+        archetype: archetype,
+        portraitWeights: portraitWeights,
+        portraitManifest: portraitManifest,
+      ),
+  ];
 }

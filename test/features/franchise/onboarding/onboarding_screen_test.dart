@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/portrait_cache_provider.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/coach_selection_screen.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart'
     show kStarterPalettes;
 import 'package:womensbballmgr/features/franchise/onboarding/onboarding_screen.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/team_emoji_options.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 
+import '../../../support/in_memory_portrait_cache.dart';
 import '../../../support/in_memory_save_repository.dart';
+import '../../../support/portrait_test_helpers.dart';
 
 void main() {
   Future<void> pumpHarness(WidgetTester tester) async {
@@ -17,6 +22,9 @@ void main() {
       ProviderScope(
         overrides: [
           saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          // The real FilePortraitCache calls path_provider, a plugin
+          // channel that isn't reliably available under flutter test.
+          portraitCacheProvider.overrideWithValue(InMemoryPortraitCache()),
         ],
         child: MaterialApp(
           home: Builder(
@@ -38,38 +46,145 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the create button is disabled until every field is filled', (
+  Future<void> fillIdentityFields(WidgetTester tester) async {
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name of General Manager'),
+      'Jordan Ellis',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'City/State'),
+      'Springfield, IL',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Club Name'),
+      'Comets',
+    );
+    await tester.pump();
+  }
+
+  /// Fills the identity step, continues to coach selection, picks the
+  /// first candidate, and confirms -- the full path to a real franchise.
+  /// Returns the name of whichever candidate got picked, so the caller
+  /// can confirm the franchise's actual head coach matches it.
+  Future<String> createFranchiseThroughOnboarding(WidgetTester tester) async {
+    await fillIdentityFields(tester);
+
+    final continueButton = find.widgetWithText(FilledButton, 'Continue');
+    await tester.ensureVisible(continueButton);
+    await tester.pumpAndSettle();
+    await tester.tap(continueButton);
+    // Not pumpAndSettle -- CoachSelectionScreen awaits the real bundled
+    // portrait assets, and its LoadingView's perpetually-repeating
+    // bouncing-basketball animation can make pumpAndSettle declare a
+    // (false) timeout while that's still pending. letPortraitAsyncWorkFinish's
+    // own fixed ~2 real seconds usually covers it, but isn't guaranteed
+    // under heavier load, so retry a few more rounds rather than assert
+    // on a fixed budget.
+    final confirmButtonFinder = find.widgetWithText(
+      FilledButton,
+      'Confirm & Create Franchise',
+    );
+    for (var attempt = 0; attempt < 5; attempt++) {
+      if (confirmButtonFinder.evaluate().isNotEmpty) break;
+      await letPortraitAsyncWorkFinish(tester);
+    }
+
+    expect(find.byType(CoachSelectionScreen), findsOneWidget);
+    // Disabled until a candidate is actually picked.
+    expect(tester.widget<FilledButton>(confirmButtonFinder).onPressed, isNull);
+
+    // Scoped to this screen -- the previous route (still mounted offstage
+    // underneath) has its own InkWells (color swatches, emoji tiles) that
+    // an unscoped `find.byType(InkWell).first` could match instead.
+    final firstCandidateCard = find
+        .descendant(
+          of: find.byType(CoachSelectionScreen),
+          matching: find.byType(InkWell),
+        )
+        .first;
+    final pickedName = tester
+        .widgetList<Text>(
+          find.descendant(of: firstCandidateCard, matching: find.byType(Text)),
+        )
+        .first
+        .data!;
+    await tester.tap(firstCandidateCard);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<FilledButton>(confirmButtonFinder).onPressed,
+      isNotNull,
+      reason: 'enabled once a candidate is picked',
+    );
+
+    await tester.ensureVisible(confirmButtonFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(confirmButtonFinder);
+    await tester.pumpAndSettle();
+
+    return pickedName;
+  }
+
+  testWidgets('the continue button is disabled until every field is filled', (
     tester,
   ) async {
     await pumpHarness(tester);
 
-    FilledButton createButton() => tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Create Franchise'),
+    FilledButton continueButton() => tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Continue'),
     );
 
-    expect(createButton().onPressed, isNull);
+    expect(continueButton().onPressed, isNull);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Your name (General Manager)'),
+      find.widgetWithText(TextField, 'Name of General Manager'),
       'Jordan Ellis',
     );
     await tester.pump();
-    expect(createButton().onPressed, isNull);
+    expect(continueButton().onPressed, isNull);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Club name'),
+      find.widgetWithText(TextField, 'Club Name'),
       'Comets',
     );
     await tester.pump();
-    expect(createButton().onPressed, isNull);
+    expect(continueButton().onPressed, isNull);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Home city'),
+      find.widgetWithText(TextField, 'City/State'),
       'Springfield, IL',
     );
     await tester.pump();
 
-    expect(createButton().onPressed, isNotNull);
+    expect(continueButton().onPressed, isNotNull);
+  });
+
+  testWidgets('shows a live preview of the identity as it\'s typed', (
+    tester,
+  ) async {
+    await pumpHarness(tester);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name of General Manager'),
+      'Corey M',
+    );
+    await tester.pump();
+    expect(find.text('Corey M, General Manager'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'City/State'),
+      'Seattle',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Club Name'),
+      'Sunfish',
+    );
+    await tester.pump();
+
+    expect(
+      find.text('Corey M, General Manager of the Seattle Sunfish'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -109,36 +224,16 @@ void main() {
   );
 
   testWidgets(
-    'creating a franchise saves it and returns to the previous screen',
+    'continuing hands off to coach selection, and confirming a candidate '
+    'creates and saves the franchise',
     (tester) async {
       await pumpHarness(tester);
 
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Your name (General Manager)'),
-        'Jordan Ellis',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Club name'),
-        'Comets',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Home city'),
-        'Springfield, IL',
-      );
-      await tester.pump();
-
-      // The conference team listing pushes the button below the fold.
-      final createButton = find.widgetWithText(
-        FilledButton,
-        'Create Franchise',
-      );
-      await tester.ensureVisible(createButton);
-      await tester.pumpAndSettle();
-      await tester.tap(createButton);
-      await tester.pumpAndSettle();
+      final pickedCoachName = await createFranchiseThroughOnboarding(tester);
 
       expect(find.text('Open onboarding'), findsOneWidget);
       expect(find.byType(OnboardingScreen), findsNothing);
+      expect(find.byType(CoachSelectionScreen), findsNothing);
 
       final context = tester.element(find.text('Open onboarding'));
       final container = ProviderScope.containerOf(context);
@@ -146,7 +241,14 @@ void main() {
 
       expect(franchise?.team.name, 'Comets');
       expect(franchise?.gmName, 'Jordan Ellis');
-      expect(franchise?.coach.name, isNot('Jordan Ellis'));
+      expect(franchise?.team.location, 'Springfield, IL');
+      expect(
+        franchise?.coach.name,
+        pickedCoachName,
+        reason:
+            'the franchise\'s head coach is whichever candidate was '
+            'picked, not an unrelated auto-generated one',
+      );
       expect(
         kLeagueTeamPool
             .where((team) => team.conference == Conference.atlantic)
@@ -165,7 +267,7 @@ void main() {
       expect(
         drawnEmoji.contains(franchise.team.emoji),
         isFalse,
-        reason: 'the GM\'s emoji always comes from a team not in this league',
+        reason: 'the GM\'s emoji always comes from outside this league',
       );
     },
   );
@@ -227,10 +329,10 @@ void main() {
     },
   );
 
-  bool emojiOptionSelected(WidgetTester tester, String abbreviation) {
+  bool emojiOptionSelected(WidgetTester tester, String emoji) {
     final container = tester.widget<Container>(
       find.descendant(
-        of: find.byKey(ValueKey(abbreviation)),
+        of: find.byKey(ValueKey(emoji)),
         matching: find.byType(Container),
       ),
     );
@@ -238,61 +340,60 @@ void main() {
     return border.top.width == 3;
   }
 
-  testWidgets(
-    'offers exactly the 20 wings teams\' emoji, with exactly one selected '
-    'by default',
-    (tester) async {
-      await pumpHarness(tester);
-
-      expect(find.text('Team emoji'), findsOneWidget);
-
-      // Every kLeagueTeamPool team with a rendered emoji tile is a "wings"
-      // team (the 20 not drawn into this league) -- 40 pool - 20 drawn.
-      final tileCount = kLeagueTeamPool
-          .where(
-            (team) =>
-                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty,
-          )
-          .length;
-      expect(tileCount, 20);
-
-      final selectedCount = kLeagueTeamPool
-          .where(
-            (team) =>
-                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty &&
-                emojiOptionSelected(tester, team.abbreviation),
-          )
-          .length;
-      expect(selectedCount, 1);
-    },
-  );
-
-  testWidgets('tapping a different emoji tile switches the selection', (
+  testWidgets('offers the curated emoji pool minus whatever this league drew', (
     tester,
   ) async {
     await pumpHarness(tester);
 
-    final tiles = kLeagueTeamPool
-        .where(
-          (team) =>
-              find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty,
-        )
-        .toList();
-    final selectedAbbreviation = tiles
-        .firstWhere((team) => emojiOptionSelected(tester, team.abbreviation))
-        .abbreviation;
-    final target = tiles.firstWhere(
-      (team) => team.abbreviation != selectedAbbreviation,
-    );
+    expect(find.text('Team emoji'), findsOneWidget);
 
-    final targetFinder = find.byKey(ValueKey(target.abbreviation));
-    await tester.ensureVisible(targetFinder);
+    // Scroll the emoji grid into view so its tiles actually build --
+    // GridView.builder only builds items near its own viewport (plus a
+    // cache extent margin), not the whole ~100-entry pool at once.
+    await tester.ensureVisible(find.text('Team emoji'));
     await tester.pumpAndSettle();
-    await tester.tap(targetFinder);
-    await tester.pump();
 
-    expect(emojiOptionSelected(tester, target.abbreviation), isTrue);
-    expect(emojiOptionSelected(tester, selectedAbbreviation), isFalse);
+    final tileCount = kTeamEmojiOptions
+        .where((emoji) => find.byKey(ValueKey(emoji)).evaluate().isNotEmpty)
+        .length;
+    // At least most of the curated pool should be offered -- a handful
+    // may be filtered out if this league happened to draw a team using
+    // the same emoji, but it should never be anywhere close to zero.
+    expect(tileCount, greaterThan(kTeamEmojiOptions.length ~/ 2));
+  });
+
+  testWidgets('tapping an emoji tile updates the selection', (tester) async {
+    await pumpHarness(tester);
+    await tester.ensureVisible(find.text('Team emoji'));
+    await tester.pumpAndSettle();
+
+    // Whichever two tiles happen to be built first, purely by position --
+    // avoids needing to know which one the random default landed on,
+    // which (being one of ~100 options) isn't reliably built without
+    // scrolling the grid's own internal viewport to it.
+    final tileFinder = find.descendant(
+      of: find.byType(GridView),
+      matching: find.byType(InkWell),
+    );
+    expect(tileFinder, findsWidgets);
+
+    String emojiOf(Finder inkWellFinder) => tester
+        .widget<Text>(
+          find.descendant(of: inkWellFinder, matching: find.byType(Text)),
+        )
+        .data!;
+
+    final firstEmoji = emojiOf(tileFinder.at(0));
+    final secondEmoji = emojiOf(tileFinder.at(1));
+
+    await tester.tap(tileFinder.at(0));
+    await tester.pump();
+    expect(emojiOptionSelected(tester, firstEmoji), isTrue);
+
+    await tester.tap(tileFinder.at(1));
+    await tester.pump();
+    expect(emojiOptionSelected(tester, secondEmoji), isTrue);
+    expect(emojiOptionSelected(tester, firstEmoji), isFalse);
   });
 
   testWidgets(
@@ -307,30 +408,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Still exactly 10 teams shown for the current (Atlantic) conference,
-      // exactly one checked, exactly 20 emoji tiles with exactly one
-      // selected -- rerolling can't leave the form in a broken state.
+      // exactly one checked -- rerolling can't leave the form in a broken
+      // state.
       expect(find.byType(Checkbox), findsNWidgets(10));
       final checkedCount = List.generate(
         10,
         (i) => tester.widget<Checkbox>(find.byType(Checkbox).at(i)),
       ).where((c) => c.value == true).length;
       expect(checkedCount, 1);
-
-      final tileCount = kLeagueTeamPool
-          .where(
-            (team) =>
-                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty,
-          )
-          .length;
-      expect(tileCount, 20);
-      final selectedCount = kLeagueTeamPool
-          .where(
-            (team) =>
-                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty &&
-                emojiOptionSelected(tester, team.abbreviation),
-          )
-          .length;
-      expect(selectedCount, 1);
     },
   );
 }

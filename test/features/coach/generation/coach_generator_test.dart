@@ -168,4 +168,35 @@ void main() {
       expect(coach.appearance!.shoulders, isNotNull);
     },
   );
+
+  test('an explicit archetype overrides the random roll', () {
+    final random = Random(21);
+    for (var i = 0; i < 30; i++) {
+      final coach = generateCoach(random, archetype: CoachArchetype.steadyHand);
+      expect(coach.archetype, CoachArchetype.steadyHand);
+    }
+  });
+
+  group('generateCoachCandidates', () {
+    test('returns the requested count, each with a distinct archetype', () {
+      final candidates = generateCoachCandidates(Random(1));
+      expect(candidates, hasLength(3));
+      expect(candidates.map((c) => c.archetype).toSet(), hasLength(3));
+    });
+
+    test('the same seed produces identical candidates', () {
+      final a = generateCoachCandidates(Random(42));
+      final b = generateCoachCandidates(Random(42));
+
+      expect(a.map((c) => c.archetype), b.map((c) => c.archetype));
+      expect(a.map((c) => c.name), b.map((c) => c.name));
+      expect(a.map((c) => c.stats.overall), b.map((c) => c.stats.overall));
+    });
+
+    test('honors a smaller requested count', () {
+      final candidates = generateCoachCandidates(Random(5), count: 2);
+      expect(candidates, hasLength(2));
+      expect(candidates.map((c) => c.archetype).toSet(), hasLength(2));
+    });
+  });
 }

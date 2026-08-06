@@ -1,29 +1,29 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../league/domain/initial_league.dart';
 import '../../league/domain/league_draw.dart';
 import '../../league/domain/team.dart';
 import '../../league/team_row.dart';
-import '../../portrait/persistence/portrait_catalog_loader.dart';
-import '../application/current_franchise_provider.dart';
+import 'coach_selection_screen.dart';
 import 'expansion_franchise_factory.dart';
+import 'team_emoji_options.dart';
 
-/// Name yourself (the GM) and the club, choose a conference, and generate
-/// a weak starting roster with a hired coach. Phase 1's expansion
-/// onboarding flow.
-class OnboardingScreen extends ConsumerStatefulWidget {
+/// Name yourself (the GM), name the club, choose a conference/colors/
+/// emoji, and pick which of the drawn league's 20 teams to replace.
+/// Continuing from here doesn't create the franchise yet -- it hands off
+/// to [CoachSelectionScreen] first (Phase 1's expansion onboarding flow
+/// now has two steps, identity then a real staffing decision).
+class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen> {
   final _gmNameController = TextEditingController();
   final _clubNameController = TextEditingController();
   final _homeCityController = TextEditingController();
@@ -35,7 +35,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   late String _replacedTeamAbbreviation;
   late TeamColors _selectedColors;
   late String _selectedEmoji;
-  var _isSubmitting = false;
 
   @override
   void initState() {
@@ -53,7 +52,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // Same pattern: a random default from the curated set, GM-overridable.
     _selectedColors =
         kStarterPalettes[Random().nextInt(kStarterPalettes.length)];
-    _selectedEmoji = _randomWingsEmoji();
+    _selectedEmoji = _randomEmojiOption();
     for (final controller in [
       _gmNameController,
       _clubNameController,
@@ -66,10 +65,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// Rerolls the whole league draw: a fresh [_simulationSeed] and the 20
   /// teams it draws (see the class doc comment), plus everything that
   /// depends on which 20 -- a fresh replaced-team default, and, if the
-  /// current emoji pick doesn't belong to the new [_wingsTeams] anymore,
-  /// a fresh emoji default too (kept as-is if it's still available,
-  /// same "don't discard a choice that's still valid" spirit as
-  /// conference switching leaving [_selectedColors] alone).
+  /// current emoji pick collides with a newly-drawn team, a fresh emoji
+  /// default too (kept as-is if it's still available, same "don't discard
+  /// a choice that's still valid" spirit as conference switching leaving
+  /// [_selectedColors] alone).
   void _rerollLeague() {
     setState(() {
       _simulationSeed = Random().nextInt(1 << 31);
@@ -77,9 +76,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         Random(_simulationSeed + kLeagueDrawSeedOffset),
       );
       _replacedTeamAbbreviation = _randomTeamAbbreviation(_conference);
-      final wings = _wingsTeams;
-      if (!wings.any((team) => team.emoji == _selectedEmoji)) {
-        _selectedEmoji = _randomWingsEmoji();
+      if (_availableEmojiOptions.every((e) => e != _selectedEmoji)) {
+        _selectedEmoji = _randomEmojiOption();
       }
     });
   }
@@ -95,16 +93,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   List<Team> get _conferenceTeams =>
       _leagueTeams.where((team) => team.conference == _conference).toList();
 
-  /// The 20 `kLeagueTeamPool` teams *not* drawn into this playthrough's
-  /// league -- nothing the GM would ever see in-league. Their emoji are
-  /// what the team-emoji picker offers, so the GM's own pick is
-  /// guaranteed distinct from every team actually in their league,
-  /// without needing a separate curated list to keep in sync by hand.
-  List<Team> get _wingsTeams {
-    final drawnAbbreviations = _leagueTeams.map((t) => t.abbreviation).toSet();
-    return kLeagueTeamPool
-        .where((team) => !drawnAbbreviations.contains(team.abbreviation))
-        .toList();
+  /// The full curated emoji pool, minus whatever this playthrough's 20
+  /// drawn teams already use -- so the GM's own pick is guaranteed
+  /// distinct from every team actually in their league, without needing a
+  /// separate curated list to keep in sync by hand.
+  List<String> get _availableEmojiOptions {
+    final drawnEmoji = _leagueTeams.map((t) => t.emoji).toSet();
+    return kTeamEmojiOptions.where((e) => !drawnEmoji.contains(e)).toList();
   }
 
   String _randomTeamAbbreviation(Conference conference) {
@@ -114,9 +109,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return teams[Random().nextInt(teams.length)].abbreviation;
   }
 
-  String _randomWingsEmoji() {
-    final wings = _wingsTeams;
-    return wings[Random().nextInt(wings.length)].emoji;
+  String _randomEmojiOption() {
+    final options = _availableEmojiOptions;
+    return options[Random().nextInt(options.length)];
   }
 
   bool get _isValid =>
@@ -124,35 +119,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _clubNameController.text.trim().isNotEmpty &&
       _homeCityController.text.trim().isNotEmpty;
 
-  Future<void> _createFranchise() async {
-    setState(() => _isSubmitting = true);
-
-    final portraitWeights = await ref.read(portraitWeightsProvider.future);
-    final portraitManifest = await ref.read(portraitManifestProvider.future);
-    final franchise = createExpansionFranchise(
-      gmName: _gmNameController.text.trim(),
-      clubName: _clubNameController.text.trim(),
-      homeCity: _homeCityController.text.trim(),
-      conference: _conference,
-      simulationSeed: _simulationSeed,
-      replacedTeamAbbreviation: _replacedTeamAbbreviation,
-      colors: _selectedColors,
-      emoji: _selectedEmoji,
-      portraitWeights: portraitWeights,
-      portraitManifest: portraitManifest,
+  void _continue() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CoachSelectionScreen(
+          gmName: _gmNameController.text.trim(),
+          clubName: _clubNameController.text.trim(),
+          homeCity: _homeCityController.text.trim(),
+          conference: _conference,
+          simulationSeed: _simulationSeed,
+          replacedTeamAbbreviation: _replacedTeamAbbreviation,
+          colors: _selectedColors,
+          emoji: _selectedEmoji,
+        ),
+      ),
     );
-
-    await ref
-        .read(currentFranchiseProvider.notifier)
-        .createFranchise(franchise);
-
-    if (!mounted) return;
-    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final gmName = _gmNameController.text.trim();
+    final clubName = _clubNameController.text.trim();
+    final homeCity = _homeCityController.text.trim();
 
     return Scaffold(
       appBar: AppBar(title: const Text('New Expansion Franchise')),
@@ -177,29 +166,48 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 controller: _gmNameController,
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
-                  labelText: 'Your name (General Manager)',
+                  labelText: 'Name of General Manager',
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _clubNameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Club name',
-                  helperText: 'The full team name, e.g. "New Orleans Brass"',
-                  border: OutlineInputBorder(),
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _homeCityController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'City/State',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: TextField(
+                      controller: _clubNameController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Club Name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _homeCityController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Home city',
-                  border: OutlineInputBorder(),
+              if (gmName.isNotEmpty ||
+                  clubName.isNotEmpty ||
+                  homeCity.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                _IdentityPreviewCard(
+                  gmName: gmName,
+                  clubName: clubName,
+                  homeCity: homeCity,
+                  emoji: _selectedEmoji,
                 ),
-              ),
+              ],
               const SizedBox(height: AppSpacing.lg),
               Text('Conference', style: theme.textTheme.titleSmall),
               const SizedBox(height: AppSpacing.sm),
@@ -248,24 +256,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               Text('Team emoji', style: theme.textTheme.titleSmall),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Borrowed from the 20 teams that didn\'t make this '
-                'league -- so it\'s never shared with a club you\'ll '
-                'actually play against.',
+                'Pick a crest from the pool below -- never shared with a '
+                'club you\'ll actually play against.',
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  for (final team in _wingsTeams)
-                    _EmojiOption(
-                      key: ValueKey(team.abbreviation),
-                      emoji: team.emoji,
-                      isSelected: team.emoji == _selectedEmoji,
-                      onTap: () => setState(() => _selectedEmoji = team.emoji),
-                    ),
-                ],
+              _EmojiGrid(
+                options: _availableEmojiOptions,
+                selectedEmoji: _selectedEmoji,
+                onSelected: (emoji) => setState(() => _selectedEmoji = emoji),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
@@ -310,25 +309,108 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               const SizedBox(height: AppSpacing.sm),
               Center(
                 child: TextButton.icon(
-                  onPressed: _isSubmitting ? null : _rerollLeague,
+                  onPressed: _rerollLeague,
                   icon: const Icon(Icons.casino_outlined),
                   label: const Text('Reroll League'),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
               FilledButton(
-                onPressed: _isValid && !_isSubmitting ? _createFranchise : null,
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Create Franchise'),
+                onPressed: _isValid ? _continue : null,
+                child: const Text('Continue'),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A live preview of how the club will read once created -- updates as
+/// the GM types, so the identity choice feels concrete before committing
+/// to it. Shows the same emoji "crest" treatment the Dashboard's team
+/// card uses, so it's not a surprise once the franchise is real.
+class _IdentityPreviewCard extends StatelessWidget {
+  const _IdentityPreviewCard({
+    required this.gmName,
+    required this.clubName,
+    required this.homeCity,
+    required this.emoji,
+  });
+
+  final String gmName;
+  final String clubName;
+  final String homeCity;
+  final String emoji;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final displayGmName = gmName.isEmpty ? 'Your name' : gmName;
+    final displayClub = [
+      if (homeCity.isNotEmpty) homeCity,
+      if (clubName.isNotEmpty) clubName,
+    ].join(' ');
+
+    return AppCard(
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 40)),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              displayClub.isEmpty
+                  ? '$displayGmName, General Manager'
+                  : '$displayGmName, General Manager of the $displayClub',
+              style: theme.textTheme.bodyLarge,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The curated emoji pool in a scrollable grid -- way more options than
+/// the old 20-team "wings" picker, so it needs real scrolling rather than
+/// a `Wrap` that would otherwise blow out the onboarding page's height.
+class _EmojiGrid extends StatelessWidget {
+  const _EmojiGrid({
+    required this.options,
+    required this.selectedEmoji,
+    required this.onSelected,
+  });
+
+  final List<String> options;
+  final String selectedEmoji;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 220,
+      padding: const EdgeInsets.all(AppSpacing.xs),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 56,
+          mainAxisSpacing: AppSpacing.xs,
+          crossAxisSpacing: AppSpacing.xs,
+        ),
+        itemCount: options.length,
+        itemBuilder: (context, index) {
+          final emoji = options[index];
+          return _EmojiOption(
+            key: ValueKey(emoji),
+            emoji: emoji,
+            isSelected: emoji == selectedEmoji,
+            onTap: () => onSelected(emoji),
+          );
+        },
       ),
     );
   }
@@ -406,8 +488,6 @@ class _EmojiOption extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          width: 48,
-          height: 48,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected

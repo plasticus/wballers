@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../coach/domain/coach.dart';
 import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
 import '../../league/generation/league_generator.dart';
@@ -101,6 +102,13 @@ String deriveTeamAbbreviation(String clubName) {
 /// into this playthrough's league -- onboarding's picker only offers
 /// those, so nothing visible in the league shares the GM's own emoji.
 /// Not asserted here, same reasoning as [colors].
+///
+/// [coach] is optional -- when given, it's used as-is instead of
+/// generating one internally (onboarding's Head Coach selection step
+/// generates 3 candidates via `generateCoachCandidates` and passes the
+/// GM's pick straight through here). Omitted, this falls back to the
+/// original single-random-coach behavior, which every pre-existing
+/// caller (mostly tests) still relies on.
 Franchise createExpansionFranchise({
   required String gmName,
   required String clubName,
@@ -110,6 +118,7 @@ Franchise createExpansionFranchise({
   required String replacedTeamAbbreviation,
   required TeamColors colors,
   required String emoji,
+  Coach? coach,
   PortraitWeights? portraitWeights,
   PortraitManifest? portraitManifest,
 }) {
@@ -148,11 +157,13 @@ Franchise createExpansionFranchise({
     id: 'franchise-$simulationSeed',
     gmName: gmName,
     team: team,
-    coach: generateCoach(
-      Random(simulationSeed),
-      portraitWeights: portraitWeights,
-      portraitManifest: portraitManifest,
-    ),
+    coach:
+        coach ??
+        generateCoach(
+          Random(simulationSeed),
+          portraitWeights: portraitWeights,
+          portraitManifest: portraitManifest,
+        ),
     roster: roster,
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: simulationSeed,
