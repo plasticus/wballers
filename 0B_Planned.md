@@ -114,6 +114,7 @@ anything for the presentation layer or end-of-season systems to show.
 - Historical records, Hall of Fame, achievements, challenge scenarios.
 - **Trophy Room screen** (noted 2026-08-05, not designed yet): a GM-facing franchise page showing every championship and cup won by the club, plus individual player awards (MVP, Defensive MVP, whatever other award types get built) earned by any player *while they were on the roster* — not a career-wide stat dump, scoped to what happened under this franchise. Depends on awards/achievements existing as trackable data first (see the achievement/nickname ceremony item under Phase 2 above, and this section's Hall of Fame item).
 - A settings screen: light/dark theme override, selectable court color themes, adjustable text size (the text-scale provider this depends on already exists from Phase 0).
+- **Fun side stats** (noted 2026-08-06, not designed yet): flavor numbers with no mechanical weight, purely for color — jersey sales being the prompting example, plus whatever else fits the same "amusing, not load-bearing" spirit (attendance, merch, fan mail, social buzz, that kind of thing). Deliberately parked until after the core gameplay loop (Phase 3) is proven — this is seasoning, not substance.
 
 ## Phase 5 — Launch and iteration
 

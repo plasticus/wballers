@@ -61,16 +61,23 @@ void main() {
     expect(player.traits, isEmpty);
   });
 
-  test(
-    'a legacy save falls back to no appearance, achievements, or nickname',
-    () {
-      final player = playerFromJson(_legacyPlayerJson());
+  test('a legacy save falls back to no appearance, achievements, nickname, or '
+      'jersey number', () {
+    final player = playerFromJson(_legacyPlayerJson());
 
-      expect(player.appearance, isNull);
-      expect(player.achievements, isEmpty);
-      expect(player.nickname, isNull);
-    },
-  );
+    expect(player.appearance, isNull);
+    expect(player.achievements, isEmpty);
+    expect(player.nickname, isNull);
+    expect(player.jerseyNumber, isNull);
+  });
+
+  test('playerToJson/playerFromJson round-trips a jersey number', () {
+    final player = playerFromJson(_legacyPlayerJson()).copyWithJerseyNumber(23);
+
+    final roundTripped = playerFromJson(playerToJson(player));
+
+    expect(roundTripped.jerseyNumber, 23);
+  });
 
   test(
     'a save with an explicit archetype/traits still uses them, not the fallback',

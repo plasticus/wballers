@@ -4,6 +4,7 @@ import '../../player/generation/player_generator.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
 import '../domain/roster_status.dart';
+import 'jersey_number_assignment.dart';
 import 'roster_position_plan.dart';
 import 'trait_distribution.dart';
 
@@ -22,7 +23,8 @@ const _startingRosterQualitySpread = 14;
 /// through to `generatePlayer` -- see its doc comment.
 ///
 /// Traits are assigned team-wide after all 12 players exist, not per
-/// player during generation -- see `distributeTraits`.
+/// player during generation -- see `distributeTraits`. Jersey numbers are
+/// assigned the same way, after generation -- see `assignJerseyNumbers`.
 List<RosterMembership> generateStartingRoster(
   int seed, {
   PortraitWeights? portraitWeights,
@@ -43,5 +45,5 @@ List<RosterMembership> generateStartingRoster(
       ),
   ];
 
-  return distributeTraits(random, roster);
+  return assignJerseyNumbers(random, distributeTraits(random, roster));
 }

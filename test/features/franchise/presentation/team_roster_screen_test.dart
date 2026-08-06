@@ -83,7 +83,10 @@ void main() {
 
     expect(find.text(franchise.team.name), findsOneWidget);
     expect(find.text('Active Roster (12)'), findsOneWidget);
-    expect(find.text(franchise.roster.first.player.name), findsOneWidget);
+    expect(
+      find.textContaining(franchise.roster.first.player.name),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a developmental player gets its own section', (tester) async {

@@ -303,6 +303,83 @@ void main() {
     expect(player.achievements, hasLength(1), reason: 'original is untouched');
   });
 
+  test('defaults jerseyNumber to null', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+    );
+
+    expect(player.jerseyNumber, isNull);
+  });
+
+  test('rejects a jerseyNumber outside 0..99', () {
+    expect(
+      () => Player(
+        id: 'p1',
+        name: 'Riley Okafor',
+        age: 24,
+        yearsOfService: 2,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        handedness: Handedness.right,
+        biography: 'A steady floor general.',
+        ratings: _ratings,
+        heightInches: 73,
+        archetype: Archetype.floorGeneral,
+        jerseyNumber: -1,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+    expect(
+      () => Player(
+        id: 'p1',
+        name: 'Riley Okafor',
+        age: 24,
+        yearsOfService: 2,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        handedness: Handedness.right,
+        biography: 'A steady floor general.',
+        ratings: _ratings,
+        heightInches: 73,
+        archetype: Archetype.floorGeneral,
+        jerseyNumber: 100,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
+  test('copyWithJerseyNumber replaces only the jersey number', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+    );
+
+    final updated = player.copyWithJerseyNumber(23);
+
+    expect(updated.jerseyNumber, 23);
+    expect(updated.name, player.name);
+    expect(updated.traits, player.traits);
+  });
+
   test('formatHeightInches formats feet and inches', () {
     expect(formatHeightInches(74), "6'2\"");
     expect(formatHeightInches(72), "6'0\"");

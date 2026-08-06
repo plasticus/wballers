@@ -5,6 +5,7 @@ import '../../player/generation/player_generator.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
 import '../domain/roster_status.dart';
+import 'jersey_number_assignment.dart';
 import 'roster_position_plan.dart';
 import 'trait_distribution.dart';
 
@@ -111,5 +112,5 @@ List<RosterMembership> generateAiRoster(
     );
   }
 
-  return distributeTraits(random, roster);
+  return assignJerseyNumbers(random, distributeTraits(random, roster));
 }

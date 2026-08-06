@@ -311,9 +311,13 @@ class _PlayerRow extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          player.nickname == null
-                              ? player.name
-                              : '${player.name} "${player.nickname}"',
+                          [
+                            if (player.jerseyNumber != null)
+                              '#${player.jerseyNumber}',
+                            player.nickname == null
+                                ? player.name
+                                : '${player.name} "${player.nickname}"',
+                          ].join(' '),
                           style: theme.textTheme.bodyLarge,
                         ),
                       ),

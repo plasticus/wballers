@@ -57,7 +57,12 @@ class Player {
     this.appearance,
     this.achievements = const [],
     this.nickname,
+    this.jerseyNumber,
   }) : assert(age > 0, 'age must be positive'),
+       assert(
+         jerseyNumber == null || (jerseyNumber >= 0 && jerseyNumber <= 99),
+         'jerseyNumber must be within [0, 99]',
+       ),
        assert(yearsOfService >= 0, 'yearsOfService must not be negative'),
        assert(
          heightInches >= kMinHeightInches && heightInches <= kMaxHeightInches,
@@ -139,6 +144,13 @@ class Player {
   /// this yet for exactly that reason.
   final String? nickname;
 
+  /// This player's number on their current team's jersey, 0-99. `null`
+  /// until they're actually placed on a roster (`assignJerseyNumbers`,
+  /// `roster/generation/`) -- a draft prospect or a player generated
+  /// standalone (e.g. in a test) doesn't have one yet, same reasoning as
+  /// [nickname] being assigned later rather than at generation time.
+  final int? jerseyNumber;
+
   /// Returns a copy with [newAppearance] replacing [appearance] -- the only
   /// field the portrait editor needs to change.
   Player copyWithAppearance(PortraitAppearance newAppearance) {
@@ -159,6 +171,7 @@ class Player {
       appearance: newAppearance,
       achievements: achievements,
       nickname: nickname,
+      jerseyNumber: jerseyNumber,
     );
   }
 
@@ -183,6 +196,7 @@ class Player {
       appearance: appearance,
       achievements: achievements,
       nickname: nickname,
+      jerseyNumber: jerseyNumber,
     );
   }
 
@@ -205,6 +219,7 @@ class Player {
       appearance: appearance,
       achievements: achievements,
       nickname: newNickname,
+      jerseyNumber: jerseyNumber,
     );
   }
 
@@ -227,6 +242,33 @@ class Player {
       appearance: appearance,
       achievements: [...achievements, record],
       nickname: nickname,
+      jerseyNumber: jerseyNumber,
+    );
+  }
+
+  /// Returns a copy with [newJerseyNumber] replacing [jerseyNumber] --
+  /// used by `assignJerseyNumbers` (`roster/generation/`), which assigns
+  /// numbers across a roster after every player in it already exists,
+  /// same pattern as [copyWithTraits]/`distributeTraits`.
+  Player copyWithJerseyNumber(int? newJerseyNumber) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      yearsOfService: yearsOfService,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: ratings,
+      heightInches: heightInches,
+      archetype: archetype,
+      traits: traits,
+      appearance: appearance,
+      achievements: achievements,
+      nickname: nickname,
+      jerseyNumber: newJerseyNumber,
     );
   }
 }

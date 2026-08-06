@@ -80,6 +80,7 @@ Map<String, dynamic> playerToJson(Player player) {
         .map(playerAchievementRecordToJson)
         .toList(),
     'nickname': player.nickname,
+    'jerseyNumber': player.jerseyNumber,
   };
 }
 
@@ -122,5 +123,6 @@ Player playerFromJson(Map<String, dynamic> json) {
         )
         .toList(),
     nickname: json['nickname'] as String?,
+    jerseyNumber: json['jerseyNumber'] as int?,
   );
 }
