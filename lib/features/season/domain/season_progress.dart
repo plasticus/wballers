@@ -36,10 +36,16 @@ class SeasonProgress {
   bool get isComplete => nextGameDayIndex >= gameDaysInOrder(schedule).length;
 
   /// Returns a copy with [newlyPlayed] appended to [playedGames] and
-  /// [nextGameDayIndex] advanced by one.
-  SeasonProgress copyWithGameDayPlayed(List<PlayedGame> newlyPlayed) {
+  /// [nextGameDayIndex] advanced by one. [updatedSchedule], if given,
+  /// replaces [schedule] wholesale -- how `season_advancer.dart` folds a
+  /// newly-generated Continental Cup round back in the moment the round
+  /// before it finishes.
+  SeasonProgress copyWithGameDayPlayed(
+    List<PlayedGame> newlyPlayed, {
+    SeasonSchedule? updatedSchedule,
+  }) {
     return SeasonProgress(
-      schedule: schedule,
+      schedule: updatedSchedule ?? schedule,
       playedGames: [...playedGames, ...newlyPlayed],
       nextGameDayIndex: nextGameDayIndex + 1,
     );

@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
+import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 
 import '../../../support/in_memory_save_repository.dart';
@@ -521,6 +522,117 @@ void main() {
           .advanceGameDay();
 
       expect(results, isNull);
+    });
+  });
+
+  group('simulatePostseasonAndPersist', () {
+    test('returns null when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(currentFranchiseProvider.future);
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+
+      expect(results, isNull);
+    });
+
+    test(
+      'returns null while the regular season/Cup still has game days left',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+        );
+        addTearDown(container.dispose);
+        final franchise = createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+
+        final results = await container
+            .read(currentFranchiseProvider.notifier)
+            .simulatePostseasonAndPersist();
+
+        expect(results, isNull);
+      },
+    );
+
+    test('once the season is otherwise complete, runs the whole bracket and '
+        'persists a champion', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      // Play through every game day (regular season + Continental Cup)
+      // until nothing's left to advance day-by-day.
+      var progress = franchise.seasonProgress;
+      var guard = 0;
+      while (!progress.isComplete && guard < 60) {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        progress = container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress;
+        guard++;
+      }
+      expect(progress.isComplete, isTrue);
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+
+      expect(results, isNotNull);
+      expect(results, isNotEmpty);
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(
+        savedFranchise.seasonProgress.schedule.games.any(
+          (g) => g.type == GameType.postseason,
+        ),
+        isTrue,
+      );
+
+      // Calling again is a no-op -- the postseason only ever plays once.
+      final again = await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+      expect(again, isNull);
     });
   });
 }

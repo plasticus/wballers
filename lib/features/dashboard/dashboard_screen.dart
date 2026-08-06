@@ -18,6 +18,7 @@ import '../season/domain/game_day.dart';
 import '../season/domain/game_result.dart';
 import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
+import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/presentation/game_result_screen.dart';
 
 class AppShell extends StatefulWidget {
@@ -235,6 +236,8 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     final record = _ownRecord(franchise, leagueTeams);
     final gameDays = gameDaysInOrder(progress.schedule);
 
+    final champion = seasonChampion(progress.playedGames);
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,9 +246,25 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
           const SizedBox(height: AppSpacing.sm),
           Text('${record.wins}-${record.losses}'),
           const SizedBox(height: AppSpacing.sm),
-          if (progress.isComplete)
-            const Text('Season complete.')
-          else ...[
+          if (champion != null)
+            Text(
+              '🏆 ${teamByAbbreviation(franchise, champion).name} are the '
+              'champions!',
+            )
+          else if (progress.isComplete) ...[
+            const Text('Regular season complete.'),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton(
+              onPressed: _isAdvancing ? null : _simulatePostseason,
+              child: _isAdvancing
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Simulate Postseason'),
+            ),
+          ] else ...[
             Text(_nextGameDayLabel(franchise, gameDays)),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
@@ -339,6 +358,64 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
           content: Text(
             '${results.length} game${results.length == 1 ? '' : 's'} '
             'simulated across the league.',
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Runs the whole postseason bracket in one shot. If the GM's own team
+  /// played in the Finals-clinching game, hands off to [GameResultScreen]
+  /// for that one (same "surface the GM's own moment" treatment
+  /// [_advance] gives a regular game day) -- otherwise just announces the
+  /// champion, since the "Season" card above already grows a permanent
+  /// champion banner once this persists.
+  Future<void> _simulatePostseason() async {
+    setState(() => _isAdvancing = true);
+    final results = await ref
+        .read(currentFranchiseProvider.notifier)
+        .simulatePostseasonAndPersist();
+    if (!mounted) return;
+    setState(() => _isAdvancing = false);
+    if (results == null || results.isEmpty) return;
+
+    final ownAbbreviation = widget.franchise.team.abbreviation;
+    GameResult? clinchingFinalsGame;
+    for (final result in results) {
+      if (result.game.postseasonRound == 3) clinchingFinalsGame = result;
+    }
+
+    final updatedFranchise = ref.read(currentFranchiseProvider).value;
+    if (updatedFranchise == null) return;
+
+    final ownGameInFinals =
+        clinchingFinalsGame != null &&
+        (clinchingFinalsGame.game.homeTeamAbbreviation == ownAbbreviation ||
+            clinchingFinalsGame.game.awayTeamAbbreviation == ownAbbreviation);
+
+    if (!mounted) return;
+    if (ownGameInFinals) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => GameResultScreen(
+            franchise: updatedFranchise,
+            result: clinchingFinalsGame!,
+          ),
+        ),
+      );
+    } else {
+      final champion = seasonChampion(
+        updatedFranchise.seasonProgress.playedGames,
+      );
+      final championTeam = champion == null
+          ? null
+          : teamByAbbreviation(updatedFranchise, champion);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            championTeam == null
+                ? 'The postseason is complete.'
+                : '🏆 ${championTeam.name} are the champions!',
           ),
         ),
       );

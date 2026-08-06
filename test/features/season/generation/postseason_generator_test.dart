@@ -2,12 +2,34 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
+import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/standings_entry.dart';
 import 'package:womensbballmgr/features/season/generation/postseason_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
 
 import '../../../support/match_test_players.dart';
+
+PlayedGame _finalsGame({
+  required String home,
+  required String away,
+  required int homeScore,
+  required int awayScore,
+}) {
+  return PlayedGame(
+    game: ScheduledGame(
+      week: kPostseasonFinalsWeek,
+      day: GameDay.sunday,
+      homeTeamAbbreviation: home,
+      awayTeamAbbreviation: away,
+      type: GameType.postseason,
+      postseasonRound: 3,
+    ),
+    homeScore: homeScore,
+    awayScore: awayScore,
+  );
+}
 
 List<StandingsEntry> _standings(List<String> abbreviationsBestFirst) {
   return [
@@ -297,5 +319,40 @@ void main() {
     );
 
     expect(_eightSeeds, contains(finals.winningTeamAbbreviation));
+  });
+
+  group('seasonChampion', () {
+    test('null when no Finals games exist yet', () {
+      expect(seasonChampion(const []), isNull);
+    });
+
+    test('whichever team won more of the Finals games', () {
+      final playedGames = [
+        _finalsGame(home: 'A', away: 'B', homeScore: 90, awayScore: 80),
+        _finalsGame(home: 'B', away: 'A', homeScore: 70, awayScore: 60),
+        _finalsGame(home: 'A', away: 'B', homeScore: 88, awayScore: 70),
+      ];
+
+      expect(seasonChampion(playedGames), 'A');
+    });
+
+    test('ignores non-Finals games entirely', () {
+      final playedGames = [
+        PlayedGame(
+          game: ScheduledGame(
+            week: kPostseasonFirstRoundWeek,
+            day: GameDay.sunday,
+            homeTeamAbbreviation: 'B',
+            awayTeamAbbreviation: 'A',
+            type: GameType.postseason,
+            postseasonRound: 1,
+          ),
+          homeScore: 99,
+          awayScore: 10,
+        ),
+      ];
+
+      expect(seasonChampion(playedGames), isNull);
+    });
   });
 }

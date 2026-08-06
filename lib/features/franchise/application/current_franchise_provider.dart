@@ -10,6 +10,7 @@ import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/game_result.dart';
+import '../../season/generation/postseason_advancer.dart';
 import '../../season/generation/season_advancer.dart';
 import '../domain/franchise.dart';
 import '../persistence/franchise_json.dart';
@@ -151,6 +152,35 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       franchise.seasonProgress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
     );
+
+    await _persist(franchise.copyWithSeasonProgress(advance.progress));
+    return advance.gamesPlayed;
+  }
+
+  /// Runs the entire postseason bracket (First Round -> Semifinals ->
+  /// Finals) in one call and persists the result. Returns the full
+  /// [GameResult]s for every series game played, same "here's your
+  /// transient window" deal as [advanceGameDay].
+  ///
+  /// Returns `null` if there's no current franchise, or if
+  /// [SeasonProgress.isComplete] isn't true yet (there's still day-by-day
+  /// advancing to do -- the postseason needs final regular-season
+  /// standings to seed). Also returns `null` (a no-op) if the postseason
+  /// has already been played this season -- see
+  /// [simulatePostseason]'s idempotency note.
+  Future<List<GameResult>?> simulatePostseasonAndPersist() async {
+    final franchise = await future;
+    if (franchise == null || !franchise.seasonProgress.isComplete) {
+      return null;
+    }
+
+    final advance = simulatePostseason(
+      Random(franchise.simulationSeed + kPostseasonAdvanceSeedOffset),
+      franchise.seasonProgress,
+      leagueTeams: allLeagueTeams(franchise),
+      rostersByAbbreviation: rostersByAbbreviation(franchise),
+    );
+    if (advance.gamesPlayed.isEmpty) return null; // already played
 
     await _persist(franchise.copyWithSeasonProgress(advance.progress));
     return advance.gamesPlayed;

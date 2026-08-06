@@ -17,6 +17,16 @@ Map<String, List<Player>> rostersByAbbreviation(Franchise franchise) {
   };
 }
 
+/// Every team in this playthrough's league -- [franchise]'s own club plus
+/// all 19 AI teams. What `currentStandings`/`postseasonSeeds` need for
+/// conference-aware tiebreaking and seeding.
+List<Team> allLeagueTeams(Franchise franchise) {
+  return [
+    franchise.team,
+    for (final aiTeam in franchise.league.aiTeams) aiTeam.team,
+  ];
+}
+
 /// [franchise]'s own [Franchise.team] if [abbreviation] matches it,
 /// otherwise whichever of [Franchise.league]'s 19 AI teams matches --
 /// every abbreviation a [ScheduledGame] can reference is one or the

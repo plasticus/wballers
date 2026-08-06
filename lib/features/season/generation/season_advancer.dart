@@ -6,6 +6,8 @@ import '../domain/game_result.dart';
 import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
+import '../domain/season_schedule.dart';
+import 'continental_cup_generator.dart';
 
 /// Seed offset for game-day advancement -- keeps this random stream from
 /// correlating with the coach (0), starting roster (1), league draw (2),
@@ -62,11 +64,17 @@ class GameDayAdvance {
 /// [rostersByAbbreviation] must have a full 12-player roster for every
 /// team referenced by a game on the advancing game day.
 ///
-/// Only covers whatever's already in [SeasonProgress.schedule] (preseason,
-/// regular season, Continental Cup Round 1) -- Continental Cup Rounds 2-5
-/// and the postseason bracket depend on results this function produces,
-/// but aren't generated or folded back into the schedule by this function
-/// yet. That's real follow-up work, not done here.
+/// Continental Cup Rounds 2-5 aren't part of the schedule at franchise
+/// creation (each depends on the previous round's actual results), so
+/// this function grows [SeasonProgress.schedule] itself the moment a
+/// round finishes: every one of a Cup round's games is scheduled on the
+/// same single game day (`season_schedule_generator.dart`), so finishing
+/// that day always means the whole round just finished, and the next
+/// round can be generated immediately -- see [_growContinentalCup]. The
+/// postseason bracket still isn't folded in -- series play out over
+/// several games apiece and a series' length isn't known ahead of time,
+/// so it doesn't fit this same "one round, one game day" shape. That's
+/// real follow-up work, not done here.
 GameDayAdvance advanceToNextGameDay(
   Random random,
   SeasonProgress progress, {
@@ -96,8 +104,13 @@ GameDayAdvance advanceToNextGameDay(
       ),
   ];
 
+  final grownSchedule = _growContinentalCup(random, progress.schedule, results);
+
   return GameDayAdvance(
-    progress: progress.copyWithGameDayPlayed(newlyPlayed),
+    progress: progress.copyWithGameDayPlayed(
+      newlyPlayed,
+      updatedSchedule: grownSchedule,
+    ),
     gamesPlayed: results,
   );
 }
@@ -113,4 +126,59 @@ GameResult _simulateOneGame(
     awayRoster: rostersByAbbreviation[game.awayTeamAbbreviation]!,
   );
   return GameResult(game: game, match: match);
+}
+
+/// If [todaysResults] just finished a Continental Cup round, generates
+/// and appends the next one (idempotent: a no-op if that round's already
+/// been generated, or if [todaysResults] finished Round 5 -- the
+/// championship, nothing follows it). Round 2 needs Round 1's byes again
+/// for Round 3, so [SeasonSchedule.continentalCupRound1Byes] gets set the
+/// moment Round 2 is generated.
+SeasonSchedule _growContinentalCup(
+  Random random,
+  SeasonSchedule schedule,
+  List<GameResult> todaysResults,
+) {
+  final completedRounds = {
+    for (final result in todaysResults)
+      if (result.game.type == GameType.continentalCup)
+        result.game.continentalCupRound!,
+  };
+
+  var updated = schedule;
+  for (final round in completedRounds) {
+    if (round >= 5) continue; // Round 5 is the championship.
+    final alreadyGenerated = updated.games.any(
+      (g) => g.continentalCupRound == round + 1,
+    );
+    if (alreadyGenerated) continue;
+
+    final roundResults = [
+      for (final result in todaysResults)
+        if (result.game.continentalCupRound == round) result,
+    ];
+
+    switch (round) {
+      case 1:
+        final next = generateContinentalCupRound2(roundResults, random);
+        updated = updated.copyWithAppendedGames(
+          next.games,
+          continentalCupRound1Byes: next.byeTeamAbbreviations,
+        );
+      case 2:
+        final next = generateContinentalCupRound3(
+          updated.continentalCupRound1Byes!,
+          roundResults,
+          random,
+        );
+        updated = updated.copyWithAppendedGames(next);
+      case 3:
+        final next = generateContinentalCupRound4(roundResults, random);
+        updated = updated.copyWithAppendedGames(next);
+      case 4:
+        final next = generateContinentalCupRound5(roundResults, random);
+        updated = updated.copyWithAppendedGames(next);
+    }
+  }
+  return updated;
 }

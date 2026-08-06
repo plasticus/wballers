@@ -122,7 +122,7 @@ void main() {
     },
   );
 
-  testWidgets('shows "Season complete" once there are no game days left', (
+  testWidgets('offers "Simulate Postseason" once there are no game days left', (
     tester,
   ) async {
     final base = _franchiseWith();
@@ -144,7 +144,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Season complete.'), findsOneWidget);
+    expect(find.text('Regular season complete.'), findsOneWidget);
+    expect(find.text('Simulate Postseason'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsNothing);
   });
 }

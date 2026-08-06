@@ -156,4 +156,103 @@ void main() {
     expect(progress.playedGames.length, 3);
     expect(progress.isComplete, isTrue);
   });
+
+  group('Continental Cup round-chaining', () {
+    List<String> teamAbbreviations() => [
+      for (var i = 0; i < 20; i++) 'T${i.toString().padLeft(2, '0')}',
+    ];
+
+    SeasonSchedule round1Schedule(List<String> abbreviations) {
+      return SeasonSchedule(
+        games: [
+          for (var i = 0; i < abbreviations.length; i += 2)
+            ScheduledGame(
+              week: 4,
+              day: GameDay.thursday,
+              homeTeamAbbreviation: abbreviations[i],
+              awayTeamAbbreviation: abbreviations[i + 1],
+              type: GameType.continentalCup,
+              continentalCupRound: 1,
+            ),
+        ],
+      );
+    }
+
+    test('finishing Round 1 generates Round 2, with byes recorded', () {
+      final abbreviations = teamAbbreviations();
+      final rosters = {
+        for (final abbr in abbreviations) abbr: testRoster(abbr),
+      };
+      var progress = SeasonProgress(
+        schedule: round1Schedule(abbreviations),
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+
+      final result = advanceToNextGameDay(
+        Random(2),
+        progress,
+        rostersByAbbreviation: rosters,
+      );
+      progress = result.progress;
+
+      expect(result.gamesPlayed.length, 10);
+      final round2Games = progress.schedule.games.where(
+        (g) => g.continentalCupRound == 2,
+      );
+      expect(round2Games.length, 2);
+      expect(progress.schedule.continentalCupRound1Byes, hasLength(6));
+      // The 4 teams playing Round 2 are exactly the ones not on the bye
+      // list.
+      final round2Teams = {
+        for (final g in round2Games) ...[
+          g.homeTeamAbbreviation,
+          g.awayTeamAbbreviation,
+        ],
+      };
+      expect(
+        round2Teams.intersection(
+          progress.schedule.continentalCupRound1Byes!.toSet(),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('advancing through every round resolves to a single champion', () {
+      final abbreviations = teamAbbreviations();
+      final rosters = {
+        for (final abbr in abbreviations) abbr: testRoster(abbr),
+      };
+      var progress = SeasonProgress(
+        schedule: round1Schedule(abbreviations),
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+      final random = Random(9);
+
+      var iterations = 0;
+      while (!progress.isComplete && iterations < 10) {
+        progress = advanceToNextGameDay(
+          random,
+          progress,
+          rostersByAbbreviation: rosters,
+        ).progress;
+        iterations++;
+      }
+
+      final gamesByRound = <int, int>{};
+      for (final played in progress.playedGames) {
+        final round = played.game.continentalCupRound!;
+        gamesByRound[round] = (gamesByRound[round] ?? 0) + 1;
+      }
+      expect(gamesByRound, {1: 10, 2: 2, 3: 4, 4: 2, 5: 1});
+      expect(progress.isComplete, isTrue);
+
+      // Nothing generated past the championship.
+      expect(
+        progress.schedule.games.any((g) => g.continentalCupRound == 6),
+        isFalse,
+      );
+    });
+  });
 }

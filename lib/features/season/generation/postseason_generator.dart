@@ -4,6 +4,7 @@ import '../../match/engine/match_engine.dart';
 import '../../player/domain/player.dart';
 import '../domain/game_day.dart';
 import '../domain/game_result.dart';
+import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/series_result.dart';
 import '../domain/standings_entry.dart';
@@ -222,4 +223,21 @@ SeriesResult generatePostseasonFinals(
     round: 3,
     rostersByAbbreviation: rostersByAbbreviation,
   );
+}
+
+/// The season's champion, derived from Finals (`postseasonRound` 3)
+/// results in [playedGames] -- whichever team won more of those games.
+/// `null` until the Finals have actually been played
+/// (`simulatePostseason` always plays a series to its clinching game in
+/// one shot, so there's no meaningful "partial" Finals state to worry
+/// about here -- either it's unplayed, or it's decided).
+String? seasonChampion(List<PlayedGame> playedGames) {
+  final winsByTeam = <String, int>{};
+  for (final game in playedGames) {
+    if (game.game.postseasonRound != 3) continue;
+    final winner = game.winningTeamAbbreviation;
+    winsByTeam[winner] = (winsByTeam[winner] ?? 0) + 1;
+  }
+  if (winsByTeam.isEmpty) return null;
+  return winsByTeam.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
 }
