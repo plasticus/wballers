@@ -134,10 +134,17 @@ class _HeaderCard extends StatelessWidget {
                   ].join(' '),
                   style: theme.textTheme.titleLarge,
                 ),
-                Text(
-                  '${player.archetype.label} · '
-                  '${player.primaryPosition.name}',
-                  style: theme.textTheme.bodyMedium,
+                Text.rich(
+                  TextSpan(
+                    style: theme.textTheme.bodyMedium,
+                    children: [
+                      TextSpan(text: player.primaryPosition.label),
+                      TextSpan(
+                        text: ' (${player.archetype.label})',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
                 Text(
                   'Age ${player.age} · ${formatHeightInches(player.heightInches)} '

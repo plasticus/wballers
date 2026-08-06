@@ -368,6 +368,30 @@ int _generateStat(Random random, int qualityCenter, int spread, int bias) {
   return (qualityCenter + bias + jitter).clamp(kMinRating, kMaxRating);
 }
 
+/// How far a freshly generated player's [PlayerRatings.potential] sits
+/// above their just-generated [overall] -- never below it. A brand-new,
+/// never-trained player hasn't had the chance to close any gap to their
+/// ceiling yet, so potential starting under current ability reads as a
+/// generation bug, not a real player (a real GM complaint this was fixed
+/// in response to: a 22-year-old with OVR 52 and potential 40). Banded by
+/// [age], mirroring the age curve `features/training/`'s growth engine
+/// already uses (fastest growth 20-23, tapering through 26-27, plateau
+/// 27-29, decline from 30) -- a young player has a wide-open gap to grow
+/// into, a veteran has little to none left, but even a veteran's
+/// potential still starts at or above their current overall. `runTraining`
+/// is the only place potential ever moves after this, and even then only
+/// rarely (trades, minutes trends, earned identity) -- this is strictly
+/// the at-generation starting gap.
+int _generatePotentialOffset(Random random, int age) {
+  final (min, max) = switch (age) {
+    <= 23 => (8, 35),
+    <= 26 => (4, 22),
+    <= 29 => (0, 12),
+    _ => (0, 6),
+  };
+  return min + random.nextInt(max - min + 1);
+}
+
 /// Per-position height centers in inches, roughly following real
 /// professional women's basketball height distributions. [_generateHeight]
 /// jitters around these by [_heightJitterInches], so a generated player's
@@ -434,69 +458,120 @@ Player generatePlayer(
   final archetypeBias = _archetypeBias[archetype] ?? _zeroDeltas;
   final bias = _combineDeltas(positionBias, archetypeBias);
 
-  final ratings = PlayerRatings(
-    speed: _generateStat(random, qualityCenter, qualitySpread, bias.speed),
-    agility: _generateStat(random, qualityCenter, qualitySpread, bias.agility),
-    strength: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.strength,
-    ),
-    stamina: _generateStat(random, qualityCenter, qualitySpread, bias.stamina),
-    ballControl: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.ballControl,
-    ),
-    passing: _generateStat(random, qualityCenter, qualitySpread, bias.passing),
-    interiorOffense: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.interiorOffense,
-    ),
-    perimeterOffense: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.perimeterOffense,
-    ),
-    perimeterDefense: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.perimeterDefense,
-    ),
-    interiorDefense: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.interiorDefense,
-    ),
-    disruption: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.disruption,
-    ),
-    blocking: _generateStat(
-      random,
-      qualityCenter,
-      qualitySpread,
-      bias.blocking,
-    ),
-    // Wider and skewed upward: a player's ceiling should lean above their
-    // current ability more often than below it.
-    potential: _generateStat(random, qualityCenter + 10, qualitySpread + 10, 0),
-  );
-
+  // Rolled before the ratings themselves -- [_generatePotentialOffset]
+  // needs it, and nothing about ratings generation depends on age.
   final age = minAge + random.nextInt(maxAge - minAge + 1);
   // Only roll a debut age (and consume a random draw for it) when the
   // caller didn't already pin yearsOfService.
   final resolvedYearsOfService =
       yearsOfService ?? max(0, age - (19 + random.nextInt(10)));
+
+  final speed = _generateStat(random, qualityCenter, qualitySpread, bias.speed);
+  final agility = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.agility,
+  );
+  final strength = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.strength,
+  );
+  final stamina = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.stamina,
+  );
+  final ballControl = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.ballControl,
+  );
+  final passing = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.passing,
+  );
+  final interiorOffense = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.interiorOffense,
+  );
+  final perimeterOffense = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.perimeterOffense,
+  );
+  final perimeterDefense = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.perimeterDefense,
+  );
+  final interiorDefense = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.interiorDefense,
+  );
+  final disruption = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.disruption,
+  );
+  final blocking = _generateStat(
+    random,
+    qualityCenter,
+    qualitySpread,
+    bias.blocking,
+  );
+
+  // Same unweighted-average formula as `PlayerRatings.overall` -- computed
+  // here, ahead of time, because potential is generated *relative to* it
+  // (see `_generatePotentialOffset`), not independently.
+  final overall =
+      ((speed +
+                  agility +
+                  strength +
+                  stamina +
+                  ballControl +
+                  passing +
+                  interiorOffense +
+                  perimeterOffense +
+                  perimeterDefense +
+                  interiorDefense +
+                  disruption +
+                  blocking) /
+              12)
+          .round();
+  final potential = (overall + _generatePotentialOffset(random, age)).clamp(
+    kMinRating,
+    kMaxRating,
+  );
+
+  final ratings = PlayerRatings(
+    speed: speed,
+    agility: agility,
+    strength: strength,
+    stamina: stamina,
+    ballControl: ballControl,
+    passing: passing,
+    interiorOffense: interiorOffense,
+    perimeterOffense: perimeterOffense,
+    perimeterDefense: perimeterDefense,
+    interiorDefense: interiorDefense,
+    disruption: disruption,
+    blocking: blocking,
+    potential: potential,
+  );
 
   final handedness = random.nextDouble() < 0.85
       ? Handedness.right

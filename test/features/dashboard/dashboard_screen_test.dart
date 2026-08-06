@@ -67,7 +67,7 @@ Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
 }
 
 void main() {
-  testWidgets('shows the season record and a next-game-day preview', (
+  testWidgets('shows the season record and an upcoming-games preview', (
     tester,
   ) async {
     final franchise = _franchiseWith();
@@ -83,9 +83,103 @@ void main() {
 
     expect(find.text('Season'), findsOneWidget);
     expect(find.text('0-0'), findsOneWidget);
-    expect(find.textContaining('Next:'), findsOneWidget);
+    expect(find.text('Upcoming Games'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
   });
+
+  testWidgets('does not show the hero splash once a franchise exists', (
+    tester,
+  ) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Women\'s Basketball Manager'), findsNothing);
+    expect(
+      find.text('Build a franchise. Shape a league. Leave a legacy.'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('shows the hero splash when there is no franchise yet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Women\'s Basketball Manager'), findsOneWidget);
+  });
+
+  testWidgets('shows the team emoji as a logo on the team card', (
+    tester,
+  ) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(kLeagueTeamPool.first.emoji), findsOneWidget);
+  });
+
+  testWidgets(
+    'lists the next 3 upcoming games with date, opponent, and record',
+    (tester) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final upcoming = upcomingGamesFor(
+        franchise.seasonProgress,
+        franchise.team.abbreviation,
+      );
+      expect(upcoming, hasLength(3));
+
+      for (final game in upcoming) {
+        final isHome = game.homeTeamAbbreviation == franchise.team.abbreviation;
+        final opponentAbbreviation = isHome
+            ? game.awayTeamAbbreviation
+            : game.homeTeamAbbreviation;
+        final opponent = kLeagueTeamPool.firstWhere(
+          (t) => t.abbreviation == opponentAbbreviation,
+        );
+        expect(
+          find.text(
+            '${formatFictionalDate(game.week, game.day)} '
+            '${isHome ? 'vs' : '@'} ${opponent.emoji} ${opponent.name} '
+            '(0-0)',
+          ),
+          findsOneWidget,
+        );
+      }
+    },
+  );
 
   testWidgets(
     'tapping Advance to Next Game Day simulates a game day and reacts to it',

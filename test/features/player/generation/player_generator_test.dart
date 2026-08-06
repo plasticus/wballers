@@ -277,6 +277,59 @@ void main() {
     },
   );
 
+  test('potential is never below overall -- a freshly generated player '
+      'hasn\'t had a chance to close any gap to their ceiling yet', () {
+    final random = Random(2026);
+    for (var i = 0; i < 500; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.values[i % Position.values.length],
+        minAge: 20,
+        maxAge: 34,
+      );
+      expect(
+        player.ratings.potential,
+        greaterThanOrEqualTo(player.ratings.overall),
+        reason:
+            'age ${player.age}, overall ${player.ratings.overall}, '
+            'potential ${player.ratings.potential}',
+      );
+    }
+  });
+
+  test('younger players get a wider gap to potential than veterans, on '
+      'average', () {
+    const sampleSize = 300;
+    final random = Random(555);
+
+    var youngGapTotal = 0;
+    for (var i = 0; i < sampleSize; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.pointGuard,
+        minAge: 20,
+        maxAge: 22,
+      );
+      youngGapTotal += player.ratings.potential - player.ratings.overall;
+    }
+
+    var veteranGapTotal = 0;
+    for (var i = 0; i < sampleSize; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.pointGuard,
+        minAge: 32,
+        maxAge: 34,
+      );
+      veteranGapTotal += player.ratings.potential - player.ratings.overall;
+    }
+
+    expect(
+      youngGapTotal / sampleSize,
+      greaterThan(veteranGapTotal / sampleSize),
+    );
+  });
+
   test('omitting portraitWeights consumes no extra random numbers', () {
     // Same seed, same non-portrait fields, whether or not portraitWeights
     // is passed -- proves the appearance roll is fully additive, not

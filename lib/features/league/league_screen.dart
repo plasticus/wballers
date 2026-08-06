@@ -172,7 +172,7 @@ class _ConferenceSection extends StatelessWidget {
                   team: teams[i],
                   isUserTeam: teams[i].abbreviation == userTeamAbbreviation,
                   rank: i + 1,
-                  record: _recordFor(teams[i].abbreviation, standings),
+                  record: recordFor(teams[i].abbreviation, standings),
                 ),
                 if (i != teams.length - 1) const Divider(height: AppSpacing.lg),
               ],
@@ -180,22 +180,6 @@ class _ConferenceSection extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  StandingsEntry _recordFor(
-    String abbreviation,
-    List<StandingsEntry> standings,
-  ) {
-    for (final entry in standings) {
-      if (entry.teamAbbreviation == abbreviation) return entry;
-    }
-    return StandingsEntry(
-      teamAbbreviation: abbreviation,
-      wins: 0,
-      losses: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
     );
   }
 }

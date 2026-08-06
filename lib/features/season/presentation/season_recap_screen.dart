@@ -35,7 +35,7 @@ class SeasonRecapScreen extends StatelessWidget {
       for (final aiTeam in franchise.league.aiTeams) aiTeam.team,
     ];
     final standings = currentStandings(franchise.seasonProgress, leagueTeams);
-    final ownRecord = _recordFor(franchise.team.abbreviation, standings);
+    final ownRecord = recordFor(franchise.team.abbreviation, standings);
 
     final ownPostseasonGames = playedGames.where(
       (played) =>
@@ -104,22 +104,6 @@ class SeasonRecapScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  StandingsEntry _recordFor(
-    String abbreviation,
-    List<StandingsEntry> standings,
-  ) {
-    for (final entry in standings) {
-      if (entry.teamAbbreviation == abbreviation) return entry;
-    }
-    return StandingsEntry(
-      teamAbbreviation: abbreviation,
-      wins: 0,
-      losses: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
     );
   }
 }

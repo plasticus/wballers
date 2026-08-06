@@ -104,6 +104,9 @@ void main() {
     await tester.pump();
 
     expect(find.widgetWithText(AppBar, 'Riley Okafor'), findsOneWidget);
+    // Position name first, full-word, archetype in parens after it -- not
+    // the raw camelCase enum identifier.
+    expect(find.text('Point Guard (Floor General)'), findsOneWidget);
     expect(find.text('Ratings'), findsOneWidget);
     expect(find.text('Leader'), findsOneWidget);
     expect(find.text('No games played yet this season.'), findsOneWidget);

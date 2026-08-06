@@ -1,6 +1,7 @@
 import '../../league/domain/team.dart';
 import 'game_day.dart';
 import 'played_game.dart';
+import 'scheduled_game.dart';
 import 'season_schedule.dart';
 import 'standings_entry.dart';
 
@@ -104,4 +105,43 @@ List<StandingsEntry> currentStandings(
   return computeStandings([
     for (final played in progress.playedGames) played.toGameResult(),
   ], leagueTeams: leagueTeams);
+}
+
+/// The next [limit] games on [teamAbbreviation]'s calendar that haven't
+/// been played yet, in chronological order -- what a GM-facing "Upcoming
+/// Games" list shows (the Dashboard's Season card). Matches a played
+/// result back to its fixture by (week, day, home, away) rather than
+/// object identity, since a reloaded save deserializes fresh
+/// `ScheduledGame` instances -- a team plays at most one game per game
+/// day, so that tuple is a unique key without needing type/round in it.
+List<ScheduledGame> upcomingGamesFor(
+  SeasonProgress progress,
+  String teamAbbreviation, {
+  int limit = 3,
+}) {
+  final playedFixtures = {
+    for (final played in progress.playedGames) _fixtureKey(played.game),
+  };
+  final ownGames =
+      progress.schedule.games
+          .where(
+            (game) =>
+                game.homeTeamAbbreviation == teamAbbreviation ||
+                game.awayTeamAbbreviation == teamAbbreviation,
+          )
+          .where((game) => !playedFixtures.contains(_fixtureKey(game)))
+          .toList()
+        ..sort(_byWeekThenDay);
+  return ownGames.take(limit).toList();
+}
+
+typedef _FixtureKey = (int week, GameDay day, String home, String away);
+
+_FixtureKey _fixtureKey(ScheduledGame game) =>
+    (game.week, game.day, game.homeTeamAbbreviation, game.awayTeamAbbreviation);
+
+int _byWeekThenDay(ScheduledGame a, ScheduledGame b) {
+  final byWeek = a.week.compareTo(b.week);
+  if (byWeek != 0) return byWeek;
+  return a.day.index.compareTo(b.day.index);
 }

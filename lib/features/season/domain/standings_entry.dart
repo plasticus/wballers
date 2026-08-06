@@ -25,6 +25,25 @@ class StandingsEntry {
   int get pointDifferential => pointsFor - pointsAgainst;
 }
 
+/// [abbreviation]'s entry in [standings], or a 0-0 placeholder if it
+/// hasn't played a regular-season game yet (so it has no entry at all --
+/// [computeStandings] only produces entries for teams that appear in at
+/// least one counted result). Previously duplicated as a private
+/// `_recordFor` in three separate screens; promoted here since it's
+/// genuinely shared, not UI-specific.
+StandingsEntry recordFor(String abbreviation, List<StandingsEntry> standings) {
+  for (final entry in standings) {
+    if (entry.teamAbbreviation == abbreviation) return entry;
+  }
+  return StandingsEntry(
+    teamAbbreviation: abbreviation,
+    wins: 0,
+    losses: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+  );
+}
+
 /// Builds a standings table from every [GameResult.game] with
 /// [GameType.regularSeason] in [results] -- preseason and Continental Cup
 /// games don't count. Sorted best-to-worst by win percentage; teams that

@@ -17,6 +17,7 @@ import '../roster/domain/roster_status.dart';
 import '../season/application/franchise_rosters.dart';
 import '../season/domain/game_day.dart';
 import '../season/domain/game_result.dart';
+import '../season/domain/scheduled_game.dart';
 import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
 import '../season/generation/postseason_generator.dart' show seasonChampion;
@@ -96,6 +97,8 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final franchiseState = ref.watch(currentFranchiseProvider);
+    final hasFranchise =
+        franchiseState is AsyncData<Franchise?> && franchiseState.value != null;
 
     // The ad placeholder stays pinned outside the scroll view; only the
     // content above it scrolls. A plain Column + Spacer here would overflow
@@ -108,20 +111,26 @@ class DashboardScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Center(child: WblLogo(size: 96)),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  'Women\'s Basketball Manager',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineMedium,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Build a franchise. Shape a league. Leave a legacy.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppSpacing.xl),
+                // The title-screen hero only makes sense before a franchise
+                // exists -- once the GM is actually managing a club, it just
+                // pushes everything else down like a splash screen that
+                // never went away.
+                if (!hasFranchise) ...[
+                  const Center(child: WblLogo(size: 96)),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Women\'s Basketball Manager',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Build a franchise. Shape a league. Leave a legacy.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                ],
                 switch (franchiseState) {
                   AsyncData(:final value?) => Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -198,7 +207,33 @@ class _FranchiseSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(franchise.team.name, style: theme.textTheme.titleLarge),
+          Row(
+            children: [
+              // The chosen emoji standing in for a real team crest -- no
+              // custom-logo-upload system exists, so this is the closest
+              // thing the club has to one.
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: franchise.team.colors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  franchise.team.emoji,
+                  style: const TextStyle(fontSize: 26),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  franchise.team.name,
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             '${franchise.team.location} · ${franchise.team.conference.label}',
@@ -323,8 +358,10 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
       franchise.team,
       for (final aiTeam in franchise.league.aiTeams) aiTeam.team,
     ];
-    final record = _ownRecord(franchise, leagueTeams);
-    final gameDays = gameDaysInOrder(progress.schedule);
+    final record = recordFor(
+      franchise.team.abbreviation,
+      currentStandings(progress, leagueTeams),
+    );
 
     final champion = seasonChampion(progress.playedGames);
 
@@ -366,7 +403,7 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                   : const Text('Simulate Postseason'),
             ),
           ] else ...[
-            Text(_nextGameDayLabel(franchise, gameDays)),
+            _UpcomingGamesList(franchise: franchise),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: _isAdvancing ? null : _advance,
@@ -382,45 +419,6 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
         ],
       ),
     );
-  }
-
-  StandingsEntry _ownRecord(Franchise franchise, List<Team> leagueTeams) {
-    final standings = currentStandings(franchise.seasonProgress, leagueTeams);
-    for (final entry in standings) {
-      if (entry.teamAbbreviation == franchise.team.abbreviation) return entry;
-    }
-    return StandingsEntry(
-      teamAbbreviation: franchise.team.abbreviation,
-      wins: 0,
-      losses: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-    );
-  }
-
-  String _nextGameDayLabel(
-    Franchise franchise,
-    List<(int week, GameDay day)> gameDays,
-  ) {
-    final (week, day) = gameDays[franchise.seasonProgress.nextGameDayIndex];
-    final todaysGames = franchise.seasonProgress.schedule.games.where(
-      (g) => g.week == week && g.day == day,
-    );
-
-    for (final game in todaysGames) {
-      final isHome = game.homeTeamAbbreviation == franchise.team.abbreviation;
-      final isAway = game.awayTeamAbbreviation == franchise.team.abbreviation;
-      if (isHome || isAway) {
-        final opponentAbbreviation = isHome
-            ? game.awayTeamAbbreviation
-            : game.homeTeamAbbreviation;
-        final opponent = teamByAbbreviation(franchise, opponentAbbreviation);
-        final vsAt = isHome ? 'vs' : 'at';
-        return 'Next: ${day.label}, Week $week -- $vsAt ${opponent.name}';
-      }
-    }
-
-    return 'Next: ${day.label}, Week $week -- your team has a bye';
   }
 
   Future<void> _advance() async {
@@ -521,5 +519,79 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
         ),
       );
     }
+  }
+}
+
+/// The GM's next few games, not just the very next one -- date, home/away,
+/// opponent (with their own emoji, same "reads like a real scoreboard"
+/// spirit as [_FranchiseSummaryCard]'s crest), and their current record.
+class _UpcomingGamesList extends StatelessWidget {
+  const _UpcomingGamesList({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final games = upcomingGamesFor(
+      franchise.seasonProgress,
+      franchise.team.abbreviation,
+    );
+    if (games.isEmpty) {
+      return const Text('No games left on the schedule.');
+    }
+
+    final leagueTeams = [
+      franchise.team,
+      for (final aiTeam in franchise.league.aiTeams) aiTeam.team,
+    ];
+    final standings = currentStandings(franchise.seasonProgress, leagueTeams);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Upcoming Games', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        for (final game in games)
+          _UpcomingGameRow(
+            franchise: franchise,
+            game: game,
+            standings: standings,
+          ),
+      ],
+    );
+  }
+}
+
+class _UpcomingGameRow extends StatelessWidget {
+  const _UpcomingGameRow({
+    required this.franchise,
+    required this.game,
+    required this.standings,
+  });
+
+  final Franchise franchise;
+  final ScheduledGame game;
+  final List<StandingsEntry> standings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isHome = game.homeTeamAbbreviation == franchise.team.abbreviation;
+    final opponentAbbreviation = isHome
+        ? game.awayTeamAbbreviation
+        : game.homeTeamAbbreviation;
+    final opponent = teamByAbbreviation(franchise, opponentAbbreviation);
+    final opponentRecord = recordFor(opponentAbbreviation, standings);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Text(
+        '${formatFictionalDate(game.week, game.day)} '
+        '${isHome ? 'vs' : '@'} ${opponent.emoji} ${opponent.name} '
+        '(${opponentRecord.wins}-${opponentRecord.losses})',
+        style: theme.textTheme.bodyMedium,
+      ),
+    );
   }
 }
