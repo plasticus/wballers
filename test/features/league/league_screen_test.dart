@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
+import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league_draw.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/league/league_screen.dart';
@@ -141,4 +142,49 @@ void main() {
       expect(find.text('0-0'), findsNWidgets(20));
     },
   );
+
+  testWidgets('"View Your Schedule" opens the Schedule screen', (tester) async {
+    final roster = generateStartingRoster(1);
+    final franchise = Franchise(
+      id: 'franchise-1',
+      gmName: 'Taylor Reed',
+      team: kLeagueTeamPool.first,
+      coach: const Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      ),
+      roster: roster,
+      startingLineup: StartingLineup.bestAvailable(roster),
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      league: testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ownTeam: kLeagueTeamPool.first,
+      ),
+      trainingCoaches: testTrainingCoaches(),
+      trainingPlan: TrainingPlan.initial(),
+      nextTrainingWeek: 1,
+    );
+    final repository = InMemorySaveRepository();
+    await repository.writeSave(
+      kCurrentFranchiseSaveId,
+      SaveEnvelope(
+        schemaVersion: 1,
+        payload: franchiseToJson(franchise),
+      ).toJson(),
+    );
+
+    await _pumpWithRepository(tester, repository);
+
+    await tester.tap(find.text('View Your Schedule'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Schedule'), findsOneWidget);
+  });
 }

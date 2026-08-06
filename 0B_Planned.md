@@ -52,10 +52,10 @@ anything for the presentation layer or end-of-season systems to show.
 - **Player detail screen, pulled forward as an early Phase 2 prerequisite** (not left for later). Spec (2026-08-05): current skills/ratings, current-season stats, a prior-seasons history (stats *and* which team each season was with), and an awards/notables section. Also the natural home for the trait display noted under Phase 1.5 above.
 - **League screens.** Spec (2026-08-05):
   - **Standings page** — built and ready to display (`computeStandings`, real tiebreakers).
-  - **Schedule page** — built and ready to display (`generateSeasonSchedule`/`SeasonSchedule`).
+  - **Schedule page: built (2026-08-06)** — see `0A_Completed.md`'s Schedule screen entry (`ScheduleScreen`, reachable from a "View Your Schedule" button on the League tab).
   - **Results page** — every game played, scrollable back through the whole season. Per game: final score, both teams' FG%, and a 3-player-per-team spotlight (one delegated the game's MVP) with their quick stats (points/assists/rebounds/steals/blocks) — a real box score, like a sports website's game recap. `computeBoxScore` (`match/domain/player_box_score.dart`) now produces the per-player stat lines this needs; picking the 3 spotlighted players and an MVP per game is still undesigned.
   - Still not started: team pages, player leaders, historical records. A News screen exists now (see the "News screen" entry below), just with only one real source feeding it so far.
-  - It's a static team directory today with no season data behind any of this.
+  - It's a static team directory today with no season data behind the standings/schedule -- Results and everything below it still isn't.
 - **Achievement/nickname ceremony / end-of-season screen.** Fires after the playoffs, not at end of regular season. Per the GM's own call (2026-08-05): build this as a **placeholder for now** — the real batch-presentation ceremony (award winners, nicknames earned, neon hair unlocked) is a big enough chunk of work to defer to whatever phase end-of-season systems properly get tackled, rather than trying to land it alongside the other Phase 2 presentation work above. Open structural question from before still stands: this might deserve its own phase (a "Phase 2.5" or "3.5") rather than a bullet inside Phase 2.
 
 ### Ongoing systems and deferred items
