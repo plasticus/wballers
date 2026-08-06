@@ -12,6 +12,7 @@ import '../franchise/onboarding/onboarding_screen.dart';
 import '../franchise/presentation/team_roster_screen.dart';
 import '../league/domain/team.dart';
 import '../league/league_screen.dart';
+import '../news/presentation/news_screen.dart';
 import '../roster/domain/roster_status.dart';
 import '../season/application/franchise_rosters.dart';
 import '../season/domain/game_day.dart';
@@ -32,7 +33,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   var _selectedIndex = 0;
 
-  static const _titles = ['Dashboard', 'Team', 'League'];
+  static const _titles = ['Dashboard', 'Team', 'League', 'News'];
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +52,7 @@ class _AppShellState extends State<AppShell> {
             0 => const DashboardScreen(),
             1 => const TeamRosterScreen(),
             2 => const LeagueScreen(),
+            3 => const NewsScreen(),
             _ => const SizedBox.shrink(),
           },
         ),
@@ -74,6 +76,11 @@ class _AppShellState extends State<AppShell> {
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: 'League',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.newspaper_outlined),
+            selectedIcon: Icon(Icons.newspaper),
+            label: 'News',
           ),
         ],
       ),
@@ -216,11 +223,13 @@ bool _isTrainingReportReady(Franchise franchise) {
   return week != null && week >= franchise.nextTrainingWeek;
 }
 
-/// "Your training staff has feedback" -- the News-feed-shaped affordance
-/// `0B_Planned.md` calls for, in the meantime before a real News feed
-/// exists: resolves training on tap and hands off to
-/// [TrainingReportScreen] for the surfaced moment, same "here's your
-/// transient window" deal [_SeasonAdvanceCard] gives a game result.
+/// "Your training staff has feedback" -- the actionable prompt for a
+/// training result that hasn't been resolved yet. Resolves training on
+/// tap and hands off to [TrainingReportScreen] for the surfaced moment,
+/// same "here's your transient window" deal [_SeasonAdvanceCard] gives a
+/// game result. Distinct from `NewsScreen`, which is the passive archive
+/// of every report once it's been resolved -- this card is what actually
+/// produces the entry `NewsScreen` will go on to list.
 class _TrainingReadyCard extends ConsumerStatefulWidget {
   const _TrainingReadyCard({required this.franchise});
 

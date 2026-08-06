@@ -105,12 +105,10 @@ class Franchise {
   /// `training_advancer.dart`).
   final int nextTrainingWeek;
 
-  /// Every training report so far this season -- the surfaced-moment
-  /// history the (not yet built) News feed will eventually list; kept
-  /// here in the meantime as the only place a past report can be found
-  /// again. Lean by construction (`TrainingReport` only records players
-  /// who actually changed), so keeping the whole season's worth doesn't
-  /// meaningfully grow the save.
+  /// Every training report so far this season -- what `NewsScreen`
+  /// (`news/presentation/news_screen.dart`) lists. Lean by construction
+  /// (`TrainingReport` only records players who actually changed), so
+  /// keeping the whole season's worth doesn't meaningfully grow the save.
   final List<TrainingReport> trainingReports;
 
   /// Returns a copy with [startingLineup] replaced -- the only field the

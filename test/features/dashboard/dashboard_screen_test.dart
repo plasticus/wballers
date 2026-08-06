@@ -220,4 +220,29 @@ void main() {
       },
     );
   });
+
+  group('AppShell', () {
+    testWidgets('has a News tab that opens NewsScreen', (tester) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: AppShell()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dashboard'), findsWidgets);
+
+      await tester.tap(find.text('News'));
+      await tester.pumpAndSettle();
+
+      // The AppBar title switches to "News" (findsWidgets since the
+      // NavigationDestination label reads the same).
+      expect(find.text('News'), findsWidgets);
+      expect(find.textContaining('No news yet'), findsOneWidget);
+    });
+  });
 }
