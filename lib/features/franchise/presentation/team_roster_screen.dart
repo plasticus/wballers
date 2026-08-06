@@ -7,7 +7,8 @@ import '../../../core/widgets/state_views.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
-import '../../player/domain/trait.dart';
+import '../../player/presentation/player_detail_screen.dart';
+import '../../player/presentation/trait_chip.dart';
 import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
@@ -21,8 +22,9 @@ import 'depth_chart_screen.dart';
 import 'lineup_editor_screen.dart';
 
 /// "Inspect a complete roster" -- the Team tab. Read-only aside from the
-/// starting-lineup entry point; player comparison, search/filtering, and
-/// the player detail screen are separate, later work.
+/// starting-lineup entry point; each row leads to `PlayerDetailScreen` for
+/// a full profile. Player comparison and search/filtering are still
+/// separate, later work.
 class TeamRosterScreen extends ConsumerWidget {
   const TeamRosterScreen({super.key});
 
@@ -279,7 +281,7 @@ class _PlayerRow extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) =>
-                PortraitEditorScreen(franchise: franchise, playerId: player.id),
+                PlayerDetailScreen(franchise: franchise, playerId: player.id),
           ),
         );
       },
@@ -363,7 +365,7 @@ class _PlayerRow extends StatelessWidget {
                       runSpacing: AppSpacing.xs,
                       children: [
                         for (final trait in player.traits)
-                          _TraitChip(trait: trait),
+                          TraitChip(trait: trait),
                       ],
                     ),
                   ],
@@ -408,51 +410,5 @@ Color _positionColor(Position position) {
     Position.smallForward => Colors.green,
     Position.powerForward => Colors.orange,
     Position.center => Colors.purple,
-  };
-}
-
-/// A small rounded-corner badge naming one trait, tinted by
-/// [TraitCategory] -- color is decorative grouping only, the trait name
-/// text still carries the actual information (accessibility rule in
-/// ARCHITECTURE.md).
-class _TraitChip extends StatelessWidget {
-  const _TraitChip({required this.trait});
-
-  final Trait trait;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = _traitCategoryColor(trait.category);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        trait.label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-}
-
-Color _traitCategoryColor(TraitCategory category) {
-  return switch (category) {
-    TraitCategory.workEthic => Colors.indigo,
-    TraitCategory.durability => Colors.brown,
-    TraitCategory.leadership => Colors.pink,
-    TraitCategory.mental => Colors.red,
-    // Default cyan/amber are too pale for legible text on a light tint.
-    TraitCategory.loyalty => Colors.cyan.shade700,
-    TraitCategory.crowd => Colors.amber.shade800,
-    TraitCategory.skillBadge => Colors.deepPurple,
   };
 }

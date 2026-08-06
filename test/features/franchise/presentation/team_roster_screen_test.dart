@@ -221,4 +221,26 @@ void main() {
     expect(find.textContaining('Developmental'), findsNothing);
     expect(find.textContaining('Reserve'), findsNothing);
   });
+
+  testWidgets('tapping a player row opens their Player Detail screen', (
+    tester,
+  ) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+    final targetPlayer = franchise.roster.first.player;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: TeamRosterScreen()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.textContaining(targetPlayer.name).first);
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, targetPlayer.name), findsOneWidget);
+    expect(find.text('Ratings'), findsOneWidget);
+  });
 }
