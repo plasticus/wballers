@@ -13,6 +13,9 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
+import 'package:womensbballmgr/features/season/domain/played_game.dart';
+import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
@@ -152,6 +155,52 @@ void main() {
     expect(find.text('Regular season complete.'), findsOneWidget);
     expect(find.text('Simulate Postseason'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsNothing);
+  });
+
+  testWidgets('once a champion is crowned, offers "View Season Recap"', (
+    tester,
+  ) async {
+    // The trophy banner and its button need to be on-screen for tap() to
+    // hit test it, same rationale as the other Dashboard-button tests.
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final base = _franchiseWith();
+    final league = base.league;
+    final totalGameDays = gameDaysInOrder(base.seasonProgress.schedule).length;
+    final finals = ScheduledGame(
+      week: 24,
+      day: GameDay.thursday,
+      homeTeamAbbreviation: league.aiTeams[0].team.abbreviation,
+      awayTeamAbbreviation: league.aiTeams[1].team.abbreviation,
+      type: GameType.postseason,
+      postseasonRound: 3,
+    );
+    final franchise = _franchiseWith(
+      seasonProgress: SeasonProgress(
+        schedule: base.seasonProgress.schedule,
+        playedGames: [PlayedGame(game: finals, homeScore: 90, awayScore: 80)],
+        nextGameDayIndex: totalGameDays,
+      ),
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('are the champions!'), findsOneWidget);
+    expect(find.text('View Season Recap'), findsOneWidget);
+
+    await tester.tap(find.text('View Season Recap'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Season Recap'), findsOneWidget);
   });
 
   group('training-ready affordance', () {

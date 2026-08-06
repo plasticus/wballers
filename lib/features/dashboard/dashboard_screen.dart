@@ -21,6 +21,7 @@ import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
 import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/presentation/game_result_screen.dart';
+import '../season/presentation/season_recap_screen.dart';
 import '../training/presentation/training_report_screen.dart';
 
 class AppShell extends StatefulWidget {
@@ -335,12 +336,23 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
           const SizedBox(height: AppSpacing.sm),
           Text('${record.wins}-${record.losses}'),
           const SizedBox(height: AppSpacing.sm),
-          if (champion != null)
+          if (champion != null) ...[
             Text(
               '🏆 ${teamByAbbreviation(franchise, champion).name} are the '
               'champions!',
-            )
-          else if (progress.isComplete) ...[
+            ),
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SeasonRecapScreen(franchise: franchise),
+                  ),
+                );
+              },
+              child: const Text('View Season Recap'),
+            ),
+          ] else if (progress.isComplete) ...[
             const Text('Regular season complete.'),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
