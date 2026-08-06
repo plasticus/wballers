@@ -19,6 +19,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F4F1E8',
     ),
     identityNote: 'Harbor lights and historic grit.',
+    emoji: '🏮',
   ),
   Team(
     abbreviation: 'BKN',
@@ -31,6 +32,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#FFFFFF',
     ),
     identityNote: 'Fast, bright, and city-night energy.',
+    emoji: '🚄',
   ),
   Team(
     abbreviation: 'BUF',
@@ -43,6 +45,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#FFFFFF',
     ),
     identityNote: 'Lake-effect toughness.',
+    emoji: '❄️',
   ),
   Team(
     abbreviation: 'CLT',
@@ -55,6 +58,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F7F0E3',
     ),
     identityNote: 'Regal without being precious.',
+    emoji: '👑',
   ),
   Team(
     abbreviation: 'CIN',
@@ -67,6 +71,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#E8DCC4',
     ),
     identityNote: 'Industrious, physical, and blue-collar.',
+    emoji: '🔩',
   ),
   Team(
     abbreviation: 'MIA',
@@ -79,6 +84,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#FFD166',
     ),
     identityNote: 'Heat, color, and late-night confidence.',
+    emoji: '🌅',
   ),
   Team(
     abbreviation: 'MTL',
@@ -91,6 +97,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F7F7FF',
     ),
     identityNote: 'Northern lights and bilingual flair.',
+    emoji: '🌌',
   ),
   Team(
     abbreviation: 'PHL',
@@ -103,6 +110,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#C8A45D',
     ),
     identityNote: 'Steel, fire, and relentless work.',
+    emoji: '⚒️',
   ),
   Team(
     abbreviation: 'MSP',
@@ -115,6 +123,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#D6E4F0',
     ),
     identityNote: 'Norse storytellers with cool, composed confidence.',
+    emoji: '⚔️',
   ),
   Team(
     abbreviation: 'TOR',
@@ -127,6 +136,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#A8DADC',
     ),
     identityNote: 'Sharp, athletic, and international.',
+    emoji: '🦅',
   ),
   Team(
     abbreviation: 'ATL',
@@ -139,11 +149,12 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F2C14E',
     ),
     identityNote: 'Electric energy and a fast, confident pulse.',
+    emoji: '💓',
   ),
   Team(
     abbreviation: 'BAL',
     location: 'Baltimore, MD',
-    name: 'Baltimore Bay',
+    name: 'Baltimore Crabs',
     conference: Conference.atlantic,
     colors: TeamColors(
       primaryHex: '#002B5C',
@@ -151,6 +162,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#E8DCC4',
     ),
     identityNote: 'Harborfront hustle and steady nerve.',
+    emoji: '🦀',
   ),
   Team(
     abbreviation: 'CHI',
@@ -163,6 +175,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#FFFFFF',
     ),
     identityNote: 'Lakefront gusts and blue-collar swagger.',
+    emoji: '💨',
   ),
   Team(
     abbreviation: 'DET',
@@ -175,6 +188,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#A5ACAF',
     ),
     identityNote: 'Assembly-line precision and industrial pride.',
+    emoji: '🚗',
   ),
   Team(
     abbreviation: 'NYC',
@@ -187,6 +201,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F4F1E8',
     ),
     identityNote: 'Skyline ambition that never sleeps.',
+    emoji: '🗽',
   ),
   Team(
     abbreviation: 'ORL',
@@ -199,6 +214,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F7F7F7',
     ),
     identityNote: 'Sunshine energy with a competitive flash.',
+    emoji: '☀️',
   ),
   Team(
     abbreviation: 'WAS',
@@ -211,6 +227,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F4F1E8',
     ),
     identityNote: 'Civic pride and disciplined resolve.',
+    emoji: '🎶',
   ),
   Team(
     abbreviation: 'PIT',
@@ -223,6 +240,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#D9D9D6',
     ),
     identityNote: 'Forged tough, three rivers deep.',
+    emoji: '🛡️',
   ),
   Team(
     abbreviation: 'MER',
@@ -235,6 +253,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#FDF6E3',
     ),
     identityNote: 'Yucatán limestone light and hidden depths.',
+    emoji: '💧',
   ),
   Team(
     abbreviation: 'MTY',
@@ -247,6 +266,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#E5E5E5',
     ),
     identityNote: 'Sultana del Norte grit, forged in steel.',
+    emoji: '⚙️',
   ),
 
   // Pacific Conference
@@ -261,6 +281,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#E9F5F5',
     ),
     identityNote: 'Coastal flow with a colorful edge.',
+    emoji: '🐠',
   ),
   Team(
     abbreviation: 'DEN',
@@ -273,11 +294,12 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#EDE9FE',
     ),
     identityNote: 'Altitude, ambition, and mountain scale.',
+    emoji: '🏔️',
   ),
   Team(
     abbreviation: 'HFX',
     location: 'Halifax, NS',
-    name: 'Halifax Harriers',
+    name: 'Halifax Anchor',
     conference: Conference.pacific,
     colors: TeamColors(
       primaryHex: '#0F4C5C',
@@ -285,6 +307,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F4F1DE',
     ),
     identityNote: 'Atlantic wind and endurance.',
+    emoji: '⚓',
   ),
   Team(
     abbreviation: 'HOU',
@@ -297,6 +320,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F7FFF7',
     ),
     identityNote: 'Space-city precision and speed.',
+    emoji: '🚀',
   ),
   Team(
     abbreviation: 'LAS',
@@ -309,6 +333,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#FCF6BD',
     ),
     identityNote: 'Desert spectacle with a sharp edge.',
+    emoji: '✨',
   ),
   Team(
     abbreviation: 'LOU',
@@ -321,6 +346,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F4F1DE',
     ),
     identityNote: 'River-city movement and musical energy.',
+    emoji: '🐦',
   ),
   Team(
     abbreviation: 'PHX',
@@ -333,6 +359,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#FFE8A3',
     ),
     identityNote: 'Desert heat and rebirth.',
+    emoji: '🐦‍🔥',
   ),
   Team(
     abbreviation: 'POR',
@@ -345,6 +372,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#EAF4F4',
     ),
     identityNote: 'Evergreen calm and stubbornness.',
+    emoji: '🌲',
   ),
   Team(
     abbreviation: 'SLC',
@@ -357,6 +385,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F1FAEE',
     ),
     identityNote: 'Clean air, heights, and discipline.',
+    emoji: '⛰️',
   ),
   Team(
     abbreviation: 'VAN',
@@ -369,6 +398,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#E9D8A6',
     ),
     identityNote: 'Coastal motion and Pacific confidence.',
+    emoji: '⚡',
   ),
   Team(
     abbreviation: 'SEA',
@@ -381,6 +411,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F1FAEE',
     ),
     identityNote: 'Rain-fed momentum that never lets up.',
+    emoji: '🌧️',
   ),
   Team(
     abbreviation: 'SAC',
@@ -393,11 +424,12 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F4F1DE',
     ),
     identityNote: 'Steady watch over the capital.',
+    emoji: '👁️',
   ),
   Team(
     abbreviation: 'LAX',
     location: 'Los Angeles, CA',
-    name: 'Los Angeles Vanguard',
+    name: 'Los Angeles Palms',
     conference: Conference.pacific,
     colors: TeamColors(
       primaryHex: '#1B1B3A',
@@ -405,6 +437,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F7F7F7',
     ),
     identityNote: 'Trendsetting confidence, front of the pack.',
+    emoji: '🌴',
   ),
   Team(
     abbreviation: 'SFO',
@@ -417,18 +450,20 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F1FAEE',
     ),
     identityNote: 'Foghorn cool with a magnetic pull.',
+    emoji: '🧜‍♀️',
   ),
   Team(
     abbreviation: 'OKC',
     location: 'Oklahoma City, OK',
-    name: 'Oklahoma City Wildfire',
+    name: 'Oklahoma City Cyclones',
     conference: Conference.pacific,
     colors: TeamColors(
       primaryHex: '#B33A1E',
       secondaryHex: '#F2C14E',
       accentHex: '#FFF3E0',
     ),
-    identityNote: 'Prairie heat that spreads fast.',
+    identityNote: 'Tornado Alley — fast, sudden, impossible to ignore.',
+    emoji: '🌪️',
   ),
   Team(
     abbreviation: 'BOI',
@@ -441,18 +476,20 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#EAF4F4',
     ),
     identityNote: 'Mountain endurance and quiet confidence.',
+    emoji: '🪵',
   ),
   Team(
     abbreviation: 'CAL',
     location: 'Calgary, AB',
-    name: 'Calgary Chinook',
+    name: 'Calgary Stampede',
     conference: Conference.pacific,
     colors: TeamColors(
       primaryHex: '#8C1D40',
       secondaryHex: '#E6B566',
       accentHex: '#F4F1DE',
     ),
-    identityNote: 'A sudden warm gust that changes the game.',
+    identityNote: 'Rodeo grit, ranch-tough, and a headlong rush.',
+    emoji: '🐄',
   ),
   Team(
     abbreviation: 'WPG',
@@ -465,6 +502,7 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#F1FAEE',
     ),
     identityNote: 'Prairie cold, unshakeable resolve.',
+    emoji: '🧊',
   ),
   Team(
     abbreviation: 'TIJ',
@@ -477,17 +515,19 @@ const kLeagueTeamPool = <Team>[
       accentHex: '#1B1B1B',
     ),
     identityNote: 'Border-city hustle, two cultures, one drive.',
+    emoji: '🌵',
   ),
   Team(
     abbreviation: 'JUA',
     location: 'Juárez, Chihuahua',
-    name: 'Juárez Rayo',
+    name: 'Juárez Scorpions',
     conference: Conference.pacific,
     colors: TeamColors(
       primaryHex: '#F2A900',
       secondaryHex: '#1B1B3A',
       accentHex: '#F7F7F7',
     ),
-    identityNote: 'Desert lightning, fast and electric.',
+    identityNote: 'Desert-quick, and impossible to miss.',
+    emoji: '🦂',
   ),
 ];

@@ -140,6 +140,7 @@ void main() {
               accentHex: '#222222',
             ),
             identityNote: '',
+            emoji: '🏀',
           ),
       ],
     );

@@ -60,6 +60,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'DET',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 555,
       );
       final b = createExpansionFranchise(
@@ -69,6 +70,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'DET',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 555,
       );
 
@@ -94,6 +96,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'DET',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 555,
       );
 
@@ -116,6 +119,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'DET',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 555,
       );
 
@@ -131,6 +135,7 @@ void main() {
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
 
@@ -151,6 +156,7 @@ void main() {
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
 
@@ -172,6 +178,7 @@ void main() {
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
 
@@ -191,6 +198,7 @@ void main() {
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
         portraitWeights: _portraitWeights,
       );
@@ -214,6 +222,7 @@ void main() {
         conference: Conference.pacific,
         replacedTeamAbbreviation: 'DEN',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
         portraitWeights: _portraitWeights,
         portraitManifest: _portraitManifest,

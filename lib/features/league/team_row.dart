@@ -68,6 +68,8 @@ class TeamRow extends StatelessWidget {
               children: [
                 Row(
                   children: [
+                    Text(team.emoji, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: AppSpacing.xs),
                     Flexible(
                       child: Text(team.name, style: theme.textTheme.bodyLarge),
                     ),

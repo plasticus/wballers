@@ -29,6 +29,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     final opponent = franchise.league.aiTeams.first.team;

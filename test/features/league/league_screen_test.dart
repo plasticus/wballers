@@ -67,6 +67,7 @@ void main() {
           accentHex: '#E5E5E5',
         ),
         identityNote: 'A new franchise chasing its first banner.',
+        emoji: '🏀',
       );
       final roster = generateStartingRoster(1);
       final franchise = Franchise(

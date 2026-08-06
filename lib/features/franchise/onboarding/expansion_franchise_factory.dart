@@ -94,6 +94,11 @@ String deriveTeamAbbreviation(String clubName) {
 /// onboarding's curated swatch picker. Not asserted here (unlike
 /// [replacedTeamAbbreviation]'s pool membership); an arbitrary [TeamColors]
 /// is harmless, just outside the curated set onboarding actually offers.
+///
+/// [emoji] should be one of the 20 `kLeagueTeamPool` teams *not* drawn
+/// into this playthrough's league -- onboarding's picker only offers
+/// those, so nothing visible in the league shares the GM's own emoji.
+/// Not asserted here, same reasoning as [colors].
 Franchise createExpansionFranchise({
   required String gmName,
   required String clubName,
@@ -102,6 +107,7 @@ Franchise createExpansionFranchise({
   required int simulationSeed,
   required String replacedTeamAbbreviation,
   required TeamColors colors,
+  required String emoji,
   PortraitWeights? portraitWeights,
   PortraitManifest? portraitManifest,
 }) {
@@ -112,6 +118,7 @@ Franchise createExpansionFranchise({
     conference: conference,
     colors: colors,
     identityNote: 'A new franchise chasing its first banner.',
+    emoji: emoji,
   );
 
   final roster = generateStartingRoster(

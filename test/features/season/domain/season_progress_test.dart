@@ -20,6 +20,7 @@ Team _team(String abbreviation) {
     conference: Conference.atlantic,
     colors: _dummyColors,
     identityNote: '',
+    emoji: '🏀',
   );
 }
 

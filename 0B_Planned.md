@@ -8,6 +8,10 @@ marked otherwise. See `0A_Completed.md` for what's already built and
 `0C_Vision_and_Ideas.md` for premise-level ideas that aren't phase-scoped
 yet.
 
+## UI conventions
+
+- **Pacific left, Atlantic right** -- whenever a screen lays the two conferences out side by side (e.g. a future wide-layout standings board), Pacific goes on the left and Atlantic on the right, matching real US geography. Declared 2026-08-06; nothing in the app does a side-by-side layout yet (`LeagueScreen` stacks Atlantic above Pacific vertically today), so there's nothing to fix yet -- apply this the first time one gets built.
+
 ## Phase 2 — League, season, and franchise simulation
 
 **Goal:** turn roster management into an ongoing fictional basketball world.

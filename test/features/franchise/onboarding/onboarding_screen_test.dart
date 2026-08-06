@@ -159,6 +159,14 @@ void main() {
         contains(franchise?.team.colors.primaryHex),
         reason: 'defaults to one of the curated starter palettes',
       );
+      final drawnEmoji = franchise!.league.aiTeams
+          .map((aiTeam) => aiTeam.team.emoji)
+          .toSet();
+      expect(
+        drawnEmoji.contains(franchise.team.emoji),
+        isFalse,
+        reason: 'the GM\'s emoji always comes from a team not in this league',
+      );
     },
   );
 
@@ -216,6 +224,113 @@ void main() {
 
       expect(checkboxAt(targetIndex).value, isTrue);
       expect(checkboxAt(0).value, targetIndex == 0);
+    },
+  );
+
+  bool emojiOptionSelected(WidgetTester tester, String abbreviation) {
+    final container = tester.widget<Container>(
+      find.descendant(
+        of: find.byKey(ValueKey(abbreviation)),
+        matching: find.byType(Container),
+      ),
+    );
+    final border = (container.decoration! as BoxDecoration).border! as Border;
+    return border.top.width == 3;
+  }
+
+  testWidgets(
+    'offers exactly the 20 wings teams\' emoji, with exactly one selected '
+    'by default',
+    (tester) async {
+      await pumpHarness(tester);
+
+      expect(find.text('Team emoji'), findsOneWidget);
+
+      // Every kLeagueTeamPool team with a rendered emoji tile is a "wings"
+      // team (the 20 not drawn into this league) -- 40 pool - 20 drawn.
+      final tileCount = kLeagueTeamPool
+          .where(
+            (team) =>
+                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty,
+          )
+          .length;
+      expect(tileCount, 20);
+
+      final selectedCount = kLeagueTeamPool
+          .where(
+            (team) =>
+                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty &&
+                emojiOptionSelected(tester, team.abbreviation),
+          )
+          .length;
+      expect(selectedCount, 1);
+    },
+  );
+
+  testWidgets('tapping a different emoji tile switches the selection', (
+    tester,
+  ) async {
+    await pumpHarness(tester);
+
+    final tiles = kLeagueTeamPool
+        .where(
+          (team) =>
+              find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty,
+        )
+        .toList();
+    final selectedAbbreviation = tiles
+        .firstWhere((team) => emojiOptionSelected(tester, team.abbreviation))
+        .abbreviation;
+    final target = tiles.firstWhere(
+      (team) => team.abbreviation != selectedAbbreviation,
+    );
+
+    final targetFinder = find.byKey(ValueKey(target.abbreviation));
+    await tester.ensureVisible(targetFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(targetFinder);
+    await tester.pump();
+
+    expect(emojiOptionSelected(tester, target.abbreviation), isTrue);
+    expect(emojiOptionSelected(tester, selectedAbbreviation), isFalse);
+  });
+
+  testWidgets(
+    'Reroll League redraws the league and leaves a valid selection state',
+    (tester) async {
+      await pumpHarness(tester);
+
+      final rerollButton = find.text('Reroll League');
+      await tester.ensureVisible(rerollButton);
+      await tester.pumpAndSettle();
+      await tester.tap(rerollButton);
+      await tester.pumpAndSettle();
+
+      // Still exactly 10 teams shown for the current (Atlantic) conference,
+      // exactly one checked, exactly 20 emoji tiles with exactly one
+      // selected -- rerolling can't leave the form in a broken state.
+      expect(find.byType(Checkbox), findsNWidgets(10));
+      final checkedCount = List.generate(
+        10,
+        (i) => tester.widget<Checkbox>(find.byType(Checkbox).at(i)),
+      ).where((c) => c.value == true).length;
+      expect(checkedCount, 1);
+
+      final tileCount = kLeagueTeamPool
+          .where(
+            (team) =>
+                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty,
+          )
+          .length;
+      expect(tileCount, 20);
+      final selectedCount = kLeagueTeamPool
+          .where(
+            (team) =>
+                find.byKey(ValueKey(team.abbreviation)).evaluate().isNotEmpty &&
+                emojiOptionSelected(tester, team.abbreviation),
+          )
+          .length;
+      expect(selectedCount, 1);
     },
   );
 }

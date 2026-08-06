@@ -13,6 +13,7 @@ void main() {
     conference: Conference.atlantic,
     replacedTeamAbbreviation: 'BOS',
     colors: kStarterPalettes.first,
+    emoji: '🏀',
     simulationSeed: 1,
   );
 
@@ -67,10 +68,7 @@ void main() {
     });
 
     test('throws for an abbreviation outside this league', () {
-      expect(
-        () => teamByAbbreviation(franchise, 'ZZZ'),
-        throwsStateError,
-      );
+      expect(() => teamByAbbreviation(franchise, 'ZZZ'), throwsStateError);
     });
   });
 }

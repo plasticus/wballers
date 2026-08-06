@@ -83,6 +83,7 @@ void main() {
     expect(restored.team.name, original.team.name);
     expect(restored.team.conference, original.team.conference);
     expect(restored.team.colors.primaryHex, original.team.colors.primaryHex);
+    expect(restored.team.emoji, original.team.emoji);
 
     expect(restored.coach.name, original.coach.name);
     expect(restored.coach.stats.overall, original.coach.stats.overall);

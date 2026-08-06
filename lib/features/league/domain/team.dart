@@ -46,6 +46,7 @@ class Team {
     required this.conference,
     required this.colors,
     required this.identityNote,
+    required this.emoji,
   });
 
   /// Always exactly three uppercase letters, e.g. `BOS`.
@@ -61,6 +62,11 @@ class Team {
   final Conference conference;
   final TeamColors colors;
   final String identityNote;
+
+  /// One emoji standing in for a crest -- every `kLeagueTeamPool` entry
+  /// has a curated one, hand-picked to fit its name/identity note. A GM's
+  /// own expansion club picks one too, at onboarding (`onboarding_screen.dart`).
+  final String emoji;
 
   @override
   String toString() => '$abbreviation ($name)';

@@ -24,6 +24,7 @@ Map<String, dynamic> teamToJson(Team team) {
     'conference': team.conference.name,
     'colors': teamColorsToJson(team.colors),
     'identityNote': team.identityNote,
+    'emoji': team.emoji,
   };
 }
 
@@ -35,5 +36,6 @@ Team teamFromJson(Map<String, dynamic> json) {
     conference: Conference.values.byName(json['conference'] as String),
     colors: teamColorsFromJson(json['colors'] as Map<String, dynamic>),
     identityNote: json['identityNote'] as String,
+    emoji: json['emoji'] as String,
   );
 }

@@ -18,7 +18,11 @@ import 'season_schedule_generator.dart';
 /// a real per-team schedule conflict check (unlike the regular season,
 /// series games aren't pre-scheduled into [SeasonSchedule] at all -- see
 /// [simulateSeries]).
-const _seriesGameDayRotation = [GameDay.sunday, GameDay.tuesday, GameDay.thursday];
+const _seriesGameDayRotation = [
+  GameDay.sunday,
+  GameDay.tuesday,
+  GameDay.thursday,
+];
 
 /// How many teams make the postseason -- real 2022+ WNBA format, no
 /// conference restriction on seeding.

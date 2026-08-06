@@ -55,6 +55,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     await container
@@ -78,6 +79,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     await firstContainer
@@ -111,6 +113,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     await container
@@ -145,6 +148,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     final envelope = SaveEnvelope(
@@ -207,6 +211,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     await container
@@ -238,6 +243,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     await container
@@ -276,6 +282,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'BOS',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
       await container
@@ -311,6 +318,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'BOS',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
       await container
@@ -354,6 +362,7 @@ void main() {
       conference: Conference.atlantic,
       replacedTeamAbbreviation: 'BOS',
       colors: kStarterPalettes.first,
+      emoji: '🏀',
       simulationSeed: 1,
     );
     await container
@@ -409,6 +418,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'BOS',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
       await container
@@ -419,8 +429,7 @@ void main() {
       )[0];
       final expectedGameCount = franchise.seasonProgress.schedule.games
           .where(
-            (g) =>
-                g.week == expectedGameDay.$1 && g.day == expectedGameDay.$2,
+            (g) => g.week == expectedGameDay.$1 && g.day == expectedGameDay.$2,
           )
           .length;
 
@@ -447,6 +456,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'BOS',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
 
@@ -489,6 +499,7 @@ void main() {
         conference: Conference.atlantic,
         replacedTeamAbbreviation: 'BOS',
         colors: kStarterPalettes.first,
+        emoji: '🏀',
         simulationSeed: 1,
       );
       final totalGameDays = gameDaysInOrder(

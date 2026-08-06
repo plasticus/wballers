@@ -21,11 +21,12 @@ List<GameResult> simulateSeason(
   required SeasonSchedule schedule,
   required Map<String, List<Player>> rostersByAbbreviation,
 }) {
-  final games = [...schedule.games]..sort((a, b) {
-    final byWeek = a.week.compareTo(b.week);
-    if (byWeek != 0) return byWeek;
-    return a.day.index.compareTo(b.day.index);
-  });
+  final games = [...schedule.games]
+    ..sort((a, b) {
+      final byWeek = a.week.compareTo(b.week);
+      if (byWeek != 0) return byWeek;
+      return a.day.index.compareTo(b.day.index);
+    });
   return [
     for (final game in games)
       GameResult(

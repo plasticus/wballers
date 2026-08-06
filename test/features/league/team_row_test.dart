@@ -15,6 +15,7 @@ const _team = Team(
     accentHex: '#222222',
   ),
   identityNote: '',
+  emoji: '🏀',
 );
 
 Future<void> _pump(WidgetTester tester, TeamRow row) async {
@@ -27,6 +28,7 @@ void main() {
     await _pump(tester, const TeamRow(team: _team));
 
     expect(find.text(_team.name), findsOneWidget);
+    expect(find.text(_team.emoji), findsOneWidget);
     expect(find.textContaining('-'), findsNothing);
   });
 

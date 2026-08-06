@@ -42,4 +42,12 @@ void main() {
       expect(team.colors.accent.a, 1.0);
     }
   });
+
+  test('every team has an emoji, unique across the whole pool', () {
+    final emoji = kLeagueTeamPool.map((t) => t.emoji).toSet();
+    expect(emoji, hasLength(40));
+    for (final team in kLeagueTeamPool) {
+      expect(team.emoji, isNotEmpty);
+    }
+  });
 }
