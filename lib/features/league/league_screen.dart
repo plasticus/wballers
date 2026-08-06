@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_spacing.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/state_views.dart';
+import '../../core/widgets/wbl_logo.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
 import 'domain/league_draw.dart';
@@ -63,6 +64,8 @@ class LeagueScreen extends ConsumerWidget {
 
     return ListView(
       children: [
+        const Center(child: WblLogo(size: 72)),
+        const SizedBox(height: AppSpacing.lg),
         _ConferenceSection(
           title: Conference.atlantic.label,
           teams: atlantic,

@@ -82,6 +82,13 @@ void main() {
   testWidgets(
     'tapping Advance to Next Game Day simulates a game day and reacts to it',
     (tester) async {
+      // The Season card (and its button) needs to be on-screen for tap() to
+      // hit test it -- the default test surface is too short once the hero
+      // logo pushes everything else further down.
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       final franchise = _franchiseWith();
       final repository = await _seededRepository(franchise);
 
@@ -119,9 +126,7 @@ void main() {
     tester,
   ) async {
     final base = _franchiseWith();
-    final totalGameDays = gameDaysInOrder(
-      base.seasonProgress.schedule,
-    ).length;
+    final totalGameDays = gameDaysInOrder(base.seasonProgress.schedule).length;
     final franchise = _franchiseWith(
       seasonProgress: SeasonProgress(
         schedule: base.seasonProgress.schedule,

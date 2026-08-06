@@ -65,6 +65,7 @@ flutter:
     - manifest.json
     - weights.json
     - accessories/
+    - branding/
     - eyebrows/
     - eyes/
     - facial/

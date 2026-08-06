@@ -5,6 +5,7 @@ import '../../app/app_spacing.dart';
 import '../../core/widgets/ad_placement_placeholder.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/state_views.dart';
+import '../../core/widgets/wbl_logo.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/domain/franchise.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
@@ -34,7 +35,13 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_selectedIndex])),
+      appBar: AppBar(
+        leading: const Padding(
+          padding: EdgeInsets.all(AppSpacing.xs),
+          child: WblLogo(size: 32),
+        ),
+        title: Text(_titles[_selectedIndex]),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -91,13 +98,17 @@ class DashboardScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const Center(child: WblLogo(size: 96)),
+                const SizedBox(height: AppSpacing.md),
                 Text(
                   'Women\'s Basketball Manager',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.headlineMedium,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   'Build a franchise. Shape a league. Leave a legacy.',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: AppSpacing.xl),
