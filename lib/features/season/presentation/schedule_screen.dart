@@ -7,6 +7,7 @@ import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
+import 'results_screen.dart';
 
 /// Every game on the GM's own team's calendar this season, in chronological
 /// order -- the "what's coming up" view `0B_Planned.md`'s League-screens
@@ -116,49 +117,59 @@ class _ScheduleRow extends StatelessWidget {
         ? game.awayTeamAbbreviation
         : game.homeTeamAbbreviation;
     final opponent = teamByAbbreviation(franchise, opponentAbbreviation);
+    final played = this.played;
 
+    final row = Row(
+      children: [
+        SizedBox(
+          width: 88,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Week ${game.week}', style: theme.textTheme.bodyMedium),
+              Text(game.day.label, style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${isHome ? 'vs' : 'at'} ${opponent.emoji} ${opponent.name}',
+                style: theme.textTheme.bodyLarge,
+              ),
+              Text(_gameTypeLabel(game), style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        _ResultLabel(isHome: isHome, played: played),
+      ],
+    );
+
+    // Only a played game has a box score worth linking to.
+    if (played == null) return AppCard(child: row);
     return AppCard(
-      child: Row(
-        children: [
-          SizedBox(
-            width: 88,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Week ${game.week}', style: theme.textTheme.bodyMedium),
-                Text(game.day.label, style: theme.textTheme.bodySmall),
-              ],
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  PlayedGameDetailScreen(franchise: franchise, played: played),
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${isHome ? 'vs' : 'at'} ${opponent.emoji} ${opponent.name}',
-                  style: theme.textTheme.bodyLarge,
-                ),
-                Text(_gameTypeLabel(game), style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _ResultLabel(franchise: franchise, isHome: isHome, played: played),
-        ],
+          );
+        },
+        child: row,
       ),
     );
   }
 }
 
 class _ResultLabel extends StatelessWidget {
-  const _ResultLabel({
-    required this.franchise,
-    required this.isHome,
-    required this.played,
-  });
+  const _ResultLabel({required this.isHome, required this.played});
 
-  final Franchise franchise;
   final bool isHome;
   final PlayedGame? played;
 

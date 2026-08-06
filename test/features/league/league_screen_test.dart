@@ -143,7 +143,9 @@ void main() {
     },
   );
 
-  testWidgets('"View Your Schedule" opens the Schedule screen', (tester) async {
+  testWidgets('"Schedule" and "Results" open their respective screens', (
+    tester,
+  ) async {
     final roster = generateStartingRoster(1);
     final franchise = Franchise(
       id: 'franchise-1',
@@ -182,9 +184,17 @@ void main() {
 
     await _pumpWithRepository(tester, repository);
 
-    await tester.tap(find.text('View Your Schedule'));
+    await tester.tap(find.text('Schedule'));
+    await tester.pumpAndSettle();
+    expect(find.text('No games scheduled yet.'), findsNothing);
+    expect(find.widgetWithText(AppBar, 'Schedule'), findsOneWidget);
+
+    await tester.pageBack();
     await tester.pumpAndSettle();
 
-    expect(find.text('Schedule'), findsOneWidget);
+    await tester.tap(find.text('Results'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Results'), findsOneWidget);
+    expect(find.text('No games played yet.'), findsOneWidget);
   });
 }

@@ -11,6 +11,7 @@ import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
 import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
+import '../season/presentation/results_screen.dart';
 import '../season/presentation/schedule_screen.dart';
 import 'domain/league_draw.dart';
 import 'domain/team.dart';
@@ -71,16 +72,36 @@ class LeagueScreen extends ConsumerWidget {
       children: [
         const Center(child: WblLogo(size: 72)),
         const SizedBox(height: AppSpacing.lg),
-        OutlinedButton.icon(
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ScheduleScreen(franchise: franchise),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ScheduleScreen(franchise: franchise),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.calendar_month_outlined),
+                label: const Text('Schedule'),
               ),
-            );
-          },
-          icon: const Icon(Icons.calendar_month_outlined),
-          label: const Text('View Your Schedule'),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ResultsScreen(franchise: franchise),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.scoreboard_outlined),
+                label: const Text('Results'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.lg),
         _ConferenceSection(

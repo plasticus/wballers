@@ -96,7 +96,11 @@ GameDayAdvance advanceToNextGameDay(
   ];
 
   final newlyPlayed = [
-    for (final result in results) PlayedGame.fromResult(result),
+    for (final result in results)
+      PlayedGame.fromResult(
+        result,
+        rostersByAbbreviation: rostersByAbbreviation,
+      ),
   ];
 
   final grownSchedule = _growContinentalCup(random, progress.schedule, results);

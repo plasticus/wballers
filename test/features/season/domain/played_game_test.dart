@@ -1,5 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
+import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/match/engine/match_engine.dart';
+import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
+import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 
@@ -41,5 +48,64 @@ void main() {
     expect(result.match.homeScore, 90);
     expect(result.match.awayScore, 80);
     expect(result.winningTeamAbbreviation, 'AAA');
+  });
+
+  group('fromResult', () {
+    test('carries the score/minutes/box score for every player who '
+        'actually played', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      final opponent = franchise.league.aiTeams.first.team;
+      final rosters = rostersByAbbreviation(franchise);
+      final match = simulateMatch(
+        Random(1),
+        homeRoster: rosters[franchise.team.abbreviation]!,
+        awayRoster: rosters[opponent.abbreviation]!,
+      );
+      final result = GameResult(
+        game: ScheduledGame(
+          week: 2,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: franchise.team.abbreviation,
+          awayTeamAbbreviation: opponent.abbreviation,
+          type: GameType.regularSeason,
+        ),
+        match: match,
+      );
+
+      final played = PlayedGame.fromResult(
+        result,
+        rostersByAbbreviation: rosters,
+      );
+
+      expect(played.homeScore, match.homeScore);
+      expect(played.awayScore, match.awayScore);
+      // Every player with recorded minutes gets both a minutes entry and a
+      // full box-score stat line, keyed by the same player id.
+      for (final entry in match.minutesPlayed.entries) {
+        final playerId = entry.key.id;
+        expect(played.minutesByPlayerId[playerId], entry.value);
+        final line = played.boxScoreByPlayerId[playerId];
+        expect(line, isNotNull);
+        expect(line!.minutesPlayed, entry.value);
+      }
+      // Team point totals reconcile: every player's points sum to the
+      // final score on each side.
+      final homeIds = rosters[franchise.team.abbreviation]!
+          .map((p) => p.id)
+          .toSet();
+      final homePoints = played.boxScoreByPlayerId.entries
+          .where((e) => homeIds.contains(e.key))
+          .fold(0, (sum, e) => sum + e.value.points);
+      expect(homePoints, match.homeScore);
+    });
   });
 }

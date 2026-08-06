@@ -91,7 +91,11 @@ PostseasonAdvance simulatePostseason(
   ];
 
   final newlyPlayed = [
-    for (final result in results) PlayedGame.fromResult(result),
+    for (final result in results)
+      PlayedGame.fromResult(
+        result,
+        rostersByAbbreviation: rostersByAbbreviation,
+      ),
   ];
 
   final grownSchedule = progress.schedule.copyWithAppendedGames([

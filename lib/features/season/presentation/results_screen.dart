@@ -1,0 +1,348 @@
+import 'package:flutter/material.dart';
+
+import '../../../app/app_spacing.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/state_views.dart';
+import '../../franchise/domain/franchise.dart';
+import '../../league/domain/team.dart';
+import '../../player/domain/player.dart';
+import '../application/franchise_rosters.dart';
+import '../domain/game_day.dart';
+import '../domain/played_game.dart';
+import '../domain/played_game_stat_line.dart';
+
+/// Every game played so far this season, across the whole league --
+/// newest first -- closing out `0B_Planned.md`'s Results-page spec.
+/// Unlike the transient `GameResultScreen` (shown once, right when a game
+/// is simulated), this reads straight from `Franchise.seasonProgress.playedGames`,
+/// so it survives the moment a game was actually played. Box scores here
+/// come from `PlayedGame.boxScoreByPlayerId`, computed once at play time
+/// and persisted -- not re-simulated on open, which wouldn't reliably
+/// reproduce the original result once `features/training/` has mutated
+/// roster ratings since (see `PlayedGame.boxScoreByPlayerId`'s doc
+/// comment). No quarter-by-quarter breakdown here -- that's not part of
+/// what a `PlayedGame` persists, unlike the live `GameResultScreen`.
+class ResultsScreen extends StatelessWidget {
+  const ResultsScreen({required this.franchise, super.key});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final games = franchise.seasonProgress.playedGames.reversed.toList();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Results')),
+      body: SafeArea(
+        child: games.isEmpty
+            ? const EmptyStateView(
+                icon: Icons.scoreboard_outlined,
+                message: 'No games played yet.',
+              )
+            // .builder, not a plain ListView -- a full season can run to
+            // ~300+ games leaguewide, unlike every other list in this app.
+            : ListView.builder(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                itemCount: games.length,
+                itemBuilder: (context, index) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _ResultRow(franchise: franchise, played: games[index]),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _ResultRow extends StatelessWidget {
+  const _ResultRow({required this.franchise, required this.played});
+
+  final Franchise franchise;
+  final PlayedGame played;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final game = played.game;
+    final homeTeam = teamByAbbreviation(franchise, game.homeTeamAbbreviation);
+    final awayTeam = teamByAbbreviation(franchise, game.awayTeamAbbreviation);
+    final homeWon = played.homeScore > played.awayScore;
+
+    return AppCard(
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  PlayedGameDetailScreen(franchise: franchise, played: played),
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Week ${game.week} · ${game.day.label}',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${awayTeam.emoji} ${awayTeam.name}',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: homeWon ? FontWeight.normal : FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text('${played.awayScore}', style: theme.textTheme.titleMedium),
+              ],
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${homeTeam.emoji} ${homeTeam.name}',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: homeWon ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+                Text('${played.homeScore}', style: theme.textTheme.titleMedium),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One past game's full box score, reconstructed from
+/// `PlayedGame.boxScoreByPlayerId` rather than re-simulated -- see
+/// `ResultsScreen`'s doc comment for why. Public (not the usual private
+/// `_`-prefixed pushed screen) so other screens that already have a
+/// `PlayedGame` in hand (`ScheduleScreen`) can link straight to it.
+class PlayedGameDetailScreen extends StatelessWidget {
+  const PlayedGameDetailScreen({
+    required this.franchise,
+    required this.played,
+    super.key,
+  });
+
+  final Franchise franchise;
+  final PlayedGame played;
+
+  @override
+  Widget build(BuildContext context) {
+    final game = played.game;
+    final homeTeam = teamByAbbreviation(franchise, game.homeTeamAbbreviation);
+    final awayTeam = teamByAbbreviation(franchise, game.awayTeamAbbreviation);
+    final rosters = rostersByAbbreviation(franchise);
+    final homeIds = {
+      for (final player
+          in rosters[game.homeTeamAbbreviation] ?? const <Player>[])
+        player.id,
+    };
+    final nameById = <String, String>{
+      for (final player in [
+        ...rosters[game.homeTeamAbbreviation] ?? const <Player>[],
+        ...rosters[game.awayTeamAbbreviation] ?? const <Player>[],
+      ])
+        player.id: player.name,
+    };
+
+    final homeLines = <MapEntry<String, PlayedGameStatLine>>[];
+    final awayLines = <MapEntry<String, PlayedGameStatLine>>[];
+    for (final entry in played.boxScoreByPlayerId.entries) {
+      (homeIds.contains(entry.key) ? homeLines : awayLines).add(entry);
+    }
+    homeLines.sort((a, b) => b.value.points.compareTo(a.value.points));
+    awayLines.sort((a, b) => b.value.points.compareTo(a.value.points));
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Result')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            _ScoreCard(
+              homeTeam: homeTeam,
+              awayTeam: awayTeam,
+              homeScore: played.homeScore,
+              awayScore: played.awayScore,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _BoxScoreSection(
+              team: awayTeam,
+              lines: awayLines,
+              nameById: nameById,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _BoxScoreSection(
+              team: homeTeam,
+              lines: homeLines,
+              nameById: nameById,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScoreCard extends StatelessWidget {
+  const _ScoreCard({
+    required this.homeTeam,
+    required this.awayTeam,
+    required this.homeScore,
+    required this.awayScore,
+  });
+
+  final Team homeTeam;
+  final Team awayTeam;
+  final int homeScore;
+  final int awayScore;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'FINAL',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _TeamScoreRow(
+            team: awayTeam,
+            score: awayScore,
+            won: awayScore > homeScore,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _TeamScoreRow(
+            team: homeTeam,
+            score: homeScore,
+            won: homeScore > awayScore,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamScoreRow extends StatelessWidget {
+  const _TeamScoreRow({
+    required this.team,
+    required this.score,
+    required this.won,
+  });
+
+  final Team team;
+  final int score;
+  final bool won;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '${team.location} ${team.name}',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: won ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+        Text(
+          '$score',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: won ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BoxScoreSection extends StatelessWidget {
+  const _BoxScoreSection({
+    required this.team,
+    required this.lines,
+    required this.nameById,
+  });
+
+  final Team team;
+  final List<MapEntry<String, PlayedGameStatLine>> lines;
+  final Map<String, String> nameById;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${team.location} ${team.name}',
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (lines.isEmpty)
+          const AppCard(child: Text('No box score recorded for this game.'))
+        else
+          AppCard(
+            child: Column(
+              children: [
+                for (var i = 0; i < lines.length; i++) ...[
+                  _BoxScoreRow(
+                    playerName: nameById[lines[i].key] ?? 'Unknown Player',
+                    line: lines[i].value,
+                  ),
+                  if (i != lines.length - 1)
+                    const Divider(height: AppSpacing.lg),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _BoxScoreRow extends StatelessWidget {
+  const _BoxScoreRow({required this.playerName, required this.line});
+
+  final String playerName;
+  final PlayedGameStatLine line;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(playerName, style: theme.textTheme.bodyLarge),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          '${line.minutesPlayed.round()} MIN · ${line.points} PTS · '
+          '${line.totalRebounds} REB · ${line.assists} AST · '
+          '${line.steals} STL · ${line.blocks} BLK · ${line.turnovers} TO',
+          style: theme.textTheme.bodyMedium,
+        ),
+        Text(
+          'FG ${line.fieldGoalsMade}/${line.fieldGoalAttempts} · '
+          '3PT ${line.threePointersMade}/${line.threePointAttempts} · '
+          'FT ${line.freeThrowsMade}/${line.freeThrowAttempts}',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
