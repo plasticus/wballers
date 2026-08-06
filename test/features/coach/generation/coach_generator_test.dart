@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/ratings/rating_scale.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/generation/coach_generator.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
@@ -42,6 +43,7 @@ void main() {
     expect(a.name, b.name);
     expect(a.stats.offense, b.stats.offense);
     expect(a.stats.management, b.stats.management);
+    expect(a.archetype, b.archetype);
   });
 
   test('different seeds usually produce different coaches', () {
@@ -79,6 +81,62 @@ void main() {
       }
     }
     expect(sawVariance, isTrue);
+  });
+
+  test('an Offensive Innovator ends up with higher offense than a '
+      'Defensive Mastermind, on average', () {
+    const sampleSize = 1000;
+    final random = Random(11);
+
+    var innovatorTotal = 0;
+    var innovatorCount = 0;
+    var mastermindTotal = 0;
+    var mastermindCount = 0;
+    for (var i = 0; i < sampleSize; i++) {
+      final coach = generateCoach(random);
+      if (coach.archetype == CoachArchetype.offensiveInnovator) {
+        innovatorTotal += coach.stats.offense;
+        innovatorCount++;
+      } else if (coach.archetype == CoachArchetype.defensiveMastermind) {
+        mastermindTotal += coach.stats.offense;
+        mastermindCount++;
+      }
+    }
+
+    expect(innovatorCount, greaterThan(0));
+    expect(mastermindCount, greaterThan(0));
+    expect(
+      innovatorTotal / innovatorCount,
+      greaterThan(mastermindTotal / mastermindCount),
+    );
+  });
+
+  test('a Talent Developer ends up with higher development than a '
+      'Program Builder, on average', () {
+    const sampleSize = 1000;
+    final random = Random(13);
+
+    var developerTotal = 0;
+    var developerCount = 0;
+    var builderTotal = 0;
+    var builderCount = 0;
+    for (var i = 0; i < sampleSize; i++) {
+      final coach = generateCoach(random);
+      if (coach.archetype == CoachArchetype.talentDeveloper) {
+        developerTotal += coach.stats.development;
+        developerCount++;
+      } else if (coach.archetype == CoachArchetype.programBuilder) {
+        builderTotal += coach.stats.development;
+        builderCount++;
+      }
+    }
+
+    expect(developerCount, greaterThan(0));
+    expect(builderCount, greaterThan(0));
+    expect(
+      developerTotal / developerCount,
+      greaterThan(builderTotal / builderCount),
+    );
   });
 
   test('appearance stays null when portraitWeights is omitted', () {

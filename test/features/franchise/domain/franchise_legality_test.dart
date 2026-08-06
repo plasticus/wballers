@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise_legality.dart';
@@ -16,7 +17,11 @@ Franchise _franchiseWithRoster(List<RosterMembership> roster) {
     id: 'test-franchise',
     gmName: 'Test GM',
     team: kLeagueTeamPool.first,
-    coach: const Coach(name: 'Test Coach', stats: CoachStats.neutral),
+    coach: const Coach(
+      name: 'Test Coach',
+      stats: CoachStats.neutral,
+      archetype: CoachArchetype.steadyHand,
+    ),
     roster: roster,
     startingLineup: const StartingLineup(startersByPosition: {}),
     simulationSeed: 1,

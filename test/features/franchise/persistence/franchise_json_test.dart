@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
@@ -43,6 +44,7 @@ Franchise _sampleFranchise() {
         motivation: 65,
         management: 50,
       ),
+      archetype: CoachArchetype.offensiveInnovator,
     ),
     roster: roster,
     startingLineup: const StartingLineup(
@@ -78,6 +80,7 @@ void main() {
 
     expect(restored.coach.name, original.coach.name);
     expect(restored.coach.stats.overall, original.coach.stats.overall);
+    expect(restored.coach.archetype, original.coach.archetype);
 
     expect(
       restored.startingLineup.startersByPosition,
@@ -157,7 +160,11 @@ void main() {
       id: 'franchise-2',
       gmName: 'Taylor Reed',
       team: kLeagueTeamPool.first,
-      coach: const Coach(name: 'Coach', stats: CoachStats.neutral),
+      coach: const Coach(
+        name: 'Coach',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      ),
       roster: [
         RosterMembership(player: withSecondary, status: RosterStatus.active),
       ],

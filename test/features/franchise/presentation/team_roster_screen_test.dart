@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
@@ -26,7 +27,11 @@ Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
     id: 'franchise-1',
     gmName: 'Taylor Reed',
     team: kLeagueTeamPool.first,
-    coach: const Coach(name: 'Jordan Ellis', stats: CoachStats.neutral),
+    coach: const Coach(
+      name: 'Jordan Ellis',
+      stats: CoachStats.neutral,
+      archetype: CoachArchetype.steadyHand,
+    ),
     roster: roster,
     startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,

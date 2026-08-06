@@ -1,5 +1,6 @@
 import '../../portrait/persistence/portrait_appearance_json.dart';
 import '../domain/coach.dart';
+import '../domain/coach_archetype.dart';
 import '../domain/coach_stats.dart';
 
 Map<String, dynamic> coachStatsToJson(CoachStats stats) {
@@ -26,6 +27,7 @@ Map<String, dynamic> coachToJson(Coach coach) {
   return {
     'name': coach.name,
     'stats': coachStatsToJson(coach.stats),
+    'archetype': coach.archetype.name,
     'appearance': coach.appearance == null
         ? null
         : portraitAppearanceToJson(coach.appearance!),
@@ -36,6 +38,9 @@ Coach coachFromJson(Map<String, dynamic> json) {
   return Coach(
     name: json['name'] as String,
     stats: coachStatsFromJson(json['stats'] as Map<String, dynamic>),
+    // No legacy-save fallback -- pre-release schema churn gets a fresh
+    // save, not defensive parsing (0C_Vision_and_Ideas.md).
+    archetype: CoachArchetype.values.byName(json['archetype'] as String),
     appearance: json['appearance'] == null
         ? null
         : portraitAppearanceFromJson(
