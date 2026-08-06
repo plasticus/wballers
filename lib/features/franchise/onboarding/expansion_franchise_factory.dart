@@ -152,7 +152,7 @@ Franchise createExpansionFranchise({
     seasonProgress: SeasonProgress(
       schedule: schedule,
       playedGames: const [],
-      nextWeek: kPreseasonWeek,
+      nextGameDayIndex: 0,
     ),
   );
 }

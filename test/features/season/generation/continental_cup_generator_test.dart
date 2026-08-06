@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/match/domain/match_result.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/continental_cup_generator.dart';
@@ -30,6 +31,7 @@ GameResult _cupGame({
   return GameResult(
     game: ScheduledGame(
       week: 1,
+      day: GameDay.thursday,
       homeTeamAbbreviation: home,
       awayTeamAbbreviation: away,
       type: GameType.continentalCup,

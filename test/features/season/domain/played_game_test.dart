@@ -1,10 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 
 ScheduledGame _game() {
   return const ScheduledGame(
     week: 2,
+    day: GameDay.thursday,
     homeTeamAbbreviation: 'AAA',
     awayTeamAbbreviation: 'BBB',
     type: GameType.regularSeason,

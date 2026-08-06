@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
@@ -22,9 +23,15 @@ Team _team(String abbreviation) {
   );
 }
 
-ScheduledGame _game(String home, String away) {
+ScheduledGame _game(
+  String home,
+  String away, {
+  int week = 2,
+  GameDay day = GameDay.sunday,
+}) {
   return ScheduledGame(
-    week: 2,
+    week: week,
+    day: day,
     homeTeamAbbreviation: home,
     awayTeamAbbreviation: away,
     type: GameType.regularSeason,
@@ -32,40 +39,41 @@ ScheduledGame _game(String home, String away) {
 }
 
 void main() {
-  test('copyWithWeekPlayed appends games and advances nextWeek by one', () {
+  test('copyWithGameDayPlayed appends games and advances '
+      'nextGameDayIndex by one', () {
     const progress = SeasonProgress(
       schedule: SeasonSchedule(games: []),
       playedGames: [],
-      nextWeek: 2,
+      nextGameDayIndex: 0,
     );
 
-    final updated = progress.copyWithWeekPlayed([
+    final updated = progress.copyWithGameDayPlayed([
       PlayedGame(game: _game('AAA', 'BBB'), homeScore: 90, awayScore: 80),
     ]);
 
     expect(updated.playedGames.length, 1);
-    expect(updated.nextWeek, 3);
+    expect(updated.nextGameDayIndex, 1);
     // Original is untouched.
     expect(progress.playedGames, isEmpty);
-    expect(progress.nextWeek, 2);
+    expect(progress.nextGameDayIndex, 0);
   });
 
-  test('copyWithWeekPlayed accumulates across repeated calls', () {
+  test('copyWithGameDayPlayed accumulates across repeated calls', () {
     const progress = SeasonProgress(
       schedule: SeasonSchedule(games: []),
       playedGames: [],
-      nextWeek: 2,
+      nextGameDayIndex: 0,
     );
 
-    final afterWeek2 = progress.copyWithWeekPlayed([
+    final afterFirst = progress.copyWithGameDayPlayed([
       PlayedGame(game: _game('AAA', 'BBB'), homeScore: 90, awayScore: 80),
     ]);
-    final afterWeek3 = afterWeek2.copyWithWeekPlayed([
+    final afterSecond = afterFirst.copyWithGameDayPlayed([
       PlayedGame(game: _game('CCC', 'DDD'), homeScore: 70, awayScore: 60),
     ]);
 
-    expect(afterWeek3.playedGames.length, 2);
-    expect(afterWeek3.nextWeek, 4);
+    expect(afterSecond.playedGames.length, 2);
+    expect(afterSecond.nextGameDayIndex, 2);
   });
 
   test('currentStandings derives a real table from playedGames', () {
@@ -76,7 +84,7 @@ void main() {
         PlayedGame(game: _game('AAA', 'BBB'), homeScore: 90, awayScore: 80),
         PlayedGame(game: _game('BBB', 'AAA'), homeScore: 60, awayScore: 70),
       ],
-      nextWeek: 4,
+      nextGameDayIndex: 2,
     );
 
     final standings = currentStandings(progress, [_team('AAA'), _team('BBB')]);
@@ -84,5 +92,49 @@ void main() {
     final aaa = standings.firstWhere((e) => e.teamAbbreviation == 'AAA');
     expect(aaa.wins, 2);
     expect(aaa.losses, 0);
+  });
+
+  group('gameDaysInOrder', () {
+    test('lists only distinct (week, day) pairs that actually have a '
+        'game, in chronological order', () {
+      final schedule = SeasonSchedule(
+        games: [
+          _game('AAA', 'BBB', week: 3, day: GameDay.thursday),
+          _game('CCC', 'DDD', week: 2, day: GameDay.sunday),
+          // Same (week, day) as the first game, from another matchup --
+          // should collapse to one entry, not two.
+          _game('EEE', 'FFF', week: 3, day: GameDay.thursday),
+          _game('AAA', 'CCC', week: 2, day: GameDay.thursday),
+        ],
+      );
+
+      expect(gameDaysInOrder(schedule), [
+        (2, GameDay.sunday),
+        (2, GameDay.thursday),
+        (3, GameDay.thursday),
+      ]);
+    });
+  });
+
+  group('isComplete', () {
+    test('is false while game days remain', () {
+      final schedule = SeasonSchedule(games: [_game('AAA', 'BBB')]);
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+      expect(progress.isComplete, isFalse);
+    });
+
+    test('is true once every game day has been consumed', () {
+      final schedule = SeasonSchedule(games: [_game('AAA', 'BBB')]);
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 1,
+      );
+      expect(progress.isComplete, isTrue);
+    });
   });
 }

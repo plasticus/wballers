@@ -51,6 +51,7 @@ generateContinentalCupRound2(List<GameResult> round1Results, Random random) {
     for (var i = 0; i < survivors.length; i += 2)
       ScheduledGame(
         week: kContinentalCupRound2Week,
+        day: kContinentalCupGameDay,
         homeTeamAbbreviation: survivors[i],
         awayTeamAbbreviation: survivors[i + 1],
         type: GameType.continentalCup,
@@ -82,6 +83,7 @@ List<ScheduledGame> generateContinentalCupRound3(
     for (var i = 0; i < field.length; i += 2)
       ScheduledGame(
         week: kContinentalCupRound3Week,
+        day: kContinentalCupGameDay,
         homeTeamAbbreviation: field[i],
         awayTeamAbbreviation: field[i + 1],
         type: GameType.continentalCup,
@@ -106,6 +108,7 @@ List<ScheduledGame> generateContinentalCupRound4(
     for (var i = 0; i < field.length; i += 2)
       ScheduledGame(
         week: kContinentalCupRound4Week,
+        day: kContinentalCupGameDay,
         homeTeamAbbreviation: field[i],
         awayTeamAbbreviation: field[i + 1],
         type: GameType.continentalCup,
@@ -129,6 +132,7 @@ List<ScheduledGame> generateContinentalCupRound5(
   return [
     ScheduledGame(
       week: kContinentalCupRound5Week,
+      day: kContinentalCupGameDay,
       homeTeamAbbreviation: field[0],
       awayTeamAbbreviation: field[1],
       type: GameType.continentalCup,

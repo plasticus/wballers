@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 
 void main() {
@@ -6,6 +7,7 @@ void main() {
     expect(
       () => ScheduledGame(
         week: 2,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BOS',
         awayTeamAbbreviation: 'BOS',
         type: GameType.regularSeason,
@@ -18,6 +20,7 @@ void main() {
     expect(
       () => ScheduledGame(
         week: 2,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BOS',
         awayTeamAbbreviation: 'BKN',
         type: GameType.regularSeason,
@@ -31,6 +34,7 @@ void main() {
     expect(
       () => ScheduledGame(
         week: 4,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BOS',
         awayTeamAbbreviation: 'BKN',
         type: GameType.continentalCup,
@@ -43,6 +47,7 @@ void main() {
     expect(
       () => ScheduledGame(
         week: 4,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BOS',
         awayTeamAbbreviation: 'BKN',
         type: GameType.continentalCup,
@@ -56,6 +61,7 @@ void main() {
     expect(
       () => ScheduledGame(
         week: 2,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BOS',
         awayTeamAbbreviation: 'BKN',
         type: GameType.regularSeason,
@@ -69,6 +75,7 @@ void main() {
     expect(
       () => ScheduledGame(
         week: 20,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BOS',
         awayTeamAbbreviation: 'BKN',
         type: GameType.postseason,
@@ -81,6 +88,7 @@ void main() {
     expect(
       () => ScheduledGame(
         week: 20,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BOS',
         awayTeamAbbreviation: 'BKN',
         type: GameType.postseason,

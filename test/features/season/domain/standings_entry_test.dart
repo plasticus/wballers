@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/match/domain/match_result.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/standings_entry.dart';
@@ -46,6 +47,7 @@ GameResult _game({
   return GameResult(
     game: ScheduledGame(
       week: 1,
+      day: GameDay.thursday,
       homeTeamAbbreviation: home,
       awayTeamAbbreviation: away,
       type: type,

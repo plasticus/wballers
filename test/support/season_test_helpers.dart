@@ -30,6 +30,6 @@ SeasonProgress testSeasonProgress({
   return SeasonProgress(
     schedule: schedule,
     playedGames: const [],
-    nextWeek: kPreseasonWeek,
+    nextGameDayIndex: 0,
   );
 }

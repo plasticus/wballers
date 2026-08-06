@@ -92,7 +92,10 @@ void main() {
       restored.seasonProgress.schedule.games.length,
       original.seasonProgress.schedule.games.length,
     );
-    expect(restored.seasonProgress.nextWeek, original.seasonProgress.nextWeek);
+    expect(
+      restored.seasonProgress.nextGameDayIndex,
+      original.seasonProgress.nextGameDayIndex,
+    );
     expect(
       restored.seasonProgress.playedGames.length,
       original.seasonProgress.playedGames.length,

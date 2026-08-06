@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
 import 'package:womensbballmgr/features/season/domain/standings_entry.dart';
@@ -15,18 +16,21 @@ SeasonSchedule _miniSchedule() {
     games: [
       ScheduledGame(
         week: 2,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'AAA',
         awayTeamAbbreviation: 'BBB',
         type: GameType.regularSeason,
       ),
       ScheduledGame(
         week: 1,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'CCC',
         awayTeamAbbreviation: 'DDD',
         type: GameType.preseason,
       ),
       ScheduledGame(
         week: 3,
+        day: GameDay.thursday,
         homeTeamAbbreviation: 'BBB',
         awayTeamAbbreviation: 'CCC',
         type: GameType.regularSeason,

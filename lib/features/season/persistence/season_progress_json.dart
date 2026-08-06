@@ -6,7 +6,7 @@ Map<String, dynamic> seasonProgressToJson(SeasonProgress progress) {
   return {
     'schedule': seasonScheduleToJson(progress.schedule),
     'playedGames': progress.playedGames.map(playedGameToJson).toList(),
-    'nextWeek': progress.nextWeek,
+    'nextGameDayIndex': progress.nextGameDayIndex,
   };
 }
 
@@ -16,6 +16,6 @@ SeasonProgress seasonProgressFromJson(Map<String, dynamic> json) {
     playedGames: (json['playedGames'] as List<dynamic>)
         .map((value) => playedGameFromJson(value as Map<String, dynamic>))
         .toList(),
-    nextWeek: json['nextWeek'] as int,
+    nextGameDayIndex: json['nextGameDayIndex'] as int,
   );
 }

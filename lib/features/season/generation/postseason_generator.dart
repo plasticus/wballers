@@ -2,11 +2,23 @@ import 'dart:math';
 
 import '../../match/engine/match_engine.dart';
 import '../../player/domain/player.dart';
+import '../domain/game_day.dart';
 import '../domain/game_result.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/series_result.dart';
 import '../domain/standings_entry.dart';
 import 'season_schedule_generator.dart';
+
+/// The 3-day rotation a postseason series' games cycle through --
+/// `0B_Planned.md`'s tentative postseason-only Tuesday addition, for a
+/// 3-games/week pace. Every series game gets tagged with a day from this
+/// rotation by game index; the round's own `week` constant (First
+/// Round/Semifinals/Finals) already keys it into the season calendar, so
+/// the day here is really just "which of the round's games is this," not
+/// a real per-team schedule conflict check (unlike the regular season,
+/// series games aren't pre-scheduled into [SeasonSchedule] at all -- see
+/// [simulateSeries]).
+const _seriesGameDayRotation = [GameDay.sunday, GameDay.tuesday, GameDay.thursday];
 
 /// How many teams make the postseason -- real 2022+ WNBA format, no
 /// conference restriction on seeding.
@@ -82,6 +94,7 @@ SeriesResult simulateSeries(
     final result = GameResult(
       game: ScheduledGame(
         week: week,
+        day: _seriesGameDayRotation[gameIndex % _seriesGameDayRotation.length],
         homeTeamAbbreviation: homeAbbreviation,
         awayTeamAbbreviation: awayAbbreviation,
         type: GameType.postseason,

@@ -5,7 +5,6 @@ import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
 
 final _portraitManifest = PortraitManifest(
   hair: const ['hair_afro.png'],
@@ -120,7 +119,7 @@ void main() {
         simulationSeed: 555,
       );
 
-      expect(franchise.seasonProgress.nextWeek, kPreseasonWeek);
+      expect(franchise.seasonProgress.nextGameDayIndex, 0);
       expect(franchise.seasonProgress.playedGames, isEmpty);
     });
 

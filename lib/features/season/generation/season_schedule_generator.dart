@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../league/domain/team.dart';
+import '../domain/game_day.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_schedule.dart';
 
@@ -22,13 +23,19 @@ const kPostseasonFirstRoundWeek = 20;
 const kPostseasonSemifinalsWeek = 22;
 const kPostseasonFinalsWeek = 24;
 
-/// Cap on how many games a single team can be scheduled for in the same
-/// week when packing the regular season into its 17-week window (weeks
-/// [kRegularSeasonStartWeek]-[kRegularSeasonEndWeek]). 28 games per team
-/// across 17 weeks needs some weeks with 2 games (17 * 2 = 34 available
-/// slots, comfortable headroom over the 28 needed) -- this just stops any
-/// single week from stacking up 3+ games for one team.
-const _maxGamesPerTeamPerWeek = 2;
+/// Regular season/Continental Cup game days (`0B_Planned.md`'s declared
+/// game days) -- a team can be booked on each at most once per week, which
+/// is also where the "2 games per team per week" cap comes from: it's a
+/// consequence of there being 2 available days, not a separately-enforced
+/// number.
+const _regularSeasonGameDays = [GameDay.sunday, GameDay.thursday];
+
+/// The day Continental Cup Round 1 (and, in `continental_cup_generator.dart`,
+/// every later round) is played on. Cup rounds each get a dedicated week
+/// with only one game per team, so unlike the regular season there's no
+/// need to spread a team's games across multiple days within the round's
+/// week.
+const kContinentalCupGameDay = GameDay.thursday;
 
 /// Generates one season's schedule for [leagueTeams] -- this playthrough's
 /// full 20-team league (19 AI teams + the GM's own club substituted in for
@@ -37,20 +44,30 @@ const _maxGamesPerTeamPerWeek = 2;
 ///
 /// Produces:
 /// - **Preseason** (week [kPreseasonWeek]): 2 inter-conference games per
-///   team, via two independent random pairings between the conferences.
+///   team, via two independent random pairings between the conferences --
+///   one on [GameDay.sunday], one on [GameDay.thursday].
 /// - **Regular season** (weeks [kRegularSeasonStartWeek]-
 ///   [kRegularSeasonEndWeek]): 28 games per team -- a full double
 ///   round-robin within each 10-team conference (18 games) plus a single
 ///   round-robin against the other conference (10 games) -- greedily
-///   packed into weeks so no team exceeds [_maxGamesPerTeamPerWeek] games
-///   in the same week. Week assignment is a simple greedy pack, not a
-///   fully realistic pacing model (back-to-backs against the same
-///   opponent aren't specially avoided) -- outcome (right games, right
-///   counts, right week range) matters more than mechanism here, same as
-///   AI roster generation.
+///   packed into (week, day) slots so no team is ever double-booked on the
+///   same day. Week/day assignment is a simple greedy pack, not a fully
+///   realistic pacing model (back-to-backs against the same opponent
+///   aren't specially avoided) -- outcome (right games, right counts,
+///   right week range) matters more than mechanism here, same as AI
+///   roster generation.
 /// - **Continental Cup Round 1** (week [kContinentalCupRound1Week]): all
 ///   20 teams randomly seeded into 10 games. Rounds 2-5 depend on results
 ///   that don't exist yet -- see the note on [SeasonSchedule].
+///
+/// Note: Continental Cup Round 1 lands inside the regular season's week
+/// range (week 4), but is generated as an independent step and doesn't
+/// coordinate days with whatever regular-season games already landed in
+/// that week -- a team can end up with a regular-season game and a Cup
+/// game "on" the same nominal day that week. This predates day-of-week
+/// tracking (it was already unaccounted-for as an extra game in that
+/// week) and isn't solved here; a real fix means teaching
+/// [_assignRegularSeasonWeeks] about Cup weeks, which is follow-up work.
 SeasonSchedule generateSeasonSchedule(List<Team> leagueTeams, Random random) {
   final atlantic = leagueTeams
       .where((team) => team.conference == Conference.atlantic)
@@ -87,12 +104,14 @@ List<ScheduledGame> _generatePreseason(
   for (var pass = 0; pass < 2; pass++) {
     final shuffledAtlantic = List<Team>.of(atlantic)..shuffle(random);
     final shuffledPacific = List<Team>.of(pacific)..shuffle(random);
+    final day = _regularSeasonGameDays[pass];
     for (var i = 0; i < shuffledAtlantic.length; i++) {
       final home = pass.isEven ? shuffledAtlantic[i] : shuffledPacific[i];
       final away = pass.isEven ? shuffledPacific[i] : shuffledAtlantic[i];
       games.add(
         ScheduledGame(
           week: kPreseasonWeek,
+          day: day,
           homeTeamAbbreviation: home.abbreviation,
           awayTeamAbbreviation: away.abbreviation,
           type: GameType.preseason,
@@ -154,52 +173,60 @@ List<ScheduledGame> _assignRegularSeasonWeeks(
   Random random,
 ) {
   final shuffledPairs = List<(Team, Team)>.of(pairs)..shuffle(random);
-  final gamesPerTeamPerWeek = <String, Map<int, int>>{};
+  final bookedDaysByTeamAndWeek = <String, Map<int, Set<GameDay>>>{};
 
-  int countFor(String abbreviation, int week) =>
-      gamesPerTeamPerWeek[abbreviation]?[week] ?? 0;
+  Set<GameDay> bookedDaysFor(String abbreviation, int week) =>
+      bookedDaysByTeamAndWeek[abbreviation]?[week] ?? const {};
 
-  void increment(String abbreviation, int week) {
-    final byWeek = gamesPerTeamPerWeek.putIfAbsent(abbreviation, () => {});
-    byWeek[week] = (byWeek[week] ?? 0) + 1;
+  void book(String abbreviation, int week, GameDay day) {
+    bookedDaysByTeamAndWeek
+        .putIfAbsent(abbreviation, () => {})
+        .putIfAbsent(week, () => {})
+        .add(day);
   }
 
   return [
     for (final (home, away) in shuffledPairs)
-      _assignOneGameWeek(home, away, countFor, increment),
+      _assignOneGameWeekAndDay(home, away, bookedDaysFor, book),
   ];
 }
 
-ScheduledGame _assignOneGameWeek(
+ScheduledGame _assignOneGameWeekAndDay(
   Team home,
   Team away,
-  int Function(String abbreviation, int week) countFor,
-  void Function(String abbreviation, int week) increment,
+  Set<GameDay> Function(String abbreviation, int week) bookedDaysFor,
+  void Function(String abbreviation, int week, GameDay day) book,
 ) {
   int? assignedWeek;
+  GameDay? assignedDay;
   for (
     var week = kRegularSeasonStartWeek;
-    week <= kRegularSeasonEndWeek;
+    week <= kRegularSeasonEndWeek && assignedWeek == null;
     week++
   ) {
-    if (countFor(home.abbreviation, week) < _maxGamesPerTeamPerWeek &&
-        countFor(away.abbreviation, week) < _maxGamesPerTeamPerWeek) {
-      assignedWeek = week;
-      break;
+    final homeBooked = bookedDaysFor(home.abbreviation, week);
+    final awayBooked = bookedDaysFor(away.abbreviation, week);
+    for (final day in _regularSeasonGameDays) {
+      if (!homeBooked.contains(day) && !awayBooked.contains(day)) {
+        assignedWeek = week;
+        assignedDay = day;
+        break;
+      }
     }
   }
   assert(
     assignedWeek != null,
-    'could not find a week for ${home.abbreviation} vs ${away.abbreviation} '
-    'within the $_maxGamesPerTeamPerWeek-per-week cap -- the regular '
-    'season\'s 17-week window should always have enough slack for 28 '
-    'games per team',
+    'could not find a week/day for ${home.abbreviation} vs '
+    '${away.abbreviation} within the ${_regularSeasonGameDays.length} '
+    'game days per week -- the regular season\'s 17-week window should '
+    'always have enough slack for 28 games per team',
   );
 
-  increment(home.abbreviation, assignedWeek!);
-  increment(away.abbreviation, assignedWeek);
+  book(home.abbreviation, assignedWeek!, assignedDay!);
+  book(away.abbreviation, assignedWeek, assignedDay);
   return ScheduledGame(
     week: assignedWeek,
+    day: assignedDay,
     homeTeamAbbreviation: home.abbreviation,
     awayTeamAbbreviation: away.abbreviation,
     type: GameType.regularSeason,
@@ -215,6 +242,7 @@ List<ScheduledGame> _generateContinentalCupRound1(
     for (var i = 0; i < shuffled.length; i += 2)
       ScheduledGame(
         week: kContinentalCupRound1Week,
+        day: kContinentalCupGameDay,
         homeTeamAbbreviation: shuffled[i].abbreviation,
         awayTeamAbbreviation: shuffled[i + 1].abbreviation,
         type: GameType.continentalCup,

@@ -1,15 +1,22 @@
+import 'game_day.dart';
+
 /// Which part of the season calendar a game belongs to
 /// (`0B_Planned.md`'s season calendar table). Only [regularSeason] games
 /// count toward standings.
 enum GameType { preseason, regularSeason, continentalCup, postseason }
 
 /// One game on the calendar: two teams (by `Team.abbreviation`), a week
-/// number (1-24, `0B_Planned.md`'s season calendar), and what kind of game
-/// it is. No score/result yet -- that's the not-yet-built deterministic
-/// simulator's job (`0B_Planned.md`).
+/// number (1-24, `0B_Planned.md`'s season calendar), a [GameDay] within
+/// that week, and what kind of game it is. No score/result yet -- that's
+/// the not-yet-built deterministic simulator's job (`0B_Planned.md`).
+///
+/// [week] + [day] together are a game's chronological position -- see
+/// `season_progress.dart`'s `gameDaysInOrder`, which is what "advance to
+/// the next game day" actually iterates over.
 class ScheduledGame {
   const ScheduledGame({
     required this.week,
+    required this.day,
     required this.homeTeamAbbreviation,
     required this.awayTeamAbbreviation,
     required this.type,
@@ -30,6 +37,7 @@ class ScheduledGame {
        );
 
   final int week;
+  final GameDay day;
   final String homeTeamAbbreviation;
   final String awayTeamAbbreviation;
   final GameType type;
