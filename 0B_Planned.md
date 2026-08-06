@@ -36,6 +36,7 @@ anything for the presentation layer or end-of-season systems to show.
   | 22 (~September 25) | Postseason Round 2 / Semifinals (best-of-5) |
   | 24 (~October 9) | Postseason Finals (best-of-7) concludes |
 
+- **Game days: declared (2026-08-06) — Sundays and Thursdays**, regular season and Continental Cup alike. During the postseason, a possible third game day (Tuesdays) to support a 3-games/week pace — marked "maybe," not fully committed. Not yet reflected in `generateSeasonSchedule`, which only assigns games to a week number today, with no day-of-week concept at all — a real gap between this declared rule and the actual generator, to close whenever the schedule generator gets revisited.
 - **Schedule, the full match engine (contest resolver → possession loop → fouls → game loop → overtime), a season simulator, the full Continental Cup bracket (Rounds 1-5), and the postseason bracket (best-of-3/5/7): all built** — see `0A_Completed.md`'s match-engine, season-simulator, Continental Cup, and postseason entries (`simulateMatch`, `simulateSeason`, `computeStandings`, `generateContinentalCupRound2`-`5`, `postseasonSeeds`, `generatePostseasonFirstRound`/`Semifinals`/`Finals`). A real standings table can now be produced from a full 20-team, 310-game season in ~200ms, a full Continental Cup bracket resolves end to end to a single champion, and so does the postseason bracket (real 2022+ WNBA format: top 8 seeds, standard bracket, best-of-3 → best-of-5 → best-of-7). Still open in this area: wiring any of this into `Franchise`/persistence/a screen — these are all standalone functions nothing calls yet, same "not prematurely plumbed" posture the schedule generator had before them; and a real home-court-advantage mechanic in the match engine itself (postseason home/away assignment currently has no mechanical effect on outcomes).
 - **Draft: built** — see `0A_Completed.md`'s draft entry (`generateDraftClass`, `generateDraftOrder`, `simulateDraft`, `College`/`kColleges`). Lottery/order specifics are decided now (weighted lottery for the 12 non-playoff teams, reverse-standings order for the 8 playoff teams, same order repeats for all 3 rounds) rather than left TBD, and college prestige affects only prospect exposure (which college a prospect happens to attend), never quality, as originally intended. Still open: wiring it into `Franchise`/persistence/a screen, and any real GM AI for draft-day decisions beyond "best player available" (no team-needs modeling yet).
 
@@ -54,7 +55,27 @@ anything for the presentation layer or end-of-season systems to show.
 ### Ongoing systems and deferred items
 
 - **Player development/regression.** Age curve vs. `potential` ceiling vs. coach Development stat vs. High/Low Potential traits — no formula decided yet; deferred to revisit sometime after the rest of Phase 2 ships. Morale and news/event generation are the same shape — systems that layer on top of the season loop once it exists, not designed yet.
-- **Injury model.** Keep it slight — minor injuries reduce a player's ratings by 10-25% for 2-4 games. Benching an injured player heals them faster than playing through it. A GM can sign a free agent to a 7-day contract to cover the gap.
+- **Coach archetypes** (noted 2026-08-06) — needed ahead of eventual hire/fire, per the GM's call: "much simpler than players," an archetype plus a small stat block. `CoachStats` already exists with 5 stats (Offense, Defense, Development, Motivation, Management, `coach_stats.dart`), not the 3 the GM mentioned from memory — worth reconciling once the actual archetype list is picked: either trim to 3, or keep 5 and have archetype bias them, the same "archetype picked first, then biases the stat block" shape `player_generator.dart` already uses. A brainstormed list of candidate archetypes was presented in chat 2026-08-06, awaiting the GM's picks/cuts before anything lands here for real (same review pattern as the original player archetype list — see the POINT GOD removal in `0A_Completed.md`).
+- **Injury model, reworked (2026-08-06)** — captured as a design intent, not yet vetted or built. Three severity levels, each a straight stat-percentage reduction for a fixed number of games:
+
+  | Level | Reduction | Duration |
+  | --- | --- | --- |
+  | A | 10% | 2 games |
+  | B | 25% | 4 games |
+  | C | 50% | 6 games |
+
+  Recovery is bench-driven, not just time-driven: sitting an injured player for a full game (0 minutes played) drops them one severity level, regardless of how many games remain at the current level. Playing them through it does not. A day with no game scheduled for that team (a Continental Cup bye week, the All-Star break, etc.) counts the same as benching them.
+
+  Worked example: a player suffers a C-level injury in Game 0 (no in-game effect that game; shows up on the injury report afterward). The GM benches them for Game 1 → drops to B (25%, 4 games). Benches again for Game 2 → drops to A (10%, 2 games). GM decides to play them starting Game 3 — they play Games 3 and 4 at a 10% stat penalty, and are back to 100% for Game 5.
+
+  Injury *chance* (not yet formulated) is halved during the postseason — the game shouldn't be actively working against a GM's title push the same way it does in the regular season.
+
+  A GM can still sign a free agent to a 7-day contract to cover the gap — carried over from the original version of this item, not changed by the rework above.
+- **Hot/cold streaks** (noted 2026-08-06) — captured as a design intent, explicitly the least settled item on this list ("not sure how to assign" per the GM). A streak shifts a player's game-time stats by 5% (hot: +5%, cold: -5%) and lasts 3 games. Proposed assignment mechanism, still tentative:
+  - After each game day, a team has a 33% chance of a new streak starting.
+  - Coin flip decides hot vs. cold.
+  - Assigned to a random player on the active roster.
+  - A player can't hold both at once; a team can only have one hot and one cold streak active at a time.
 - **Fatigue does not need to persist between games in Phase 2** — it's tracked per-game only (see the stamina appendix under Phase 3 below). A season-calendar-level rest/back-to-back model was considered and explicitly not chosen; nothing to build here beyond making sure Phase 3's per-game fatigue actually resets between games.
 - **Trade system.** Not needed for a while (no trading planned for the first few phases of Phase 2 work). When it arrives: the AI should own most of the valuation logic itself; the GM's role is just to put a player on the trade block, and the AI generates offers from there.
 - **Balancing tools.** Simulation batches, diagnostics, distribution checks, seeded regression scenarios.
@@ -71,7 +92,7 @@ anything for the presentation layer or end-of-season systems to show.
 **Goal:** make individual games legible and strategically meaningful without a full animation project.
 
 - **Possession-based engine.** Core possession loop, fouls/free throws, and the full quarters-and-scoreboard game loop are all **built** — see `0A_Completed.md`'s three match-engine entries (`simulatePossession`, `resolveTipOff`, `simulateMatch`). Alternating possession falls out of the engine automatically. A first round of pacing/scoring/bench-rotation calibration is done too (same entry) — combined score down to ~201 average from ~420, bench players now actually see the floor — though it's still not exact and the full "batch-simulate thousands of games against real WNBA numbers" pass is still open. Overtime is built too (5-minute periods until the tie breaks — a season simulator needs a winner out of every game). Still open here: a live/paced play-by-play presentation of the event log (the engine currently just returns the whole game's events at once, not a feed you watch unfold).
-- **Live scrolling play-by-play feed** (not instant computation presented as a log afterward). Stops automatically for coaching adjustments at the end of each quarter, and additionally at the 2:00 mark of any quarter if the score is within 10 points.
+- **Live scrolling play-by-play feed** (not instant computation presented as a log afterward). Stops automatically for coaching adjustments at the end of every quarter. **Correction (2026-08-06):** the additional 2:00-mark stoppage is 4th-quarter-only, not every quarter — a last-ditch chance to adjust late in a close game, not a recurring mid-quarter check-in. It also fires on a tighter margin than originally written: within **7 points**, not 10.
 - **Fully automatic substitutions: built, using a default ranking, not a GM-set one yet.** `substitution_policy.dart`'s `targetMinutesFor` assigns the reference table below by rating rank (best players play the most) since there's no UI yet for the GM to set their own ranking — same "sensible default, later overridable" shape used elsewhere. `pickOnCourt` re-picks the 5 furthest-behind-schedule players every 2 simulated minutes (foul-outs substitute immediately on top of that). Reference table, summing to a full 200-minute game across a 12-player active roster:
 
   | Rank | Target minutes |
@@ -88,7 +109,6 @@ anything for the presentation layer or end-of-season systems to show.
 
 - **Quarter-break/timeout choices.** A pool of roughly a dozen possible options (improve offense, improve defense, fire the team up, reduce stamina drain, full-court press, park the bus, mount a comeback push, pace yourselves, etc.); the GM sees only ~3 choices at a time, situationally selected from the pool depending on game state. Full option catalog and selection logic still to be worked out.
 - **Timeout system specifics** (count per game, what a "special play" modifies) — parked, deliberately not designed yet. Get the quarter-break check-ins working first.
-- **"Difficulty" setting** — likely a small adjustment to the action-success formulas to make games easier/harder to win. Belongs here, not Phase 2, since it hooks into formulas that don't exist until the match engine does.
 - **Stamina & fatigue formulas**, captured as a starting design intent, not yet vetted or built:
   - Energy pool: starts at 100 max. Drain per minute played: `2 * (1.5 - (Stamina / 100))` — a 99-stamina star drains ~1.02/min, a 70-stamina average player ~1.60/min, a 50-stamina player 2.00/min.
   - Fatigue penalty: no penalty above 80 energy; 0.5% stat penalty per point lost below 80; floor of 50% minimum effectiveness.

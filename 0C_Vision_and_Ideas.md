@@ -96,6 +96,11 @@ is far enough along to evaluate them properly.
   (a "Phase 2.5" or "3.5") rather than a bullet inside Phase 2. Flagged as
   a structural possibility, not decided — revisit once the rest of Phase 2
   is further along and the actual scope of the ceremony work is clearer.
+- **A "Difficulty" setting.** Moved here from Planned (2026-08-06) —
+  genuinely not decided whether the game needs one at all. If it does get
+  built, the GM's own leading idea: keep it simple, an easy-mode game-time
+  stat boost (e.g. +10%) rather than touching the underlying action-success
+  formulas directly.
 
 ## III. Etc.
 
