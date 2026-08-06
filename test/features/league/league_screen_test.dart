@@ -130,6 +130,9 @@ void main() {
       for (final team in pacificTeams) {
         expect(find.text(team.name), findsOneWidget);
       }
+
+      // No games played yet -- every team shows a 0-0 record.
+      expect(find.text('0-0'), findsNWidgets(20));
     },
   );
 }

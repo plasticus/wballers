@@ -9,6 +9,8 @@ import '../../core/widgets/state_views.dart';
 import '../../core/widgets/wbl_logo.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
+import '../season/domain/season_progress.dart';
+import '../season/domain/standings_entry.dart';
 import 'domain/league_draw.dart';
 import 'domain/team.dart';
 import 'team_row.dart';
@@ -20,8 +22,9 @@ import 'team_row.dart';
 /// `Franchise.replacedTeamAbbreviation`) — so the league genuinely reads as
 /// 19 AI teams + 1 GM team, not the replaced team plus an unrelated 21st
 /// club. There's no franchise (and so no league draw) until onboarding
-/// runs. First real consumer of the league data model — later this becomes
-/// standings once a season exists (see `0B_Planned.md`, Phase 2).
+/// runs. Ranked by regular-season record within each conference
+/// (`currentStandings`) once games have been played -- teams that haven't
+/// played yet sort to the bottom of their conference, alphabetically.
 class LeagueScreen extends ConsumerWidget {
   const LeagueScreen({super.key});
 
@@ -61,6 +64,7 @@ class LeagueScreen extends ConsumerWidget {
         .where((team) => team.conference == Conference.pacific)
         .toList();
     final userTeamAbbreviation = franchise.team.abbreviation;
+    final standings = currentStandings(franchise.seasonProgress, teams);
 
     return ListView(
       children: [
@@ -68,13 +72,15 @@ class LeagueScreen extends ConsumerWidget {
         const SizedBox(height: AppSpacing.lg),
         _ConferenceSection(
           title: Conference.atlantic.label,
-          teams: atlantic,
+          teams: _rankedByStandings(atlantic, standings),
+          standings: standings,
           userTeamAbbreviation: userTeamAbbreviation,
         ),
         const SizedBox(height: AppSpacing.lg),
         _ConferenceSection(
           title: Conference.pacific.label,
-          teams: pacific,
+          teams: _rankedByStandings(pacific, standings),
+          standings: standings,
           userTeamAbbreviation: userTeamAbbreviation,
         ),
       ],
@@ -82,15 +88,38 @@ class LeagueScreen extends ConsumerWidget {
   }
 }
 
+/// [conferenceTeams] sorted best-to-worst by [standings]' order -- teams
+/// with no entry there (no regular-season games played yet) sort after
+/// every ranked team, alphabetically among themselves.
+List<Team> _rankedByStandings(
+  List<Team> conferenceTeams,
+  List<StandingsEntry> standings,
+) {
+  final rankIndex = {
+    for (var i = 0; i < standings.length; i++) standings[i].teamAbbreviation: i,
+  };
+  final sorted = [...conferenceTeams];
+  sorted.sort((a, b) {
+    final aRank = rankIndex[a.abbreviation] ?? standings.length;
+    final bRank = rankIndex[b.abbreviation] ?? standings.length;
+    final byRank = aRank.compareTo(bRank);
+    if (byRank != 0) return byRank;
+    return a.abbreviation.compareTo(b.abbreviation);
+  });
+  return sorted;
+}
+
 class _ConferenceSection extends StatelessWidget {
   const _ConferenceSection({
     required this.title,
     required this.teams,
+    required this.standings,
     required this.userTeamAbbreviation,
   });
 
   final String title;
   final List<Team> teams;
+  final List<StandingsEntry> standings;
   final String? userTeamAbbreviation;
 
   @override
@@ -108,6 +137,8 @@ class _ConferenceSection extends StatelessWidget {
                 TeamRow(
                   team: teams[i],
                   isUserTeam: teams[i].abbreviation == userTeamAbbreviation,
+                  rank: i + 1,
+                  record: _recordFor(teams[i].abbreviation, standings),
                 ),
                 if (i != teams.length - 1) const Divider(height: AppSpacing.lg),
               ],
@@ -115,6 +146,22 @@ class _ConferenceSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  StandingsEntry _recordFor(
+    String abbreviation,
+    List<StandingsEntry> standings,
+  ) {
+    for (final entry in standings) {
+      if (entry.teamAbbreviation == abbreviation) return entry;
+    }
+    return StandingsEntry(
+      teamAbbreviation: abbreviation,
+      wins: 0,
+      losses: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
     );
   }
 }
