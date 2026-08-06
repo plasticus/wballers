@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
+import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
@@ -10,6 +11,7 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
+import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 
@@ -374,5 +376,140 @@ void main() {
           .nickname,
       isNull,
     );
+  });
+
+  group('advanceGameDay', () {
+    test('returns null when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(currentFranchiseProvider.future);
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+
+      expect(results, isNull);
+    });
+
+    test('simulates the next game day, persists a lean SeasonProgress, and '
+        'returns the full game results for that day', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final expectedGameDay = gameDaysInOrder(
+        franchise.seasonProgress.schedule,
+      )[0];
+      final expectedGameCount = franchise.seasonProgress.schedule.games
+          .where(
+            (g) =>
+                g.week == expectedGameDay.$1 && g.day == expectedGameDay.$2,
+          )
+          .length;
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+
+      expect(results, isNotNull);
+      expect(results!.length, expectedGameCount);
+      // A real box score, not just a score -- the whole point of returning
+      // full GameResults instead of the lean PlayedGames that get persisted.
+      expect(results.first.match.events, isNotEmpty);
+
+      final updated = container.read(currentFranchiseProvider).value;
+      expect(updated!.seasonProgress.nextGameDayIndex, 1);
+      expect(updated.seasonProgress.playedGames.length, expectedGameCount);
+    });
+
+    test('is deterministic for a given simulationSeed', () async {
+      Franchise freshFranchise() => createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        simulationSeed: 1,
+      );
+
+      Future<List<int>> playFirstGameDay() async {
+        final container = ProviderContainer(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(freshFranchise());
+        final results = await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        return [
+          for (final result in results!) result.match.homeScore,
+          for (final result in results) result.match.awayScore,
+        ];
+      }
+
+      final a = await playFirstGameDay();
+      final b = await playFirstGameDay();
+
+      expect(a, b);
+    });
+
+    test('returns null once the season has no game days left to advance '
+        'to', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        simulationSeed: 1,
+      );
+      final totalGameDays = gameDaysInOrder(
+        franchise.seasonProgress.schedule,
+      ).length;
+      final completedFranchise = franchise.copyWithSeasonProgress(
+        SeasonProgress(
+          schedule: franchise.seasonProgress.schedule,
+          playedGames: const [],
+          nextGameDayIndex: totalGameDays,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(completedFranchise);
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+
+      expect(results, isNull);
+    });
   });
 }

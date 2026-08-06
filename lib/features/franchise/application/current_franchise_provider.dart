@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/save_envelope.dart';
@@ -6,6 +8,9 @@ import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
+import '../../season/application/franchise_rosters.dart';
+import '../../season/domain/game_result.dart';
+import '../../season/generation/season_advancer.dart';
 import '../domain/franchise.dart';
 import '../persistence/franchise_json.dart';
 
@@ -115,6 +120,40 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
           membership,
     ];
     await _persist(franchise.copyWithRoster(newRoster));
+  }
+
+  /// Simulates the next scheduled game day and persists the result.
+  /// Returns the full [GameResult]s for that game day -- box scores and
+  /// all -- so the caller can do something with them (show the GM's own
+  /// game distinctly, say) before they're gone; only the lean
+  /// [Franchise.seasonProgress] footprint (`PlayedGame`, not the full
+  /// event log) actually gets persisted, same as every other game.
+  ///
+  /// Returns `null` if there's no current franchise, or if the season has
+  /// no game days left to advance to ([SeasonProgress.isComplete]).
+  ///
+  /// The [Random] stream is reseeded from [Franchise.simulationSeed] plus
+  /// the game day index being advanced, not carried forward across calls
+  /// -- see [kSeasonAdvanceSeedOffset]'s doc comment for why that's what
+  /// makes a given game day's result reproducible across a save/reload.
+  Future<List<GameResult>?> advanceGameDay() async {
+    final franchise = await future;
+    if (franchise == null || franchise.seasonProgress.isComplete) {
+      return null;
+    }
+
+    final advance = advanceToNextGameDay(
+      Random(
+        franchise.simulationSeed +
+            kSeasonAdvanceSeedOffset +
+            franchise.seasonProgress.nextGameDayIndex,
+      ),
+      franchise.seasonProgress,
+      rostersByAbbreviation: rostersByAbbreviation(franchise),
+    );
+
+    await _persist(franchise.copyWithSeasonProgress(advance.progress));
+    return advance.gamesPlayed;
   }
 
   Future<void> _persist(Franchise franchise) async {

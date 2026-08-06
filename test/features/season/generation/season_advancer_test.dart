@@ -49,7 +49,7 @@ void main() {
       nextGameDayIndex: 0,
     );
 
-    final updated = advanceToNextGameDay(
+    final result = advanceToNextGameDay(
       Random(1),
       progress,
       rostersByAbbreviation: rosters,
@@ -57,9 +57,11 @@ void main() {
 
     // Only the Sunday slate (week 2) played -- the Thursday slate of the
     // same week is a separate, later game day.
-    expect(updated.playedGames.length, 1);
-    expect(updated.nextGameDayIndex, 1);
-    expect(updated.playedGames.single.game.day, GameDay.sunday);
+    expect(result.progress.playedGames.length, 1);
+    expect(result.progress.nextGameDayIndex, 1);
+    expect(result.progress.playedGames.single.game.day, GameDay.sunday);
+    expect(result.gamesPlayed.length, 1);
+    expect(result.gamesPlayed.single.game.day, GameDay.sunday);
   });
 
   test('a bye week never gets its own game day -- there is nothing to '
@@ -75,23 +77,16 @@ void main() {
       nextGameDayIndex: 2,
     );
 
-    final updated = advanceToNextGameDay(
+    final result = advanceToNextGameDay(
       Random(1),
       progress,
       rostersByAbbreviation: rosters,
     );
 
-    expect(updated.playedGames.length, 1);
-    expect(updated.playedGames.single.game.week, 4);
-    expect(updated.nextGameDayIndex, 3);
-    expect(
-      SeasonProgress(
-        schedule: _schedule,
-        playedGames: updated.playedGames,
-        nextGameDayIndex: updated.nextGameDayIndex,
-      ).isComplete,
-      isTrue,
-    );
+    expect(result.progress.playedGames.length, 1);
+    expect(result.progress.playedGames.single.game.week, 4);
+    expect(result.progress.nextGameDayIndex, 3);
+    expect(result.progress.isComplete, isTrue);
   });
 
   test('is deterministic for a given seed', () {
@@ -115,9 +110,15 @@ void main() {
       rostersByAbbreviation: rosters,
     );
 
-    for (var i = 0; i < a.playedGames.length; i++) {
-      expect(a.playedGames[i].homeScore, b.playedGames[i].homeScore);
-      expect(a.playedGames[i].awayScore, b.playedGames[i].awayScore);
+    for (var i = 0; i < a.progress.playedGames.length; i++) {
+      expect(
+        a.progress.playedGames[i].homeScore,
+        b.progress.playedGames[i].homeScore,
+      );
+      expect(
+        a.progress.playedGames[i].awayScore,
+        b.progress.playedGames[i].awayScore,
+      );
     }
   });
 
@@ -139,17 +140,17 @@ void main() {
       random,
       progress,
       rostersByAbbreviation: rosters,
-    );
+    ).progress;
     progress = advanceToNextGameDay(
       random,
       progress,
       rostersByAbbreviation: rosters,
-    );
+    ).progress;
     progress = advanceToNextGameDay(
       random,
       progress,
       rostersByAbbreviation: rosters,
-    );
+    ).progress;
 
     expect(progress.nextGameDayIndex, 3);
     expect(progress.playedGames.length, 3);

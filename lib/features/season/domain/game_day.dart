@@ -5,3 +5,15 @@
 /// within a calendar week (Sun, Tue, Thu) -- `.index` doubles as a sort
 /// key.
 enum GameDay { sunday, tuesday, thursday }
+
+extension GameDayLabel on GameDay {
+  /// Display label, e.g. "Sunday" -- `.name` alone gives the lowercase
+  /// enum identifier, which isn't fit for UI display.
+  String get label {
+    return switch (this) {
+      GameDay.sunday => 'Sunday',
+      GameDay.tuesday => 'Tuesday',
+      GameDay.thursday => 'Thursday',
+    };
+  }
+}
