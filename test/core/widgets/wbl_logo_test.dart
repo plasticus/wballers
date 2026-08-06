@@ -16,7 +16,7 @@ void main() {
     final resized = image.image as ResizeImage;
     expect(
       (resized.imageProvider as AssetImage).assetName,
-      'branding/wbl_logo.png',
+      'branding/wbl_logo_alpha.png',
     );
     expect(image.semanticLabel, "Women's Basketball League logo");
   });
