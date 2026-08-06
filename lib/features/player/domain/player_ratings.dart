@@ -72,6 +72,42 @@ class PlayerRatings {
   /// how good they are right now. Excluded from [overall].
   final int potential;
 
+  /// Returns a copy with any given fields replaced -- training
+  /// (`features/training/`) is the only thing that ever nudges individual
+  /// ratings after generation, one or two fields at a time, so a single
+  /// generic `copyWith` covers it without a dozen single-field methods.
+  PlayerRatings copyWith({
+    int? speed,
+    int? agility,
+    int? strength,
+    int? stamina,
+    int? ballControl,
+    int? passing,
+    int? interiorOffense,
+    int? perimeterOffense,
+    int? perimeterDefense,
+    int? interiorDefense,
+    int? disruption,
+    int? blocking,
+    int? potential,
+  }) {
+    return PlayerRatings(
+      speed: speed ?? this.speed,
+      agility: agility ?? this.agility,
+      strength: strength ?? this.strength,
+      stamina: stamina ?? this.stamina,
+      ballControl: ballControl ?? this.ballControl,
+      passing: passing ?? this.passing,
+      interiorOffense: interiorOffense ?? this.interiorOffense,
+      perimeterOffense: perimeterOffense ?? this.perimeterOffense,
+      perimeterDefense: perimeterDefense ?? this.perimeterDefense,
+      interiorDefense: interiorDefense ?? this.interiorDefense,
+      disruption: disruption ?? this.disruption,
+      blocking: blocking ?? this.blocking,
+      potential: potential ?? this.potential,
+    );
+  }
+
   /// Unweighted average of the twelve stored current-ability ratings.
   /// [potential] is excluded — it's a ceiling, not current ability.
   /// Position-aware weighting is future work once role fit exists.

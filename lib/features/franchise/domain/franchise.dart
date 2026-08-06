@@ -5,6 +5,9 @@ import '../../league/domain/team.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
 import '../../season/domain/season_progress.dart';
+import '../../training/domain/training_coach.dart';
+import '../../training/domain/training_plan.dart';
+import '../../training/domain/training_report.dart';
 
 /// The player's save-game: their General Manager persona, their club, its
 /// hired coach, its roster, and its starting lineup. This is the save-game
@@ -38,6 +41,10 @@ class Franchise {
     required this.replacedTeamAbbreviation,
     required this.league,
     required this.seasonProgress,
+    required this.trainingCoaches,
+    required this.trainingPlan,
+    required this.nextTrainingWeek,
+    this.trainingReports = const [],
   }) : assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
          'replacedTeamAbbreviation must be one of the league team pool, '
@@ -48,7 +55,8 @@ class Franchise {
            (aiTeam) => aiTeam.team.abbreviation == replacedTeamAbbreviation,
          ),
          'league.aiTeams must not include the team the GM replaced',
-       );
+       ),
+       assert(trainingCoaches.length == 3, 'always exactly 3 training coaches');
 
   /// Stable identifier for this save, independent of [team]'s name (which
   /// the GM could rebrand later).
@@ -81,6 +89,30 @@ class Franchise {
   /// [league].
   final SeasonProgress seasonProgress;
 
+  /// This franchise's 3 individual-development staff (`training_coach.dart`),
+  /// generated once at franchise creation same as [coach] -- no hire/fire
+  /// flow yet, same posture as the head coach.
+  final List<TrainingCoach> trainingCoaches;
+
+  /// The GM's current training instructions -- sticky (reused week to
+  /// week until changed), edited via the Training screen.
+  final TrainingPlan trainingPlan;
+
+  /// The next schedule week eligible for training resolution -- the
+  /// training-cadence equivalent of `SeasonProgress.nextGameDayIndex`,
+  /// but its own pointer since training resolves on its own weekly
+  /// rhythm, not per game day (`lastFullyCompletedWeek`,
+  /// `training_advancer.dart`).
+  final int nextTrainingWeek;
+
+  /// Every training report so far this season -- the surfaced-moment
+  /// history the (not yet built) News feed will eventually list; kept
+  /// here in the meantime as the only place a past report can be found
+  /// again. Lean by construction (`TrainingReport` only records players
+  /// who actually changed), so keeping the whole season's worth doesn't
+  /// meaningfully grow the save.
+  final List<TrainingReport> trainingReports;
+
   /// Returns a copy with [startingLineup] replaced -- the only field the
   /// lineup editor needs to change.
   Franchise copyWithLineup(StartingLineup newLineup) {
@@ -95,6 +127,10 @@ class Franchise {
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
       seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
     );
   }
 
@@ -112,6 +148,10 @@ class Franchise {
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
       seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
     );
   }
 
@@ -129,6 +169,10 @@ class Franchise {
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
       seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
     );
   }
 
@@ -146,6 +190,62 @@ class Franchise {
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
       seasonProgress: newSeasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
+    );
+  }
+
+  /// Returns a copy with [newTrainingPlan] replacing [trainingPlan] -- the
+  /// Training screen's only write path.
+  Franchise copyWithTrainingPlan(TrainingPlan newTrainingPlan) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      startingLineup: startingLineup,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: newTrainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
+    );
+  }
+
+  /// Returns a copy reflecting one training cycle having resolved:
+  /// [newRoster] carries whatever rating changes it produced,
+  /// [newNextTrainingWeek] advances the training pointer, and [newReport]
+  /// joins [trainingReports]' history. Bundled into one method (rather
+  /// than three separate `copyWithX` calls) because these three always
+  /// change together -- `training_advancer.dart`'s `runTraining` produces
+  /// all three from a single resolution, and nothing else ever changes
+  /// just one of them.
+  Franchise copyWithTrainingResult({
+    required List<RosterMembership> newRoster,
+    required int newNextTrainingWeek,
+    required TrainingReport newReport,
+  }) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: newRoster,
+      startingLineup: startingLineup,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: newNextTrainingWeek,
+      trainingReports: [...trainingReports, newReport],
     );
   }
 }

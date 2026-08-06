@@ -15,11 +15,36 @@ class PlayedGame {
     required this.game,
     required this.homeScore,
     required this.awayScore,
+    this.minutesByPlayerId = const {},
   }) : assert(homeScore != awayScore, 'a completed game is never a tie');
 
   final ScheduledGame game;
   final int homeScore;
   final int awayScore;
+
+  /// Minutes played, keyed by `Player.id` rather than the full `Player`
+  /// object `MatchResult.minutesPlayed` uses -- lean enough to persist
+  /// for a whole season (a ~12-entry map of id->double per game) without
+  /// the event-log/full-`Player` bloat the rest of this class exists to
+  /// avoid. What `features/training/`'s weekly growth engine sums to know
+  /// how many reps a player got -- nothing else needs this.
+  final Map<String, double> minutesByPlayerId;
+
+  /// Trims a full [GameResult] down to what's worth persisting -- the
+  /// one place `minutesPlayed`'s `Player`-keyed map gets narrowed to the
+  /// leaner id-keyed one this class actually stores, so `season_advancer.dart`
+  /// and `postseason_advancer.dart` don't each reimplement it.
+  factory PlayedGame.fromResult(GameResult result) {
+    return PlayedGame(
+      game: result.game,
+      homeScore: result.match.homeScore,
+      awayScore: result.match.awayScore,
+      minutesByPlayerId: {
+        for (final entry in result.match.minutesPlayed.entries)
+          entry.key.id: entry.value,
+      },
+    );
+  }
 
   String get winningTeamAbbreviation => homeScore > awayScore
       ? game.homeTeamAbbreviation

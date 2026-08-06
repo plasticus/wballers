@@ -7,10 +7,12 @@ import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
+import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
 import 'league_test_helpers.dart';
 import 'season_test_helpers.dart';
+import 'training_test_helpers.dart';
 
 /// [firstPlayerHasAchievement] grants the roster's first player a League
 /// MVP record -- used to test the special-hair-color unlock gate, which
@@ -55,6 +57,9 @@ Franchise franchiseForPortraitTests({bool firstPlayerHasAchievement = false}) {
       replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
       ownTeam: kLeagueTeamPool.first,
     ),
+    trainingCoaches: testTrainingCoaches(),
+    trainingPlan: TrainingPlan.initial(),
+    nextTrainingWeek: 1,
   );
 }
 

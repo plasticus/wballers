@@ -13,6 +13,8 @@ import 'package:womensbballmgr/features/portrait/generation/portrait_generator.d
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/training/domain/training_focus.dart';
+import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 
@@ -633,6 +635,200 @@ void main() {
           .read(currentFranchiseProvider.notifier)
           .simulatePostseasonAndPersist();
       expect(again, isNull);
+    });
+  });
+
+  group('updateTrainingPlan', () {
+    test('does nothing when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .updateTrainingPlan(TrainingPlan.initial());
+
+      expect(container.read(currentFranchiseProvider).value, isNull);
+    });
+
+    test('replaces the training plan and persists it', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      final newPlan = TrainingPlan.initial().copyWithTeamFocus(
+        TrainingFocus.offense,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .updateTrainingPlan(newPlan);
+
+      expect(
+        container.read(currentFranchiseProvider).value?.trainingPlan.teamFocus,
+        TrainingFocus.offense,
+      );
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(savedFranchise.trainingPlan.teamFocus, TrainingFocus.offense);
+    });
+  });
+
+  group('runTrainingAndPersist', () {
+    test('returns null when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(currentFranchiseProvider.future);
+
+      final report = await container
+          .read(currentFranchiseProvider.notifier)
+          .runTrainingAndPersist();
+
+      expect(report, isNull);
+    });
+
+    test('returns null before a full training week has been played', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      final report = await container
+          .read(currentFranchiseProvider.notifier)
+          .runTrainingAndPersist();
+
+      expect(report, isNull);
+    });
+
+    test('once the preseason week is fully played, resolves training and '
+        'persists the result', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      // The preseason (week 1) has 2 game days (Sunday, Thursday) --
+      // both need to be played before the week counts as fully complete.
+      await container.read(currentFranchiseProvider.notifier).advanceGameDay();
+      await container.read(currentFranchiseProvider.notifier).advanceGameDay();
+
+      final report = await container
+          .read(currentFranchiseProvider.notifier)
+          .runTrainingAndPersist();
+
+      expect(report, isNotNull);
+      expect(report!.week, 1);
+
+      final updated = container.read(currentFranchiseProvider).value;
+      expect(updated!.nextTrainingWeek, 2);
+      expect(updated.trainingReports, hasLength(1));
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(savedFranchise.nextTrainingWeek, 2);
+      expect(savedFranchise.trainingReports, hasLength(1));
+
+      // Calling again before the next week completes is a no-op.
+      final again = await container
+          .read(currentFranchiseProvider.notifier)
+          .runTrainingAndPersist();
+      expect(again, isNull);
+    });
+
+    test('is deterministic for a given simulationSeed', () async {
+      Franchise freshFranchise() => createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      Future<int> playWeekAndTrain() async {
+        final container = ProviderContainer(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(freshFranchise());
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        final report = await container
+            .read(currentFranchiseProvider.notifier)
+            .runTrainingAndPersist();
+        return report!.results.fold<int>(
+          0,
+          (sum, r) => sum + r.fieldDeltas.values.fold<int>(0, (a, b) => a + b),
+        );
+      }
+
+      final a = await playWeekAndTrain();
+      final b = await playWeekAndTrain();
+
+      expect(a, b);
     });
   });
 }

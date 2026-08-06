@@ -14,10 +14,12 @@ import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
 import '../../support/in_memory_save_repository.dart';
 import '../../support/league_test_helpers.dart';
 import '../../support/season_test_helpers.dart';
+import '../../support/training_test_helpers.dart';
 
 Franchise _franchiseWith({SeasonProgress? seasonProgress}) {
   final roster = generateStartingRoster(1);
@@ -45,6 +47,9 @@ Franchise _franchiseWith({SeasonProgress? seasonProgress}) {
           replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
           ownTeam: kLeagueTeamPool.first,
         ),
+    trainingCoaches: testTrainingCoaches(),
+    trainingPlan: TrainingPlan.initial(),
+    nextTrainingWeek: 1,
   );
 }
 
@@ -147,5 +152,72 @@ void main() {
     expect(find.text('Regular season complete.'), findsOneWidget);
     expect(find.text('Simulate Postseason'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsNothing);
+  });
+
+  group('training-ready affordance', () {
+    testWidgets('is not shown before a full training week has been played', (
+      tester,
+    ) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Training Report Ready'), findsNothing);
+    });
+
+    testWidgets(
+      'appears once the preseason week is fully played, and tapping it '
+      'resolves training and opens the report',
+      (tester) async {
+        // The Training card sits below the Season card -- needs a taller
+        // surface for its button to be on-screen for tap(), same rationale
+        // as the Advance-to-Next-Game-Day test above.
+        tester.view.physicalSize = const Size(800, 1800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final base = _franchiseWith();
+        // The preseason (week 1) has 2 game days -- both played means the
+        // week is fully complete and ready for training.
+        final franchise = _franchiseWith(
+          seasonProgress: SeasonProgress(
+            schedule: base.seasonProgress.schedule,
+            playedGames: const [],
+            nextGameDayIndex: 2,
+          ),
+        );
+        final repository = await _seededRepository(franchise);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+            child: const MaterialApp(home: DashboardScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Training Report Ready'), findsOneWidget);
+
+        await tester.tap(find.text('View Training Report'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Training Report'), findsOneWidget);
+        expect(find.text('Week 1'), findsOneWidget);
+
+        final saved = await repository.readSave(kCurrentFranchiseSaveId);
+        final savedFranchise = franchiseFromJson(
+          SaveEnvelope.fromJson(saved!).payload,
+        );
+        expect(savedFranchise.nextTrainingWeek, 2);
+        expect(savedFranchise.trainingReports, hasLength(1));
+      },
+    );
   });
 }

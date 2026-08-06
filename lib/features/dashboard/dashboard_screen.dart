@@ -20,6 +20,7 @@ import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
 import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/presentation/game_result_screen.dart';
+import '../training/presentation/training_report_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -120,6 +121,10 @@ class DashboardScreen extends ConsumerWidget {
                       _FranchiseSummaryCard(franchise: value),
                       const SizedBox(height: AppSpacing.lg),
                       _SeasonAdvanceCard(franchise: value),
+                      if (_isTrainingReportReady(value)) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        _TrainingReadyCard(franchise: value),
+                      ],
                     ],
                   ),
                   AsyncData() => const _NoFranchiseCard(),
@@ -194,6 +199,81 @@ class _FranchiseSummaryCard extends StatelessWidget {
           Text('Head Coach ${franchise.coach.name}'),
           const SizedBox(height: AppSpacing.sm),
           Text('$activeCount players on the active roster'),
+        ],
+      ),
+    );
+  }
+}
+
+/// Whether a new weekly training result is waiting to be resolved -- true
+/// once [lastFullyCompletedWeek] has moved past [Franchise.nextTrainingWeek],
+/// the same guard [runTraining] itself uses. Checked here (rather than
+/// just trying [runTrainingAndPersist] and seeing what comes back) so the
+/// Dashboard only shows the affordance when there's actually something to
+/// resolve.
+bool _isTrainingReportReady(Franchise franchise) {
+  final week = lastFullyCompletedWeek(franchise.seasonProgress);
+  return week != null && week >= franchise.nextTrainingWeek;
+}
+
+/// "Your training staff has feedback" -- the News-feed-shaped affordance
+/// `0B_Planned.md` calls for, in the meantime before a real News feed
+/// exists: resolves training on tap and hands off to
+/// [TrainingReportScreen] for the surfaced moment, same "here's your
+/// transient window" deal [_SeasonAdvanceCard] gives a game result.
+class _TrainingReadyCard extends ConsumerStatefulWidget {
+  const _TrainingReadyCard({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  ConsumerState<_TrainingReadyCard> createState() => _TrainingReadyCardState();
+}
+
+class _TrainingReadyCardState extends ConsumerState<_TrainingReadyCard> {
+  var _isResolving = false;
+
+  Future<void> _resolveTraining() async {
+    setState(() => _isResolving = true);
+    final report = await ref
+        .read(currentFranchiseProvider.notifier)
+        .runTrainingAndPersist();
+    if (!mounted) return;
+    setState(() => _isResolving = false);
+    if (report == null) return;
+
+    final updatedFranchise = ref.read(currentFranchiseProvider).value;
+    if (updatedFranchise == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            TrainingReportScreen(franchise: updatedFranchise, report: report),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Training Report Ready', style: theme.textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          const Text('Your training staff has feedback on the roster.'),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton(
+            onPressed: _isResolving ? null : _resolveTraining,
+            child: _isResolving
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('View Training Report'),
+          ),
         ],
       ),
     );

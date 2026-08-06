@@ -271,4 +271,28 @@ class Player {
       jerseyNumber: newJerseyNumber,
     );
   }
+
+  /// Returns a copy with [newRatings] replacing [ratings] -- what training
+  /// (`features/training/`) applies each week's growth/decline through.
+  Player copyWithRatings(PlayerRatings newRatings) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      yearsOfService: yearsOfService,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: newRatings,
+      heightInches: heightInches,
+      archetype: archetype,
+      traits: traits,
+      appearance: appearance,
+      achievements: achievements,
+      nickname: nickname,
+      jerseyNumber: jerseyNumber,
+    );
+  }
 }

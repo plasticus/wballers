@@ -13,6 +13,7 @@ import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../training/presentation/training_screen.dart';
 import '../application/current_franchise_provider.dart';
 import '../domain/franchise.dart';
 import '../onboarding/onboarding_screen.dart';
@@ -129,6 +130,18 @@ class _RosterView extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => TrainingScreen(franchise: franchise),
+              ),
+            );
+          },
+          icon: const Icon(Icons.fitness_center_outlined),
+          label: const Text('Training'),
         ),
         const SizedBox(height: AppSpacing.lg),
         _RosterSection(

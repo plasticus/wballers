@@ -70,6 +70,30 @@ List<(int week, GameDay day)> gameDaysInOrder(SeasonSchedule schedule) {
   return distinctDays;
 }
 
+/// The highest schedule week for which *every* one of that week's game
+/// days has already been played -- i.e. the most recent week that's
+/// fully wrapped up. `null` if no week is fully done yet (including
+/// "nothing's been played at all"). `features/training/`'s weekly
+/// resolution is gated on this: a week only becomes eligible for
+/// training once every game day in it (a regular season week can have
+/// up to 2) has actually happened, not just the first of them.
+///
+/// Because [gameDaysInOrder] is already globally sorted by week then day,
+/// and [SeasonProgress.nextGameDayIndex] is a monotonic pointer into it,
+/// this reduces to one check: the most recently played game day's week is
+/// complete exactly when the *next* unplayed game day (if any) belongs to
+/// a later week.
+int? lastFullyCompletedWeek(SeasonProgress progress) {
+  if (progress.nextGameDayIndex == 0) return null;
+  final gameDays = gameDaysInOrder(progress.schedule);
+  final lastPlayedWeek = gameDays[progress.nextGameDayIndex - 1].$1;
+  final nextUnplayedWeek = progress.nextGameDayIndex < gameDays.length
+      ? gameDays[progress.nextGameDayIndex].$1
+      : null;
+  if (nextUnplayedWeek == lastPlayedWeek) return null; // still mid-week
+  return lastPlayedWeek;
+}
+
 /// The standings table so far this season, derived fresh from
 /// [SeasonProgress.playedGames] every time it's asked for -- see the class
 /// doc comment on why this isn't cached anywhere.

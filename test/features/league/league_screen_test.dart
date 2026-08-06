@@ -15,11 +15,13 @@ import 'package:womensbballmgr/features/league/domain/league_draw.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/league/league_screen.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
+import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
 import '../../support/in_memory_save_repository.dart';
 import '../../support/league_test_helpers.dart';
 import '../../support/season_test_helpers.dart';
+import '../../support/training_test_helpers.dart';
 
 Future<void> _pumpWithRepository(
   WidgetTester tester,
@@ -92,6 +94,9 @@ void main() {
           replacedTeamAbbreviation: replaced.abbreviation,
           ownTeam: clubTeam,
         ),
+        trainingCoaches: testTrainingCoaches(),
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 1,
       );
 
       final repository = InMemorySaveRepository();

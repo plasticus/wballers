@@ -4,6 +4,9 @@ import '../../league/persistence/team_json.dart';
 import '../../roster/persistence/roster_membership_json.dart';
 import '../../roster/persistence/starting_lineup_json.dart';
 import '../../season/persistence/season_progress_json.dart';
+import '../../training/persistence/training_coach_json.dart';
+import '../../training/persistence/training_plan_json.dart';
+import '../../training/persistence/training_report_json.dart';
 import '../domain/franchise.dart';
 
 Map<String, dynamic> franchiseToJson(Franchise franchise) {
@@ -20,6 +23,14 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'replacedTeamAbbreviation': franchise.replacedTeamAbbreviation,
     'league': leagueToJson(franchise.league),
     'seasonProgress': seasonProgressToJson(franchise.seasonProgress),
+    'trainingCoaches': franchise.trainingCoaches
+        .map(trainingCoachToJson)
+        .toList(),
+    'trainingPlan': trainingPlanToJson(franchise.trainingPlan),
+    'nextTrainingWeek': franchise.nextTrainingWeek,
+    'trainingReports': franchise.trainingReports
+        .map(trainingReportToJson)
+        .toList(),
   };
 }
 
@@ -41,5 +52,15 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     seasonProgress: seasonProgressFromJson(
       json['seasonProgress'] as Map<String, dynamic>,
     ),
+    trainingCoaches: (json['trainingCoaches'] as List<dynamic>)
+        .map((value) => trainingCoachFromJson(value as Map<String, dynamic>))
+        .toList(),
+    trainingPlan: trainingPlanFromJson(
+      json['trainingPlan'] as Map<String, dynamic>,
+    ),
+    nextTrainingWeek: json['nextTrainingWeek'] as int,
+    trainingReports: (json['trainingReports'] as List<dynamic>)
+        .map((value) => trainingReportFromJson(value as Map<String, dynamic>))
+        .toList(),
   );
 }

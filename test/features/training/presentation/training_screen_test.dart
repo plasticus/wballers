@@ -1,0 +1,256 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/save_envelope.dart';
+import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
+import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
+import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
+import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
+import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
+import 'package:womensbballmgr/features/training/domain/training_coach.dart';
+import 'package:womensbballmgr/features/training/domain/training_focus.dart';
+import 'package:womensbballmgr/features/training/domain/training_plan.dart';
+import 'package:womensbballmgr/features/training/presentation/training_screen.dart';
+
+import '../../../support/in_memory_save_repository.dart';
+import '../../../support/league_test_helpers.dart';
+import '../../../support/season_test_helpers.dart';
+
+const _coaches = [
+  TrainingCoach(name: 'Coach Amara', developmentRating: 60),
+  TrainingCoach(name: 'Coach Blake', developmentRating: 50),
+  TrainingCoach(name: 'Coach Cruz', developmentRating: 40),
+];
+
+Franchise _franchiseWith({TrainingPlan? trainingPlan}) {
+  final roster = generateStartingRoster(1);
+  return Franchise(
+    id: 'franchise-1',
+    gmName: 'Taylor Reed',
+    team: kLeagueTeamPool.first,
+    coach: const Coach(
+      name: 'Jordan Ellis',
+      stats: CoachStats.neutral,
+      archetype: CoachArchetype.steadyHand,
+    ),
+    roster: roster,
+    startingLineup: StartingLineup.bestAvailable(roster),
+    simulationSeed: 1,
+    replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    league: testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    ),
+    seasonProgress: testSeasonProgress(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ownTeam: kLeagueTeamPool.first,
+    ),
+    trainingCoaches: _coaches,
+    trainingPlan: trainingPlan ?? TrainingPlan.initial(),
+    nextTrainingWeek: 1,
+  );
+}
+
+Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
+  final repository = InMemorySaveRepository();
+  final envelope = SaveEnvelope(
+    schemaVersion: 1,
+    payload: franchiseToJson(franchise),
+  );
+  await repository.writeSave(kCurrentFranchiseSaveId, envelope.toJson());
+  return repository;
+}
+
+void main() {
+  testWidgets('shows the team focus picker and one card per training coach', (
+    tester,
+  ) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: TrainingScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Team Focus'), findsOneWidget);
+    expect(find.text('Coach Amara'), findsOneWidget);
+    expect(find.text('Coach Blake'), findsOneWidget);
+    expect(find.text('Coach Cruz'), findsOneWidget);
+    expect(find.text('DEV 60'), findsOneWidget);
+    // Unassigned by default (TrainingPlan.initial) -- no focus picker shown
+    // for any of the 3 idle coaches yet.
+    expect(find.text('Unassigned'), findsNWidgets(3));
+    expect(find.text('Broad'), findsNothing);
+  });
+
+  testWidgets('changing the team focus and saving persists it', (tester) async {
+    // The Save button needs to be on-screen for tap() to hit test it --
+    // the default test surface is too short for this screen's 3 coach
+    // cards plus the team focus section above them.
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TrainingScreen(franchise: franchise),
+                      ),
+                    );
+                  },
+                  child: const Text('Open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Offense'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save Training Plan'));
+    await tester.pumpAndSettle();
+
+    // Back on the launcher screen.
+    expect(find.text('Open'), findsOneWidget);
+
+    final saved = await repository.readSave(kCurrentFranchiseSaveId);
+    final savedFranchise = franchiseFromJson(
+      SaveEnvelope.fromJson(saved!).payload,
+    );
+    expect(savedFranchise.trainingPlan.teamFocus, TrainingFocus.offense);
+  });
+
+  testWidgets(
+    'assigning a coach to a player reveals the broad/specific focus picker',
+    (tester) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+      final firstPlayerName = franchise.roster.first.player.name;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: TrainingScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      // Open the first coach's player dropdown and pick the first roster
+      // player.
+      await tester.tap(find.text('Unassigned').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(firstPlayerName).last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Broad'), findsOneWidget);
+      expect(find.text('Specific'), findsOneWidget);
+    },
+  );
+
+  testWidgets('saving an individual coach assignment persists it', (
+    tester,
+  ) async {
+    // Same "Save button must be on-screen" rationale as above -- assigning
+    // a player also expands a coach card with its broad/specific picker,
+    // pushing Save even further down.
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+    final targetPlayer = franchise.roster.first.player;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: TrainingScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Unassigned').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(targetPlayer.name).last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save Training Plan'));
+    await tester.pumpAndSettle();
+
+    final saved = await repository.readSave(kCurrentFranchiseSaveId);
+    final savedFranchise = franchiseFromJson(
+      SaveEnvelope.fromJson(saved!).payload,
+    );
+    final firstSlot = savedFranchise.trainingPlan.coachSlots.first;
+    expect(firstSlot.playerId, targetPlayer.id);
+    expect(firstSlot.focus!.isSpecific, isFalse);
+    expect(firstSlot.focus!.broadFocus, TrainingFocus.balanced);
+  });
+
+  testWidgets('a coach already assigned elsewhere is loaded correctly on '
+      'open', (tester) async {
+    final targetPlayerId = generateStartingRoster(1).first.player.id;
+    final franchise = _franchiseWith(
+      trainingPlan: TrainingPlan(
+        teamFocus: TrainingFocus.defense,
+        coachSlots: [
+          TrainingCoachSlot(
+            playerId: targetPlayerId,
+            focus: const IndividualTrainingFocus.specific(
+              PlayerRatingField.speed,
+            ),
+          ),
+          const TrainingCoachSlot(),
+          const TrainingCoachSlot(),
+        ],
+      ),
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: TrainingScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
+
+    final targetName = franchise.roster
+        .firstWhere((m) => m.player.id == targetPlayerId)
+        .player
+        .name;
+    expect(find.text(targetName), findsOneWidget);
+    expect(find.text('Specific'), findsOneWidget);
+    expect(find.text('Speed'), findsOneWidget);
+    // Still 2 idle coaches.
+    expect(find.text('Unassigned'), findsNWidgets(2));
+  });
+}

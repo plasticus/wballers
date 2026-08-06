@@ -138,4 +138,66 @@ void main() {
       expect(progress.isComplete, isTrue);
     });
   });
+
+  group('lastFullyCompletedWeek', () {
+    test('null when nothing has been played yet', () {
+      final schedule = SeasonSchedule(
+        games: [_game('AAA', 'BBB', week: 2, day: GameDay.sunday)],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+      expect(lastFullyCompletedWeek(progress), isNull);
+    });
+
+    test('null while a week\'s later game day still hasn\'t been played', () {
+      // Week 2 has two game days -- only the first has been played.
+      final schedule = SeasonSchedule(
+        games: [
+          _game('AAA', 'BBB', week: 2, day: GameDay.sunday),
+          _game('CCC', 'DDD', week: 2, day: GameDay.thursday),
+        ],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 1,
+      );
+      expect(lastFullyCompletedWeek(progress), isNull);
+    });
+
+    test('returns the week once every one of its game days is played', () {
+      final schedule = SeasonSchedule(
+        games: [
+          _game('AAA', 'BBB', week: 2, day: GameDay.sunday),
+          _game('CCC', 'DDD', week: 2, day: GameDay.thursday),
+        ],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 2,
+      );
+      expect(lastFullyCompletedWeek(progress), 2);
+    });
+
+    test('advances to the next week once that one starts filling in too', () {
+      final schedule = SeasonSchedule(
+        games: [
+          _game('AAA', 'BBB', week: 2, day: GameDay.sunday),
+          _game('CCC', 'DDD', week: 3, day: GameDay.sunday),
+        ],
+      );
+      // Week 2's one game day is done; week 3's has started but the
+      // pointer hasn't reached it yet, so week 2 is the last complete one.
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 1,
+      );
+      expect(lastFullyCompletedWeek(progress), 2);
+    });
+  });
 }

@@ -12,6 +12,9 @@ import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/game_result.dart';
 import '../../season/generation/postseason_advancer.dart';
 import '../../season/generation/season_advancer.dart';
+import '../../training/domain/training_plan.dart';
+import '../../training/domain/training_report.dart';
+import '../../training/generation/training_advancer.dart';
 import '../domain/franchise.dart';
 import '../persistence/franchise_json.dart';
 
@@ -184,6 +187,49 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
     await _persist(franchise.copyWithSeasonProgress(advance.progress));
     return advance.gamesPlayed;
+  }
+
+  /// Replaces the training plan and persists it -- the Training screen's
+  /// only write path. Same no-op-if-no-franchise and await-future
+  /// rationale as [updateLineup].
+  Future<void> updateTrainingPlan(TrainingPlan newPlan) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    await _persist(franchise.copyWithTrainingPlan(newPlan));
+  }
+
+  /// Resolves training for whatever week just became eligible and
+  /// persists the result. Returns the [TrainingReport] so the caller can
+  /// show it once (the Dashboard's "Training Report Ready" affordance),
+  /// same "here's your transient window" deal as [advanceGameDay].
+  ///
+  /// Returns `null` if there's no current franchise, or if no new week is
+  /// ready yet ([lastFullyCompletedWeek] hasn't advanced past
+  /// [Franchise.nextTrainingWeek]) -- see [runTraining]'s doc comment.
+  /// Idempotent per week for the same reason [runTraining] is: calling
+  /// again before another week completes just returns `null`.
+  ///
+  /// The [Random] stream is reseeded from [Franchise.simulationSeed] plus
+  /// [Franchise.nextTrainingWeek], not carried forward across calls --
+  /// see [kTrainingAdvanceSeedOffset]'s doc comment for why that's what
+  /// makes a given week's training result reproducible across a
+  /// save/reload.
+  Future<TrainingReport?> runTrainingAndPersist() async {
+    final franchise = await future;
+    if (franchise == null) return null;
+
+    final advance = runTraining(
+      Random(
+        franchise.simulationSeed +
+            kTrainingAdvanceSeedOffset +
+            franchise.nextTrainingWeek,
+      ),
+      franchise,
+    );
+    if (advance == null) return null;
+
+    await _persist(advance.franchise);
+    return advance.report;
   }
 
   Future<void> _persist(Franchise franchise) async {

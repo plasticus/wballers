@@ -9,6 +9,8 @@ import '../../roster/domain/starting_lineup.dart';
 import '../../roster/generation/starting_roster_generator.dart';
 import '../../season/domain/season_progress.dart';
 import '../../season/generation/season_schedule_generator.dart';
+import '../../training/domain/training_plan.dart';
+import '../../training/generation/training_coach_generator.dart';
 import '../domain/franchise.dart';
 
 /// A curated set of starter palettes for a new expansion club -- onboarding
@@ -161,5 +163,10 @@ Franchise createExpansionFranchise({
       playedGames: const [],
       nextGameDayIndex: 0,
     ),
+    trainingCoaches: generateTrainingCoaches(
+      Random(simulationSeed + kTrainingCoachSeedOffset),
+    ),
+    trainingPlan: TrainingPlan.initial(),
+    nextTrainingWeek: kPreseasonWeek,
   );
 }

@@ -15,10 +15,12 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
+import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
+import '../../../support/training_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _franchiseWithTwoPointGuards() {
@@ -80,6 +82,9 @@ Franchise _franchiseWithTwoPointGuards() {
       replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
       ownTeam: kLeagueTeamPool.first,
     ),
+    trainingCoaches: testTrainingCoaches(),
+    trainingPlan: TrainingPlan.initial(),
+    nextTrainingWeek: 1,
   );
 }
 
