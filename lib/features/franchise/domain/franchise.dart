@@ -4,6 +4,7 @@ import '../../league/domain/league.dart';
 import '../../league/domain/team.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/starting_lineup.dart';
+import '../../season/domain/season_progress.dart';
 
 /// The player's save-game: their General Manager persona, their club, its
 /// hired coach, its roster, and its starting lineup. This is the save-game
@@ -36,6 +37,7 @@ class Franchise {
     required this.simulationSeed,
     required this.replacedTeamAbbreviation,
     required this.league,
+    required this.seasonProgress,
   }) : assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
          'replacedTeamAbbreviation must be one of the league team pool, '
@@ -73,6 +75,12 @@ class Franchise {
   /// rosters -- see the class doc comment and `generateLeague`.
   final League league;
 
+  /// This franchise's season: the full schedule, every game played so
+  /// far, and which week comes next (`generateSeasonSchedule`,
+  /// `advanceOneWeek`). Generated once at franchise creation, same as
+  /// [league].
+  final SeasonProgress seasonProgress;
+
   /// Returns a copy with [startingLineup] replaced -- the only field the
   /// lineup editor needs to change.
   Franchise copyWithLineup(StartingLineup newLineup) {
@@ -86,6 +94,7 @@ class Franchise {
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
+      seasonProgress: seasonProgress,
     );
   }
 
@@ -102,6 +111,7 @@ class Franchise {
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
+      seasonProgress: seasonProgress,
     );
   }
 
@@ -118,6 +128,24 @@ class Franchise {
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
+      seasonProgress: seasonProgress,
+    );
+  }
+
+  /// Returns a copy with [newSeasonProgress] replacing [seasonProgress] --
+  /// `advanceOneWeek`'s result gets threaded back in through this.
+  Franchise copyWithSeasonProgress(SeasonProgress newSeasonProgress) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      startingLineup: startingLineup,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: newSeasonProgress,
     );
   }
 }

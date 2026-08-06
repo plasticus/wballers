@@ -14,6 +14,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
 import '../../../support/league_test_helpers.dart';
+import '../../../support/season_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
 /// Proves the Phase 0 persistence layer (`SaveEnvelope`/`SaveRepository`)
@@ -66,6 +67,11 @@ void main() {
       league: testLeague(
         simulationSeed: 12345,
         replacedTeamAbbreviation: 'CLT',
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 12345,
+        replacedTeamAbbreviation: 'CLT',
+        ownTeam: kLeagueTeamPool.first,
       ),
     );
 

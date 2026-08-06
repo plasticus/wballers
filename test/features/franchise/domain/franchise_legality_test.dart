@@ -10,6 +10,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
 import '../../../support/league_test_helpers.dart';
+import '../../../support/season_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _franchiseWithRoster(List<RosterMembership> roster) {
@@ -29,6 +30,11 @@ Franchise _franchiseWithRoster(List<RosterMembership> roster) {
     league: testLeague(
       simulationSeed: 1,
       replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    ),
+    seasonProgress: testSeasonProgress(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ownTeam: kLeagueTeamPool.first,
     ),
   );
 }

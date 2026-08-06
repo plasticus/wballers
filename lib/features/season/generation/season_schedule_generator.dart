@@ -4,6 +4,11 @@ import '../../league/domain/team.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_schedule.dart';
 
+/// Seed offset for schedule generation -- keeps this random stream from
+/// correlating with the coach (0), starting roster (1), league draw (2),
+/// or league AI rosters (3) streams, same pattern as those.
+const kSeasonScheduleSeedOffset = 4;
+
 /// Season calendar week numbers (`0B_Planned.md`'s 24-week table).
 const kPreseasonWeek = 1;
 const kRegularSeasonStartWeek = 2;

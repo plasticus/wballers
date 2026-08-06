@@ -14,6 +14,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
 import '../../../support/league_test_helpers.dart';
+import '../../../support/season_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _sampleFranchise() {
@@ -56,6 +57,11 @@ Franchise _sampleFranchise() {
     // of the 20 that are (see the note on createExpansionFranchise).
     replacedTeamAbbreviation: 'ATL',
     league: testLeague(simulationSeed: 42, replacedTeamAbbreviation: 'ATL'),
+    seasonProgress: testSeasonProgress(
+      simulationSeed: 42,
+      replacedTeamAbbreviation: 'ATL',
+      ownTeam: kLeagueTeamPool.first,
+    ),
   );
 }
 
@@ -81,6 +87,16 @@ void main() {
     expect(restored.coach.name, original.coach.name);
     expect(restored.coach.stats.overall, original.coach.stats.overall);
     expect(restored.coach.archetype, original.coach.archetype);
+
+    expect(
+      restored.seasonProgress.schedule.games.length,
+      original.seasonProgress.schedule.games.length,
+    );
+    expect(restored.seasonProgress.nextWeek, original.seasonProgress.nextWeek);
+    expect(
+      restored.seasonProgress.playedGames.length,
+      original.seasonProgress.playedGames.length,
+    );
 
     expect(
       restored.startingLineup.startersByPosition,
@@ -176,6 +192,11 @@ void main() {
       league: testLeague(
         simulationSeed: 1,
         replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ownTeam: kLeagueTeamPool.first,
       ),
     );
 

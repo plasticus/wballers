@@ -5,6 +5,7 @@ import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
 
 final _portraitManifest = PortraitManifest(
   hair: const ['hair_afro.png'],
@@ -79,6 +80,48 @@ void main() {
       for (var i = 0; i < a.roster.length; i++) {
         expect(a.roster[i].player.name, b.roster[i].player.name);
       }
+      expect(
+        a.seasonProgress.schedule.games.length,
+        b.seasonProgress.schedule.games.length,
+      );
+    });
+
+    test('generates a season schedule that includes the GM\'s own club, '
+        'not the team it replaced', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'DET',
+        colors: kStarterPalettes.first,
+        simulationSeed: 555,
+      );
+
+      final scheduledAbbreviations = {
+        for (final game in franchise.seasonProgress.schedule.games) ...[
+          game.homeTeamAbbreviation,
+          game.awayTeamAbbreviation,
+        ],
+      };
+      expect(scheduledAbbreviations, contains(franchise.team.abbreviation));
+      expect(scheduledAbbreviations, isNot(contains('DET')));
+    });
+
+    test('a fresh franchise starts at the preseason with nothing played '
+        'yet', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'DET',
+        colors: kStarterPalettes.first,
+        simulationSeed: 555,
+      );
+
+      expect(franchise.seasonProgress.nextWeek, kPreseasonWeek);
+      expect(franchise.seasonProgress.playedGames, isEmpty);
     });
 
     test('the GM is not the coach -- both are set, and distinctly', () {

@@ -7,6 +7,8 @@ import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../roster/domain/starting_lineup.dart';
 import '../../roster/generation/starting_roster_generator.dart';
+import '../../season/domain/season_progress.dart';
+import '../../season/generation/season_schedule_generator.dart';
 import '../domain/franchise.dart';
 
 /// A curated set of starter palettes for a new expansion club -- onboarding
@@ -123,6 +125,16 @@ Franchise createExpansionFranchise({
     portraitWeights: portraitWeights,
   );
 
+  // The full 20-team league this playthrough actually plays, with [team]
+  // substituted in for the AI team it replaced -- same shape
+  // `LeagueScreen` builds for display, needed here so the schedule
+  // includes the GM's own club rather than the team it replaced.
+  final scheduleTeams = [...league.aiTeams.map((aiTeam) => aiTeam.team), team];
+  final schedule = generateSeasonSchedule(
+    scheduleTeams,
+    Random(simulationSeed + kSeasonScheduleSeedOffset),
+  );
+
   return Franchise(
     id: 'franchise-$simulationSeed',
     gmName: gmName,
@@ -137,5 +149,10 @@ Franchise createExpansionFranchise({
     simulationSeed: simulationSeed,
     replacedTeamAbbreviation: replacedTeamAbbreviation,
     league: league,
+    seasonProgress: SeasonProgress(
+      schedule: schedule,
+      playedGames: const [],
+      nextWeek: kPreseasonWeek,
+    ),
   );
 }

@@ -3,6 +3,7 @@ import '../../league/persistence/league_json.dart';
 import '../../league/persistence/team_json.dart';
 import '../../roster/persistence/roster_membership_json.dart';
 import '../../roster/persistence/starting_lineup_json.dart';
+import '../../season/persistence/season_progress_json.dart';
 import '../domain/franchise.dart';
 
 Map<String, dynamic> franchiseToJson(Franchise franchise) {
@@ -18,6 +19,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'simulationSeed': franchise.simulationSeed,
     'replacedTeamAbbreviation': franchise.replacedTeamAbbreviation,
     'league': leagueToJson(franchise.league),
+    'seasonProgress': seasonProgressToJson(franchise.seasonProgress),
   };
 }
 
@@ -36,5 +38,8 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     simulationSeed: json['simulationSeed'] as int,
     replacedTeamAbbreviation: json['replacedTeamAbbreviation'] as String,
     league: leagueFromJson(json['league'] as Map<String, dynamic>),
+    seasonProgress: seasonProgressFromJson(
+      json['seasonProgress'] as Map<String, dynamic>,
+    ),
   );
 }

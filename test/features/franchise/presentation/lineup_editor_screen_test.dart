@@ -18,6 +18,7 @@ import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 import '../../../support/league_test_helpers.dart';
+import '../../../support/season_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _franchiseWithTwoPointGuards() {
@@ -73,6 +74,11 @@ Franchise _franchiseWithTwoPointGuards() {
     league: testLeague(
       simulationSeed: 1,
       replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    ),
+    seasonProgress: testSeasonProgress(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ownTeam: kLeagueTeamPool.first,
     ),
   );
 }

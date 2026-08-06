@@ -19,6 +19,7 @@ import 'package:womensbballmgr/features/roster/generation/starting_roster_genera
 
 import '../../support/in_memory_save_repository.dart';
 import '../../support/league_test_helpers.dart';
+import '../../support/season_test_helpers.dart';
 
 Future<void> _pumpWithRepository(
   WidgetTester tester,
@@ -84,6 +85,11 @@ void main() {
         league: testLeague(
           simulationSeed: simulationSeed,
           replacedTeamAbbreviation: replaced.abbreviation,
+        ),
+        seasonProgress: testSeasonProgress(
+          simulationSeed: simulationSeed,
+          replacedTeamAbbreviation: replaced.abbreviation,
+          ownTeam: clubTeam,
         ),
       );
 
