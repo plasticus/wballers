@@ -83,6 +83,7 @@ anything for the presentation layer or end-of-season systems to show.
   - Coin flip decides hot vs. cold.
   - Assigned to a random player on the active roster.
   - A player can't hold both at once; a team can only have one hot and one cold streak active at a time.
+- **Interstitial-ad performance boost** (noted 2026-08-06, not designed yet) — the GM's own idea, captured as a note for a later phase, not something to build now. Watching an interstitial ad grants a temporary +5% overall boost to all players for the next 3 games. Needs a game-planning screen to live on, which doesn't exist yet (nothing in the app today sits between "advance to next game day" and the result) — depends on that screen existing first, and on the real AdMob integration from Phase 5 (`AdService`) to actually gate it on a watched ad rather than a free toggle.
 - **Fatigue does not need to persist between games in Phase 2** — it's tracked per-game only (see the stamina appendix under Phase 3 below). A season-calendar-level rest/back-to-back model was considered and explicitly not chosen; nothing to build here beyond making sure Phase 3's per-game fatigue actually resets between games.
 - **Trade system.** Not needed for a while (no trading planned for the first few phases of Phase 2 work). When it arrives: the AI should own most of the valuation logic itself; the GM's role is just to put a player on the trade block, and the AI generates offers from there.
 - **Balancing tools.** Simulation batches, diagnostics, distribution checks, seeded regression scenarios.

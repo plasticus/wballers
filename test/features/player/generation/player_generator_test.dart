@@ -330,6 +330,45 @@ void main() {
     );
   });
 
+  test('potentialOverride pins potential near the requested value', () {
+    final random = Random(808);
+    for (var i = 0; i < 200; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.values[i % Position.values.length],
+        qualityCenter: 60,
+        potentialOverride: 90,
+        potentialOverrideSpread: 3,
+      );
+      expect(player.ratings.potential, inInclusiveRange(87, 93));
+    }
+  });
+
+  test('potentialOverride still never lands below overall, even when the '
+      'override value sits close to (or under) a hot-rolled overall', () {
+    final random = Random(909);
+    for (var i = 0; i < 500; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.values[i % Position.values.length],
+        // A tight, high quality center makes it easy for overall to roll
+        // above a modest override -- exactly the scenario that must
+        // still be floored.
+        qualityCenter: 88,
+        qualitySpread: 3,
+        potentialOverride: 88,
+        potentialOverrideSpread: 2,
+      );
+      expect(
+        player.ratings.potential,
+        greaterThanOrEqualTo(player.ratings.overall),
+        reason:
+            'overall ${player.ratings.overall}, '
+            'potential ${player.ratings.potential}',
+      );
+    }
+  });
+
   test('omitting portraitWeights consumes no extra random numbers', () {
     // Same seed, same non-portrait fields, whether or not portraitWeights
     // is passed -- proves the appearance roll is fully additive, not

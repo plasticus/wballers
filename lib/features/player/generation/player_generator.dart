@@ -443,6 +443,15 @@ int _generateHeight(Random random, Position position) {
 /// drafted prospect, who by definition hasn't played professionally yet
 /// regardless of what a random debut age would otherwise imply
 /// (`draft_generator.dart`).
+///
+/// [potentialOverride] skips [_generatePotentialOffset] entirely and
+/// instead jitters potential around that exact value (spread
+/// [potentialOverrideSpread]), still floored at [overall] just like the
+/// normal path -- a hand-placed narrative player can have her potential
+/// pinned tight to a specific story beat (a vet's upper-80s peak, a
+/// prospect's 90s ceiling) without reopening the potential-below-overall
+/// bug this same file fixed for the general population
+/// (`starting_roster_generator.dart`).
 Player generatePlayer(
   Random random, {
   required Position primaryPosition,
@@ -451,6 +460,8 @@ Player generatePlayer(
   int? yearsOfService,
   int minAge = 20,
   int maxAge = 34,
+  int? potentialOverride,
+  int potentialOverrideSpread = 3,
   PortraitWeights? portraitWeights,
 }) {
   final archetype = generateArchetype(random, primaryPosition);
@@ -552,10 +563,15 @@ Player generatePlayer(
                   blocking) /
               12)
           .round();
-  final potential = (overall + _generatePotentialOffset(random, age)).clamp(
-    kMinRating,
-    kMaxRating,
-  );
+  final potential = potentialOverride != null
+      ? max(
+          overall,
+          _generateStat(random, potentialOverride, potentialOverrideSpread, 0),
+        )
+      : (overall + _generatePotentialOffset(random, age)).clamp(
+          kMinRating,
+          kMaxRating,
+        );
 
   final ratings = PlayerRatings(
     speed: speed,

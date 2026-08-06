@@ -1,8 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_legality.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/star_tier.dart';
+import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
+import 'package:womensbballmgr/features/roster/generation/ai_roster_generator.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
 void main() {
@@ -42,32 +46,72 @@ void main() {
   });
 
   test('is legal under the star-tier caps', () {
-    final roster = generateStartingRoster(1);
-
-    final legality = evaluateRosterLegality(
-      active: roster.map((m) => m.player).toList(),
-    );
-
-    expect(legality.isLegal, isTrue);
-  });
-
-  test('every player is below the four-star threshold -- a weak roster', () {
     // Check across many seeds, not just one, since this should be a
     // structural guarantee of the generation parameters, not a fluke.
-    for (var seed = 0; seed < 50; seed++) {
+    for (var seed = 0; seed < 100; seed++) {
       final roster = generateStartingRoster(seed);
 
-      for (final membership in roster) {
-        expect(
-          StarTier.of(membership.player),
-          StarTier.belowFourStar,
-          reason:
-              'seed $seed produced ${membership.player.name} at '
-              '${membership.player.ratings.overall} overall',
-        );
-      }
+      final legality = evaluateRosterLegality(
+        active: roster.map((m) => m.player).toList(),
+      );
+
+      expect(legality.isLegal, isTrue, reason: 'seed $seed');
     }
   });
+
+  test('team overall lands on the low end of the league range, notably '
+      'below a typical AI roster (`0B_Planned.md`\'s team-overall-rebalance: '
+      '"I don\'t want them winning the championship in year 1")', () {
+    for (var seed = 0; seed < 100; seed++) {
+      final roster = generateStartingRoster(seed);
+      expect(
+        teamOverall(roster),
+        inInclusiveRange(60, 70),
+        reason: 'seed $seed',
+      );
+    }
+
+    // Not just individually in-range -- meaningfully lower than the AI
+    // league's average, on average.
+    final random = Random(404);
+    var startingTotal = 0;
+    var aiTotal = 0;
+    const sampleSize = 100;
+    for (var i = 0; i < sampleSize; i++) {
+      startingTotal += teamOverall(generateStartingRoster(i));
+      aiTotal += teamOverall(generateAiRoster(random));
+    }
+    expect(startingTotal / sampleSize, lessThan(aiTotal / sampleSize));
+  });
+
+  test(
+    'includes a narrative core: an aging four-star-or-better vet and a '
+    'boom-or-bust prospect with a wide gap between overall and potential',
+    () {
+      for (var seed = 0; seed < 100; seed++) {
+        final roster = generateStartingRoster(seed);
+        final players = roster.map((m) => m.player).toList();
+
+        final vetCandidates = players.where(
+          (p) => p.age >= 30 && StarTier.of(p) != StarTier.belowFourStar,
+        );
+        expect(
+          vetCandidates,
+          isNotEmpty,
+          reason: 'seed $seed: no aging four-star-or-better vet found',
+        );
+
+        final prospectCandidates = players.where(
+          (p) => p.age <= 23 && p.ratings.potential - p.ratings.overall >= 15,
+        );
+        expect(
+          prospectCandidates,
+          isNotEmpty,
+          reason: 'seed $seed: no high-upside young prospect found',
+        );
+      }
+    },
+  );
 
   test('different seeds produce meaningfully different rosters', () {
     final a = generateStartingRoster(10);

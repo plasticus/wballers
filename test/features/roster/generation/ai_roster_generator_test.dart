@@ -5,6 +5,7 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_legality.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/star_tier.dart';
+import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
 import 'package:womensbballmgr/features/roster/generation/ai_roster_generator.dart';
 
 void main() {
@@ -79,6 +80,19 @@ void main() {
       for (final membership in fourStars) {
         expect(membership.player.age, inInclusiveRange(20, 34));
       }
+    }
+  });
+
+  test('team overall lands in the ~65-75 target range, comfortably under '
+      'the star-cap ceiling (`0B_Planned.md`\'s team-overall-rebalance)', () {
+    final random = Random(303);
+    for (var i = 0; i < 100; i++) {
+      final roster = generateAiRoster(random);
+      expect(
+        teamOverall(roster),
+        inInclusiveRange(65, 75),
+        reason: 'roster: ${roster.map((m) => m.player.ratings.overall)}',
+      );
     }
   });
 }

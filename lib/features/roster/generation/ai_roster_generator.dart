@@ -38,7 +38,7 @@ const _quarterStarQualitySpread = 5;
 /// players.
 const _quarterStarAgeRanges = <(int, int)>[(20, 24), (25, 29), (30, 34)];
 
-const _roleQualityCenter = 54;
+const _roleQualityCenter = 65;
 const _roleQualitySpread = 10;
 
 /// Generates one AI-controlled team's 12-player active roster. Deterministic
