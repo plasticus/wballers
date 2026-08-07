@@ -183,7 +183,8 @@ void main() {
   });
 
   testWidgets(
-    'shows a player\'s height and offense/defense/physical overalls',
+    'shows a player\'s experience and offense/defense/physical overalls '
+    'as stat chips (Card Lab #11, the design the GM picked to ship)',
     (tester) async {
       final player = playerWithOverall(70, heightInches: 74);
       final franchise = _franchiseWith(
@@ -207,8 +208,14 @@ void main() {
         scrollable: find.byType(Scrollable),
       );
 
-      expect(find.textContaining('6\'2"'), findsWidgets);
-      expect(find.text('OFF 70 · DEF 70 · PHY 70'), findsOneWidget);
+      // "EXP: 5" -- `playerWithOverall`'s default `yearsOfService` -- not
+      // height; Card Lab #11 dropped height from the subtitle line in
+      // favor of experience, and the GM approved that shape as-is.
+      expect(find.textContaining('EXP: 5'), findsWidgets);
+      // 3 separate chips now, not one combined text line.
+      expect(find.text('OFF 70'), findsWidgets);
+      expect(find.text('DEF 70'), findsWidgets);
+      expect(find.text('PHY 70'), findsWidgets);
     },
   );
 

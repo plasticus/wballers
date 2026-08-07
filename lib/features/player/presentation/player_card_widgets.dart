@@ -1,0 +1,219 @@
+import 'package:flutter/material.dart';
+
+import '../../../app/app_spacing.dart';
+import '../../franchise/domain/franchise.dart';
+import '../../portrait/presentation/portrait_image.dart';
+import '../../portrait/rendering/portrait_colors.dart';
+import '../domain/player.dart';
+
+/// Shared building blocks for showing a player's identity compactly --
+/// photo, jersey number, OVR, and OFF/DEF/PHY -- landed after 3 rounds of
+/// GM feedback in the Player Card Lab (`player_card_lab_screen.dart`,
+/// reachable from the Team tab's "Card Lab" button, still kept around
+/// as a comparison tool). `TeamRosterScreen`'s production roster row now
+/// uses these directly, so a future lab pick doesn't mean redoing this
+/// work a second time.
+
+/// "EXP: 12" or "Rookie" at 0 -- years of service. Chosen over "12 yrs
+/// WBL" after a round of card-lab feedback: shorter, and "Rookie" reads
+/// better than "0 yrs WBL" for a player who hasn't debuted yet.
+String experienceLabel(Player player) {
+  final years = player.yearsOfService;
+  return years == 0 ? 'Rookie' : 'EXP: $years';
+}
+
+/// A team-colored circular badge showing the player's overall rating --
+/// the Card Lab's #2 "OVR Badge", one of the GM's two original favorites
+/// ("I like having the OVR rating in a bubble so it really looks
+/// important").
+class OvrBubble extends StatelessWidget {
+  const OvrBubble({required this.overall, required this.color, super.key});
+
+  final int overall;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 56,
+      height: 56,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(
+        '$overall',
+        style: theme.textTheme.titleLarge?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// A portrait with the jersey number overlaid as a small team-colored
+/// pill on its corner -- the Card Lab's #8 "Jersey Badge on Photo",
+/// which the GM singled out as the favorite of 3 jersey treatments
+/// tried ("I love #8's jersey badge on the photo").
+class PhotoWithJerseyBadge extends StatelessWidget {
+  const PhotoWithJerseyBadge({
+    required this.franchise,
+    required this.player,
+    required this.accentColor,
+    this.size = 64,
+    super.key,
+  });
+
+  final Franchise franchise;
+  final Player player;
+  final Color accentColor;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        PortraitImage(
+          saveId: franchise.id,
+          ownerId: player.id,
+          appearance: player.appearance,
+          jersey: parseHexColor(franchise.team.colors.primaryHex),
+          size: size,
+        ),
+        if (player.jerseyNumber != null)
+          Positioned(
+            bottom: -4,
+            right: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xs,
+                vertical: 1,
+              ),
+              decoration: BoxDecoration(
+                color: accentColor,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: theme.colorScheme.surface, width: 2),
+              ),
+              child: Text(
+                '#${player.jerseyNumber}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// The left rail: `PhotoWithJerseyBadge` stacked over an `OvrBubble`.
+/// Landed via the Card Lab's Round 3 (#11 "Left Rail: Badge + Bubble")
+/// after Round 2's OVR-bubble-on-the-right left too little horizontal
+/// room for the identity block, forcing long names to truncate ("in
+/// every single one of these, the name is cut off... feels
+/// dehumanizing") -- moving OVR underneath the photo instead fixed that,
+/// and is what the GM picked to ship.
+class PhotoOvrRail extends StatelessWidget {
+  const PhotoOvrRail({
+    required this.franchise,
+    required this.player,
+    required this.accentColor,
+    this.size = 64,
+    super.key,
+  });
+
+  final Franchise franchise;
+  final Player player;
+  final Color accentColor;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        PhotoWithJerseyBadge(
+          franchise: franchise,
+          player: player,
+          accentColor: accentColor,
+          size: size,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OvrBubble(overall: player.ratings.overall, color: accentColor),
+      ],
+    );
+  }
+}
+
+/// A single OFF/DEF/PHY stat as a small colored pill -- the Card Lab's
+/// #3 "Stat Chips", the GM's other original favorite ("I like the 3
+/// colors on the stats, that'd make it nice to scroll through").
+class StatChip extends StatelessWidget {
+  const StatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    super.key,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$label $value',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// OFF/DEF/PHY as 3 `StatChip`s in a row.
+class StatChipRow extends StatelessWidget {
+  const StatChipRow({required this.player, super.key});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
+      children: [
+        StatChip(
+          label: 'OFF',
+          value: player.ratings.offenseOverall,
+          color: Colors.orange.shade700,
+        ),
+        StatChip(
+          label: 'DEF',
+          value: player.ratings.defenseOverall,
+          color: Colors.blue.shade700,
+        ),
+        StatChip(
+          label: 'PHY',
+          value: player.ratings.physicalOverall,
+          color: Colors.green.shade700,
+        ),
+      ],
+    );
+  }
+}

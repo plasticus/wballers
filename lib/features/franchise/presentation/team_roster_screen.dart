@@ -8,11 +8,11 @@ import '../../league/domain/team.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
 import '../../player/presentation/player_card_lab_screen.dart';
+import '../../player/presentation/player_card_widgets.dart';
 import '../../player/presentation/player_detail_screen.dart';
 import '../../player/presentation/trait_chip.dart';
 import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
-import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../training/presentation/training_screen.dart';
@@ -262,6 +262,13 @@ class _RosterSection extends StatelessWidget {
   }
 }
 
+/// The production roster row -- Player Card Lab's #11 "Left Rail: Badge +
+/// Bubble" (`player_card_lab_screen.dart`), the design the GM picked
+/// after 3 rounds of feedback: jersey badge on the photo, OVR bubble
+/// underneath it (not on the right, which left too little room for the
+/// identity block and forced long names to truncate), and OFF/DEF/PHY as
+/// colored stat chips. The identity line has no `maxLines`/ellipsis --
+/// nothing here ever cuts a name off.
 class _PlayerRow extends StatelessWidget {
   const _PlayerRow({
     required this.franchise,
@@ -277,6 +284,7 @@ class _PlayerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final player = membership.player;
+    final accentColor = franchise.team.colors.primary;
 
     return InkWell(
       onTap: () {
@@ -292,50 +300,23 @@ class _PlayerRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PortraitImage(
-              saveId: franchise.id,
-              ownerId: player.id,
-              appearance: player.appearance,
-              jersey: parseHexColor(franchise.team.colors.primaryHex),
-              size: 40,
+            PhotoOvrRail(
+              franchise: franchise,
+              player: player,
+              accentColor: accentColor,
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xs,
-                vertical: 2,
-              ),
-              decoration: BoxDecoration(
-                color: _positionColor(
-                  player.primaryPosition,
-                ).withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                player.primaryPosition.abbreviation,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: _positionColor(player.primaryPosition),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Flexible(
+                      Expanded(
                         child: Text(
-                          [
-                            if (player.jerseyNumber != null)
-                              '#${player.jerseyNumber}',
-                            player.nickname == null
-                                ? player.name
-                                : '${player.name} "${player.nickname}"',
-                          ].join(' '),
-                          style: theme.textTheme.bodyLarge,
+                          '${player.primaryPosition.abbreviation} '
+                          '${player.nickname == null ? player.name : '${player.name} "${player.nickname}"'}',
+                          style: theme.textTheme.titleMedium,
                         ),
                       ),
                       if (isStarter) ...[
@@ -351,15 +332,11 @@ class _PlayerRow extends StatelessWidget {
                   ),
                   Text(
                     '${player.archetype.label} · Age ${player.age} · '
-                    '${formatHeightInches(player.heightInches)}',
+                    '${experienceLabel(player)}',
                     style: theme.textTheme.bodySmall,
                   ),
-                  Text(
-                    'OFF ${player.ratings.offenseOverall} · '
-                    'DEF ${player.ratings.defenseOverall} · '
-                    'PHY ${player.ratings.physicalOverall}',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  StatChipRow(player: player),
                   if (player.traits.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Wrap(
@@ -374,33 +351,9 @@ class _PlayerRow extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${player.ratings.overall}',
-                  style: theme.textTheme.titleMedium,
-                ),
-                Text('OVR', style: theme.textTheme.labelSmall),
-              ],
-            ),
           ],
         ),
       ),
     );
   }
-}
-
-/// A subtle per-position accent, purely decorative -- the position
-/// abbreviation text next to it already conveys the position on its own,
-/// so color isn't the only signal (accessibility rule in ARCHITECTURE.md).
-Color _positionColor(Position position) {
-  return switch (position) {
-    Position.pointGuard => Colors.blue,
-    Position.shootingGuard => Colors.teal,
-    Position.smallForward => Colors.green,
-    Position.powerForward => Colors.orange,
-    Position.center => Colors.purple,
-  };
 }
