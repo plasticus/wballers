@@ -5,8 +5,13 @@ import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../match/domain/player_box_score.dart';
+import '../../player/domain/position.dart';
+import '../../portrait/presentation/portrait_image.dart';
+import '../../portrait/rendering/portrait_colors.dart';
+import '../../roster/domain/team_overall.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/game_result.dart';
+import '../domain/scheduled_game.dart';
 
 /// The final result of one game, shown right after it's simulated -- box
 /// score and all. This is the transient window `GameDayAdvance.gamesPlayed`
@@ -34,17 +39,18 @@ class GameResultScreen extends StatelessWidget {
       result.game.awayTeamAbbreviation,
     );
     final rosters = rostersByAbbreviation(franchise);
+    final homeRoster = rosters[result.game.homeTeamAbbreviation] ?? const [];
+    final awayRoster = rosters[result.game.awayTeamAbbreviation] ?? const [];
     final boxScore = computeBoxScore(
       result.match,
-      homeRoster: rosters[result.game.homeTeamAbbreviation] ?? const [],
-      awayRoster: rosters[result.game.awayTeamAbbreviation] ?? const [],
+      homeRoster: homeRoster,
+      awayRoster: awayRoster,
     );
-    final homePlayers = rosters[result.game.homeTeamAbbreviation] ?? const [];
     final homeLines =
-        boxScore.where((line) => homePlayers.contains(line.player)).toList()
+        boxScore.where((line) => homeRoster.contains(line.player)).toList()
           ..sort((a, b) => b.points.compareTo(a.points));
     final awayLines =
-        boxScore.where((line) => !homePlayers.contains(line.player)).toList()
+        boxScore.where((line) => awayRoster.contains(line.player)).toList()
           ..sort((a, b) => b.points.compareTo(a.points));
 
     return Scaffold(
@@ -53,11 +59,25 @@ class GameResultScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            _ScoreCard(homeTeam: homeTeam, awayTeam: awayTeam, result: result),
+            _ScoreCard(
+              homeTeam: homeTeam,
+              awayTeam: awayTeam,
+              homeOverall: teamOverallForPlayers(homeRoster),
+              awayOverall: teamOverallForPlayers(awayRoster),
+              result: result,
+            ),
             const SizedBox(height: AppSpacing.lg),
-            _BoxScoreSection(team: homeTeam, lines: homeLines),
+            _BoxScoreSection(
+              franchise: franchise,
+              team: homeTeam,
+              lines: homeLines,
+            ),
             const SizedBox(height: AppSpacing.lg),
-            _BoxScoreSection(team: awayTeam, lines: awayLines),
+            _BoxScoreSection(
+              franchise: franchise,
+              team: awayTeam,
+              lines: awayLines,
+            ),
           ],
         ),
       ),
@@ -69,11 +89,15 @@ class _ScoreCard extends StatelessWidget {
   const _ScoreCard({
     required this.homeTeam,
     required this.awayTeam,
+    required this.homeOverall,
+    required this.awayOverall,
     required this.result,
   });
 
   final Team homeTeam;
   final Team awayTeam;
+  final int homeOverall;
+  final int awayOverall;
   final GameResult result;
 
   @override
@@ -81,27 +105,50 @@ class _ScoreCard extends StatelessWidget {
     final theme = Theme.of(context);
     final match = result.match;
     final periodCount = match.homeScoreByQuarter.length;
+    final game = result.game;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'FINAL',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'FINAL',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (!game.countsTowardStandings)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${game.typeLabel} -- doesn\'t count toward your record',
+                    style: theme.textTheme.labelSmall,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           _TeamScoreRow(
             team: awayTeam,
+            overall: awayOverall,
             score: match.awayScore,
             won: match.awayScore > match.homeScore,
           ),
           const SizedBox(height: AppSpacing.xs),
           _TeamScoreRow(
             team: homeTeam,
+            overall: homeOverall,
             score: match.homeScore,
             won: match.homeScore > match.awayScore,
           ),
@@ -141,11 +188,13 @@ class _ScoreCard extends StatelessWidget {
 class _TeamScoreRow extends StatelessWidget {
   const _TeamScoreRow({
     required this.team,
+    required this.overall,
     required this.score,
     required this.won,
   });
 
   final Team team;
+  final int overall;
   final int score;
   final bool won;
 
@@ -154,14 +203,23 @@ class _TeamScoreRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
+        Text(team.emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(width: AppSpacing.xs),
         Expanded(
           child: Text(
-            '${team.location} ${team.name}',
+            team.name,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: won ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ),
+        Text(
+          '$overall OVR',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         Text(
           '$score',
           style: theme.textTheme.headlineSmall?.copyWith(
@@ -202,8 +260,13 @@ class _QuarterScoreRow extends StatelessWidget {
 }
 
 class _BoxScoreSection extends StatelessWidget {
-  const _BoxScoreSection({required this.team, required this.lines});
+  const _BoxScoreSection({
+    required this.franchise,
+    required this.team,
+    required this.lines,
+  });
 
+  final Franchise franchise;
   final Team team;
   final List<PlayerBoxScore> lines;
 
@@ -213,16 +276,23 @@ class _BoxScoreSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '${team.location} ${team.name}',
-          style: theme.textTheme.titleMedium,
+        Row(
+          children: [
+            Text(team.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: AppSpacing.xs),
+            Text(team.name, style: theme.textTheme.titleMedium),
+          ],
         ),
         const SizedBox(height: AppSpacing.sm),
         AppCard(
           child: Column(
             children: [
               for (var i = 0; i < lines.length; i++) ...[
-                _BoxScoreRow(line: lines[i]),
+                _BoxScoreRow(
+                  franchise: franchise,
+                  jersey: parseHexColor(team.colors.primaryHex),
+                  line: lines[i],
+                ),
                 if (i != lines.length - 1) const Divider(height: AppSpacing.lg),
               ],
             ],
@@ -234,29 +304,65 @@ class _BoxScoreSection extends StatelessWidget {
 }
 
 class _BoxScoreRow extends StatelessWidget {
-  const _BoxScoreRow({required this.line});
+  const _BoxScoreRow({
+    required this.franchise,
+    required this.jersey,
+    required this.line,
+  });
 
+  final Franchise franchise;
+  final RgbColor jersey;
   final PlayerBoxScore line;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
+    final player = line.player;
+    final jerseyNumber = player.jerseyNumber != null
+        ? '#${player.jerseyNumber}'
+        : '';
+
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(line.player.name, style: theme.textTheme.bodyLarge),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          '${line.minutesPlayed.round()} MIN · ${line.points} PTS · '
-          '${line.totalRebounds} REB · ${line.assists} AST · '
-          '${line.steals} STL · ${line.blocks} BLK · ${line.turnovers} TO',
-          style: theme.textTheme.bodyMedium,
+        PortraitImage(
+          saveId: franchise.id,
+          ownerId: player.id,
+          appearance: player.appearance,
+          jersey: jersey,
+          size: 40,
         ),
-        Text(
-          'FG ${line.fieldGoalsMade}/${line.fieldGoalAttempts} · '
-          '3PT ${line.threePointersMade}/${line.threePointAttempts} · '
-          'FT ${line.freeThrowsMade}/${line.freeThrowAttempts}',
-          style: theme.textTheme.bodySmall,
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${player.primaryPosition.abbreviation} $jerseyNumber '
+                '${player.name}',
+                style: theme.textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                '${line.points} PTS - ${line.assists} AST - '
+                '${line.totalRebounds} REB',
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                '${line.blocks} BLK - ${line.steals} STL - '
+                '${line.turnovers} TO',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'FG ${line.fieldGoalsMade}/${line.fieldGoalAttempts} · '
+                '3PT ${line.threePointersMade}/${line.threePointAttempts} · '
+                'FT ${line.freeThrowsMade}/${line.freeThrowAttempts} · '
+                '${line.minutesPlayed.round()} MIN',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
       ],
     );

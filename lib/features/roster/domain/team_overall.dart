@@ -1,3 +1,4 @@
+import '../../player/domain/player.dart';
 import 'roster_membership.dart';
 import 'roster_status.dart';
 
@@ -11,12 +12,16 @@ import 'roster_status.dart';
 /// active roster rather than dividing by zero.
 int teamOverall(List<RosterMembership> roster) {
   final active = roster.where((m) => m.status == RosterStatus.active);
-  if (active.isEmpty) return 0;
-  var count = 0;
-  var sum = 0;
-  for (final membership in active) {
-    sum += membership.player.ratings.overall;
-    count++;
-  }
-  return (sum / count).round();
+  return teamOverallForPlayers([for (final m in active) m.player]);
+}
+
+/// Same mean-of-overalls formula as [teamOverall], for callers that
+/// already have a plain active-roster [Player] list in hand rather than
+/// [RosterMembership]s -- `franchise_rosters.dart`'s `rostersByAbbreviation`
+/// (already filtered to active players) is the main one, used anywhere a
+/// game-preview or result screen wants to show both teams' strength.
+int teamOverallForPlayers(List<Player> players) {
+  if (players.isEmpty) return 0;
+  final sum = players.fold<int>(0, (total, p) => total + p.ratings.overall);
+  return (sum / players.length).round();
 }

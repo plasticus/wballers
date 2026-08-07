@@ -75,29 +75,6 @@ int _byWeekThenDay(ScheduledGame a, ScheduledGame b) {
   return a.day.index.compareTo(b.day.index);
 }
 
-/// "Preseason" / "Regular Season" / a named Continental Cup or postseason
-/// round -- UI-only formatting, not worth a domain-level label extension
-/// for round-number-to-name mapping that nothing outside this screen needs
-/// yet.
-String _gameTypeLabel(ScheduledGame game) {
-  return switch (game.type) {
-    GameType.preseason => 'Preseason',
-    GameType.regularSeason => 'Regular Season',
-    GameType.continentalCup => switch (game.continentalCupRound!) {
-      1 => 'Continental Cup Rd. 1',
-      2 => 'Continental Cup Rd. 2',
-      3 => 'Continental Cup Quarterfinals',
-      4 => 'Continental Cup Semifinals',
-      _ => 'Continental Cup Final',
-    },
-    GameType.postseason => switch (game.postseasonRound!) {
-      1 => 'Postseason First Round',
-      2 => 'Postseason Semifinals',
-      _ => 'Postseason Finals',
-    },
-  };
-}
-
 class _ScheduleRow extends StatelessWidget {
   const _ScheduleRow({
     required this.franchise,
@@ -140,7 +117,7 @@ class _ScheduleRow extends StatelessWidget {
                 '${isHome ? 'vs' : 'at'} ${opponent.emoji} ${opponent.name}',
                 style: theme.textTheme.bodyLarge,
               ),
-              Text(_gameTypeLabel(game), style: theme.textTheme.bodySmall),
+              Text(game.typeLabel, style: theme.textTheme.bodySmall),
             ],
           ),
         ),

@@ -50,3 +50,33 @@ class ScheduledGame {
   /// for [GameType.postseason] games. See `postseason_generator.dart`.
   final int? postseasonRound;
 }
+
+extension GameTypeLabel on ScheduledGame {
+  /// "Preseason" / "Regular Season" / a named Continental Cup or postseason
+  /// round -- promoted out of `schedule_screen.dart`'s private original so
+  /// `game_result_screen.dart` (and anything else that shows a game type)
+  /// can share it instead of re-deriving the same round-number-to-name
+  /// mapping.
+  String get typeLabel => switch (type) {
+    GameType.preseason => 'Preseason',
+    GameType.regularSeason => 'Regular Season',
+    GameType.continentalCup => switch (continentalCupRound!) {
+      1 => 'Continental Cup Rd. 1',
+      2 => 'Continental Cup Rd. 2',
+      3 => 'Continental Cup Quarterfinals',
+      4 => 'Continental Cup Semifinals',
+      _ => 'Continental Cup Final',
+    },
+    GameType.postseason => switch (postseasonRound!) {
+      1 => 'Postseason First Round',
+      2 => 'Postseason Semifinals',
+      _ => 'Postseason Finals',
+    },
+  };
+
+  /// Only [GameType.regularSeason] games count toward `computeStandings`
+  /// (`standings_entry.dart`) -- surfaced here so a screen showing a
+  /// preseason/Cup/postseason score can say so plainly instead of leaving
+  /// a GM to wonder why a real result didn't move the standings.
+  bool get countsTowardStandings => type == GameType.regularSeason;
+}

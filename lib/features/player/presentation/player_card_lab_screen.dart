@@ -94,16 +94,6 @@ class _LabSection extends StatelessWidget {
   }
 }
 
-String _positionAbbreviation(Position position) {
-  return switch (position) {
-    Position.pointGuard => 'PG',
-    Position.shootingGuard => 'SG',
-    Position.smallForward => 'SF',
-    Position.powerForward => 'PF',
-    Position.center => 'C',
-  };
-}
-
 /// 1. The existing roster-row shape (`team_roster_screen.dart`'s
 /// `_PlayerRow`, reproduced here rather than shared -- this screen is a
 /// throwaway comparison tool, not a place to route production code
@@ -143,7 +133,7 @@ class _CompactRowCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
-              _positionAbbreviation(player.primaryPosition),
+              player.primaryPosition.abbreviation,
               style: theme.textTheme.labelLarge,
             ),
           ),
@@ -260,7 +250,7 @@ class _TradingCard extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           Text(
-            '${_positionAbbreviation(player.primaryPosition)} · '
+            '${player.primaryPosition.abbreviation} · '
             '${player.archetype.label}',
             style: theme.textTheme.bodySmall,
             textAlign: TextAlign.center,
@@ -364,7 +354,7 @@ class _TicketStatStripCard extends StatelessWidget {
                         children: [
                           Text(player.name, style: theme.textTheme.titleSmall),
                           Text(
-                            '${_positionAbbreviation(player.primaryPosition)} '
+                            '${player.primaryPosition.abbreviation} '
                             '· Age ${player.age}',
                             style: theme.textTheme.bodySmall,
                           ),
@@ -498,7 +488,7 @@ class _ScoreboardTileCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      _positionAbbreviation(player.primaryPosition),
+                      player.primaryPosition.abbreviation,
                       style: theme.textTheme.labelMedium,
                     ),
                   ),

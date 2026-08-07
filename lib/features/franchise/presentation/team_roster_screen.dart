@@ -323,7 +323,7 @@ class _PlayerRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                _positionAbbreviation(player.primaryPosition),
+                player.primaryPosition.abbreviation,
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: _positionColor(player.primaryPosition),
                   fontWeight: FontWeight.bold,
@@ -401,16 +401,6 @@ class _PlayerRow extends StatelessWidget {
       ),
     );
   }
-}
-
-String _positionAbbreviation(Position position) {
-  return switch (position) {
-    Position.pointGuard => 'PG',
-    Position.shootingGuard => 'SG',
-    Position.smallForward => 'SF',
-    Position.powerForward => 'PF',
-    Position.center => 'C',
-  };
 }
 
 /// A subtle per-position accent, purely decorative -- the position
