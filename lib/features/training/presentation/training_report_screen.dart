@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../player/domain/player.dart';
+import '../../player/domain/position.dart';
 import '../domain/player_rating_field.dart';
 import '../domain/training_report.dart';
 
@@ -22,9 +24,15 @@ class TrainingReportScreen extends StatelessWidget {
   final Franchise franchise;
   final TrainingReport report;
 
-  String _playerName(String playerId) {
+  String _playerLabel(String playerId) {
     for (final membership in franchise.roster) {
-      if (membership.player.id == playerId) return membership.player.name;
+      if (membership.player.id == playerId) {
+        final player = membership.player;
+        final jersey = player.jerseyNumber != null
+            ? '#${player.jerseyNumber} '
+            : '';
+        return '${player.primaryPosition.abbreviation} $jersey${player.name}';
+      }
     }
     // Shouldn't happen -- every result comes from this franchise's own
     // roster at the moment training resolved -- but a label beats a crash
@@ -56,7 +64,7 @@ class TrainingReportScreen extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             for (var i = 0; i < sortedResults.length; i++) ...[
               _PlayerGrowthCard(
-                playerName: _playerName(sortedResults[i].playerId),
+                playerName: _playerLabel(sortedResults[i].playerId),
                 result: sortedResults[i],
               ),
               if (i != sortedResults.length - 1)

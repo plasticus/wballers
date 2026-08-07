@@ -88,6 +88,12 @@ void main() {
       expect(find.text('Result'), findsOneWidget);
       expect(find.text('FINAL'), findsOneWidget);
       expect(find.textContaining('PTS'), findsWidgets);
+      // At least one box score row shows a real position + jersey number,
+      // not just a bare name -- the current roster join actually resolved.
+      expect(
+        find.textContaining(RegExp(r'^(PG|SG|SF|PF|C) #\d+ ')),
+        findsWidgets,
+      );
     },
   );
 }

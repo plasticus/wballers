@@ -5,6 +5,7 @@ import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
@@ -81,14 +82,18 @@ void main() {
 
     expect(find.text('Week 3'), findsOneWidget);
     expect(find.text('2 players changed.'), findsOneWidget);
-    expect(find.text(growingPlayer.name), findsOneWidget);
-    expect(find.text(decliningPlayer.name), findsOneWidget);
+    expect(find.text(_playerLabel(growingPlayer)), findsOneWidget);
+    expect(find.text(_playerLabel(decliningPlayer)), findsOneWidget);
     expect(find.text('Ball Control +1'), findsOneWidget);
     expect(find.text('Passing +2'), findsOneWidget);
     expect(find.text('Speed -2'), findsOneWidget);
     // Growth (net +3) sorted above decline (net -2).
-    final growthCardY = tester.getTopLeft(find.text(growingPlayer.name)).dy;
-    final declineCardY = tester.getTopLeft(find.text(decliningPlayer.name)).dy;
+    final growthCardY = tester
+        .getTopLeft(find.text(_playerLabel(growingPlayer)))
+        .dy;
+    final declineCardY = tester
+        .getTopLeft(find.text(_playerLabel(decliningPlayer)))
+        .dy;
     expect(growthCardY, lessThan(declineCardY));
   });
 
@@ -107,4 +112,11 @@ void main() {
 
     expect(find.text('No one moved the needle this week.'), findsOneWidget);
   });
+}
+
+/// Mirrors `training_report_screen.dart`'s private `_playerLabel` -- can't
+/// import a private function, so this is kept in sync by hand.
+String _playerLabel(Player player) {
+  final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
+  return '${player.primaryPosition.abbreviation} $jersey${player.name}';
 }

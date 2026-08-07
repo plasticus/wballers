@@ -6,6 +6,8 @@ import '../../../core/widgets/state_views.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
+import '../../portrait/presentation/portrait_image.dart';
+import '../../portrait/rendering/portrait_colors.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/played_game.dart';
@@ -156,12 +158,18 @@ class PlayedGameDetailScreen extends StatelessWidget {
           in rosters[game.homeTeamAbbreviation] ?? const <Player>[])
         player.id,
     };
-    final nameById = <String, String>{
+    // Keyed by id rather than carried on PlayedGameStatLine itself -- the
+    // lean persisted box score is stats only (`played_game_stat_line.dart`),
+    // so anything about the player as a person (name, jersey, portrait)
+    // comes from the *current* roster. Fine here since nothing can move a
+    // player to a different team yet (no trades) -- if that ever changes,
+    // this join stops being reliably correct for an old game.
+    final playerById = <String, Player>{
       for (final player in [
         ...rosters[game.homeTeamAbbreviation] ?? const <Player>[],
         ...rosters[game.awayTeamAbbreviation] ?? const <Player>[],
       ])
-        player.id: player.name,
+        player.id: player,
     };
 
     final homeLines = <MapEntry<String, PlayedGameStatLine>>[];
@@ -186,15 +194,17 @@ class PlayedGameDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             _BoxScoreSection(
+              franchise: franchise,
               team: awayTeam,
               lines: awayLines,
-              nameById: nameById,
+              playerById: playerById,
             ),
             const SizedBox(height: AppSpacing.lg),
             _BoxScoreSection(
+              franchise: franchise,
               team: homeTeam,
               lines: homeLines,
-              nameById: nameById,
+              playerById: playerById,
             ),
           ],
         ),
@@ -264,9 +274,11 @@ class _TeamScoreRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
+        Text(team.emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(width: AppSpacing.xs),
         Expanded(
           child: Text(
-            '${team.location} ${team.name}',
+            team.name,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: won ? FontWeight.bold : FontWeight.normal,
             ),
@@ -285,14 +297,16 @@ class _TeamScoreRow extends StatelessWidget {
 
 class _BoxScoreSection extends StatelessWidget {
   const _BoxScoreSection({
+    required this.franchise,
     required this.team,
     required this.lines,
-    required this.nameById,
+    required this.playerById,
   });
 
+  final Franchise franchise;
   final Team team;
   final List<MapEntry<String, PlayedGameStatLine>> lines;
-  final Map<String, String> nameById;
+  final Map<String, Player> playerById;
 
   @override
   Widget build(BuildContext context) {
@@ -300,9 +314,12 @@ class _BoxScoreSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '${team.location} ${team.name}',
-          style: theme.textTheme.titleMedium,
+        Row(
+          children: [
+            Text(team.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: AppSpacing.xs),
+            Text(team.name, style: theme.textTheme.titleMedium),
+          ],
         ),
         const SizedBox(height: AppSpacing.sm),
         if (lines.isEmpty)
@@ -313,7 +330,9 @@ class _BoxScoreSection extends StatelessWidget {
               children: [
                 for (var i = 0; i < lines.length; i++) ...[
                   _BoxScoreRow(
-                    playerName: nameById[lines[i].key] ?? 'Unknown Player',
+                    franchise: franchise,
+                    jersey: parseHexColor(team.colors.primaryHex),
+                    player: playerById[lines[i].key],
                     line: lines[i].value,
                   ),
                   if (i != lines.length - 1)
@@ -328,30 +347,75 @@ class _BoxScoreSection extends StatelessWidget {
 }
 
 class _BoxScoreRow extends StatelessWidget {
-  const _BoxScoreRow({required this.playerName, required this.line});
+  const _BoxScoreRow({
+    required this.franchise,
+    required this.jersey,
+    required this.player,
+    required this.line,
+  });
 
-  final String playerName;
+  final Franchise franchise;
+  final RgbColor jersey;
+
+  /// `null` if this player has since left the current roster (traded,
+  /// waived) -- no trade system exists yet, but this stays graceful rather
+  /// than throwing if that ever changes.
+  final Player? player;
   final PlayedGameStatLine line;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
+    final player = this.player;
+    final jerseyNumber = player?.jerseyNumber != null
+        ? '#${player!.jerseyNumber} '
+        : '';
+    final position = player != null
+        ? '${player.primaryPosition.abbreviation} '
+        : '';
+
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(playerName, style: theme.textTheme.bodyLarge),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          '${line.minutesPlayed.round()} MIN · ${line.points} PTS · '
-          '${line.totalRebounds} REB · ${line.assists} AST · '
-          '${line.steals} STL · ${line.blocks} BLK · ${line.turnovers} TO',
-          style: theme.textTheme.bodyMedium,
-        ),
-        Text(
-          'FG ${line.fieldGoalsMade}/${line.fieldGoalAttempts} · '
-          '3PT ${line.threePointersMade}/${line.threePointAttempts} · '
-          'FT ${line.freeThrowsMade}/${line.freeThrowAttempts}',
-          style: theme.textTheme.bodySmall,
+        if (player != null) ...[
+          PortraitImage(
+            saveId: franchise.id,
+            ownerId: player.id,
+            appearance: player.appearance,
+            jersey: jersey,
+            size: 40,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$position$jerseyNumber${player?.name ?? 'Unknown Player'}',
+                style: theme.textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                '${line.points} PTS - ${line.assists} AST - '
+                '${line.totalRebounds} REB',
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                '${line.blocks} BLK - ${line.steals} STL - '
+                '${line.turnovers} TO',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'FG ${line.fieldGoalsMade}/${line.fieldGoalAttempts} · '
+                '3PT ${line.threePointersMade}/${line.threePointAttempts} · '
+                'FT ${line.freeThrowsMade}/${line.freeThrowAttempts} · '
+                '${line.minutesPlayed.round()} MIN',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
       ],
     );
