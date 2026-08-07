@@ -23,6 +23,7 @@ import '../season/domain/standings_entry.dart';
 import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/presentation/game_result_screen.dart';
 import '../season/presentation/season_recap_screen.dart';
+import '../stats/presentation/stats_screen.dart';
 import '../training/domain/training_report.dart';
 import '../training/presentation/training_report_screen.dart';
 
@@ -36,7 +37,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   var _selectedIndex = 0;
 
-  static const _titles = ['Dashboard', 'Team', 'League', 'News'];
+  static const _titles = ['Dashboard', 'Team', 'League', 'Stats', 'News'];
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +56,8 @@ class _AppShellState extends State<AppShell> {
             0 => const DashboardScreen(),
             1 => const TeamRosterScreen(),
             2 => const LeagueScreen(),
-            3 => const NewsScreen(),
+            3 => const StatsScreen(),
+            4 => const NewsScreen(),
             _ => const SizedBox.shrink(),
           },
         ),
@@ -79,6 +81,11 @@ class _AppShellState extends State<AppShell> {
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: 'League',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart),
+            label: 'Stats',
           ),
           NavigationDestination(
             icon: Icon(Icons.newspaper_outlined),
