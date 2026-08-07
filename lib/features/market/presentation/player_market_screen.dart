@@ -1,0 +1,306 @@
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+
+import '../../../app/app_spacing.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../draft/domain/draft_prospect.dart';
+import '../../franchise/domain/franchise.dart';
+import '../../league/domain/team.dart';
+import '../../player/domain/player.dart';
+import '../../player/presentation/player_card_widgets.dart';
+import '../../player/presentation/trait_chip.dart';
+import '../../portrait/rendering/portrait_colors.dart';
+import '../generation/player_market_preview_generator.dart';
+
+/// Free agents, the trade block, and this season's draft class -- one
+/// screen for everywhere a GM might look to bring in a player who isn't
+/// already on their roster. Reachable from the Team tab, alongside the
+/// existing Bench Order/Training/Card Lab entry points.
+///
+/// **Preview only.** There is no free-agent pool, no trade system, and no
+/// draft-day flow wired to `Franchise` yet (`0B_Planned.md`'s Trade
+/// System and Draft entries) -- every player shown here is flavor data
+/// from `generateFreeAgentPreview`/`pickTradeBlockPreview`/
+/// `generateDraftPreview`, regenerated fresh (but deterministically,
+/// from the franchise's own `simulationSeed`) every time the screen
+/// opens. Nothing here is signable, tradeable, or draftable -- that's
+/// why every tab says so up top, and why there isn't a single button
+/// anywhere on this screen that claims to do something it can't.
+class PlayerMarketScreen extends StatefulWidget {
+  const PlayerMarketScreen({required this.franchise, super.key});
+
+  final Franchise franchise;
+
+  @override
+  State<PlayerMarketScreen> createState() => _PlayerMarketScreenState();
+}
+
+class _PlayerMarketScreenState extends State<PlayerMarketScreen>
+    with SingleTickerProviderStateMixin {
+  late final _tabController = TabController(length: 3, vsync: this);
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final franchise = widget.franchise;
+    final seed = franchise.simulationSeed;
+
+    final freeAgents = generateFreeAgentPreview(
+      Random(seed + kFreeAgentPreviewSeedOffset),
+    );
+    final tradeBlock = pickTradeBlockPreview(
+      franchise,
+      Random(seed + kTradeBlockPreviewSeedOffset),
+    );
+    final draftClass = generateDraftPreview(
+      Random(seed + kDraftPreviewSeedOffset),
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Player Market')),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(text: 'Free Agents'),
+                Tab(text: 'Trade Block'),
+                Tab(text: 'Draft'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _FreeAgentsTab(franchise: franchise, players: freeAgents),
+                  _TradeBlockTab(franchise: franchise, picks: tradeBlock),
+                  _DraftTab(franchise: franchise, prospects: draftClass),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The disclaimer every tab opens with -- see `PlayerMarketScreen`'s own
+/// doc comment for why this isn't optional trim.
+class _PreviewBanner extends StatelessWidget {
+  const _PreviewBanner({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.visibility_outlined,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                text,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FreeAgentsTab extends StatelessWidget {
+  const _FreeAgentsTab({required this.franchise, required this.players});
+
+  final Franchise franchise;
+  final List<Player> players;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        const _PreviewBanner(
+          text:
+              'Preview only -- there\'s no free-agent pool or signing flow '
+              'yet. These players aren\'t real roster state.',
+        ),
+        for (var i = 0; i < players.length; i++) ...[
+          _PlayerMarketRow(
+            franchise: franchise,
+            player: players[i],
+            subtitle: 'Free Agent',
+            accentColor: theme.colorScheme.outline,
+            jersey: null,
+          ),
+          if (i != players.length - 1) const SizedBox(height: AppSpacing.sm),
+        ],
+      ],
+    );
+  }
+}
+
+class _TradeBlockTab extends StatelessWidget {
+  const _TradeBlockTab({required this.franchise, required this.picks});
+
+  final Franchise franchise;
+  final List<({Player player, Team team})> picks;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        const _PreviewBanner(
+          text:
+              'Preview only -- there\'s no trade system yet. These are '
+              'real roster players, randomly flagged as "rumored '
+              'available" -- nothing here can actually be traded for.',
+        ),
+        for (var i = 0; i < picks.length; i++) ...[
+          _PlayerMarketRow(
+            franchise: franchise,
+            player: picks[i].player,
+            subtitle: '${picks[i].team.emoji} ${picks[i].team.name}',
+            accentColor: picks[i].team.colors.primary,
+            jersey: parseHexColor(picks[i].team.colors.primaryHex),
+          ),
+          if (i != picks.length - 1) const SizedBox(height: AppSpacing.sm),
+        ],
+      ],
+    );
+  }
+}
+
+class _DraftTab extends StatelessWidget {
+  const _DraftTab({required this.franchise, required this.prospects});
+
+  final Franchise franchise;
+  final List<DraftProspect> prospects;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        const _PreviewBanner(
+          text:
+              'Preview only -- there\'s no draft-day flow yet, and no '
+              '"start next season" to hang one off of. This is a '
+              'projection of this year\'s class, not a pick order.',
+        ),
+        for (var i = 0; i < prospects.length; i++) ...[
+          _PlayerMarketRow(
+            franchise: franchise,
+            player: prospects[i].player,
+            subtitle: prospects[i].college.name,
+            accentColor: theme.colorScheme.primary,
+            jersey: null,
+          ),
+          if (i != prospects.length - 1) const SizedBox(height: AppSpacing.sm),
+        ],
+      ],
+    );
+  }
+}
+
+/// One player, in the same left-rail-plus-stat-chips shape the
+/// production roster row ships with (`player_card_widgets.dart`) -- a GM
+/// scanning this screen should recognize it as the same "player card"
+/// language, not a different visual system to learn. Unlike the roster
+/// row, [subtitle] replaces the archetype/age/experience line's first
+/// segment with whatever identifies *why* this player is on this list
+/// (their team, their college, or just "Free Agent") -- the roster row
+/// doesn't need that since every one of its players is already known to
+/// be on the GM's own team.
+class _PlayerMarketRow extends StatelessWidget {
+  const _PlayerMarketRow({
+    required this.franchise,
+    required this.player,
+    required this.subtitle,
+    required this.accentColor,
+    required this.jersey,
+  });
+
+  final Franchise franchise;
+  final Player player;
+  final String subtitle;
+  final Color accentColor;
+  final RgbColor? jersey;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PhotoOvrRail(
+            franchise: franchise,
+            player: player,
+            accentColor: accentColor,
+            jersey: jersey,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${player.primaryPosition.abbreviation} ${player.name}',
+                  style: theme.textTheme.titleMedium,
+                ),
+                Text(
+                  '$subtitle · Age ${player.age} · '
+                  '${experienceLabel(player)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                StatChipRow(player: player),
+                if (player.traits.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final trait in player.traits)
+                        TraitChip(trait: trait),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

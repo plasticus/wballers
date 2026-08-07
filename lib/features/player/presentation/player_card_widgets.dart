@@ -60,6 +60,7 @@ class PhotoWithJerseyBadge extends StatelessWidget {
     required this.franchise,
     required this.player,
     required this.accentColor,
+    required this.jersey,
     this.size = 64,
     super.key,
   });
@@ -67,6 +68,14 @@ class PhotoWithJerseyBadge extends StatelessWidget {
   final Franchise franchise;
   final Player player;
   final Color accentColor;
+
+  /// The portrait's jersey-shirt tint. Every original caller (the
+  /// production roster row) passes [franchise]'s own team color; a
+  /// caller showing a player who isn't on that team -- a different AI
+  /// team's player, or a free agent/draft prospect with no team at all
+  /// (`market/presentation/player_market_screen.dart`) -- passes that
+  /// team's color, or `null` for the portrait's neutral default.
+  final RgbColor? jersey;
   final double size;
 
   @override
@@ -79,7 +88,7 @@ class PhotoWithJerseyBadge extends StatelessWidget {
           saveId: franchise.id,
           ownerId: player.id,
           appearance: player.appearance,
-          jersey: parseHexColor(franchise.team.colors.primaryHex),
+          jersey: jersey,
           size: size,
         ),
         if (player.jerseyNumber != null)
@@ -122,6 +131,7 @@ class PhotoOvrRail extends StatelessWidget {
     required this.franchise,
     required this.player,
     required this.accentColor,
+    required this.jersey,
     this.size = 64,
     super.key,
   });
@@ -129,6 +139,7 @@ class PhotoOvrRail extends StatelessWidget {
   final Franchise franchise;
   final Player player;
   final Color accentColor;
+  final RgbColor? jersey;
   final double size;
 
   @override
@@ -139,6 +150,7 @@ class PhotoOvrRail extends StatelessWidget {
           franchise: franchise,
           player: player,
           accentColor: accentColor,
+          jersey: jersey,
           size: size,
         ),
         const SizedBox(height: AppSpacing.sm),

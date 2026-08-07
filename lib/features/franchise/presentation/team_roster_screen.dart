@@ -5,6 +5,7 @@ import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../league/domain/team.dart';
+import '../../market/presentation/player_market_screen.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
 import '../../player/presentation/player_card_lab_screen.dart';
@@ -13,6 +14,7 @@ import '../../player/presentation/player_detail_screen.dart';
 import '../../player/presentation/trait_chip.dart';
 import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
+import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../training/presentation/training_screen.dart';
@@ -135,6 +137,18 @@ class _RosterView extends StatelessWidget {
           },
           icon: const Icon(Icons.fitness_center_outlined),
           label: const Text('Training'),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PlayerMarketScreen(franchise: franchise),
+              ),
+            );
+          },
+          icon: const Icon(Icons.storefront_outlined),
+          label: const Text('Player Market'),
         ),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(
@@ -304,6 +318,7 @@ class _PlayerRow extends StatelessWidget {
               franchise: franchise,
               player: player,
               accentColor: accentColor,
+              jersey: parseHexColor(franchise.team.colors.primaryHex),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

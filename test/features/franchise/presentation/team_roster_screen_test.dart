@@ -278,6 +278,13 @@ void main() {
   testWidgets('tapping a player row opens their Player Detail screen', (
     tester,
   ) async {
+    // The first roster row needs to be on-screen to tap it -- the "Player
+    // Market" button pushed everything below the button column further
+    // down than the default test surface's height.
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final franchise = _franchiseWith();
     final repository = await _seededRepository(franchise);
     final targetPlayer = franchise.roster.first.player;
