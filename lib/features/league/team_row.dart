@@ -14,10 +14,19 @@ class TeamRow extends StatelessWidget {
     this.isUserTeam = false,
     this.rank,
     this.record,
+    this.overall,
     super.key,
   });
 
   final Team team;
+
+  /// This team's overall rating (`teamOverallForPlayers`), if the caller
+  /// has a roster to derive one from. `null` hides it entirely --
+  /// onboarding's conference browser has no rosters yet to compute from.
+  /// Surfaced per a direct GM ask after a 126-85 blowout loss: "I don't
+  /// know OVR team scores... I don't know if I'm a 70 going up against a
+  /// 90."
+  final int? overall;
 
   /// True when this row is the GM's own club, shown in the league listing
   /// in place of the original team it replaced.
@@ -98,7 +107,10 @@ class TeamRow extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  '${team.abbreviation} · ${team.location}',
+                  overall != null
+                      ? '${team.abbreviation} · ${team.location} · '
+                            '$overall OVR'
+                      : '${team.abbreviation} · ${team.location}',
                   style: theme.textTheme.bodySmall,
                 ),
               ],

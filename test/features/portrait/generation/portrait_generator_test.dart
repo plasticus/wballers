@@ -67,18 +67,19 @@ void main() {
     }
   });
 
-  test('coaches can roll facial hair', () {
+  test('coaches never get facial hair either -- every character in this game '
+      'is a woman, so the beard/mustache pool never gets drawn from at '
+      'random-generation time (the portrait editor can still opt a coach '
+      'into it deliberately)', () {
     final random = Random(5);
-    final facialValues = <String?>{};
     for (var i = 0; i < 200; i++) {
       final appearance = generatePortraitAppearance(
         random,
         isCoach: true,
         weights: _weights,
       );
-      facialValues.add(appearance.facial);
+      expect(appearance.facial, isNull);
     }
-    expect(facialValues, contains(isNotNull));
   });
 
   test('never rolls a special/neon top-hair color at generation time', () {

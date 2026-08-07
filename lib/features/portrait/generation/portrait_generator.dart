@@ -24,8 +24,20 @@ Map<String, double> _coachEligibleAccessories(Map<String, double> pool) {
 /// Generates a portrait appearance from [weights]. Deterministic for a
 /// given [random] stream.
 ///
-/// Athletes never get facial hair (`portraits.md`); coaches roll one from
-/// [PortraitWeights.facial] (which includes its own `none` outcome).
+/// Nobody generated here ever gets facial hair -- athletes never did
+/// (`portraits.md`), and coaches were briefly generating one from
+/// [PortraitWeights.facial] (a beard/mustache/stubble pool with no
+/// feminine-presenting options) before a GM playtest surfaced the obvious
+/// bug: every character in this game is a woman (`kDefaultBaseSprite`'s
+/// own doc comment already says as much), so a coach growing a mustache
+/// read as broken, not as a coach with facial hair being a real design
+/// option. [PortraitWeights.facial] and [PortraitManifest] still carry the
+/// data (the original portrait-creator tool this was ported from supports
+/// it), it's just never drawn from at generation time -- kept rather than
+/// deleted in case a future customization screen wants to let a GM opt a
+/// coach into it deliberately, which is a different thing than the RNG
+/// picking it for them.
+///
 /// Neither ever rolls a special/neon top-hair color at generation time --
 /// [PortraitWeights.neonHair] exists for a future unlock/achievement
 /// system to draw on, not for random generation, per the doc's explicit
@@ -58,7 +70,6 @@ PortraitAppearance generatePortraitAppearance(
       ? _coachEligibleAccessories(weights.accessories)
       : weights.accessories;
   final accessories = pickWeighted(random, accessoriesPool);
-  final facial = isCoach ? pickWeighted(random, weights.facial) : 'none';
   final shoulders = isCoach && manifest != null
       ? manifest.shoulders[random.nextInt(manifest.shoulders.length)]
       : null;
@@ -75,7 +86,7 @@ PortraitAppearance generatePortraitAppearance(
     accessories: accessories == 'none' ? null : accessories,
     isCoach: isCoach,
     shoulders: shoulders == null ? null : _stripExtension(shoulders),
-    facial: facial == 'none' ? null : facial,
+    facial: null,
   );
 }
 

@@ -15,7 +15,9 @@ import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league_draw.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/league/league_screen.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
+import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
@@ -114,6 +116,14 @@ void main() {
       expect(find.text(clubTeam.name), findsOneWidget);
       expect(find.text('Your Team'), findsOneWidget);
       expect(find.text(replaced.name), findsNothing);
+      final activePlayers = [
+        for (final m in roster)
+          if (m.status == RosterStatus.active) m.player,
+      ];
+      expect(
+        find.textContaining('${teamOverallForPlayers(activePlayers)} OVR'),
+        findsOneWidget,
+      );
 
       // Every other drawn Atlantic team is still listed untouched.
       final otherAtlanticTeams = drawnTeams.where(

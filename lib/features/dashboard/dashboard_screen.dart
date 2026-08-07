@@ -584,10 +584,12 @@ class _UpcomingGameRow extends StatelessWidget {
     final opponent = teamByAbbreviation(franchise, opponentAbbreviation);
     final opponentRecord = recordFor(opponentAbbreviation, standings);
 
+    final cupBadge = game.type == GameType.continentalCup ? '🏆 ' : '';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Text(
-        '${formatFictionalDate(game.week, game.day)} '
+        '$cupBadge${formatFictionalDate(game.week, game.day)} '
         '${isHome ? 'vs' : '@'} ${opponent.emoji} ${opponent.name} '
         '(${opponentRecord.wins}-${opponentRecord.losses})',
         style: theme.textTheme.bodyMedium,

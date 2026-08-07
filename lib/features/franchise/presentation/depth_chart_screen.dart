@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../player/domain/archetype.dart';
+import '../../player/domain/player.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_membership.dart';
@@ -77,8 +79,8 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Drag to set your minutes-ranked order. Target minutes are '
-                "a reference only -- nothing plays them out yet.",
+                'Drag to set your minutes-ranked order -- the top 5 are '
+                'your starters.',
               ),
               const SizedBox(height: AppSpacing.md),
               Expanded(
@@ -107,9 +109,9 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
                 AppCard(
                   child: Column(
                     children: [
-                      for (var i = 0; i < developmental.length; i++) ...[
-                        Text(developmental[i].player.name),
-                        if (i != developmental.length - 1)
+                      for (final membership in developmental) ...[
+                        Text(_rowLabel(membership.player)),
+                        if (membership != developmental.last)
                           const Divider(height: AppSpacing.lg),
                       ],
                     ],
@@ -169,7 +171,7 @@ class _DepthChartRow extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: Text(player.name, style: theme.textTheme.bodyLarge),
+              child: Text(_rowLabel(player), style: theme.textTheme.bodyLarge),
             ),
             Text(
               '${targetMinutesForRank(rank)} min',
@@ -180,4 +182,14 @@ class _DepthChartRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "C #16 Tran (Point Forward, 85 OVR)" -- position, jersey number (when
+/// assigned), surname, archetype, and overall in one compact line. Shared
+/// between the ranked active-roster rows and the developmental list above
+/// them so both read the same way.
+String _rowLabel(Player player) {
+  final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
+  return '${player.primaryPosition.abbreviation} $jersey${player.lastName} '
+      '(${player.archetype.label}, ${player.ratings.overall} OVR)';
 }

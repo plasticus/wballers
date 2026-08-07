@@ -128,7 +128,7 @@ void main() {
     expect(active.length, 12);
 
     for (final membership in active) {
-      expect(find.text(membership.player.name), findsOneWidget);
+      expect(find.text(_rowLabel(membership.player)), findsOneWidget);
     }
     expect(find.text('30 min'), findsNWidgets(3));
     expect(find.text('4 min'), findsNWidgets(2));
@@ -151,7 +151,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Developmental (0 min)'), findsOneWidget);
-    expect(find.text('Rookie dev-1'), findsOneWidget);
+    expect(
+      find.text(_rowLabel(_developmentalMember('dev-1').player)),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Save Bench Order persists the roster and returns', (
@@ -208,4 +211,12 @@ void main() {
         .toList();
     expect(savedActiveIds, originalActiveIds);
   });
+}
+
+/// Mirrors `depth_chart_screen.dart`'s private `_rowLabel` -- can't import
+/// a private function, so this is kept in sync by hand.
+String _rowLabel(Player player) {
+  final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
+  return '${player.primaryPosition.abbreviation} $jersey${player.lastName} '
+      '(${player.archetype.label}, ${player.ratings.overall} OVR)';
 }

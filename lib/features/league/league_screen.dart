@@ -9,6 +9,8 @@ import '../../core/widgets/state_views.dart';
 import '../../core/widgets/wbl_logo.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
+import '../roster/domain/team_overall.dart';
+import '../season/application/franchise_rosters.dart';
 import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
 import '../season/presentation/results_screen.dart';
@@ -67,10 +69,15 @@ class LeagueScreen extends ConsumerWidget {
         .toList();
     final userTeamAbbreviation = franchise.team.abbreviation;
     final standings = currentStandings(franchise.seasonProgress, teams);
+    final rosters = rostersByAbbreviation(franchise);
+    final overallByAbbreviation = {
+      for (final entry in rosters.entries)
+        entry.key: teamOverallForPlayers(entry.value),
+    };
 
     return ListView(
       children: [
-        const Center(child: WblLogo(size: 72)),
+        const Center(child: WblLogo(size: 144)),
         const SizedBox(height: AppSpacing.lg),
         Row(
           children: [
@@ -109,6 +116,7 @@ class LeagueScreen extends ConsumerWidget {
           teams: _rankedByStandings(atlantic, standings),
           standings: standings,
           userTeamAbbreviation: userTeamAbbreviation,
+          overallByAbbreviation: overallByAbbreviation,
         ),
         const SizedBox(height: AppSpacing.lg),
         _ConferenceSection(
@@ -116,6 +124,7 @@ class LeagueScreen extends ConsumerWidget {
           teams: _rankedByStandings(pacific, standings),
           standings: standings,
           userTeamAbbreviation: userTeamAbbreviation,
+          overallByAbbreviation: overallByAbbreviation,
         ),
       ],
     );
@@ -149,12 +158,14 @@ class _ConferenceSection extends StatelessWidget {
     required this.teams,
     required this.standings,
     required this.userTeamAbbreviation,
+    required this.overallByAbbreviation,
   });
 
   final String title;
   final List<Team> teams;
   final List<StandingsEntry> standings;
   final String? userTeamAbbreviation;
+  final Map<String, int> overallByAbbreviation;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +184,7 @@ class _ConferenceSection extends StatelessWidget {
                   isUserTeam: teams[i].abbreviation == userTeamAbbreviation,
                   rank: i + 1,
                   record: recordFor(teams[i].abbreviation, standings),
+                  overall: overallByAbbreviation[teams[i].abbreviation],
                 ),
                 if (i != teams.length - 1) const Divider(height: AppSpacing.lg),
               ],
