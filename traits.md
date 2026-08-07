@@ -77,8 +77,18 @@ one-off edges layered on top.
 - **Backcourt Barrier** — back-court blocking: elevated block success chasing down shots or contesting from the perimeter/in transition.
 - **Sharpshooter** — three-pointers: extra bump on contested or high-volume attempts.
 - **Slasher's Touch** — layups: extra bump finishing through contact/traffic.
-- **Automatic** — free throws: elevated make rate as a raw skill, distinct from Icy Veins' pressure-resistance framing. Name is a placeholder suggestion, not yet confirmed.
+- **Automatic** — free throws: elevated make rate as a raw skill, distinct from Icy Veins' pressure-resistance framing. Name confirmed final (2026-08-07 GM review) — no longer a placeholder.
 
 ## Shelved / future ideas
 
-- **Media Magnet** — draws outsized press/fan attention — good for team prestige/marketing, but amplifies morale swings after a bad stretch. Shelved because it implies off-court/media systems the game isn't planning to build.
+- **Media Magnet** — draws outsized press/fan attention — good for team prestige/marketing, but amplifies morale swings after a bad stretch. Shelved because it implies off-court/media systems the game isn't planning to build. Reconfirmed shelved on 2026-08-07 GM review — not reconsidering for now.
+
+## GM review (2026-08-07)
+
+Reviewed via a published trait-catalog doc (see the HTML artifact this
+session generated) that flagged only the 5 Work Ethic/Development traits
+as mechanically live today — the other 24 are real UI (chips, generation,
+tap-to-explain) with zero gameplay effect, each waiting on a system that
+doesn't exist yet. GM's call: that gap doesn't need to reorder what gets
+built next right now — "nothing needs to jump the queue, for now. This
+information is good for me to have." Revisit if priorities shift.
