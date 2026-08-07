@@ -4,7 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/match/engine/match_engine.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
+import 'package:womensbballmgr/features/season/domain/game_result.dart';
+import 'package:womensbballmgr/features/season/domain/played_game.dart';
+import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/season/presentation/results_screen.dart';
 
@@ -94,6 +99,71 @@ void main() {
         find.textContaining(RegExp(r'^(PG|SG|SF|PF|C) #\d+ ')),
         findsWidgets,
       );
+    },
+  );
+
+  testWidgets(
+    'PlayedGameDetailScreen lists the GM\'s own team\'s box score before '
+    'the opponent\'s, even when the GM played at home',
+    (tester) async {
+      // Both teams' box scores need to be on-screen at once to compare
+      // their vertical order.
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      final opponent = franchise.league.aiTeams.first.team;
+      final rosters = rostersByAbbreviation(franchise);
+      // The GM's own team is the home team here -- this screen's old
+      // fixed order was away-then-home, so a home GM is exactly the case
+      // that used to render the opponent's box score first.
+      final match = simulateMatch(
+        Random(1),
+        homeRoster: rosters[franchise.team.abbreviation]!,
+        awayRoster: rosters[opponent.abbreviation]!,
+      );
+      final result = GameResult(
+        game: ScheduledGame(
+          week: 2,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: franchise.team.abbreviation,
+          awayTeamAbbreviation: opponent.abbreviation,
+          type: GameType.regularSeason,
+        ),
+        match: match,
+      );
+      final played = PlayedGame.fromResult(
+        result,
+        rostersByAbbreviation: rosters,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayedGameDetailScreen(franchise: franchise, played: played),
+        ),
+      );
+      await tester.pump();
+
+      // Each team's name appears twice: once in the score card, once as
+      // the box score section header -- the second occurrence is the one
+      // whose position actually matters here.
+      final ownSectionY = tester
+          .getTopLeft(find.text(franchise.team.name).at(1))
+          .dy;
+      final opponentSectionY = tester
+          .getTopLeft(find.text(opponent.name).at(1))
+          .dy;
+      expect(ownSectionY, lessThan(opponentSectionY));
     },
   );
 }

@@ -53,6 +53,25 @@ class GameResultScreen extends StatelessWidget {
         boxScore.where((line) => awayRoster.contains(line.player)).toList()
           ..sort((a, b) => b.points.compareTo(a.points));
 
+    // The GM's own team's box score always leads, home or away -- a
+    // direct GM bug report ("it lists all the individuals' stats...
+    // should list the player's team first, then the other team after")
+    // against the old fixed home-then-away order. The score card above
+    // is unaffected (its away-then-home order matches the real
+    // scoreboard convention and wasn't part of the complaint).
+    final ownIsHome =
+        result.game.homeTeamAbbreviation == franchise.team.abbreviation;
+    final firstSection = _BoxScoreSection(
+      franchise: franchise,
+      team: ownIsHome ? homeTeam : awayTeam,
+      lines: ownIsHome ? homeLines : awayLines,
+    );
+    final secondSection = _BoxScoreSection(
+      franchise: franchise,
+      team: ownIsHome ? awayTeam : homeTeam,
+      lines: ownIsHome ? awayLines : homeLines,
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Game Result')),
       body: SafeArea(
@@ -67,17 +86,9 @@ class GameResultScreen extends StatelessWidget {
               result: result,
             ),
             const SizedBox(height: AppSpacing.lg),
-            _BoxScoreSection(
-              franchise: franchise,
-              team: homeTeam,
-              lines: homeLines,
-            ),
+            firstSection,
             const SizedBox(height: AppSpacing.lg),
-            _BoxScoreSection(
-              franchise: franchise,
-              team: awayTeam,
-              lines: awayLines,
-            ),
+            secondSection,
           ],
         ),
       ),

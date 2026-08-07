@@ -180,6 +180,27 @@ class PlayedGameDetailScreen extends StatelessWidget {
     homeLines.sort((a, b) => b.value.points.compareTo(a.value.points));
     awayLines.sort((a, b) => b.value.points.compareTo(a.value.points));
 
+    // The GM's own team's box score always leads, home or away -- a
+    // direct GM bug report against the old fixed away-then-home order
+    // ("it lists all the individuals' stats... should list the player's
+    // team first, then the other team after"). A game the GM's own team
+    // isn't even part of (any other league game, browsed from the
+    // Results screen) falls back to the original away-then-home order --
+    // there's no "own team" to prioritize.
+    final ownIsHome = game.homeTeamAbbreviation == franchise.team.abbreviation;
+    final firstSection = _BoxScoreSection(
+      franchise: franchise,
+      team: ownIsHome ? homeTeam : awayTeam,
+      lines: ownIsHome ? homeLines : awayLines,
+      playerById: playerById,
+    );
+    final secondSection = _BoxScoreSection(
+      franchise: franchise,
+      team: ownIsHome ? awayTeam : homeTeam,
+      lines: ownIsHome ? awayLines : homeLines,
+      playerById: playerById,
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Result')),
       body: SafeArea(
@@ -193,19 +214,9 @@ class PlayedGameDetailScreen extends StatelessWidget {
               awayScore: played.awayScore,
             ),
             const SizedBox(height: AppSpacing.lg),
-            _BoxScoreSection(
-              franchise: franchise,
-              team: awayTeam,
-              lines: awayLines,
-              playerById: playerById,
-            ),
+            firstSection,
             const SizedBox(height: AppSpacing.lg),
-            _BoxScoreSection(
-              franchise: franchise,
-              team: homeTeam,
-              lines: homeLines,
-              playerById: playerById,
-            ),
+            secondSection,
           ],
         ),
       ),

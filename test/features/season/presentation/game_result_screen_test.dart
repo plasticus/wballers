@@ -86,6 +86,70 @@ void main() {
     expect(find.textContaining('doesn\'t count'), findsNothing);
   });
 
+  testWidgets(
+    'lists the GM\'s own team\'s box score before the opponent\'s, even '
+    'when the GM played away',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      final opponent = franchise.league.aiTeams.first.team;
+      final rosters = rostersByAbbreviation(franchise);
+      // The GM's own team is the away team here -- this screen's old
+      // fixed order was home-then-away, so an away GM is exactly the
+      // case that used to render the opponent's box score first.
+      final match = simulateMatch(
+        Random(1),
+        homeRoster: rosters[opponent.abbreviation]!,
+        awayRoster: rosters[franchise.team.abbreviation]!,
+      );
+      final result = GameResult(
+        game: ScheduledGame(
+          week: 2,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: opponent.abbreviation,
+          awayTeamAbbreviation: franchise.team.abbreviation,
+          type: GameType.regularSeason,
+        ),
+        match: match,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+          child: MaterialApp(
+            home: GameResultScreen(franchise: franchise, result: result),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Each team's name appears twice: once in the score card, once as
+      // the box score section header -- the second occurrence is the one
+      // whose position actually matters here.
+      final ownSectionY = tester
+          .getTopLeft(find.text(franchise.team.name).at(1))
+          .dy;
+      final opponentSectionY = tester
+          .getTopLeft(find.text(opponent.name).at(1))
+          .dy;
+      expect(ownSectionY, lessThan(opponentSectionY));
+    },
+  );
+
   testWidgets('preseason and Cup games note that they don\'t count toward '
       'the record', (tester) async {
     tester.view.physicalSize = const Size(800, 4000);
