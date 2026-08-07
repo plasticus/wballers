@@ -14,6 +14,7 @@ import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/presentation/game_result_screen.dart';
 
+import '../../../support/franchise_test_helpers.dart';
 import '../../../support/in_memory_save_repository.dart';
 
 void main() {
@@ -27,15 +28,17 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final franchise = createExpansionFranchise(
-      gmName: 'Jordan Ellis',
-      clubName: 'Comets',
-      homeCity: 'Springfield, IL',
-      conference: Conference.atlantic,
-      replacedTeamAbbreviation: 'BOS',
-      colors: kStarterPalettes.first,
-      emoji: '🏀',
-      simulationSeed: 1,
+    final franchise = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
     );
     final opponent = franchise.league.aiTeams.first.team;
     final rosters = rostersByAbbreviation(franchise);
@@ -94,15 +97,17 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      final franchise = createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
       final opponent = franchise.league.aiTeams.first.team;
       final rosters = rostersByAbbreviation(franchise);
@@ -156,15 +161,17 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final franchise = createExpansionFranchise(
-      gmName: 'Jordan Ellis',
-      clubName: 'Comets',
-      homeCity: 'Springfield, IL',
-      conference: Conference.atlantic,
-      replacedTeamAbbreviation: 'BOS',
-      colors: kStarterPalettes.first,
-      emoji: '🏀',
-      simulationSeed: 1,
+    final franchise = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
     );
     final opponent = franchise.league.aiTeams.first.team;
     final rosters = rostersByAbbreviation(franchise);

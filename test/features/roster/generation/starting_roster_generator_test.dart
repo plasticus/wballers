@@ -21,10 +21,11 @@ void main() {
     }
   });
 
-  test('has exactly 12 active players', () {
+  test('has exactly 11 active players -- one short on purpose, to be '
+      'filled by signing a free agent', () {
     final roster = generateStartingRoster(1);
 
-    expect(roster, hasLength(12));
+    expect(roster, hasLength(11));
     expect(roster.every((m) => m.status == RosterStatus.active), isTrue);
   });
 

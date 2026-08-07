@@ -6,7 +6,10 @@ import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
+import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
+import '../../roster/domain/roster_status.dart';
+import '../../roster/generation/jersey_number_assignment.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/game_result.dart';
 import '../../season/generation/postseason_advancer.dart';
@@ -57,6 +60,49 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final franchise = await future;
     if (franchise == null) return;
     await _persist(franchise.copyWithRoster(newRoster));
+  }
+
+  /// Signs the free agent with [playerId] off `Franchise.freeAgents` and
+  /// onto the active roster -- the only way a free agent ever becomes a
+  /// real roster player. Assigns a jersey number that doesn't collide
+  /// with anyone already on the roster (`assignJerseyNumberAvoiding`)
+  /// without touching any other player's number.
+  ///
+  /// A no-op if there's no current franchise, the active roster is
+  /// already at [kActiveRosterSize], or [playerId] isn't actually in
+  /// [Franchise.freeAgents] -- defensive guards, not paths the real UI
+  /// should ever hit (the Player Market screen's Free Agents tab only
+  /// shows a "Sign" button when there's an open roster spot and the
+  /// player is genuinely still in the pool).
+  Future<void> signFreeAgent(String playerId) async {
+    final franchise = await future;
+    if (franchise == null) return;
+
+    final activeCount = franchise.roster
+        .where((m) => m.status == RosterStatus.active)
+        .length;
+    if (activeCount >= kActiveRosterSize) return;
+
+    final index = franchise.freeAgents.indexWhere((p) => p.id == playerId);
+    if (index == -1) return;
+
+    final signed = assignJerseyNumberAvoiding(
+      Random(),
+      franchise.freeAgents[index],
+      franchise.roster,
+    );
+    final newRoster = [
+      ...franchise.roster,
+      RosterMembership(player: signed, status: RosterStatus.active),
+    ];
+    final newFreeAgents = [...franchise.freeAgents]..removeAt(index);
+
+    await _persist(
+      franchise.copyWithRosterAndFreeAgents(
+        newRoster: newRoster,
+        newFreeAgents: newFreeAgents,
+      ),
+    );
   }
 
   /// Replaces the coach's portrait appearance and persists it. Same
@@ -126,8 +172,17 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// [Franchise.seasonProgress] footprint (`PlayedGame`, not the full
   /// event log) actually gets persisted, same as every other game.
   ///
-  /// Returns `null` if there's no current franchise, or if the season has
-  /// no game days left to advance to ([SeasonProgress.isComplete]).
+  /// Returns `null` if there's no current franchise, if the season has no
+  /// game days left to advance to ([SeasonProgress.isComplete]), or if
+  /// the active roster is under [kActiveRosterSize] -- a direct GM ask
+  /// for a real Day-0 hook: a fresh expansion roster starts one player
+  /// short on purpose (`generateStartingRoster`'s doc comment), and the
+  /// season can't advance until the GM signs a free agent to fill it.
+  /// This is the actual enforcement point; the Dashboard's own button
+  /// already hides itself in the same situation (`dashboard_screen.dart`'s
+  /// `_SeasonAdvanceCard`), so a real GM should never hit this guard --
+  /// it's here so nothing else that might call this directly could
+  /// accidentally bypass the gate.
   ///
   /// The [Random] stream is reseeded from [Franchise.simulationSeed] plus
   /// the game day index being advanced, not carried forward across calls
@@ -138,6 +193,10 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     if (franchise == null || franchise.seasonProgress.isComplete) {
       return null;
     }
+    final activeCount = franchise.roster
+        .where((m) => m.status == RosterStatus.active)
+        .length;
+    if (activeCount < kActiveRosterSize) return null;
 
     final advance = advanceToNextGameDay(
       Random(

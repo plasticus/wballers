@@ -1,12 +1,20 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/save_envelope.dart';
+import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
+import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/market/generation/player_market_preview_generator.dart';
 import 'package:womensbballmgr/features/market/presentation/player_market_screen.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+
+import '../../../support/in_memory_save_repository.dart';
 
 Franchise _newFranchise() => createExpansionFranchise(
   gmName: 'Jordan Ellis',
@@ -19,21 +27,37 @@ Franchise _newFranchise() => createExpansionFranchise(
   simulationSeed: 1,
 );
 
+Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
+  final repository = InMemorySaveRepository();
+  await repository.writeSave(
+    kCurrentFranchiseSaveId,
+    SaveEnvelope(
+      schemaVersion: 1,
+      payload: franchiseToJson(franchise),
+    ).toJson(),
+  );
+  return repository;
+}
+
 void main() {
   testWidgets(
-    'shows the 3 tabs, opening on Free Agents with a preview disclaimer',
+    'shows the 3 tabs, opening on Free Agents with a real, signable pool',
     (tester) async {
-      // All 10 preview rows need to be on-screen at once, same "plain
+      // All 12 free-agent rows need to be on-screen at once, same "plain
       // ListView only builds near the viewport" reasoning every other
       // long-list test in this codebase already works around.
-      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.physicalSize = const Size(800, 4500);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
       final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
 
       await tester.pumpWidget(
-        MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
       );
       await tester.pump();
 
@@ -42,18 +66,92 @@ void main() {
       expect(find.text('Trade Block'), findsOneWidget);
       expect(find.text('Draft'), findsOneWidget);
 
-      // The disclaimer is unmissable, not fine print.
+      // The active roster starts one short (11/12) -- the banner says so
+      // and nudges toward signing, not a "preview only" disclaimer.
       expect(
-        find.textContaining('Preview only -- there\'s no free-agent pool'),
+        find.textContaining('Your active roster has an open spot'),
         findsOneWidget,
       );
 
-      // 10 free agents, each labeled "Free Agent" (not a team name) --
-      // folded into the identity subtitle line, not its own standalone
-      // Text, hence textContaining rather than an exact match.
+      // Every free agent in the real, persisted pool shows up, each
+      // labeled "Free Agent" (folded into the identity subtitle line, not
+      // its own standalone Text, hence textContaining) with a Sign button.
       expect(
         find.textContaining('Free Agent ·'),
-        findsNWidgets(kPlayerMarketPreviewCount),
+        findsNWidgets(franchise.freeAgents.length),
+      );
+      expect(find.text('Sign'), findsNWidgets(franchise.freeAgents.length));
+    },
+  );
+
+  testWidgets(
+    'tapping Sign moves that free agent onto the active roster and pops '
+    'back',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+      final targetFreeAgent = franchise.freeAgents.first;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            PlayerMarketScreen(franchise: franchise),
+                      ),
+                    ),
+                    child: const Text('Open Player Market'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Open Player Market'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Sign').first);
+      await tester.pumpAndSettle();
+
+      // Popped back to the screen underneath -- Player Market is gone.
+      expect(find.text('Player Market'), findsNothing);
+      expect(find.text('Open Player Market'), findsOneWidget);
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      // The active roster grew by exactly one, and it's the free agent
+      // that was signed -- who's no longer in the pool.
+      expect(
+        savedFranchise.roster
+            .where((m) => m.status == RosterStatus.active)
+            .length,
+        franchise.roster.length + 1,
+      );
+      expect(
+        savedFranchise.roster.any((m) => m.player.id == targetFreeAgent.id),
+        isTrue,
+      );
+      expect(
+        savedFranchise.freeAgents.any((p) => p.id == targetFreeAgent.id),
+        isFalse,
+      );
+      expect(
+        savedFranchise.freeAgents,
+        hasLength(franchise.freeAgents.length - 1),
       );
     },
   );
@@ -61,14 +159,18 @@ void main() {
   testWidgets('the Trade Block tab shows real AI teams, one per player', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 4000);
+    tester.view.physicalSize = const Size(800, 4500);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     final franchise = _newFranchise();
+    final repository = await _seededRepository(franchise);
 
     await tester.pumpWidget(
-      MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+      ),
     );
     await tester.pump();
 
@@ -93,19 +195,24 @@ void main() {
       findsWidgets,
     );
     expect(find.textContaining('Free Agent ·'), findsNothing);
+    expect(find.text('Sign'), findsNothing);
   });
 
   testWidgets('the Draft tab shows a college per prospect, not a team', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 4000);
+    tester.view.physicalSize = const Size(800, 4500);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     final franchise = _newFranchise();
+    final repository = await _seededRepository(franchise);
 
     await tester.pumpWidget(
-      MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+      ),
     );
     await tester.pump();
 
@@ -126,5 +233,6 @@ void main() {
       findsWidgets,
     );
     expect(find.textContaining('Free Agent ·'), findsNothing);
+    expect(find.text('Sign'), findsNothing);
   });
 }

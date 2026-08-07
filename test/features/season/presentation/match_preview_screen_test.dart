@@ -16,17 +16,20 @@ import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
 import 'package:womensbballmgr/features/season/presentation/match_preview_screen.dart';
 
+import '../../../support/franchise_test_helpers.dart';
 import '../../../support/in_memory_save_repository.dart';
 
-Franchise _newFranchise() => createExpansionFranchise(
-  gmName: 'Jordan Ellis',
-  clubName: 'Comets',
-  homeCity: 'Springfield, IL',
-  conference: Conference.atlantic,
-  replacedTeamAbbreviation: 'BOS',
-  colors: kStarterPalettes.first,
-  emoji: '🏀',
-  simulationSeed: 1,
+Franchise _newFranchise() => withFullActiveRoster(
+  createExpansionFranchise(
+    gmName: 'Jordan Ellis',
+    clubName: 'Comets',
+    homeCity: 'Springfield, IL',
+    conference: Conference.atlantic,
+    replacedTeamAbbreviation: 'BOS',
+    colors: kStarterPalettes.first,
+    emoji: '🏀',
+    simulationSeed: 1,
+  ),
 );
 
 /// [franchise] with its next (and only) game day being a single [type]

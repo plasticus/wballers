@@ -96,7 +96,9 @@ void main() {
     await tester.pump();
 
     expect(find.text(franchise.team.name), findsOneWidget);
-    expect(find.text('Active Roster (12)'), findsOneWidget);
+    // 11, not 12 -- generateStartingRoster deliberately starts one
+    // player short (see its own doc comment).
+    expect(find.text('Active Roster (11)'), findsOneWidget);
     expect(
       find.textContaining(franchise.roster.first.player.name),
       findsOneWidget,
@@ -278,10 +280,12 @@ void main() {
   testWidgets('tapping a player row opens their Player Detail screen', (
     tester,
   ) async {
-    // The first roster row needs to be on-screen to tap it -- the "Player
-    // Market" button pushed everything below the button column further
-    // down than the default test surface's height.
-    tester.view.physicalSize = const Size(800, 1200);
+    // The roster row is display-sorted by position then overall, not
+    // generation order, so `targetPlayer` (roster[0], generation order)
+    // could land anywhere in the list -- tall enough to guarantee every
+    // active row is on-screen at once rather than guessing at a scroll
+    // offset.
+    tester.view.physicalSize = const Size(800, 3000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 

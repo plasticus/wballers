@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +13,12 @@ import 'package:womensbballmgr/features/franchise/application/current_franchise_
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/player/domain/archetype.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/generation/free_agent_pool_generator.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
@@ -25,11 +33,61 @@ import '../../support/league_test_helpers.dart';
 import '../../support/season_test_helpers.dart';
 import '../../support/training_test_helpers.dart';
 
+/// A 12th active player -- `generateStartingRoster` deliberately produces
+/// only 11 now (see its own doc comment), one short of a full roster, so
+/// the Dashboard's "Advance to Next Game Day" button gates itself away.
+/// Most of this file's tests aren't about that gate at all and just want
+/// a normal, playable franchise, so `_franchiseWith` tops the roster up
+/// with this directly rather than routing every test through a real
+/// free-agent signing.
+RosterMembership _twelfthActiveMember() {
+  return RosterMembership(
+    player: Player(
+      id: 'signed-extra',
+      name: 'Signed Extra',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Anywhere, USA',
+      primaryPosition: Position.center,
+      secondaryPositions: const {},
+      handedness: Handedness.right,
+      biography: '',
+      ratings: const PlayerRatings(
+        speed: 55,
+        agility: 55,
+        strength: 55,
+        stamina: 55,
+        ballControl: 55,
+        passing: 55,
+        interiorOffense: 55,
+        perimeterOffense: 55,
+        perimeterDefense: 55,
+        interiorDefense: 55,
+        disruption: 55,
+        blocking: 55,
+        potential: 60,
+      ),
+      heightInches: 76,
+      archetype: Archetype.shotBlocker,
+      traits: const {},
+    ),
+    status: RosterStatus.active,
+  );
+}
+
 Franchise _franchiseWith({
   SeasonProgress? seasonProgress,
   List<TrainingReport> trainingReports = const [],
+  // A full 12 by default -- most tests here just want a normal, playable
+  // franchise. The Assistant-GM-mail/advance-gate test below is the one
+  // exception, and passes false to see the real 11-player starting shape.
+  bool includeTwelfthMember = true,
+  List<Player> freeAgents = const [],
 }) {
-  final roster = generateStartingRoster(1);
+  final roster = [
+    ...generateStartingRoster(1),
+    if (includeTwelfthMember) _twelfthActiveMember(),
+  ];
   return Franchise(
     id: 'franchise-1',
     gmName: 'Taylor Reed',
@@ -55,6 +113,7 @@ Franchise _franchiseWith({
         ),
     trainingCoaches: testTrainingCoaches(),
     trainingPlan: TrainingPlan.initial(),
+    freeAgents: freeAgents,
     nextTrainingWeek: 1,
     trainingReports: trainingReports,
   );
@@ -90,6 +149,43 @@ void main() {
     expect(find.text('Upcoming Games'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows an Assistant GM mail card naming the pool\'s best prospect, and '
+    'hides the advance button, while the roster is short a player',
+    (tester) async {
+      final freeAgents = generateFreeAgentPool(
+        Random(1 + kFreeAgentPoolSeedOffset),
+      );
+      final franchise = _franchiseWith(
+        includeTwelfthMember: false,
+        freeAgents: freeAgents,
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('From Your Assistant GM'), findsOneWidget);
+      final prospect = freeAgents.reduce(
+        (a, b) => a.ratings.potential > b.ratings.potential ? a : b,
+      );
+      expect(find.textContaining(prospect.name), findsOneWidget);
+      expect(find.text('Open Player Market'), findsOneWidget);
+
+      // Nothing to press -- the gate is real, not just a UI suggestion.
+      expect(find.text('Advance to Next Game Day'), findsNothing);
+      expect(
+        find.textContaining('Sign a free agent to fill your roster'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('does not show the hero splash once a franchise exists', (
     tester,

@@ -263,6 +263,13 @@ class _CoachAssignmentCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String?>(
             initialValue: assignment.playerId,
+            // Without this, a long player label sizes the closed
+            // dropdown's own Row to its intrinsic (unbounded) width
+            // instead of the field's actual width, overflowing next to
+            // the dropdown arrow -- `overflow`/`maxLines` on the Text
+            // itself can't help since that Row never constrains it in
+            // the first place.
+            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Assigned player',
               border: OutlineInputBorder(),
@@ -271,7 +278,14 @@ class _CoachAssignmentCard extends StatelessWidget {
             items: [
               const DropdownMenuItem(value: null, child: Text('Unassigned')),
               for (final player in selectable)
-                DropdownMenuItem(value: player.id, child: Text(player.label)),
+                DropdownMenuItem(
+                  value: player.id,
+                  child: Text(
+                    player.label,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
             ],
             onChanged: (playerId) =>
                 onChanged(assignment.copyWith(playerId: () => playerId)),

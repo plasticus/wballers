@@ -23,6 +23,7 @@ import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
+import '../../support/franchise_test_helpers.dart';
 import '../../support/in_memory_save_repository.dart';
 import '../../support/league_test_helpers.dart';
 import '../../support/season_test_helpers.dart';
@@ -56,7 +57,7 @@ Franchise _newFranchise() => createExpansionFranchise(
 /// Cup tab's "upcoming round matches" ask actually shows a real Round 2
 /// matchup once one exists, not just Round 1's.
 Franchise _franchiseThroughContinentalCupRound1() {
-  var franchise = _newFranchise();
+  var franchise = withFullActiveRoster(_newFranchise());
   var progress = franchise.seasonProgress;
   for (var i = 0; i < 15; i++) {
     if (progress.schedule.games.any((g) => g.continentalCupRound == 2)) {

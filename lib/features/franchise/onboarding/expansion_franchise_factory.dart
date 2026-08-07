@@ -6,6 +6,7 @@ import '../../league/domain/team.dart';
 import '../../league/generation/league_generator.dart';
 import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
+import '../../roster/generation/free_agent_pool_generator.dart';
 import '../../roster/generation/starting_roster_generator.dart';
 import '../../season/domain/season_progress.dart';
 import '../../season/generation/season_schedule_generator.dart';
@@ -136,6 +137,14 @@ Franchise createExpansionFranchise({
     portraitWeights: portraitWeights,
   );
 
+  // One player short of a full active roster on purpose -- see
+  // `generateStartingRoster`'s doc comment. `freeAgents` is what the GM
+  // has to sign from to fill it, generated once here and persisted from
+  // here on (not regenerated every save/reload).
+  final freeAgents = generateFreeAgentPool(
+    Random(simulationSeed + kFreeAgentPoolSeedOffset),
+  );
+
   final league = generateLeague(
     simulationSeed: simulationSeed,
     replacedTeamAbbreviation: replacedTeamAbbreviation,
@@ -177,5 +186,6 @@ Franchise createExpansionFranchise({
     ),
     trainingPlan: TrainingPlan.initial(),
     nextTrainingWeek: kPreseasonWeek,
+    freeAgents: freeAgents,
   );
 }

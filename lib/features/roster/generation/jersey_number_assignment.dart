@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../player/domain/player.dart';
 import '../domain/roster_membership.dart';
 
 /// Valid jersey numbers, 0-99 (real basketball's usual range) --
@@ -26,4 +27,27 @@ List<RosterMembership> assignJerseyNumbers(
         status: roster[i].status,
       ),
   ];
+}
+
+/// Assigns [player] a jersey number that doesn't collide with anyone
+/// already in [existingRoster] -- for adding a single new player (a
+/// free-agent signing, `current_franchise_provider.dart`'s
+/// `signFreeAgent`) without reshuffling the numbers every other player on
+/// the roster already has, unlike [assignJerseyNumbers]'s whole-roster
+/// pass. Deterministic for a given [random] stream.
+Player assignJerseyNumberAvoiding(
+  Random random,
+  Player player,
+  List<RosterMembership> existingRoster,
+) {
+  final taken = {
+    for (final membership in existingRoster)
+      if (membership.player.jerseyNumber != null)
+        membership.player.jerseyNumber!,
+  };
+  final available = [
+    for (var n = _minJerseyNumber; n <= _maxJerseyNumber; n++)
+      if (!taken.contains(n)) n,
+  ]..shuffle(random);
+  return player.copyWithJerseyNumber(available.first);
 }

@@ -12,7 +12,10 @@ import '../franchise/onboarding/onboarding_screen.dart';
 import '../franchise/presentation/team_roster_screen.dart';
 import '../league/domain/team.dart';
 import '../league/league_screen.dart';
+import '../market/presentation/player_market_screen.dart';
 import '../news/presentation/news_screen.dart';
+import '../player/domain/position.dart';
+import '../roster/domain/roster_legality.dart';
 import '../roster/domain/roster_status.dart';
 import '../season/application/franchise_rosters.dart';
 import '../season/domain/game_day.dart';
@@ -145,6 +148,10 @@ class DashboardScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _FranchiseSummaryCard(franchise: value),
+                      if (_activeRosterCount(value) < kActiveRosterSize) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        _AssistantGmMailCard(franchise: value),
+                      ],
                       const SizedBox(height: AppSpacing.lg),
                       _SeasonAdvanceCard(franchise: value),
                       if (_isTrainingReportReady(value)) ...[
@@ -268,6 +275,83 @@ class _FranchiseSummaryCard extends StatelessWidget {
 bool _isTrainingReportReady(Franchise franchise) {
   final week = lastFullyCompletedWeek(franchise.seasonProgress);
   return week != null && week >= franchise.nextTrainingWeek;
+}
+
+int _activeRosterCount(Franchise franchise) =>
+    franchise.roster.where((m) => m.status == RosterStatus.active).length;
+
+/// "You need to hire a free agent before we can advance" -- a direct GM
+/// ask for a real Day-0 hook: a fresh expansion roster starts one player
+/// short of [kActiveRosterSize] on purpose
+/// (`roster/generation/starting_roster_generator.dart`'s doc comment),
+/// and the season genuinely can't advance until that gap is filled
+/// (`CurrentFranchiseNotifier.advanceGameDay`'s own guard). Shown
+/// whenever [_activeRosterCount] is under the cap -- in practice that's
+/// only ever Day 0 today, since nothing else currently shrinks the active
+/// roster below 12 once it's been filled once, but the card reads the
+/// live count rather than hardcoding "Day 0" so it'd still make sense if
+/// that ever changed.
+///
+/// Names the actual best pickup in `Franchise.freeAgents` by finding
+/// whoever has the highest `potential` -- the one deliberately-planted
+/// "decent" free agent every pool gets
+/// (`roster/generation/free_agent_pool_generator.dart`) stands out from
+/// the filler by a wide margin, so no explicit "this is the one" flag is
+/// needed on the player itself.
+class _AssistantGmMailCard extends StatelessWidget {
+  const _AssistantGmMailCard({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final prospect = franchise.freeAgents.isEmpty
+        ? null
+        : franchise.freeAgents.reduce(
+            (a, b) => a.ratings.potential > b.ratings.potential ? a : b,
+          );
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.mail_outline, color: theme.colorScheme.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'From Your Assistant GM',
+                style: theme.textTheme.titleMedium,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Boss -- we\'re one player short of a full active roster. We '
+            'need to sign a free agent before we can advance the season. '
+            'Our starting five is already set, so I\'d skip the safe '
+            'veterans and bet on upside.'
+            '${prospect == null ? '' : ' Take a look at ${prospect.name} '
+                      '(${prospect.primaryPosition.abbreviation}) -- that '
+                      'ceiling is worth the roster spot.'}',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PlayerMarketScreen(franchise: franchise),
+                ),
+              );
+            },
+            icon: const Icon(Icons.storefront_outlined),
+            label: const Text('Open Player Market'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// "Your training staff has feedback" -- the actionable prompt for a
@@ -512,16 +596,27 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
           ] else ...[
             _UpcomingGamesList(franchise: franchise),
             const SizedBox(height: AppSpacing.md),
-            FilledButton(
-              onPressed: _isAdvancing ? null : _advanceOrPreview,
-              child: _isAdvancing
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Advance to Next Game Day'),
-            ),
+            if (_activeRosterCount(franchise) < kActiveRosterSize)
+              // The Assistant GM mail card above already explains why and
+              // links to Player Market -- this just confirms there's
+              // genuinely nothing to press here yet, not a dead end.
+              Text(
+                'Sign a free agent to fill your roster before advancing.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              )
+            else
+              FilledButton(
+                onPressed: _isAdvancing ? null : _advanceOrPreview,
+                child: _isAdvancing
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Advance to Next Game Day'),
+              ),
           ],
         ],
       ),

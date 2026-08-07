@@ -13,6 +13,8 @@ import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/season/presentation/results_screen.dart';
 
+import '../../../support/franchise_test_helpers.dart';
+
 void main() {
   testWidgets('shows an empty state before any games are played', (
     tester,
@@ -40,15 +42,17 @@ void main() {
     'lists every game played so far, newest first, and tapping one opens '
     'its box score',
     (tester) async {
-      final franchise = createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
 
       // Play the first two game days (the preseason).
@@ -112,15 +116,17 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      final franchise = createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
       final opponent = franchise.league.aiTeams.first.team;
       final rosters = rostersByAbbreviation(franchise);

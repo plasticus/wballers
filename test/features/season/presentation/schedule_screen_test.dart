@@ -9,6 +9,8 @@ import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/season/presentation/schedule_screen.dart';
 
+import '../../../support/franchise_test_helpers.dart';
+
 void main() {
   testWidgets('lists only the GM\'s own games, all upcoming before any '
       'are played', (tester) async {
@@ -51,15 +53,17 @@ void main() {
   });
 
   testWidgets('shows a final score once a game day is played', (tester) async {
-    final franchise = createExpansionFranchise(
-      gmName: 'Jordan Ellis',
-      clubName: 'Comets',
-      homeCity: 'Springfield, IL',
-      conference: Conference.atlantic,
-      replacedTeamAbbreviation: 'BOS',
-      colors: kStarterPalettes.first,
-      emoji: '🏀',
-      simulationSeed: 1,
+    final franchise = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
     );
 
     final advance = advanceToNextGameDay(

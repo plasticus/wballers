@@ -20,3 +20,27 @@ const kTwelvePlayerPositionPlan = <Position>[
   Position.center,
   Position.center,
 ];
+
+/// Positions for the GM's own 11-player *starting* roster -- one slot
+/// short of [kTwelvePlayerPositionPlan], deliberately: a new expansion
+/// franchise starts with an open roster spot the GM has to fill by
+/// signing a free agent (`franchise/application/current_franchise_provider.dart`'s
+/// `signFreeAgent`) before they can advance the season. The dropped slot
+/// comes from shooting guard specifically (3 -> 2), not one of the
+/// already-2-deep positions, so every position still has at least two
+/// players even before that 12th spot is filled -- same "legal starting
+/// five and bench always fieldable" guarantee [kTwelvePlayerPositionPlan]
+/// makes, just for 11.
+const kElevenPlayerPositionPlan = <Position>[
+  Position.pointGuard,
+  Position.pointGuard,
+  Position.shootingGuard,
+  Position.shootingGuard,
+  Position.smallForward,
+  Position.smallForward,
+  Position.smallForward,
+  Position.powerForward,
+  Position.powerForward,
+  Position.center,
+  Position.center,
+];

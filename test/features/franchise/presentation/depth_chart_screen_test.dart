@@ -88,6 +88,47 @@ RosterMembership _developmentalMember(String id) {
   );
 }
 
+/// A 12th active player -- `generateStartingRoster` deliberately produces
+/// only 11 now (see its own doc comment), one short of a full roster; the
+/// gap is meant to be filled by signing a free agent, not something this
+/// bench-order-focused test file cares about. Tests here that need a full
+/// 12-player active roster to exercise the ranking table add this one
+/// directly instead.
+RosterMembership _activeMember(String id) {
+  return RosterMembership(
+    player: Player(
+      id: id,
+      name: 'Signed $id',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Anywhere, USA',
+      primaryPosition: Position.center,
+      secondaryPositions: const {},
+      handedness: Handedness.right,
+      biography: '',
+      ratings: const PlayerRatings(
+        speed: 55,
+        agility: 55,
+        strength: 55,
+        stamina: 55,
+        ballControl: 55,
+        passing: 55,
+        interiorOffense: 55,
+        perimeterOffense: 55,
+        perimeterDefense: 55,
+        interiorDefense: 55,
+        disruption: 55,
+        blocking: 55,
+        potential: 60,
+      ),
+      heightInches: 76,
+      archetype: Archetype.shotBlocker,
+      traits: const {},
+    ),
+    status: RosterStatus.active,
+  );
+}
+
 Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
   final repository = InMemorySaveRepository();
   final envelope = SaveEnvelope(
@@ -109,7 +150,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final franchise = _franchiseWith();
+    final franchise = _franchiseWith(extraMembers: [_activeMember('extra-1')]);
     final repository = await _seededRepository(franchise);
 
     await tester.pumpWidget(

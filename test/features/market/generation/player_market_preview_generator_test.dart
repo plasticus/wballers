@@ -19,28 +19,6 @@ Franchise _newFranchise() => createExpansionFranchise(
 );
 
 void main() {
-  group('generateFreeAgentPreview', () {
-    test('generates the requested count, deterministically for a given '
-        'seed', () {
-      final a = generateFreeAgentPreview(Random(1), count: 8);
-      final b = generateFreeAgentPreview(Random(1), count: 8);
-
-      expect(a, hasLength(8));
-      expect(a.map((p) => p.name), b.map((p) => p.name));
-      expect(a.map((p) => p.ratings.overall), b.map((p) => p.ratings.overall));
-    });
-
-    test('below-roster quality -- noticeably under the AI role-player '
-        'baseline (65) on average', () {
-      final pool = generateFreeAgentPreview(Random(7), count: 60);
-      final averageOverall =
-          pool.map((p) => p.ratings.overall).reduce((a, b) => a + b) /
-          pool.length;
-
-      expect(averageOverall, lessThan(60));
-    });
-  });
-
   group('pickTradeBlockPreview', () {
     test('picks up to count players, each a real member of the team '
         'they\'re listed under', () {

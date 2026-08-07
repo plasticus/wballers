@@ -21,6 +21,7 @@ import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/season/presentation/season_recap_screen.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
+import '../../../support/franchise_test_helpers.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
@@ -30,15 +31,17 @@ import '../../../support/training_test_helpers.dart';
 /// the data" approach `current_franchise_provider_test.dart`'s own
 /// postseason test uses.
 Franchise _playFullSeason(int simulationSeed) {
-  var franchise = createExpansionFranchise(
-    gmName: 'Jordan Ellis',
-    clubName: 'Comets',
-    homeCity: 'Springfield, IL',
-    conference: Conference.atlantic,
-    replacedTeamAbbreviation: 'BOS',
-    colors: kStarterPalettes.first,
-    emoji: '🏀',
-    simulationSeed: simulationSeed,
+  var franchise = withFullActiveRoster(
+    createExpansionFranchise(
+      gmName: 'Jordan Ellis',
+      clubName: 'Comets',
+      homeCity: 'Springfield, IL',
+      conference: Conference.atlantic,
+      replacedTeamAbbreviation: 'BOS',
+      colors: kStarterPalettes.first,
+      emoji: '🏀',
+      simulationSeed: simulationSeed,
+    ),
   );
   final rosters = rostersByAbbreviation(franchise);
 

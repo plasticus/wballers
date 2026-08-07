@@ -10,6 +10,8 @@ import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 
+import '../../../support/franchise_test_helpers.dart';
+
 ScheduledGame _game() {
   return const ScheduledGame(
     week: 2,
@@ -53,15 +55,17 @@ void main() {
   group('fromResult', () {
     test('carries the score/minutes/box score for every player who '
         'actually played', () {
-      final franchise = createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
       final opponent = franchise.league.aiTeams.first.team;
       final rosters = rostersByAbbreviation(franchise);

@@ -15,6 +15,7 @@ import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/stats/presentation/stats_screen.dart';
 
+import '../../../support/franchise_test_helpers.dart';
 import '../../../support/in_memory_save_repository.dart';
 
 Franchise _newFranchise() => createExpansionFranchise(
@@ -34,7 +35,7 @@ Franchise _newFranchise() => createExpansionFranchise(
 /// it), so a bare franchise with zero games advanced would show nothing
 /// but empty states.
 Franchise _franchiseWithRegularSeasonGames() {
-  var franchise = _newFranchise();
+  var franchise = withFullActiveRoster(_newFranchise());
   var progress = franchise.seasonProgress;
   for (var i = 0; i < 5; i++) {
     final advance = advanceToNextGameDay(

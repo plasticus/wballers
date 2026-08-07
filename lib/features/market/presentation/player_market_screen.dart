@@ -1,16 +1,20 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../draft/domain/draft_prospect.dart';
+import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../../player/presentation/player_card_widgets.dart';
 import '../../player/presentation/trait_chip.dart';
 import '../../portrait/rendering/portrait_colors.dart';
+import '../../roster/domain/roster_legality.dart';
+import '../../roster/domain/roster_status.dart';
 import '../generation/player_market_preview_generator.dart';
 
 /// Free agents, the trade block, and this season's draft class -- one
@@ -18,15 +22,16 @@ import '../generation/player_market_preview_generator.dart';
 /// already on their roster. Reachable from the Team tab, alongside the
 /// existing Bench Order/Training/Card Lab entry points.
 ///
-/// **Preview only.** There is no free-agent pool, no trade system, and no
-/// draft-day flow wired to `Franchise` yet (`0B_Planned.md`'s Trade
-/// System and Draft entries) -- every player shown here is flavor data
-/// from `generateFreeAgentPreview`/`pickTradeBlockPreview`/
-/// `generateDraftPreview`, regenerated fresh (but deterministically,
-/// from the franchise's own `simulationSeed`) every time the screen
-/// opens. Nothing here is signable, tradeable, or draftable -- that's
-/// why every tab says so up top, and why there isn't a single button
-/// anywhere on this screen that claims to do something it can't.
+/// **Free Agents is real** -- `Franchise.freeAgents`, generated once at
+/// franchise creation and signable here (`CurrentFranchiseNotifier.signFreeAgent`).
+/// **Trade Block and Draft stay preview only**: there is no trade system
+/// and no draft-day flow wired to `Franchise` yet (`0B_Planned.md`'s
+/// Trade System and Draft entries) -- every player shown on those 2 tabs
+/// is flavor data from `pickTradeBlockPreview`/`generateDraftPreview`,
+/// regenerated fresh (but deterministically) every time the screen
+/// opens. Nothing on either tab is tradeable or draftable -- that's why
+/// each still opens with a banner saying so, and why there isn't a
+/// button on either one that claims to do something it can't.
 class PlayerMarketScreen extends StatefulWidget {
   const PlayerMarketScreen({required this.franchise, super.key});
 
@@ -51,9 +56,6 @@ class _PlayerMarketScreenState extends State<PlayerMarketScreen>
     final franchise = widget.franchise;
     final seed = franchise.simulationSeed;
 
-    final freeAgents = generateFreeAgentPreview(
-      Random(seed + kFreeAgentPreviewSeedOffset),
-    );
     final tradeBlock = pickTradeBlockPreview(
       franchise,
       Random(seed + kTradeBlockPreviewSeedOffset),
@@ -80,7 +82,7 @@ class _PlayerMarketScreenState extends State<PlayerMarketScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _FreeAgentsTab(franchise: franchise, players: freeAgents),
+                  _FreeAgentsTab(franchise: franchise),
                   _TradeBlockTab(franchise: franchise, picks: tradeBlock),
                   _DraftTab(franchise: franchise, prospects: draftClass),
                 ],
@@ -135,35 +137,73 @@ class _PreviewBanner extends StatelessWidget {
   }
 }
 
-class _FreeAgentsTab extends StatelessWidget {
-  const _FreeAgentsTab({required this.franchise, required this.players});
+class _FreeAgentsTab extends ConsumerStatefulWidget {
+  const _FreeAgentsTab({required this.franchise});
 
   final Franchise franchise;
-  final List<Player> players;
+
+  @override
+  ConsumerState<_FreeAgentsTab> createState() => _FreeAgentsTabState();
+}
+
+class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
+  var _isSigning = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final franchise = widget.franchise;
+    final activeCount = franchise.roster
+        .where((m) => m.status == RosterStatus.active)
+        .length;
+    final hasOpenSpot = activeCount < kActiveRosterSize;
+
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        const _PreviewBanner(
-          text:
-              'Preview only -- there\'s no free-agent pool or signing flow '
-              'yet. These players aren\'t real roster state.',
+        _PreviewBanner(
+          text: hasOpenSpot
+              ? 'Your active roster has an open spot -- sign a free agent '
+                    'to fill it. Signing is instant and permanent for now; '
+                    'there\'s no salary cap or contract length modeled yet.'
+              : 'Your active roster is full ($activeCount/$kActiveRosterSize) '
+                    '-- browse for reference, but there\'s no open spot to '
+                    'sign into right now.',
         ),
-        for (var i = 0; i < players.length; i++) ...[
+        for (var i = 0; i < franchise.freeAgents.length; i++) ...[
           _PlayerMarketRow(
             franchise: franchise,
-            player: players[i],
+            player: franchise.freeAgents[i],
             subtitle: 'Free Agent',
             accentColor: theme.colorScheme.outline,
             jersey: null,
+            trailing: hasOpenSpot
+                ? FilledButton(
+                    onPressed: _isSigning
+                        ? null
+                        : () => _sign(franchise.freeAgents[i].id),
+                    child: _isSigning
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Sign'),
+                  )
+                : null,
           ),
-          if (i != players.length - 1) const SizedBox(height: AppSpacing.sm),
+          if (i != franchise.freeAgents.length - 1)
+            const SizedBox(height: AppSpacing.sm),
         ],
       ],
     );
+  }
+
+  Future<void> _sign(String playerId) async {
+    setState(() => _isSigning = true);
+    await ref.read(currentFranchiseProvider.notifier).signFreeAgent(playerId);
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 }
 
@@ -248,6 +288,7 @@ class _PlayerMarketRow extends StatelessWidget {
     required this.subtitle,
     required this.accentColor,
     required this.jersey,
+    this.trailing,
   });
 
   final Franchise franchise;
@@ -256,49 +297,64 @@ class _PlayerMarketRow extends StatelessWidget {
   final Color accentColor;
   final RgbColor? jersey;
 
+  /// An optional action for this row -- currently only the Free Agents
+  /// tab's "Sign" button. `null` on Trade Block/Draft, which have no real
+  /// action to offer yet.
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AppCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PhotoOvrRail(
-            franchise: franchise,
-            player: player,
-            accentColor: accentColor,
-            jersey: jersey,
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${player.primaryPosition.abbreviation} ${player.name}',
-                  style: theme.textTheme.titleMedium,
-                ),
-                Text(
-                  '$subtitle · Age ${player.age} · '
-                  '${experienceLabel(player)}',
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                StatChipRow(player: player),
-                if (player.traits.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: AppSpacing.xs,
-                    children: [
-                      for (final trait in player.traits)
-                        TraitChip(trait: trait),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PhotoOvrRail(
+                franchise: franchise,
+                player: player,
+                accentColor: accentColor,
+                jersey: jersey,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${player.primaryPosition.abbreviation} '
+                      '${player.name}',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    Text(
+                      '$subtitle · Age ${player.age} · '
+                      '${experienceLabel(player)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    StatChipRow(player: player),
+                    if (player.traits.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          for (final trait in player.traits)
+                            TraitChip(trait: trait),
+                        ],
+                      ),
                     ],
-                  ),
-                ],
-              ],
-            ),
+                  ],
+                ),
+              ),
+            ],
           ),
+          if (trailing != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            trailing!,
+          ],
         ],
       ),
     );

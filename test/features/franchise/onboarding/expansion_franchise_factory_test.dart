@@ -148,7 +148,7 @@ void main() {
       );
     });
 
-    test('sets the team identity and a full active roster', () {
+    test('sets the team identity and a one-short-of-full active roster', () {
       final franchise = createExpansionFranchise(
         gmName: 'Jordan Ellis',
         clubName: 'Comets',
@@ -164,9 +164,37 @@ void main() {
       expect(franchise.team.location, 'Springfield, IL');
       expect(franchise.team.conference, Conference.pacific);
       expect(franchise.team.abbreviation, 'COM');
+      // 11, not 12 -- a real Day-0 hook: the GM has to sign a free agent
+      // to fill the last spot before advancing (see
+      // `starting_roster_generator.dart`'s doc comment).
       expect(
         franchise.roster.where((m) => m.status == RosterStatus.active),
-        hasLength(12),
+        hasLength(11),
+      );
+    });
+
+    test('generates a free-agent pool with a real high-potential '
+        'prospect in it', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      expect(franchise.freeAgents, hasLength(12));
+      // The one deliberately-planted "decent" prospect always lands
+      // right around the target potential -- filler players can
+      // occasionally roll a high potential too (it's driven by age, not
+      // quality center, so this isn't a safe way to single the prospect
+      // out), but at least one player at this level is guaranteed.
+      expect(
+        franchise.freeAgents.map((p) => p.ratings.potential),
+        contains(inInclusiveRange(77, 83)),
       );
     });
 

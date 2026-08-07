@@ -2,6 +2,7 @@ import '../../coach/domain/coach.dart';
 import '../../league/domain/initial_league.dart';
 import '../../league/domain/league.dart';
 import '../../league/domain/team.dart';
+import '../../player/domain/player.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../season/domain/season_progress.dart';
 import '../../training/domain/training_coach.dart';
@@ -50,6 +51,7 @@ class Franchise {
     required this.trainingPlan,
     required this.nextTrainingWeek,
     this.trainingReports = const [],
+    this.freeAgents = const [],
   }) : assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
          'replacedTeamAbbreviation must be one of the league team pool, '
@@ -115,6 +117,17 @@ class Franchise {
   /// keeping the whole season's worth doesn't meaningfully grow the save.
   final List<TrainingReport> trainingReports;
 
+  /// Unrostered players available to sign -- real, persisted game state
+  /// (not to be confused with the Player Market screen's still-preview-only
+  /// Trade Block/Draft tabs). Generated once at franchise creation
+  /// (`generateFreeAgentPool`) and only ever shrinks as the GM signs
+  /// players off it (`current_franchise_provider.dart`'s `signFreeAgent`)
+  /// -- nothing ever adds to it after creation yet (a real free-agent
+  /// market that refreshes over a season is future work). Defaults to
+  /// empty for every pre-existing caller (mostly tests) that doesn't care
+  /// about free agency, same pattern [trainingReports] already uses.
+  final List<Player> freeAgents;
+
   /// Returns a copy with [newCoach] replacing [coach] -- the portrait
   /// editor's coach-appearance path.
   Franchise copyWithCoach(Coach newCoach) {
@@ -132,6 +145,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      freeAgents: freeAgents,
     );
   }
 
@@ -152,6 +166,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      freeAgents: freeAgents,
     );
   }
 
@@ -172,6 +187,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      freeAgents: freeAgents,
     );
   }
 
@@ -192,6 +208,7 @@ class Franchise {
       trainingPlan: newTrainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      freeAgents: freeAgents,
     );
   }
 
@@ -222,6 +239,36 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: newNextTrainingWeek,
       trainingReports: [...trainingReports, newReport],
+      freeAgents: freeAgents,
+    );
+  }
+
+  /// Returns a copy reflecting one free-agent signing: [newRoster] gains
+  /// the newly-signed player, [newFreeAgents] no longer includes them.
+  /// Bundled into one method rather than two separate `copyWithX` calls
+  /// because these two always change together -- a signed player leaves
+  /// [freeAgents] and joins [roster] in the same instant, never just one
+  /// or the other. `current_franchise_provider.dart`'s `signFreeAgent` is
+  /// the only caller.
+  Franchise copyWithRosterAndFreeAgents({
+    required List<RosterMembership> newRoster,
+    required List<Player> newFreeAgents,
+  }) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: newRoster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
+      freeAgents: newFreeAgents,
     );
   }
 }

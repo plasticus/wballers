@@ -9,11 +9,13 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/training/domain/training_focus.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
+import '../../../support/franchise_test_helpers.dart';
 import '../../../support/in_memory_save_repository.dart';
 
 const _newAppearance = PortraitAppearance(
@@ -378,6 +380,133 @@ void main() {
     );
   });
 
+  group('signFreeAgent', () {
+    test('moves the player from freeAgents onto the active roster, with a '
+        'non-colliding jersey number', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final target = franchise.freeAgents.first;
+      final takenNumbers = franchise.roster
+          .map((m) => m.player.jerseyNumber)
+          .whereType<int>()
+          .toSet();
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .signFreeAgent(target.id);
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      final signedMembership = updated.roster.firstWhere(
+        (m) => m.player.id == target.id,
+      );
+      expect(signedMembership.status, RosterStatus.active);
+      expect(signedMembership.player.jerseyNumber, isNotNull);
+      expect(
+        takenNumbers,
+        isNot(contains(signedMembership.player.jerseyNumber)),
+      );
+      expect(updated.freeAgents.any((p) => p.id == target.id), isFalse);
+      expect(updated.freeAgents, hasLength(franchise.freeAgents.length - 1));
+      expect(
+        updated.roster.where((m) => m.status == RosterStatus.active).length,
+        franchise.roster.length + 1,
+      );
+    });
+
+    test('is a no-op once the active roster is already full', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final stillAvailable = franchise.freeAgents.first;
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .signFreeAgent(stillAvailable.id);
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      // Nothing moved -- the roster was already at the cap.
+      expect(updated.roster.length, franchise.roster.length);
+      expect(updated.freeAgents.length, franchise.freeAgents.length);
+    });
+
+    test('is a no-op when the given id isn\'t actually a free agent', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .signFreeAgent('not-a-real-free-agent-id');
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.roster.length, franchise.roster.length);
+      expect(updated.freeAgents.length, franchise.freeAgents.length);
+    });
+
+    test('does nothing when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .signFreeAgent('whatever');
+
+      expect(container.read(currentFranchiseProvider).value, isNull);
+    });
+  });
+
   group('advanceGameDay', () {
     test('returns null when there is no current franchise', () async {
       final container = ProviderContainer(
@@ -395,13 +524,15 @@ void main() {
       expect(results, isNull);
     });
 
-    test('simulates the next game day, persists a lean SeasonProgress, and '
-        'returns the full game results for that day', () async {
+    test('returns null while the active roster is short a player -- the '
+        'GM has to sign a free agent before the season can advance', () async {
       final repository = InMemorySaveRepository();
       final container = ProviderContainer(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
       );
       addTearDown(container.dispose);
+      // Not wrapped in withFullActiveRoster -- 11 active players, exactly
+      // the real Day-0 shape.
       final franchise = createExpansionFranchise(
         gmName: 'Jordan Ellis',
         clubName: 'Comets',
@@ -411,6 +542,39 @@ void main() {
         colors: kStarterPalettes.first,
         emoji: '🏀',
         simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+
+      expect(results, isNull);
+      // Nothing advanced either.
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.seasonProgress.nextGameDayIndex, 0);
+    });
+
+    test('simulates the next game day, persists a lean SeasonProgress, and '
+        'returns the full game results for that day', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
       await container
           .read(currentFranchiseProvider.notifier)
@@ -440,15 +604,17 @@ void main() {
     });
 
     test('is deterministic for a given simulationSeed', () async {
-      Franchise freshFranchise() => createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      Franchise freshFranchise() => withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
 
       Future<List<int>> playFirstGameDay() async {
@@ -570,15 +736,17 @@ void main() {
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
       );
       addTearDown(container.dispose);
-      final franchise = createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
       await container
           .read(currentFranchiseProvider.notifier)
@@ -733,15 +901,17 @@ void main() {
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
       );
       addTearDown(container.dispose);
-      final franchise = createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
       await container
           .read(currentFranchiseProvider.notifier)
@@ -777,15 +947,17 @@ void main() {
     });
 
     test('is deterministic for a given simulationSeed', () async {
-      Franchise freshFranchise() => createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
+      Franchise freshFranchise() => withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
       );
 
       Future<int> playWeekAndTrain() async {
