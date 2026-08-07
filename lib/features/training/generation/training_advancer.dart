@@ -27,6 +27,15 @@ const _kGapNormalization = 40.0; // gap-to-potential that reads as "wide open".
 const _kGrowthScale = 3.2;
 const _kDeclineScale = 3.0;
 const _kDevelopmentalSlotMultiplier = 1.4;
+// A player in one of the 3 individually-coached slots gets this on top of
+// whatever the assigned coach's own quality already contributes -- real,
+// deliberate extra growth for the one-on-one attention itself, not just
+// "maybe that coach happens to roll higher than the head coach." Combined
+// with gap-to-potential already rewarding a wide-open player more, a
+// high-potential prospect in one of these 3 slots "double dips": her own
+// big gap grows the delta, and the individual slot multiplies it again.
+// Growth-side only -- declining vets aren't who these slots are for.
+const _kIndividualAttentionMultiplier = 1.3;
 const _kHighPotentialMultiplier = 1.3;
 const _kLowPotentialMultiplier = 0.7;
 const _kHighlyCoachableMultiplier = 1.4;
@@ -99,10 +108,8 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
 
     final player = membership.player;
     final minutesThisWeek = minutesByPlayerId[player.id] ?? 0;
-    final (focus, coachDevelopmentRating) = _effectiveFocusAndCoach(
-      franchise,
-      player.id,
-    );
+    final (focus, coachDevelopmentRating, isIndividuallySlotted) =
+        _effectiveFocusAndCoach(franchise, player.id);
 
     final newFieldValues = _newFieldValuesFor(
       random,
@@ -111,6 +118,7 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
       focus: focus,
       coachDevelopmentRating: coachDevelopmentRating,
       isDevelopmentalSlot: membership.status == RosterStatus.developmental,
+      isIndividuallySlotted: isIndividuallySlotted,
     );
 
     if (newFieldValues.isEmpty) {
@@ -178,20 +186,28 @@ Map<String, double> _minutesInWeekRange(
 /// Which focus and coach quality apply to [playerId]: whichever training
 /// coach slot has them assigned (that coach's own `developmentRating`),
 /// or -- if no coach has them -- the team-wide [TrainingPlan.teamFocus]
-/// and the head coach's `CoachStats.development`.
-(IndividualTrainingFocus, int) _effectiveFocusAndCoach(
+/// and the head coach's `CoachStats.development`. The third element is
+/// whether [playerId] landed one of the 3 individual slots at all --
+/// [_totalWeeklyDelta] applies [_kIndividualAttentionMultiplier] only
+/// when it did.
+(IndividualTrainingFocus, int, bool) _effectiveFocusAndCoach(
   Franchise franchise,
   String playerId,
 ) {
   final slots = franchise.trainingPlan.coachSlots;
   for (var i = 0; i < slots.length; i++) {
     if (slots[i].playerId == playerId) {
-      return (slots[i].focus!, franchise.trainingCoaches[i].developmentRating);
+      return (
+        slots[i].focus!,
+        franchise.trainingCoaches[i].developmentRating,
+        true,
+      );
     }
   }
   return (
     IndividualTrainingFocus.broad(franchise.trainingPlan.teamFocus),
     franchise.coach.stats.development,
+    false,
   );
 }
 
@@ -207,12 +223,14 @@ Map<PlayerRatingField, int> _newFieldValuesFor(
   required IndividualTrainingFocus focus,
   required int coachDevelopmentRating,
   required bool isDevelopmentalSlot,
+  required bool isIndividuallySlotted,
 }) {
   final totalDelta = _totalWeeklyDelta(
     player: player,
     minutesThisWeek: minutesThisWeek,
     coachDevelopmentRating: coachDevelopmentRating,
     isDevelopmentalSlot: isDevelopmentalSlot,
+    isIndividuallySlotted: isIndividuallySlotted,
   );
   final isDecline = totalDelta < 0;
   final perField = _distributeAcrossFields(
@@ -263,6 +281,7 @@ double _totalWeeklyDelta({
   required double minutesThisWeek,
   required int coachDevelopmentRating,
   required bool isDevelopmentalSlot,
+  required bool isIndividuallySlotted,
 }) {
   final ageFactor = _ageCurveFactor(player.age);
   final traits = player.traits;
@@ -310,6 +329,10 @@ double _totalWeeklyDelta({
       traitMultiplier *
       _kGrowthScale;
   if (isDevelopmentalSlot) delta *= _kDevelopmentalSlotMultiplier;
+  // Real, deliberate extra growth for one-on-one attention -- combined
+  // with gapFactor already rewarding a wide-open player more, a
+  // high-potential prospect in one of the 3 individual slots double dips.
+  if (isIndividuallySlotted) delta *= _kIndividualAttentionMultiplier;
   if (traits.contains(Trait.gymRat)) delta += _kGymRatGrowthFloor;
   return delta + _kJitterFloor;
 }

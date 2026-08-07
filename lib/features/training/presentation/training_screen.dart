@@ -114,7 +114,9 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
               Text(
                 'Point one coach at a player to override the team focus '
                 'just for them -- a broad direction or one specific rating '
-                'to hyper-focus.',
+                'to hyper-focus. One-on-one attention grows a player '
+                'faster than the team-wide plan does, so a high-potential '
+                'prospect gets the most out of one of these 3 slots.',
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: AppSpacing.sm),

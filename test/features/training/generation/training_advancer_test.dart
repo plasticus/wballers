@@ -332,6 +332,68 @@ void main() {
     expect(developmentalDelta, greaterThanOrEqualTo(activeDelta));
   });
 
+  test('an individually-coached slot grows a player faster than the same '
+      'player on the team-wide plan, on average, even with identical coach '
+      'quality -- "double dipping" a high-potential prospect in one of the '
+      '3 slots is genuinely worth it, not just a coincidence of which coach '
+      'rolled higher', () {
+    Player buildPlayer() =>
+        _player(id: 'p1', age: 21, overall: 45, potential: 90);
+    final individualPlan = TrainingPlan(
+      teamFocus: TrainingFocus.balanced,
+      coachSlots: [
+        TrainingCoachSlot(
+          playerId: 'p1',
+          focus: const IndividualTrainingFocus.broad(TrainingFocus.balanced),
+        ),
+        const TrainingCoachSlot(),
+        const TrainingCoachSlot(),
+      ],
+    );
+
+    // Every coach (head and all 3 individual slots) rates exactly 50 --
+    // coach quality is held equal, so the only thing that can differ
+    // between these two scenarios, on average, is the
+    // individual-attention multiplier itself. A single seed's result
+    // can land on the same side of a stochastic-rounding boundary by
+    // chance, so this compares totals across many seeds instead.
+    var teamWideTotal = 0;
+    var individualTotal = 0;
+    for (var seed = 0; seed < 100; seed++) {
+      final teamWideAdvance = runTraining(
+        Random(seed),
+        _franchiseWith(
+          roster: [
+            RosterMembership(
+              player: buildPlayer(),
+              status: RosterStatus.active,
+            ),
+          ],
+          week: 2,
+          minutesByPlayerId: {'p1': 200},
+        ),
+      )!;
+      final individualAdvance = runTraining(
+        Random(seed),
+        _franchiseWith(
+          roster: [
+            RosterMembership(
+              player: buildPlayer(),
+              status: RosterStatus.active,
+            ),
+          ],
+          week: 2,
+          minutesByPlayerId: {'p1': 200},
+          trainingPlan: individualPlan,
+        ),
+      )!;
+      teamWideTotal += _totalFieldDelta(teamWideAdvance.report);
+      individualTotal += _totalFieldDelta(individualAdvance.report);
+    }
+
+    expect(individualTotal, greaterThan(teamWideTotal));
+  });
+
   test('an individually-assigned training coach overrides the team plan '
       'and uses that coach\'s own rating', () {
     final player = _player(id: 'p1', age: 21, overall: 45, potential: 90);
