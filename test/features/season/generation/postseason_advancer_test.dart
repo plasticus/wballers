@@ -105,6 +105,41 @@ void main() {
     expect(advance.progress.isComplete, isTrue);
   });
 
+  test('ownTeamAbbreviation makes that team\'s target minutes follow bench '
+      'order instead of the automatic overall-based ranking', () {
+    final abbreviations = _teamAbbreviations();
+    final progress = _completedRegularSeason(abbreviations);
+    // T00 is always seed 1 (undefeated in _completedRegularSeason) and
+    // so is guaranteed at least one postseason game. Reversed relative
+    // to testRoster's natural descending-overall order, so list
+    // position 0 is the worst player on the roster.
+    final rosters = <String, List<Player>>{
+      'T00': testRoster('T00').reversed.toList(),
+      for (final abbr in abbreviations.skip(1)) abbr: testRoster(abbr),
+    };
+
+    final advance = simulatePostseason(
+      Random(3),
+      progress,
+      leagueTeams: _leagueTeams(abbreviations),
+      rostersByAbbreviation: rosters,
+      ownTeamAbbreviation: 'T00',
+    );
+
+    final ownRoster = rosters['T00']!;
+    final topBenchOrderPlayer = ownRoster.first; // worst overall
+    final bottomBenchOrderPlayer = ownRoster.last; // best overall
+    final ownGame = advance.gamesPlayed.firstWhere(
+      (result) =>
+          result.game.homeTeamAbbreviation == 'T00' ||
+          result.game.awayTeamAbbreviation == 'T00',
+    );
+    expect(
+      ownGame.match.minutesPlayed[topBenchOrderPlayer]!,
+      greaterThan(ownGame.match.minutesPlayed[bottomBenchOrderPlayer]!),
+    );
+  });
+
   test('is idempotent -- calling again on an already-played postseason '
       'is a no-op', () {
     final abbreviations = _teamAbbreviations();

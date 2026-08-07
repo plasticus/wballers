@@ -35,6 +35,32 @@ void main() {
     });
   });
 
+  group('targetMinutesForOrderedRoster', () {
+    test('assigns minutes by list position, not overall -- no resort', () {
+      // Reverse of testRoster's own descending-overall order: the worst
+      // player is first, the best is last.
+      final orderedWorstFirst = testRoster('r').reversed.toList();
+
+      final targetMinutes = targetMinutesForOrderedRoster(orderedWorstFirst);
+
+      // Rank 1 (index 0, the worst-rated player here) gets the top target
+      // minutes -- proves this reads list position, not
+      // PlayerRatings.overall the way targetMinutesFor does.
+      expect(targetMinutes[orderedWorstFirst.first], 30);
+      expect(targetMinutes[orderedWorstFirst.last], 4);
+      expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
+    });
+
+    test('throws when the roster does not have exactly 12 players', () {
+      final roster = testRoster('r').take(11).toList();
+
+      expect(
+        () => targetMinutesForOrderedRoster(roster),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+  });
+
   group('pickOnCourt', () {
     test('picks the 5 highest-target-minutes players when nobody has '
         'played yet', () {

@@ -66,6 +66,12 @@ void main() {
       await tester.pump();
 
       expect(find.text('Results'), findsOneWidget);
+      // Both game days played here are preseason -- every visible row
+      // should note it doesn't count toward the standings.
+      expect(
+        find.textContaining('Preseason -- exhibition, doesn\'t count'),
+        findsWidgets,
+      );
       // Newest-first: the most recently played game (the last one in
       // playedGames' arrival order) renders as the very first row, so its
       // score is on-screen without any scrolling -- ListView.builder only

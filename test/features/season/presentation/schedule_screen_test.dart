@@ -98,5 +98,14 @@ void main() {
       find.text('$expectedLetter $ownScore-$opponentScore'),
       findsOneWidget,
     );
+    // Every franchise's very first game day is preseason -- flagged
+    // clearly since a real, scored preseason game doesn't move the
+    // standings, which read as a bug before this was surfaced on screen.
+    // findsWidgets, not findsOneWidget: the preseason schedules 2 games
+    // for every team, both showing this note.
+    expect(
+      find.textContaining('Preseason -- exhibition, doesn\'t count'),
+      findsWidgets,
+    );
   });
 }

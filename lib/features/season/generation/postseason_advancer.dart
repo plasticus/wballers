@@ -58,6 +58,7 @@ PostseasonAdvance simulatePostseason(
   SeasonProgress progress, {
   required List<Team> leagueTeams,
   required Map<String, List<Player>> rostersByAbbreviation,
+  String? ownTeamAbbreviation,
 }) {
   if (progress.schedule.games.any((g) => g.type == GameType.postseason)) {
     return PostseasonAdvance(progress: progress, gamesPlayed: const []);
@@ -70,18 +71,21 @@ PostseasonAdvance simulatePostseason(
     random,
     seeds: seeds,
     rostersByAbbreviation: rostersByAbbreviation,
+    ownTeamAbbreviation: ownTeamAbbreviation,
   );
   final semifinals = generatePostseasonSemifinals(
     random,
     firstRoundResults: firstRound,
     seeds: seeds,
     rostersByAbbreviation: rostersByAbbreviation,
+    ownTeamAbbreviation: ownTeamAbbreviation,
   );
   final finals = generatePostseasonFinals(
     random,
     semifinalResults: semifinals,
     seeds: seeds,
     rostersByAbbreviation: rostersByAbbreviation,
+    ownTeamAbbreviation: ownTeamAbbreviation,
   );
 
   final results = [

@@ -36,8 +36,13 @@ Player _tallest(List<Player> players) =>
 /// Simulates one full game between [homeRoster] and [awayRoster] (each the
 /// full 12-player active roster) -- quarters, a running score, fouls
 /// (personal and team, with bonus free throws), and automatic
-/// substitutions driven by [targetMinutesFor]'s default ranking.
-/// Deterministic for a given [random] stream.
+/// substitutions driven by target minutes. [homeTargetMinutes]/
+/// [awayTargetMinutes] are optional -- when omitted, each side falls back
+/// to [targetMinutesFor]'s automatic overall-based ranking (the AI-team
+/// default); a caller with a real ranking to use instead (the GM's own
+/// bench order, via [targetMinutesForOrderedRoster]) passes it directly
+/// rather than letting this function re-derive one. Deterministic for a
+/// given [random] stream.
 ///
 /// Simplifications, all deliberate and worth revisiting later:
 /// - **Lineups re-pick every `_substitutionCheckSeconds`** (plus
@@ -65,12 +70,14 @@ MatchResult simulateMatch(
   Random random, {
   required List<Player> homeRoster,
   required List<Player> awayRoster,
+  Map<Player, int>? homeTargetMinutes,
+  Map<Player, int>? awayTargetMinutes,
 }) {
   assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
   assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
 
-  final homeTargetMinutes = targetMinutesFor(homeRoster);
-  final awayTargetMinutes = targetMinutesFor(awayRoster);
+  homeTargetMinutes ??= targetMinutesFor(homeRoster);
+  awayTargetMinutes ??= targetMinutesFor(awayRoster);
   final minutesPlayed = <Player, double>{};
   final personalFouls = <Player, int>{};
   final fouledOut = <Player>{};

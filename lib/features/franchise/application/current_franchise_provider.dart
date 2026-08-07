@@ -154,6 +154,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       ),
       franchise.seasonProgress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
+      ownTeamAbbreviation: franchise.team.abbreviation,
     );
 
     await _persist(franchise.copyWithSeasonProgress(advance.progress));
@@ -182,6 +183,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       franchise.seasonProgress,
       leagueTeams: allLeagueTeams(franchise),
       rostersByAbbreviation: rostersByAbbreviation(franchise),
+      ownTeamAbbreviation: franchise.team.abbreviation,
     );
     if (advance.gamesPlayed.isEmpty) return null; // already played
 

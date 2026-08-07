@@ -17,6 +17,7 @@ import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
@@ -183,6 +184,43 @@ void main() {
           findsOneWidget,
         );
       }
+    },
+  );
+
+  testWidgets(
+    'marks a preseason game in the upcoming-games list -- doesn\'t count '
+    'toward the record',
+    (tester) async {
+      final base = _franchiseWith();
+      final opponentAbbreviation = base.league.aiTeams.first.team.abbreviation;
+      final franchise = base.copyWithSeasonProgress(
+        SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [
+              ScheduledGame(
+                week: 1,
+                day: GameDay.sunday,
+                homeTeamAbbreviation: base.team.abbreviation,
+                awayTeamAbbreviation: opponentAbbreviation,
+                type: GameType.preseason,
+              ),
+            ],
+          ),
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('PRESEASON'), findsOneWidget);
     },
   );
 

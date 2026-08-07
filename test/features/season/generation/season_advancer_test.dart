@@ -157,6 +157,41 @@ void main() {
     expect(progress.isComplete, isTrue);
   });
 
+  test('ownTeamAbbreviation makes that team\'s target minutes follow bench '
+      'order (list position) instead of the automatic overall-based ranking '
+      'every other team still uses', () {
+    final rosters = {
+      // AAA is "ours" -- reversed relative to testRoster's natural
+      // descending-overall order, so list position 0 is the worst
+      // player on the roster.
+      'AAA': testRoster('AAA').reversed.toList(),
+      'BBB': testRoster('BBB'),
+      'CCC': testRoster('CCC'),
+      'DDD': testRoster('DDD'),
+    };
+    const progress = SeasonProgress(
+      schedule: _schedule,
+      playedGames: [],
+      nextGameDayIndex: 0,
+    );
+
+    final result = advanceToNextGameDay(
+      Random(1),
+      progress,
+      rostersByAbbreviation: rosters,
+      ownTeamAbbreviation: 'AAA',
+    );
+
+    final aaaGame = result.gamesPlayed.single;
+    final aaaRoster = rosters['AAA']!;
+    final topBenchOrderPlayer = aaaRoster.first; // worst overall
+    final bottomBenchOrderPlayer = aaaRoster.last; // best overall
+    expect(
+      aaaGame.match.minutesPlayed[topBenchOrderPlayer]!,
+      greaterThan(aaaGame.match.minutesPlayed[bottomBenchOrderPlayer]!),
+    );
+  });
+
   group('Continental Cup round-chaining', () {
     List<String> teamAbbreviations() => [
       for (var i = 0; i < 20; i++) 'T${i.toString().padLeft(2, '0')}',

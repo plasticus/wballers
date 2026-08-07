@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../match/engine/match_engine.dart';
+import '../../match/engine/substitution_policy.dart';
 import '../../player/domain/player.dart';
 import '../domain/game_day.dart';
 import '../domain/game_result.dart';
@@ -75,6 +76,7 @@ SeriesResult simulateSeries(
   required int week,
   required int round,
   required Map<String, List<Player>> rostersByAbbreviation,
+  String? ownTeamAbbreviation,
 }) {
   final pattern = _homeAwayPattern(winsNeeded);
   final games = <GameResult>[];
@@ -90,11 +92,21 @@ SeriesResult simulateSeries(
     final awayAbbreviation = higherSeedIsHome
         ? lowerSeedAbbreviation
         : higherSeedAbbreviation;
+    final homeRoster = rostersByAbbreviation[homeAbbreviation]!;
+    final awayRoster = rostersByAbbreviation[awayAbbreviation]!;
 
     final match = simulateMatch(
       random,
-      homeRoster: rostersByAbbreviation[homeAbbreviation]!,
-      awayRoster: rostersByAbbreviation[awayAbbreviation]!,
+      homeRoster: homeRoster,
+      awayRoster: awayRoster,
+      // Same GM-bench-order-vs-automatic-ranking split as the regular
+      // season (`season_advancer.dart`'s `_simulateOneGame`).
+      homeTargetMinutes: homeAbbreviation == ownTeamAbbreviation
+          ? targetMinutesForOrderedRoster(homeRoster)
+          : null,
+      awayTargetMinutes: awayAbbreviation == ownTeamAbbreviation
+          ? targetMinutesForOrderedRoster(awayRoster)
+          : null,
     );
     final result = GameResult(
       game: ScheduledGame(
@@ -139,6 +151,7 @@ List<SeriesResult> generatePostseasonFirstRound(
   Random random, {
   required List<String> seeds,
   required Map<String, List<Player>> rostersByAbbreviation,
+  String? ownTeamAbbreviation,
 }) {
   assert(
     seeds.length == kPostseasonTeamCount,
@@ -161,6 +174,7 @@ List<SeriesResult> generatePostseasonFirstRound(
         week: kPostseasonFirstRoundWeek,
         round: 1,
         rostersByAbbreviation: rostersByAbbreviation,
+        ownTeamAbbreviation: ownTeamAbbreviation,
       ),
   ];
 }
@@ -174,6 +188,7 @@ List<SeriesResult> generatePostseasonSemifinals(
   required List<SeriesResult> firstRoundResults,
   required List<String> seeds,
   required Map<String, List<Player>> rostersByAbbreviation,
+  String? ownTeamAbbreviation,
 }) {
   assert(
     firstRoundResults.length == 4,
@@ -194,6 +209,7 @@ List<SeriesResult> generatePostseasonSemifinals(
         week: kPostseasonSemifinalsWeek,
         round: 2,
         rostersByAbbreviation: rostersByAbbreviation,
+        ownTeamAbbreviation: ownTeamAbbreviation,
       ),
   ];
 }
@@ -205,6 +221,7 @@ SeriesResult generatePostseasonFinals(
   required List<SeriesResult> semifinalResults,
   required List<String> seeds,
   required Map<String, List<Player>> rostersByAbbreviation,
+  String? ownTeamAbbreviation,
 }) {
   assert(
     semifinalResults.length == 2,
@@ -222,6 +239,7 @@ SeriesResult generatePostseasonFinals(
     week: kPostseasonFinalsWeek,
     round: 3,
     rostersByAbbreviation: rostersByAbbreviation,
+    ownTeamAbbreviation: ownTeamAbbreviation,
   );
 }
 

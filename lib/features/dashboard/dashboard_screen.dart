@@ -687,11 +687,38 @@ class _UpcomingGameRow extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Text(
-        '$cupBadge${formatFictionalDate(game.week, game.day)} '
-        '${isHome ? 'vs' : '@'} ${opponent.emoji} ${opponent.name} '
-        '(${opponentRecord.wins}-${opponentRecord.losses})',
-        style: theme.textTheme.bodyMedium,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (game.type == GameType.preseason) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xs,
+                vertical: 1,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'PRESEASON',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+          ],
+          Expanded(
+            child: Text(
+              '$cupBadge${formatFictionalDate(game.week, game.day)} '
+              '${isHome ? 'vs' : '@'} ${opponent.emoji} ${opponent.name} '
+              '(${opponentRecord.wins}-${opponentRecord.losses})',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
       ),
     );
   }

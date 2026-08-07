@@ -16,8 +16,26 @@ Map<Player, int> targetMinutesFor(List<Player> roster) {
   assert(roster.length == 12, 'expects a full 12-player active roster');
   final sorted = [...roster]
     ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
+  return targetMinutesForOrderedRoster(sorted);
+}
+
+/// Assigns target minutes off `_targetMinutesByRank` in [orderedRoster]'s
+/// own list order -- no resorting. This is the GM's own bench order made
+/// mechanical: `DepthChartScreen` already frames list position as "the
+/// rank" and shows each row its `targetMinutesForRank`, but until now
+/// nothing in the match engine actually read that order back -- dragging
+/// a player up or down had zero effect on an actual game, only
+/// [targetMinutesFor]'s own overall-based resort ever ran. A direct GM
+/// report ("I don't see the point of setting bench order") traced back to
+/// this gap. AI teams have no GM to set an order for, so they keep using
+/// [targetMinutesFor]'s automatic overall-based ranking -- this variant is
+/// for whichever roster a caller already knows is in a real, meaningful
+/// order.
+Map<Player, int> targetMinutesForOrderedRoster(List<Player> orderedRoster) {
+  assert(orderedRoster.length == 12, 'expects a full 12-player active roster');
   return {
-    for (var i = 0; i < sorted.length; i++) sorted[i]: _targetMinutesByRank[i],
+    for (var i = 0; i < orderedRoster.length; i++)
+      orderedRoster[i]: _targetMinutesByRank[i],
   };
 }
 

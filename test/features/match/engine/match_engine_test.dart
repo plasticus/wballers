@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
+import 'package:womensbballmgr/features/match/engine/substitution_policy.dart';
 
 import '../../../support/match_test_players.dart';
 
@@ -153,6 +154,31 @@ void main() {
     }
 
     expect(sawFouls, isTrue);
+  });
+
+  test('an explicit target-minutes map overrides the automatic overall-based '
+      'ranking -- the GM\'s own bench order actually drives who plays', () {
+    final homeRoster = testRoster('home');
+    final awayRoster = testRoster('away');
+    // Reversed: the worst-overall player on the roster is list position
+    // 0, so an ordered-roster ranking gives *her* the top target
+    // minutes, opposite of what the automatic overall-based default
+    // would do.
+    final benchOrder = homeRoster.reversed.toList();
+
+    final result = simulateMatch(
+      Random(7),
+      homeRoster: homeRoster,
+      awayRoster: awayRoster,
+      homeTargetMinutes: targetMinutesForOrderedRoster(benchOrder),
+    );
+
+    final topBenchOrderPlayer = benchOrder.first; // worst overall
+    final bottomBenchOrderPlayer = benchOrder.last; // best overall
+    expect(
+      result.minutesPlayed[topBenchOrderPlayer]!,
+      greaterThan(result.minutesPlayed[bottomBenchOrderPlayer]!),
+    );
   });
 
   test('throws when a roster does not have exactly 12 players', () {

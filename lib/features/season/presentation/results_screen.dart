@@ -10,6 +10,7 @@ import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/played_game.dart';
 import '../domain/played_game_stat_line.dart';
+import '../domain/scheduled_game.dart';
 
 /// Every game played so far this season, across the whole league --
 /// newest first -- closing out `0B_Planned.md`'s Results-page spec.
@@ -82,8 +83,18 @@ class _ResultRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Week ${game.week} · ${game.day.label}',
-              style: theme.textTheme.bodySmall,
+              game.type == GameType.preseason
+                  ? 'Week ${game.week} · ${game.day.label} · '
+                        'Preseason -- exhibition, doesn\'t count'
+                  : 'Week ${game.week} · ${game.day.label}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: game.type == GameType.preseason
+                    ? theme.colorScheme.primary
+                    : null,
+                fontWeight: game.type == GameType.preseason
+                    ? FontWeight.bold
+                    : null,
+              ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Row(

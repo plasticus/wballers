@@ -117,7 +117,19 @@ class _ScheduleRow extends StatelessWidget {
                 '${isHome ? 'vs' : 'at'} ${opponent.emoji} ${opponent.name}',
                 style: theme.textTheme.bodyLarge,
               ),
-              Text(game.typeLabel, style: theme.textTheme.bodySmall),
+              Text(
+                game.type == GameType.preseason
+                    ? '${game.typeLabel} -- exhibition, doesn\'t count'
+                    : game.typeLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: game.type == GameType.preseason
+                      ? theme.colorScheme.primary
+                      : null,
+                  fontWeight: game.type == GameType.preseason
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
             ],
           ),
         ),

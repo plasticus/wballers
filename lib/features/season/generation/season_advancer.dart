@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../match/engine/match_engine.dart';
+import '../../match/engine/substitution_policy.dart';
 import '../../player/domain/player.dart';
 import '../domain/game_result.dart';
 import '../domain/played_game.dart';
@@ -64,6 +65,14 @@ class GameDayAdvance {
 /// [rostersByAbbreviation] must have a full 12-player roster for every
 /// team referenced by a game on the advancing game day.
 ///
+/// [ownTeamAbbreviation], when given, marks whose roster order is a real,
+/// GM-set bench order rather than arbitrary generation order -- that
+/// team's target minutes come from [targetMinutesForOrderedRoster] (rank =
+/// list position) instead of [simulateMatch]'s automatic overall-based
+/// fallback every other team still uses. `null` (the default) leaves every
+/// team on the automatic ranking, which is what every AI-only diagnostic
+/// and most tests want.
+///
 /// Continental Cup Rounds 2-5 aren't part of the schedule at franchise
 /// creation (each depends on the previous round's actual results), so
 /// this function grows [SeasonProgress.schedule] itself the moment a
@@ -79,6 +88,7 @@ GameDayAdvance advanceToNextGameDay(
   Random random,
   SeasonProgress progress, {
   required Map<String, List<Player>> rostersByAbbreviation,
+  String? ownTeamAbbreviation,
 }) {
   final gameDays = gameDaysInOrder(progress.schedule);
   assert(
@@ -92,7 +102,12 @@ GameDayAdvance advanceToNextGameDay(
 
   final results = [
     for (final game in todaysGames)
-      _simulateOneGame(random, game, rostersByAbbreviation),
+      _simulateOneGame(
+        random,
+        game,
+        rostersByAbbreviation,
+        ownTeamAbbreviation,
+      ),
   ];
 
   final newlyPlayed = [
@@ -118,11 +133,25 @@ GameResult _simulateOneGame(
   Random random,
   ScheduledGame game,
   Map<String, List<Player>> rostersByAbbreviation,
+  String? ownTeamAbbreviation,
 ) {
+  final homeRoster = rostersByAbbreviation[game.homeTeamAbbreviation]!;
+  final awayRoster = rostersByAbbreviation[game.awayTeamAbbreviation]!;
   final match = simulateMatch(
     random,
-    homeRoster: rostersByAbbreviation[game.homeTeamAbbreviation]!,
-    awayRoster: rostersByAbbreviation[game.awayTeamAbbreviation]!,
+    homeRoster: homeRoster,
+    awayRoster: awayRoster,
+    // The GM's own roster (when it's playing) arrives here in their real
+    // bench order (`rostersByAbbreviation` preserves `Franchise.roster`'s
+    // list order) -- use it directly rather than letting `simulateMatch`
+    // re-derive an overall-based ranking. AI teams have no GM-set order,
+    // so they're left null and fall back to that default.
+    homeTargetMinutes: game.homeTeamAbbreviation == ownTeamAbbreviation
+        ? targetMinutesForOrderedRoster(homeRoster)
+        : null,
+    awayTargetMinutes: game.awayTeamAbbreviation == ownTeamAbbreviation
+        ? targetMinutesForOrderedRoster(awayRoster)
+        : null,
   );
   return GameResult(game: game, match: match);
 }
