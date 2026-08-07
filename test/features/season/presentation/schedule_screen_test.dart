@@ -108,4 +108,65 @@ void main() {
       findsWidgets,
     );
   });
+
+  testWidgets(
+    'the Full League toggle lists every team\'s games, grouped by week, '
+    'not just the GM\'s own',
+    (tester) async {
+      // Week 1 alone has 20 preseason games (10 per game day) -- needs a
+      // tall surface to have the target game on-screen without scrolling.
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      // An AI-vs-AI matchup -- neither side is the GM's own club, so it
+      // has no reason to appear in My Team mode at all (every league team
+      // plays every other at least once over a full season, so an
+      // opponent's name alone can't distinguish the two modes -- the
+      // whole matchup can). Restricted to week 1 (preseason schedules
+      // every team across its 2 game days) so it's guaranteed to be near
+      // the top of the Full League ListView.builder without scrolling.
+      final aiVsAiGame = franchise.seasonProgress.schedule.games.firstWhere(
+        (g) =>
+            g.week == 1 &&
+            g.homeTeamAbbreviation != franchise.team.abbreviation &&
+            g.awayTeamAbbreviation != franchise.team.abbreviation,
+      );
+      final aiHomeTeam = teamByAbbreviation(
+        franchise,
+        aiVsAiGame.homeTeamAbbreviation,
+      );
+      final aiAwayTeam = teamByAbbreviation(
+        franchise,
+        aiVsAiGame.awayTeamAbbreviation,
+      );
+      final matchupText =
+          '${aiAwayTeam.emoji} ${aiAwayTeam.name} @ '
+          '${aiHomeTeam.emoji} ${aiHomeTeam.name}';
+
+      await tester.pumpWidget(
+        MaterialApp(home: ScheduleScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      // My Team mode: this AI-vs-AI game shouldn't show up at all.
+      expect(find.text(matchupText), findsNothing);
+
+      await tester.tap(find.text('Full League'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Week ${aiVsAiGame.week}'), findsWidgets);
+      expect(find.text(matchupText), findsOneWidget);
+    },
+  );
 }
