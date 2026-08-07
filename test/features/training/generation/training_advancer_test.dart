@@ -12,7 +12,6 @@ import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
@@ -135,7 +134,6 @@ Franchise _franchiseWith({
       archetype: CoachArchetype.steadyHand,
     ),
     roster: roster,
-    startingLineup: const StartingLineup(startersByPosition: {}),
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
     league: testLeague(

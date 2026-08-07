@@ -14,7 +14,6 @@ import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
@@ -36,7 +35,6 @@ Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
       archetype: CoachArchetype.steadyHand,
     ),
     roster: roster,
-    startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
     league: testLeague(
@@ -103,6 +101,54 @@ void main() {
       find.textContaining(franchise.roster.first.player.name),
       findsOneWidget,
     );
+  });
+
+  testWidgets('marks exactly the top 5 in bench order (roster list order) as '
+      'starters -- there\'s no separate starting-lineup concept anymore', (
+    tester,
+  ) async {
+    // All 12 active roster rows (with portraits, trait chips, etc.) need
+    // to be on-screen at once to count every starter badge -- the
+    // default test surface is too short, and even 2400 wasn't enough.
+    tester.view.physicalSize = const Size(800, 6000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: TeamRosterScreen()),
+      ),
+    );
+    await tester.pump();
+
+    bool isStarterIcon(Widget widget) =>
+        widget is Icon &&
+        widget.icon == Icons.star &&
+        widget.semanticLabel == 'Starter';
+
+    expect(find.byWidgetPredicate(isStarterIcon), findsNWidgets(5));
+    // Specifically the first 5 in roster order, not e.g. the 5
+    // highest-overall regardless of position -- proves this reads list
+    // position, not some other ranking. Each player's row is wrapped in
+    // an InkWell (the tap target to PlayerDetailScreen), the natural
+    // "one row" boundary to search within.
+    for (final membership in franchise.roster.take(5)) {
+      final row = find.ancestor(
+        of: find.textContaining(membership.player.name),
+        matching: find.byType(InkWell),
+      );
+      expect(
+        find.descendant(
+          of: row.first,
+          matching: find.byWidgetPredicate(isStarterIcon),
+        ),
+        findsOneWidget,
+        reason: '${membership.player.name} should be marked a starter',
+      );
+    }
   });
 
   testWidgets('a developmental player gets its own section', (tester) async {

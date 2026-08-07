@@ -16,7 +16,6 @@ import 'package:womensbballmgr/features/league/domain/league_draw.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/league/league_screen.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
@@ -85,7 +84,6 @@ void main() {
           archetype: CoachArchetype.steadyHand,
         ),
         roster: roster,
-        startingLineup: StartingLineup.bestAvailable(roster),
         simulationSeed: simulationSeed,
         replacedTeamAbbreviation: replaced.abbreviation,
         league: testLeague(
@@ -167,7 +165,6 @@ void main() {
         archetype: CoachArchetype.steadyHand,
       ),
       roster: roster,
-      startingLineup: StartingLineup.bestAvailable(roster),
       simulationSeed: 1,
       replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
       league: testLeague(

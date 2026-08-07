@@ -6,7 +6,6 @@ import '../../league/domain/team.dart';
 import '../../league/generation/league_generator.dart';
 import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
-import '../../roster/domain/starting_lineup.dart';
 import '../../roster/generation/starting_roster_generator.dart';
 import '../../season/domain/season_progress.dart';
 import '../../season/generation/season_schedule_generator.dart';
@@ -165,7 +164,6 @@ Franchise createExpansionFranchise({
           portraitManifest: portraitManifest,
         ),
     roster: roster,
-    startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: simulationSeed,
     replacedTeamAbbreviation: replacedTeamAbbreviation,
     league: league,

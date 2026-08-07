@@ -86,8 +86,7 @@ class Player {
 
   /// Stable identifier, independent of object identity or roster list
   /// position -- both are lost across a save/reload, but a lineup slot
-  /// (`StartingLineup`, roster feature) needs to keep pointing at the same
-  /// player.
+  /// needs to keep pointing at the same player.
   final String id;
 
   final String name;

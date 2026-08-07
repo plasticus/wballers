@@ -20,11 +20,10 @@ import '../application/current_franchise_provider.dart';
 import '../domain/franchise.dart';
 import '../onboarding/onboarding_screen.dart';
 import 'depth_chart_screen.dart';
-import 'lineup_editor_screen.dart';
 
 /// "Inspect a complete roster" -- the Team tab. Read-only aside from the
-/// starting-lineup entry point; each row leads to `PlayerDetailScreen` for
-/// a full profile. Player comparison and search/filtering are still
+/// Bench Order entry point; each row leads to `PlayerDetailScreen` for a
+/// full profile. Player comparison and search/filtering are still
 /// separate, later work.
 class TeamRosterScreen extends ConsumerWidget {
   const TeamRosterScreen({super.key});
@@ -81,6 +80,17 @@ class _RosterView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Bench Order's own list position defines both target minutes and
+    // starters now -- the top 5 in that real order are the starters, no
+    // separate position-locked lineup to keep in sync with it. Captured
+    // before the position-grouped sort below, which is purely a display
+    // convenience and isn't the order that matters here.
+    final startersInBenchOrder = franchise.roster
+        .where((m) => m.status == RosterStatus.active)
+        .take(5)
+        .map((m) => m.player.id)
+        .toSet();
+
     final active =
         franchise.roster.where((m) => m.status == RosterStatus.active).toList()
           ..sort(_byPositionThenOverall);
@@ -103,36 +113,16 @@ class _RosterView extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         _CoachRow(franchise: franchise),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => LineupEditorScreen(franchise: franchise),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit Starting Lineup'),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => DepthChartScreen(franchise: franchise),
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => DepthChartScreen(franchise: franchise),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.format_list_numbered),
-                label: const Text('Bench Order'),
-              ),
-            ),
-          ],
+            );
+          },
+          icon: const Icon(Icons.format_list_numbered),
+          label: const Text('Bench Order'),
         ),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(
@@ -163,8 +153,7 @@ class _RosterView extends StatelessWidget {
           franchise: franchise,
           title: 'Active Roster (${active.length})',
           members: active,
-          starterIds: franchise.startingLineup.startersByPosition.values
-              .toSet(),
+          starterIds: startersInBenchOrder,
         ),
         if (developmental.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),

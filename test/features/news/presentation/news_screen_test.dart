@@ -11,7 +11,6 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/news/presentation/news_screen.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
@@ -34,7 +33,6 @@ Franchise _franchiseWith({List<TrainingReport> trainingReports = const []}) {
       archetype: CoachArchetype.steadyHand,
     ),
     roster: roster,
-    startingLineup: StartingLineup.bestAvailable(roster),
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
     league: testLeague(

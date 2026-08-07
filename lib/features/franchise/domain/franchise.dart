@@ -3,15 +3,14 @@ import '../../league/domain/initial_league.dart';
 import '../../league/domain/league.dart';
 import '../../league/domain/team.dart';
 import '../../roster/domain/roster_membership.dart';
-import '../../roster/domain/starting_lineup.dart';
 import '../../season/domain/season_progress.dart';
 import '../../training/domain/training_coach.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 
 /// The player's save-game: their General Manager persona, their club, its
-/// hired coach, its roster, and its starting lineup. This is the save-game
-/// root — `franchise_json.dart` is what actually goes through
+/// hired coach, and its roster. This is the save-game root —
+/// `franchise_json.dart` is what actually goes through
 /// `SaveEnvelope`/`SaveRepository`.
 ///
 /// The player is the GM, not [coach] — see the note on [Coach]. [team] is
@@ -28,7 +27,14 @@ import '../../training/domain/training_report.dart';
 /// (`generateLeague`) -- a real league runtime, not just identities.
 ///
 /// Roster legality isn't enforced here — see `evaluateFranchiseLegality`.
-/// Lineup legality isn't enforced here either — see `evaluateLineupLegality`.
+/// There's no separate starting-lineup concept anymore: the top 5 players
+/// in `roster`'s own active-roster order (the same order Bench Order
+/// edits, and the same order `targetMinutesForOrderedRoster` reads) are
+/// the starters, full stop -- a formerly-separate position-locked lineup
+/// screen was dropped once it turned out to have no mechanical effect on
+/// games at all, and no reason to force exactly one player per position
+/// (a GM starting two point guards just means the second one effectively
+/// plays as a shooting guard for the game, same as real basketball).
 class Franchise {
   Franchise({
     required this.id,
@@ -36,7 +42,6 @@ class Franchise {
     required this.team,
     required this.coach,
     required this.roster,
-    required this.startingLineup,
     required this.simulationSeed,
     required this.replacedTeamAbbreviation,
     required this.league,
@@ -68,7 +73,6 @@ class Franchise {
   final Team team;
   final Coach coach;
   final List<RosterMembership> roster;
-  final StartingLineup startingLineup;
 
   /// Seeds every deterministic random source this franchise's simulation
   /// uses — same seed plus same saved state must reproduce the same
@@ -111,27 +115,6 @@ class Franchise {
   /// keeping the whole season's worth doesn't meaningfully grow the save.
   final List<TrainingReport> trainingReports;
 
-  /// Returns a copy with [startingLineup] replaced -- the only field the
-  /// lineup editor needs to change.
-  Franchise copyWithLineup(StartingLineup newLineup) {
-    return Franchise(
-      id: id,
-      gmName: gmName,
-      team: team,
-      coach: coach,
-      roster: roster,
-      startingLineup: newLineup,
-      simulationSeed: simulationSeed,
-      replacedTeamAbbreviation: replacedTeamAbbreviation,
-      league: league,
-      seasonProgress: seasonProgress,
-      trainingCoaches: trainingCoaches,
-      trainingPlan: trainingPlan,
-      nextTrainingWeek: nextTrainingWeek,
-      trainingReports: trainingReports,
-    );
-  }
-
   /// Returns a copy with [newCoach] replacing [coach] -- the portrait
   /// editor's coach-appearance path.
   Franchise copyWithCoach(Coach newCoach) {
@@ -141,7 +124,6 @@ class Franchise {
       team: team,
       coach: newCoach,
       roster: roster,
-      startingLineup: startingLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
@@ -162,7 +144,6 @@ class Franchise {
       team: team,
       coach: coach,
       roster: newRoster,
-      startingLineup: startingLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
@@ -183,7 +164,6 @@ class Franchise {
       team: team,
       coach: coach,
       roster: roster,
-      startingLineup: startingLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
@@ -204,7 +184,6 @@ class Franchise {
       team: team,
       coach: coach,
       roster: roster,
-      startingLineup: startingLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,
@@ -235,7 +214,6 @@ class Franchise {
       team: team,
       coach: coach,
       roster: newRoster,
-      startingLineup: startingLineup,
       simulationSeed: simulationSeed,
       replacedTeamAbbreviation: replacedTeamAbbreviation,
       league: league,

@@ -11,7 +11,6 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
 import '../../../support/league_test_helpers.dart';
@@ -61,7 +60,6 @@ void main() {
         archetype: CoachArchetype.steadyHand,
       ),
       roster: roster,
-      startingLineup: StartingLineup.bestAvailable(roster),
       simulationSeed: 12345,
       // Not kLeagueTeamPool.first (BOS) -- BOS isn't actually drawn for
       // this seed; see the note on createExpansionFranchise.

@@ -2,7 +2,6 @@ import '../../coach/persistence/coach_json.dart';
 import '../../league/persistence/league_json.dart';
 import '../../league/persistence/team_json.dart';
 import '../../roster/persistence/roster_membership_json.dart';
-import '../../roster/persistence/starting_lineup_json.dart';
 import '../../season/persistence/season_progress_json.dart';
 import '../../training/persistence/training_coach_json.dart';
 import '../../training/persistence/training_plan_json.dart';
@@ -18,7 +17,6 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'roster': franchise.roster
         .map((membership) => rosterMembershipToJson(membership))
         .toList(),
-    'startingLineup': startingLineupToJson(franchise.startingLineup),
     'simulationSeed': franchise.simulationSeed,
     'replacedTeamAbbreviation': franchise.replacedTeamAbbreviation,
     'league': leagueToJson(franchise.league),
@@ -43,9 +41,6 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     roster: (json['roster'] as List<dynamic>)
         .map((value) => rosterMembershipFromJson(value as Map<String, dynamic>))
         .toList(),
-    startingLineup: startingLineupFromJson(
-      json['startingLineup'] as Map<String, dynamic>,
-    ),
     simulationSeed: json['simulationSeed'] as int,
     replacedTeamAbbreviation: json['replacedTeamAbbreviation'] as String,
     league: leagueFromJson(json['league'] as Map<String, dynamic>),

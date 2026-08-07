@@ -11,7 +11,6 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
 import '../../../support/league_test_helpers.dart';
@@ -50,9 +49,6 @@ Franchise _sampleFranchise() {
       archetype: CoachArchetype.offensiveInnovator,
     ),
     roster: roster,
-    startingLineup: const StartingLineup(
-      startersByPosition: {Position.pointGuard: 'p-starter'},
-    ),
     simulationSeed: 42,
     // Not kLeagueTeamPool.first (BOS) -- BOS isn't actually drawn for this
     // seed, and generateLeague/testLeague asserts the replaced team is one
@@ -105,11 +101,6 @@ void main() {
     expect(
       restored.seasonProgress.playedGames.length,
       original.seasonProgress.playedGames.length,
-    );
-
-    expect(
-      restored.startingLineup.startersByPosition,
-      original.startingLineup.startersByPosition,
     );
 
     expect(restored.roster, hasLength(original.roster.length));
@@ -193,9 +184,6 @@ void main() {
       roster: [
         RosterMembership(player: withSecondary, status: RosterStatus.active),
       ],
-      startingLineup: const StartingLineup(
-        startersByPosition: {Position.smallForward: 'p-multi'},
-      ),
       simulationSeed: 1,
       replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
       league: testLeague(
@@ -233,10 +221,6 @@ void main() {
       Achievement.defensiveMvp,
     );
     expect(restored.roster.single.player.achievements[1].season, 1);
-    expect(
-      restored.startingLineup.startersByPosition[Position.smallForward],
-      'p-multi',
-    );
   });
 
   test('round-trips a player with no nickname and no achievements', () {

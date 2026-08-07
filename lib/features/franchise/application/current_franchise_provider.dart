@@ -7,7 +7,6 @@ import '../../../core/persistence/save_repository_provider.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../roster/domain/roster_membership.dart';
-import '../../roster/domain/starting_lineup.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/game_result.dart';
 import '../../season/generation/postseason_advancer.dart';
@@ -28,8 +27,8 @@ const _franchiseSchemaVersion = 1;
 
 /// The GM's current franchise, if one has been created yet. `null` means
 /// no franchise exists (onboarding hasn't run). Loads from disk on first
-/// read; [createFranchise] and [updateLineup] both persist and update this
-/// state, so nothing else needs to remember to save.
+/// read; [createFranchise] and every other write method here persist and
+/// update this state, so nothing else needs to remember to save.
 class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   @override
   Future<Franchise?> build() async {
@@ -43,24 +42,17 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
   Future<void> createFranchise(Franchise franchise) => _persist(franchise);
 
-  /// Replaces the starting lineup on the current franchise and persists
-  /// it. Does nothing if there's no current franchise -- the lineup editor
-  /// shouldn't be reachable in that state anyway.
+  /// Replaces the roster with [newRoster] -- same players, reordered. Used
+  /// by the bench-order (depth chart) screen, where list position is both
+  /// the minutes-ranked order (see `target_minutes.dart`) and, for the
+  /// top 5, the starting lineup -- there's no separate starting-lineup
+  /// concept to keep in sync with this anymore.
   ///
   /// Awaits [future] rather than reading [state] directly: [state] can
-  /// still be `AsyncLoading` (value `null`) if [build] hasn't resolved yet,
-  /// which would make this silently no-op even though a franchise really
-  /// is on its way. Awaiting guarantees the load has actually finished.
-  Future<void> updateLineup(StartingLineup newLineup) async {
-    final franchise = await future;
-    if (franchise == null) return;
-    await _persist(franchise.copyWithLineup(newLineup));
-  }
-
-  /// Replaces the roster with [newRoster] -- same players, reordered. Used
-  /// by the bench-order (depth chart) screen, where list position is the
-  /// minutes-ranked order (see `target_minutes.dart`). Same
-  /// no-op-if-no-franchise and await-future rationale as [updateLineup].
+  /// still be `AsyncLoading` (value `null`) if [build] hasn't resolved
+  /// yet, which would make this silently no-op even though a franchise
+  /// really is on its way. Awaiting guarantees the load has actually
+  /// finished -- every write method below follows the same pattern.
   Future<void> updateRosterOrder(List<RosterMembership> newRoster) async {
     final franchise = await future;
     if (franchise == null) return;
@@ -68,7 +60,8 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   }
 
   /// Replaces the coach's portrait appearance and persists it. Same
-  /// no-op-if-no-franchise and await-future rationale as [updateLineup].
+  /// no-op-if-no-franchise and await-future rationale as
+  /// [updateRosterOrder].
   Future<void> updateCoachAppearance(PortraitAppearance appearance) async {
     final franchise = await future;
     if (franchise == null) return;
@@ -105,7 +98,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// [playerId] isn't on the roster (shouldn't happen from the portrait
   /// editor, which is only reachable for players actually on the roster it
   /// was opened from). Same await-[future]-not-`state.value` rationale as
-  /// [updateLineup].
+  /// [updateRosterOrder].
   Future<void> _updatePlayer(
     String playerId,
     Player Function(Player) transform,
@@ -193,7 +186,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
   /// Replaces the training plan and persists it -- the Training screen's
   /// only write path. Same no-op-if-no-franchise and await-future
-  /// rationale as [updateLineup].
+  /// rationale as [updateRosterOrder].
   Future<void> updateTrainingPlan(TrainingPlan newPlan) async {
     final franchise = await future;
     if (franchise == null) return;

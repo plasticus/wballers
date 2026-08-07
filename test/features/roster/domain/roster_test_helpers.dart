@@ -9,8 +9,8 @@ int _playerIdCounter = 0;
 /// A player whose twelve stored ratings are all [overall], so
 /// `ratings.overall` equals exactly [overall] (their unweighted average).
 /// Gets a unique [id] by default; pass one explicitly when a test needs to
-/// reference a specific player's id (e.g. building a `StartingLineup`).
-/// Defaults [archetype] to the first option valid for [primaryPosition]
+/// reference a specific player's id (e.g. cross-referencing a lineup
+/// slot). Defaults [archetype] to the first option valid for [primaryPosition]
 /// when not given, and [traits]/[achievements] to none.
 Player playerWithOverall(
   int overall, {

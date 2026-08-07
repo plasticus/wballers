@@ -7,10 +7,8 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
-import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/training/domain/training_focus.dart';
@@ -103,7 +101,7 @@ void main() {
     expect(reloaded?.gmName, 'Jordan Ellis');
   });
 
-  test('updateLineup persists a new lineup', () async {
+  test('updateRosterOrder persists the reordered roster', () async {
     final repository = InMemorySaveRepository();
     final container = ProviderContainer(
       overrides: [saveRepositoryProvider.overrideWithValue(repository)],
@@ -123,26 +121,21 @@ void main() {
         .read(currentFranchiseProvider.notifier)
         .createFranchise(franchise);
 
-    const newLineup = StartingLineup(
-      startersByPosition: {Position.pointGuard: 'someone-else'},
-    );
+    final reordered = franchise.roster.reversed.toList();
     await container
         .read(currentFranchiseProvider.notifier)
-        .updateLineup(newLineup);
+        .updateRosterOrder(reordered);
 
+    final updated = container.read(currentFranchiseProvider).value;
     expect(
-      container
-          .read(currentFranchiseProvider)
-          .value
-          ?.startingLineup
-          .startersByPosition,
-      newLineup.startersByPosition,
+      updated?.roster.map((m) => m.player.id).toList(),
+      reordered.map((m) => m.player.id).toList(),
     );
   });
 
-  test('updateLineup called before the initial load resolves still applies '
-      'once it does -- regression test for a race where state.value was '
-      'read before build() had finished', () async {
+  test('updateRosterOrder called before the initial load resolves still '
+      'applies once it does -- regression test for a race where state.value '
+      'was read before build() had finished', () async {
     final repository = InMemorySaveRepository();
     final franchise = createExpansionFranchise(
       gmName: 'Jordan Ellis',
@@ -166,25 +159,20 @@ void main() {
     addTearDown(container.dispose);
 
     // Deliberately not awaiting the initial load first.
-    const newLineup = StartingLineup(
-      startersByPosition: {Position.pointGuard: 'someone-else'},
-    );
+    final reordered = franchise.roster.reversed.toList();
     await container
         .read(currentFranchiseProvider.notifier)
-        .updateLineup(newLineup);
+        .updateRosterOrder(reordered);
 
+    final updated = container.read(currentFranchiseProvider).value;
     expect(
-      container
-          .read(currentFranchiseProvider)
-          .value
-          ?.startingLineup
-          .startersByPosition,
-      newLineup.startersByPosition,
+      updated?.roster.map((m) => m.player.id).toList(),
+      reordered.map((m) => m.player.id).toList(),
     );
   });
 
   test(
-    'updateLineup does nothing when there is no current franchise',
+    'updateRosterOrder does nothing when there is no current franchise',
     () async {
       final container = ProviderContainer(
         overrides: [
@@ -195,7 +183,7 @@ void main() {
 
       await container
           .read(currentFranchiseProvider.notifier)
-          .updateLineup(const StartingLineup(startersByPosition: {}));
+          .updateRosterOrder(const []);
 
       expect(container.read(currentFranchiseProvider).value, isNull);
     },

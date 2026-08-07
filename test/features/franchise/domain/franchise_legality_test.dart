@@ -7,7 +7,6 @@ import 'package:womensbballmgr/features/franchise/domain/franchise_legality.dart
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
 import '../../../support/league_test_helpers.dart';
@@ -26,7 +25,6 @@ Franchise _franchiseWithRoster(List<RosterMembership> roster) {
       archetype: CoachArchetype.steadyHand,
     ),
     roster: roster,
-    startingLineup: const StartingLineup(startersByPosition: {}),
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
     league: testLeague(
