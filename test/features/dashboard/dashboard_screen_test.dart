@@ -246,10 +246,17 @@ void main() {
       await tester.tap(find.text('Advance to Next Game Day'));
       await tester.pumpAndSettle();
 
-      // Either the GM's own game was part of that day (Game Result opens)
-      // or it wasn't (a snackbar summarizes what else happened across the
-      // league) -- which one depends on the generated schedule, not
-      // something worth pinning down here. Either way, the season moved.
+      // Either the GM's own game was part of that day -- in which case
+      // tapping just opened `MatchPreviewScreen`'s "Play Game", not the
+      // result yet -- or it wasn't (straight to a snackbar summarizing
+      // what happened across the league). Which one depends on the
+      // generated schedule, not something worth pinning down here.
+      final wentToPreview = find.text('Play Game').evaluate().isNotEmpty;
+      if (wentToPreview) {
+        await tester.tap(find.text('Play Game'));
+        await tester.pumpAndSettle();
+      }
+
       final openedGameResult = find.text('Game Result').evaluate().isNotEmpty;
       final showedSnackBar = find
           .textContaining('simulated across the league')

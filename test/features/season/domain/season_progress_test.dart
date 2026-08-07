@@ -200,4 +200,81 @@ void main() {
       expect(lastFullyCompletedWeek(progress), 2);
     });
   });
+
+  group('nextOwnGame', () {
+    test('the team\'s game on the very next game day, if they have one', () {
+      final schedule = SeasonSchedule(
+        games: [
+          _game('AAA', 'BBB', week: 2, day: GameDay.sunday),
+          _game('CCC', 'DDD', week: 2, day: GameDay.sunday),
+        ],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+
+      expect(nextOwnGame(progress, 'AAA')?.awayTeamAbbreviation, 'BBB');
+      // Home or away, either side of the fixture matches.
+      expect(nextOwnGame(progress, 'DDD')?.homeTeamAbbreviation, 'CCC');
+    });
+
+    test('null on a bye day -- the next game day has games, just none for '
+        'this team', () {
+      const schedule = SeasonSchedule(games: []);
+      final progressWithByeDay = SeasonProgress(
+        schedule: SeasonSchedule(
+          games: [_game('CCC', 'DDD', week: 2, day: GameDay.sunday)],
+        ),
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+
+      expect(nextOwnGame(progressWithByeDay, 'AAA'), isNull);
+      // Sanity: an empty schedule (no game days at all) is also null, not
+      // a crash.
+      expect(
+        nextOwnGame(
+          SeasonProgress(
+            schedule: schedule,
+            playedGames: const [],
+            nextGameDayIndex: 0,
+          ),
+          'AAA',
+        ),
+        isNull,
+      );
+    });
+
+    test('null once the season is fully played out', () {
+      final schedule = SeasonSchedule(
+        games: [_game('AAA', 'BBB', week: 2, day: GameDay.sunday)],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: gameDaysInOrder(schedule).length,
+      );
+
+      expect(nextOwnGame(progress, 'AAA'), isNull);
+    });
+
+    test('only looks at the very next game day, not later ones', () {
+      final schedule = SeasonSchedule(
+        games: [
+          _game('CCC', 'DDD', week: 2, day: GameDay.sunday),
+          _game('AAA', 'BBB', week: 3, day: GameDay.sunday),
+        ],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+
+      // AAA does play later this season, just not on the next game day.
+      expect(nextOwnGame(progress, 'AAA'), isNull);
+    });
+  });
 }

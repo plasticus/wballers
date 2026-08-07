@@ -107,6 +107,28 @@ List<StandingsEntry> currentStandings(
   ], leagueTeams: leagueTeams);
 }
 
+/// [teamAbbreviation]'s game on [progress]'s very next game day, if they
+/// have one -- `null` on a bye day (the next game day has games scheduled,
+/// just none involving this team). `null` too once the season's fully
+/// played out ([SeasonProgress.isComplete]). What a "preview this game
+/// before it simulates" flow (`MatchPreviewScreen`) needs to know before
+/// deciding whether there's anything to preview at all, ahead of calling
+/// `advanceToNextGameDay`.
+ScheduledGame? nextOwnGame(SeasonProgress progress, String teamAbbreviation) {
+  final gameDays = gameDaysInOrder(progress.schedule);
+  if (progress.nextGameDayIndex >= gameDays.length) return null;
+  final (week, day) = gameDays[progress.nextGameDayIndex];
+  for (final game in progress.schedule.games) {
+    if (game.week == week &&
+        game.day == day &&
+        (game.homeTeamAbbreviation == teamAbbreviation ||
+            game.awayTeamAbbreviation == teamAbbreviation)) {
+      return game;
+    }
+  }
+  return null;
+}
+
 /// The next [limit] games on [teamAbbreviation]'s calendar that haven't
 /// been played yet, in chronological order -- what a GM-facing "Upcoming
 /// Games" list shows (the Dashboard's Season card). Matches a played

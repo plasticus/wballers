@@ -22,6 +22,7 @@ import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
 import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/presentation/game_result_screen.dart';
+import '../season/presentation/match_preview_screen.dart';
 import '../season/presentation/season_recap_screen.dart';
 import '../stats/presentation/stats_screen.dart';
 import '../training/domain/training_report.dart';
@@ -512,7 +513,7 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
             _UpcomingGamesList(franchise: franchise),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
-              onPressed: _isAdvancing ? null : _advance,
+              onPressed: _isAdvancing ? null : _advanceOrPreview,
               child: _isAdvancing
                   ? const SizedBox(
                       height: 16,
@@ -523,6 +524,29 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Routes to `MatchPreviewScreen` when the GM's own team is scheduled to
+  /// play on the very next game day (`nextOwnGame`) -- a direct GM ask for
+  /// "some kind of splash before my games, not just straight to the
+  /// result." A bye day (no own game today, even if games are scheduled
+  /// for every other team) skips straight to [_advance] exactly like
+  /// before -- there's nothing of the GM's own to preview.
+  void _advanceOrPreview() {
+    final franchise = widget.franchise;
+    final ownGame = nextOwnGame(
+      franchise.seasonProgress,
+      franchise.team.abbreviation,
+    );
+    if (ownGame == null) {
+      _advance();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MatchPreviewScreen(franchise: franchise, game: ownGame),
       ),
     );
   }
