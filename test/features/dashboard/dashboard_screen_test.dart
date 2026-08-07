@@ -542,7 +542,7 @@ void main() {
   );
 
   group('AppShell', () {
-    testWidgets('has a News tab that opens NewsScreen', (tester) async {
+    testWidgets('has a Mail tab that opens MailScreen', (tester) async {
       final franchise = _franchiseWith();
       final repository = await _seededRepository(franchise);
 
@@ -556,13 +556,58 @@ void main() {
 
       expect(find.text('Dashboard'), findsWidgets);
 
-      await tester.tap(find.widgetWithText(NavigationDestination, 'News'));
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Mail'));
       await tester.pumpAndSettle();
 
-      // The AppBar title switches to "News" (findsWidgets since the
+      // The AppBar title switches to "Mail" (findsWidgets since the
       // NavigationDestination label reads the same).
-      expect(find.text('News'), findsWidgets);
-      expect(find.textContaining('No news yet'), findsOneWidget);
+      expect(find.text('Mail'), findsWidgets);
+      expect(find.textContaining('No mail yet'), findsOneWidget);
     });
+
+    testWidgets(
+      'shows a red unread badge on the Mail tab while the roster is short '
+      'a player, and it clears once the inbox is opened',
+      (tester) async {
+        final freeAgents = generateFreeAgentPool(
+          Random(1 + kFreeAgentPoolSeedOffset),
+        );
+        final franchise = _franchiseWith(
+          includeTwelfthMember: false,
+          freeAgents: freeAgents,
+        );
+        final repository = await _seededRepository(franchise);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+            child: const MaterialApp(home: AppShell()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(Badge), findsOneWidget);
+        expect(
+          find.descendant(of: find.byType(Badge), matching: find.text('1')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.widgetWithText(NavigationDestination, 'Mail'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Last Roster Spot'));
+        await tester.pumpAndSettle();
+
+        // Pop back off the mail detail route to the shell, then back to
+        // Dashboard -- the badge is gone now that the one mail item has
+        // been opened.
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(NavigationDestination, 'Dashboard'),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(Badge), findsNothing);
+      },
+    );
   });
 }

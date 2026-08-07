@@ -286,6 +286,19 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     return advance.report;
   }
 
+  /// Marks a Mail inbox item (`mail/domain/mail_item.dart`'s `MailItem.id`)
+  /// read and persists it -- opening its detail (an Assistant GM message)
+  /// or opening the report it wraps (a training report) are the only
+  /// callers. A no-op if it's already read, so callers can call this
+  /// unconditionally without checking first.
+  Future<void> markMailRead(String mailId) async {
+    final franchise = await future;
+    if (franchise == null || franchise.readMailIds.contains(mailId)) return;
+    await _persist(
+      franchise.copyWithReadMailIds({...franchise.readMailIds, mailId}),
+    );
+  }
+
   Future<void> _persist(Franchise franchise) async {
     final repository = ref.read(saveRepositoryProvider);
     final envelope = SaveEnvelope(

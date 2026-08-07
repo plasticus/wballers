@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../mail/domain/mail_item.dart';
 import '../../player/domain/player.dart';
 import '../../player/domain/position.dart';
 import '../domain/player_rating_field.dart';
@@ -14,7 +17,13 @@ import '../domain/training_report.dart';
 /// the lean [TrainingReport] history around (results only, no re-render
 /// of this screen's sorted/labeled presentation), so this is the richest
 /// view of a given week's training a GM ever sees.
-class TrainingReportScreen extends StatelessWidget {
+///
+/// Marks its own Mail inbox item read on open (`markMailRead`,
+/// `trainingReportMailId`) -- every entry point (the Dashboard's
+/// "Training Report Ready" card, its Recent card, and the Mail tab's own
+/// list) funnels through here, so this is the one place that needs to
+/// know about read state at all.
+class TrainingReportScreen extends ConsumerStatefulWidget {
   const TrainingReportScreen({
     required this.franchise,
     required this.report,
@@ -24,8 +33,27 @@ class TrainingReportScreen extends StatelessWidget {
   final Franchise franchise;
   final TrainingReport report;
 
+  @override
+  ConsumerState<TrainingReportScreen> createState() =>
+      _TrainingReportScreenState();
+}
+
+class _TrainingReportScreenState extends ConsumerState<TrainingReportScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Deferred a frame -- calling this synchronously in initState would
+    // modify the provider while the widget tree is still building.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(currentFranchiseProvider.notifier)
+          .markMailRead(trainingReportMailId(widget.report.week));
+    });
+  }
+
   String _playerLabel(String playerId) {
-    for (final membership in franchise.roster) {
+    for (final membership in widget.franchise.roster) {
       if (membership.player.id == playerId) {
         final player = membership.player;
         final jersey = player.jerseyNumber != null
@@ -43,6 +71,7 @@ class TrainingReportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final report = widget.report;
     final sortedResults = [...report.results]
       ..sort((a, b) => _totalDelta(b).compareTo(_totalDelta(a)));
 

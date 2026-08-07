@@ -52,6 +52,7 @@ class Franchise {
     required this.nextTrainingWeek,
     this.trainingReports = const [],
     this.freeAgents = const [],
+    this.readMailIds = const {},
   }) : assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
          'replacedTeamAbbreviation must be one of the league team pool, '
@@ -128,6 +129,16 @@ class Franchise {
   /// about free agency, same pattern [trainingReports] already uses.
   final List<Player> freeAgents;
 
+  /// Ids of every Mail inbox item (`mail/domain/mail_item.dart`'s
+  /// `MailItem.id`) the GM has already opened -- the Mail tab's unread
+  /// badge (`mail/application/mailbox.dart`'s `unreadMailCount`) is
+  /// everything `mailboxFor` derives right now that isn't in this set.
+  /// Mail items themselves are never persisted (they're re-derived fresh
+  /// from live franchise state, same as `mailboxFor`'s doc comment
+  /// explains) -- only which ones have been seen needs to survive a
+  /// save/reload.
+  final Set<String> readMailIds;
+
   /// Returns a copy with [newCoach] replacing [coach] -- the portrait
   /// editor's coach-appearance path.
   Franchise copyWithCoach(Coach newCoach) {
@@ -146,6 +157,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       freeAgents: freeAgents,
+      readMailIds: readMailIds,
     );
   }
 
@@ -167,6 +179,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       freeAgents: freeAgents,
+      readMailIds: readMailIds,
     );
   }
 
@@ -188,6 +201,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       freeAgents: freeAgents,
+      readMailIds: readMailIds,
     );
   }
 
@@ -209,6 +223,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       freeAgents: freeAgents,
+      readMailIds: readMailIds,
     );
   }
 
@@ -240,6 +255,7 @@ class Franchise {
       nextTrainingWeek: newNextTrainingWeek,
       trainingReports: [...trainingReports, newReport],
       freeAgents: freeAgents,
+      readMailIds: readMailIds,
     );
   }
 
@@ -269,6 +285,30 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       freeAgents: newFreeAgents,
+      readMailIds: readMailIds,
+    );
+  }
+
+  /// Returns a copy with [newReadMailIds] replacing [readMailIds] --
+  /// `current_franchise_provider.dart`'s `markMailRead` is the only
+  /// caller.
+  Franchise copyWithReadMailIds(Set<String> newReadMailIds) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
+      freeAgents: freeAgents,
+      readMailIds: newReadMailIds,
     );
   }
 }

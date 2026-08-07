@@ -231,4 +231,26 @@ void main() {
     expect(restored.roster.first.player.nickname, isNull);
     expect(restored.roster.first.player.achievements, isEmpty);
   });
+
+  test('round-trips readMailIds', () {
+    final franchise = _sampleFranchise().copyWithReadMailIds({
+      'assistant_gm_roster_gap',
+      'training_report_3',
+    });
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.readMailIds, {
+      'assistant_gm_roster_gap',
+      'training_report_3',
+    });
+  });
+
+  test('readMailIds defaults to empty when absent', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.readMailIds, isEmpty);
+  });
 }

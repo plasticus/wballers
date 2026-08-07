@@ -507,6 +507,86 @@ void main() {
     });
   });
 
+  group('markMailRead', () {
+    test('adds the given id to readMailIds and persists it', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .markMailRead('assistant_gm_roster_gap');
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.readMailIds, contains('assistant_gm_roster_gap'));
+
+      // Actually persisted, not just held in memory.
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(savedFranchise.readMailIds, contains('assistant_gm_roster_gap'));
+    });
+
+    test('is a no-op if the id is already marked read', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ).copyWithReadMailIds({'already-read'});
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .markMailRead('already-read');
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.readMailIds, {'already-read'});
+    });
+
+    test('does nothing when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .markMailRead('whatever');
+
+      expect(container.read(currentFranchiseProvider).value, isNull);
+    });
+  });
+
   group('advanceGameDay', () {
     test('returns null when there is no current franchise', () async {
       final container = ProviderContainer(

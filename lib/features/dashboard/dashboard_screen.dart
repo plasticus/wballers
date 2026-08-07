@@ -12,9 +12,9 @@ import '../franchise/onboarding/onboarding_screen.dart';
 import '../franchise/presentation/team_roster_screen.dart';
 import '../league/domain/team.dart';
 import '../league/league_screen.dart';
+import '../mail/application/mailbox.dart';
+import '../mail/presentation/mail_screen.dart';
 import '../market/presentation/player_market_screen.dart';
-import '../news/presentation/news_screen.dart';
-import '../player/domain/position.dart';
 import '../roster/domain/roster_legality.dart';
 import '../roster/domain/roster_status.dart';
 import '../season/application/franchise_rosters.dart';
@@ -31,20 +31,23 @@ import '../stats/presentation/stats_screen.dart';
 import '../training/domain/training_report.dart';
 import '../training/presentation/training_report_screen.dart';
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   var _selectedIndex = 0;
 
-  static const _titles = ['Dashboard', 'Team', 'League', 'Stats', 'News'];
+  static const _titles = ['Dashboard', 'Team', 'League', 'Stats', 'Mail'];
 
   @override
   Widget build(BuildContext context) {
+    final franchise = ref.watch(currentFranchiseProvider).value;
+    final unreadCount = franchise == null ? 0 : unreadMailCount(franchise);
+
     return Scaffold(
       appBar: AppBar(
         leading: const Padding(
@@ -61,7 +64,7 @@ class _AppShellState extends State<AppShell> {
             1 => const TeamRosterScreen(),
             2 => const LeagueScreen(),
             3 => const StatsScreen(),
-            4 => const NewsScreen(),
+            4 => const MailScreen(),
             _ => const SizedBox.shrink(),
           },
         ),
@@ -70,35 +73,52 @@ class _AppShellState extends State<AppShell> {
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) =>
             setState(() => _selectedIndex = index),
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.groups_outlined),
             selectedIcon: Icon(Icons.groups),
             label: 'Team',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: 'League',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
             label: 'Stats',
           ),
           NavigationDestination(
-            icon: Icon(Icons.newspaper_outlined),
-            selectedIcon: Icon(Icons.newspaper),
-            label: 'News',
+            icon: _MailIcon(unreadCount: unreadCount, selected: false),
+            selectedIcon: _MailIcon(unreadCount: unreadCount, selected: true),
+            label: 'Mail',
           ),
         ],
       ),
     );
+  }
+}
+
+/// A mail icon with a red unread-count badge (2026-08-07, a direct GM
+/// ask) -- only shown once there's actually something unread, so an
+/// empty inbox looks like every other plain nav icon.
+class _MailIcon extends StatelessWidget {
+  const _MailIcon({required this.unreadCount, required this.selected});
+
+  final int unreadCount;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(selected ? Icons.mail : Icons.mail_outline);
+    if (unreadCount == 0) return icon;
+    return Badge(label: Text('$unreadCount'), child: icon);
   }
 }
 
@@ -292,25 +312,19 @@ int _activeRosterCount(Franchise franchise) =>
 /// live count rather than hardcoding "Day 0" so it'd still make sense if
 /// that ever changed.
 ///
-/// Names the actual best pickup in `Franchise.freeAgents` by finding
-/// whoever has the highest `potential` -- the one deliberately-planted
-/// "decent" free agent every pool gets
-/// (`roster/generation/free_agent_pool_generator.dart`) stands out from
-/// the filler by a wide margin, so no explicit "this is the one" flag is
-/// needed on the player itself.
-class _AssistantGmMailCard extends StatelessWidget {
+/// Same message [mailboxFor] surfaces as a real Mail inbox item
+/// (`assistantGmRosterGapMessage`, one source of truth for the wording) --
+/// this card is just the same content shown inline where the GM already
+/// is, not a separate duplicate. Tapping through marks it read, same as
+/// opening it from the Mail tab would.
+class _AssistantGmMailCard extends ConsumerWidget {
   const _AssistantGmMailCard({required this.franchise});
 
   final Franchise franchise;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final prospect = franchise.freeAgents.isEmpty
-        ? null
-        : franchise.freeAgents.reduce(
-            (a, b) => a.ratings.potential > b.ratings.potential ? a : b,
-          );
 
     return AppCard(
       child: Column(
@@ -327,18 +341,13 @@ class _AssistantGmMailCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Boss -- we\'re one player short of a full active roster. We '
-            'need to sign a free agent before we can advance the season. '
-            'Our starting five is already set, so I\'d skip the safe '
-            'veterans and bet on upside.'
-            '${prospect == null ? '' : ' Take a look at ${prospect.name} '
-                      '(${prospect.primaryPosition.abbreviation}) -- that '
-                      'ceiling is worth the roster spot.'}',
-          ),
+          Text(assistantGmRosterGapMessage(franchise)),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
             onPressed: () {
+              ref
+                  .read(currentFranchiseProvider.notifier)
+                  .markMailRead(kRosterGapMailId);
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => PlayerMarketScreen(franchise: franchise),
@@ -420,12 +429,14 @@ class _TrainingReadyCardState extends ConsumerState<_TrainingReadyCard> {
   }
 }
 
-/// A quiet preview of the News feed -- the 2 most recent training reports,
-/// each tappable straight to its full report, plus a link to the full
-/// `NewsScreen` archive. Deliberately placed at the very bottom of the
-/// Dashboard's scroll, below the actionable Season/Training cards -- news
-/// is something to catch up on, not something competing with "what do I
-/// need to do right now."
+/// A quiet preview of recent training reports -- the 2 most recent, each
+/// tappable straight to its full report, plus a link to the full
+/// `MailScreen` inbox (training reports are one of the two things that
+/// live there now, alongside Assistant GM messages -- see the Mail
+/// feature's own doc comments). Deliberately placed at the very bottom of
+/// the Dashboard's scroll, below the actionable Season/Training cards --
+/// this is something to catch up on, not something competing with "what
+/// do I need to do right now."
 class _RecentNewsCard extends StatelessWidget {
   const _RecentNewsCard({required this.franchise});
 
@@ -444,12 +455,17 @@ class _RecentNewsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('News', style: theme.textTheme.titleMedium)),
+              Expanded(
+                child: Text(
+                  'Training Reports',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
               TextButton(
                 onPressed: () {
                   Navigator.of(
                     context,
-                  ).push(MaterialPageRoute(builder: (_) => const NewsScreen()));
+                  ).push(MaterialPageRoute(builder: (_) => const MailScreen()));
                 },
                 child: const Text('View All'),
               ),
