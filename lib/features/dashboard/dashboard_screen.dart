@@ -23,6 +23,7 @@ import '../season/domain/standings_entry.dart';
 import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/presentation/game_result_screen.dart';
 import '../season/presentation/season_recap_screen.dart';
+import '../training/domain/training_report.dart';
 import '../training/presentation/training_report_screen.dart';
 
 class AppShell extends StatefulWidget {
@@ -142,6 +143,8 @@ class DashboardScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.lg),
                         _TrainingReadyCard(franchise: value),
                       ],
+                      const SizedBox(height: AppSpacing.lg),
+                      _RecentNewsCard(franchise: value),
                     ],
                   ),
                   AsyncData() => const _NoFranchiseCard(),
@@ -320,6 +323,102 @@ class _TrainingReadyCardState extends ConsumerState<_TrainingReadyCard> {
                 : const Text('View Training Report'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A quiet preview of the News feed -- the 2 most recent training reports,
+/// each tappable straight to its full report, plus a link to the full
+/// `NewsScreen` archive. Deliberately placed at the very bottom of the
+/// Dashboard's scroll, below the actionable Season/Training cards -- news
+/// is something to catch up on, not something competing with "what do I
+/// need to do right now."
+class _RecentNewsCard extends StatelessWidget {
+  const _RecentNewsCard({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final recent = [...franchise.trainingReports]
+      ..sort((a, b) => b.week.compareTo(a.week));
+    final preview = recent.take(2).toList();
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('News', style: theme.textTheme.titleMedium)),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const NewsScreen()));
+                },
+                child: const Text('View All'),
+              ),
+            ],
+          ),
+          if (preview.isEmpty)
+            const Text(
+              'No news yet -- check back once your team starts '
+              'training and playing games.',
+            )
+          else
+            for (final report in preview)
+              _RecentNewsRow(franchise: franchise, report: report),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentNewsRow extends StatelessWidget {
+  const _RecentNewsRow({required this.franchise, required this.report});
+
+  final Franchise franchise;
+  final TrainingReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final changedCount = report.results.length;
+
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                TrainingReportScreen(franchise: franchise, report: report),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          children: [
+            Icon(
+              Icons.fitness_center_outlined,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                changedCount == 0
+                    ? 'Week ${report.week} Training Report -- no one moved '
+                          'the needle.'
+                    : 'Week ${report.week} Training Report -- $changedCount '
+                          'player${changedCount == 1 ? '' : 's'} changed.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

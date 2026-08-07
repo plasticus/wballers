@@ -18,13 +18,17 @@ import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
+import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
 import '../../support/in_memory_save_repository.dart';
 import '../../support/league_test_helpers.dart';
 import '../../support/season_test_helpers.dart';
 import '../../support/training_test_helpers.dart';
 
-Franchise _franchiseWith({SeasonProgress? seasonProgress}) {
+Franchise _franchiseWith({
+  SeasonProgress? seasonProgress,
+  List<TrainingReport> trainingReports = const [],
+}) {
   final roster = generateStartingRoster(1);
   return Franchise(
     id: 'franchise-1',
@@ -53,6 +57,7 @@ Franchise _franchiseWith({SeasonProgress? seasonProgress}) {
     trainingCoaches: testTrainingCoaches(),
     trainingPlan: TrainingPlan.initial(),
     nextTrainingWeek: 1,
+    trainingReports: trainingReports,
   );
 }
 
@@ -364,6 +369,39 @@ void main() {
     );
   });
 
+  testWidgets(
+    'shows a Recent News preview at the bottom of the Dashboard, tappable '
+    'to the full report',
+    (tester) async {
+      // The Recent News card sits at the very bottom of the scroll, below
+      // the Season card's upcoming-games list -- needs a tall surface to
+      // be on-screen and tap-hittable.
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      const report = TrainingReport(week: 3, results: []);
+      final franchise = _franchiseWith(trainingReports: const [report]);
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Week 3 Training Report'), findsOneWidget);
+
+      await tester.tap(find.textContaining('Week 3 Training Report'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Training Report'), findsOneWidget);
+      expect(find.text('Week 3'), findsOneWidget);
+    },
+  );
+
   group('AppShell', () {
     testWidgets('has a News tab that opens NewsScreen', (tester) async {
       final franchise = _franchiseWith();
@@ -379,7 +417,7 @@ void main() {
 
       expect(find.text('Dashboard'), findsWidgets);
 
-      await tester.tap(find.text('News'));
+      await tester.tap(find.widgetWithText(NavigationDestination, 'News'));
       await tester.pumpAndSettle();
 
       // The AppBar title switches to "News" (findsWidgets since the
