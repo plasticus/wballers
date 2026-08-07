@@ -10,6 +10,7 @@ import 'package:womensbballmgr/features/franchise/application/current_franchise_
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/domain/starting_lineup.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
@@ -153,7 +154,7 @@ void main() {
     (tester) async {
       final franchise = _franchiseWith();
       final repository = await _seededRepository(franchise);
-      final firstPlayerName = franchise.roster.first.player.name;
+      final firstPlayerLabel = _playerLabel(franchise.roster.first.player);
 
       await tester.pumpWidget(
         ProviderScope(
@@ -167,7 +168,7 @@ void main() {
       // player.
       await tester.tap(find.text('Unassigned').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text(firstPlayerName).last);
+      await tester.tap(find.text(firstPlayerLabel).last);
       await tester.pumpAndSettle();
 
       expect(find.text('Broad'), findsOneWidget);
@@ -199,7 +200,7 @@ void main() {
 
     await tester.tap(find.text('Unassigned').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text(targetPlayer.name).last);
+    await tester.tap(find.text(_playerLabel(targetPlayer)).last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Save Training Plan'));
@@ -243,14 +244,21 @@ void main() {
     );
     await tester.pump();
 
-    final targetName = franchise.roster
+    final targetPlayer = franchise.roster
         .firstWhere((m) => m.player.id == targetPlayerId)
-        .player
-        .name;
-    expect(find.text(targetName), findsOneWidget);
+        .player;
+    expect(find.text(_playerLabel(targetPlayer)), findsOneWidget);
     expect(find.text('Specific'), findsOneWidget);
     expect(find.text('Speed'), findsOneWidget);
     // Still 2 idle coaches.
     expect(find.text('Unassigned'), findsNWidgets(2));
   });
+}
+
+/// Mirrors `training_screen.dart`'s private `_playerLabel` -- can't import
+/// a private function, so this is kept in sync by hand.
+String _playerLabel(Player player) {
+  final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
+  return '${player.primaryPosition.abbreviation} $jersey${player.name} '
+      '(${player.ratings.overall} OVR, ${player.ratings.potential} POT)';
 }

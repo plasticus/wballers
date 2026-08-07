@@ -5,6 +5,7 @@ import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../player/domain/player.dart';
 import '../../roster/domain/roster_status.dart';
 import '../domain/player_rating_field.dart';
 import '../domain/training_coach.dart';
@@ -45,11 +46,16 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
   /// The roster players eligible to be assigned to a coach at all --
   /// mirrors [runTraining]'s own skip of `RosterStatus.reserveInactive`,
   /// so the picker never offers an assignment that would silently do
-  /// nothing.
-  List<({String id, String name})> get _eligiblePlayers => [
+  /// nothing. Carries enough to render "PG #49 Kayla Silva (67 OVR, 99
+  /// POT)" in the picker -- a bare name gave the GM no way to tell a
+  /// promising 21-year-old from a declining vet without leaving this
+  /// screen, which mattered most exactly where it's used: putting high-
+  /// potential players in these 3 individually-coached slots is the whole
+  /// point.
+  List<({String id, String label})> get _eligiblePlayers => [
     for (final membership in widget.franchise.roster)
       if (membership.status != RosterStatus.reserveInactive)
-        (id: membership.player.id, name: membership.player.name),
+        (id: membership.player.id, label: _playerLabel(membership.player)),
   ];
 
   String _playerName(String id) {
@@ -218,7 +224,7 @@ class _CoachAssignmentCard extends StatelessWidget {
 
   final TrainingCoach coach;
   final _CoachAssignment assignment;
-  final List<({String id, String name})> eligiblePlayers;
+  final List<({String id, String label})> eligiblePlayers;
 
   /// Player ids already claimed by one of the *other* two coach slots --
   /// excluded from this card's player picker so the GM can't double-assign
@@ -263,7 +269,7 @@ class _CoachAssignmentCard extends StatelessWidget {
             items: [
               const DropdownMenuItem(value: null, child: Text('Unassigned')),
               for (final player in selectable)
-                DropdownMenuItem(value: player.id, child: Text(player.name)),
+                DropdownMenuItem(value: player.id, child: Text(player.label)),
             ],
             onChanged: (playerId) =>
                 onChanged(assignment.copyWith(playerId: () => playerId)),
@@ -313,4 +319,14 @@ class _CoachAssignmentCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "PG #49 Kayla Silva (67 OVR, 99 POT)" -- position, jersey number (when
+/// assigned), full name, overall, and potential, so the individual-coach
+/// picker doubles as a quick scan for "who's worth putting in one of these
+/// 3 slots" without leaving this screen.
+String _playerLabel(Player player) {
+  final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
+  return '${player.primaryPosition.abbreviation} $jersey${player.name} '
+      '(${player.ratings.overall} OVR, ${player.ratings.potential} POT)';
 }
