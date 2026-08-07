@@ -23,6 +23,13 @@ const kPostseasonFirstRoundWeek = 20;
 const kPostseasonSemifinalsWeek = 22;
 const kPostseasonFinalsWeek = 24;
 
+/// "Week 0" for [kPreseasonWeek], "Week $week" otherwise -- a display-only
+/// override (2026-08-07, a direct GM ask: "can we call Preseason Week
+/// 0?"). The stored week number itself is untouched -- this doesn't
+/// renumber the calendar, it just relabels the one week nothing else
+/// ever shares with preseason.
+String weekLabel(int week) => week == kPreseasonWeek ? 'Week 0' : 'Week $week';
+
 /// Regular season/Continental Cup game days (`0B_Planned.md`'s declared
 /// game days) -- a team can be booked on each at most once per week, which
 /// is also where the "2 games per team per week" cap comes from: it's a
@@ -61,13 +68,16 @@ const kContinentalCupGameDay = GameDay.thursday;
 ///   that don't exist yet -- see the note on [SeasonSchedule].
 ///
 /// Note: Continental Cup Round 1 lands inside the regular season's week
-/// range (week 4), but is generated as an independent step and doesn't
-/// coordinate days with whatever regular-season games already landed in
-/// that week -- a team can end up with a regular-season game and a Cup
-/// game "on" the same nominal day that week. This predates day-of-week
-/// tracking (it was already unaccounted-for as an extra game in that
-/// week) and isn't solved here; a real fix means teaching
-/// [_assignRegularSeasonWeeks] about Cup weeks, which is follow-up work.
+/// range (week 4) and every team plays exactly one Round 1 game there --
+/// [_assignRegularSeasonWeeks] pre-books that exact (week, day) for every
+/// team before it packs anything else in, so a team never ends up with a
+/// regular-season game *and* its Cup game on the same nominal day (fixed
+/// 2026-08-07; previously unaccounted-for). Rounds 2-5 don't get the same
+/// treatment -- their (week, day) is fixed too (`kContinentalCupRound2Week`
+/// etc.), but which teams actually play them isn't known until the round
+/// before finishes, so pre-booking a slot for literally every team would
+/// waste real regular-season capacity on teams that will already be
+/// eliminated. Still open, same as before this fix.
 SeasonSchedule generateSeasonSchedule(List<Team> leagueTeams, Random random) {
   final atlantic = leagueTeams
       .where((team) => team.conference == Conference.atlantic)
@@ -89,7 +99,7 @@ SeasonSchedule generateSeasonSchedule(List<Team> leagueTeams, Random random) {
   return SeasonSchedule(
     games: [
       ..._generatePreseason(atlantic, pacific, random),
-      ..._assignRegularSeasonWeeks(regularSeasonPairs, random),
+      ..._assignRegularSeasonWeeks(regularSeasonPairs, leagueTeams, random),
       ..._generateContinentalCupRound1(leagueTeams, random),
     ],
   );
@@ -170,6 +180,7 @@ List<List<(int, int)>> _circleMethodRoundsIndices(int n) {
 
 List<ScheduledGame> _assignRegularSeasonWeeks(
   List<(Team home, Team away)> pairs,
+  List<Team> leagueTeams,
   Random random,
 ) {
   final shuffledPairs = List<(Team, Team)>.of(pairs)..shuffle(random);
@@ -183,6 +194,16 @@ List<ScheduledGame> _assignRegularSeasonWeeks(
         .putIfAbsent(abbreviation, () => {})
         .putIfAbsent(week, () => {})
         .add(day);
+  }
+
+  // Every team plays a Continental Cup Round 1 game at this exact
+  // (week, day) -- reserve it up front so the greedy pack below never
+  // lands a regular-season game there too. 17 weeks x 2 days = 34
+  // team-slots against 28 games/team, so losing 1 slot to the Cup still
+  // leaves comfortable slack (see the assert in
+  // [_assignOneGameWeekAndDay]).
+  for (final team in leagueTeams) {
+    book(team.abbreviation, kContinentalCupRound1Week, kContinentalCupGameDay);
   }
 
   return [

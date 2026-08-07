@@ -76,11 +76,9 @@ void main() {
 
       expect(find.text('Results'), findsOneWidget);
       // Both game days played here are preseason -- every visible row
-      // should note it doesn't count toward the standings.
-      expect(
-        find.textContaining('Preseason -- exhibition, doesn\'t count'),
-        findsWidgets,
-      );
+      // should note it plainly, no explanation needed (2026-08-07: a GM
+      // ask -- "people know what that means").
+      expect(find.textContaining('Preseason'), findsWidgets);
       // Newest-first: the most recently played game (the last one in
       // playedGames' arrival order) renders as the very first row, so its
       // score is on-screen without any scrolling -- ListView.builder only

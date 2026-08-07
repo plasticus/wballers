@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
 
@@ -138,6 +139,30 @@ void main() {
     ];
     expect(appearances.toSet(), hasLength(20));
     expect(appearances, hasLength(20));
+  });
+
+  test('no team is ever double-booked on the same (week, day) -- '
+      'Continental Cup Round 1 in particular used to collide with a '
+      'regular-season game in week 4 (fixed 2026-08-07)', () {
+    final teams = _leagueTeams();
+    for (var seed = 0; seed < 30; seed++) {
+      final schedule = generateSeasonSchedule(teams, Random(seed));
+      final byTeam = _gamesByTeam(schedule.games);
+      for (final entry in byTeam.entries) {
+        final seen = <(int, GameDay)>{};
+        for (final game in entry.value) {
+          final key = (game.week, game.day);
+          expect(
+            seen.contains(key),
+            isFalse,
+            reason:
+                'seed $seed: ${entry.key} has two games on week '
+                '${game.week} ${game.day}',
+          );
+          seen.add(key);
+        }
+      }
+    }
   });
 
   test('is deterministic for the same random stream', () {

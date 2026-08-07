@@ -83,9 +83,12 @@ void main() {
     await tester.pump();
 
     expect(find.text('Team Focus'), findsOneWidget);
-    expect(find.text('Coach Amara'), findsOneWidget);
-    expect(find.text('Coach Blake'), findsOneWidget);
-    expect(find.text('Coach Cruz'), findsOneWidget);
+    // "Individual Coach #1/#2/#3" -- the generated coaches' own names
+    // (2026-08-07: "the three training coaches don't need names").
+    expect(find.text('Individual Coach #1'), findsOneWidget);
+    expect(find.text('Individual Coach #2'), findsOneWidget);
+    expect(find.text('Individual Coach #3'), findsOneWidget);
+    expect(find.text('Coach Amara'), findsNothing);
     expect(find.text('DEV 60'), findsOneWidget);
     // Unassigned by default (TrainingPlan.initial) -- no focus picker shown
     // for any of the 3 idle coaches yet.
@@ -131,7 +134,7 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Offense'));
+    await tester.tap(find.text('Off'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Save Training Plan'));
@@ -257,6 +260,7 @@ void main() {
 /// a private function, so this is kept in sync by hand.
 String _playerLabel(Player player) {
   final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
-  return '${player.primaryPosition.abbreviation} $jersey${player.name} '
+  final lastName = player.name.split(' ').skip(1).join(' ');
+  return '${player.primaryPosition.abbreviation} $jersey$lastName '
       '(${player.ratings.overall} OVR, ${player.ratings.potential} POT)';
 }

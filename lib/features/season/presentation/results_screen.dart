@@ -13,6 +13,7 @@ import '../domain/game_day.dart';
 import '../domain/played_game.dart';
 import '../domain/played_game_stat_line.dart';
 import '../domain/scheduled_game.dart';
+import '../generation/season_schedule_generator.dart' show weekLabel;
 
 /// Every game played so far this season, across the whole league --
 /// newest first -- closing out `0B_Planned.md`'s Results-page spec.
@@ -86,9 +87,8 @@ class _ResultRow extends StatelessWidget {
           children: [
             Text(
               game.type == GameType.preseason
-                  ? 'Week ${game.week} · ${game.day.label} · '
-                        'Preseason -- exhibition, doesn\'t count'
-                  : 'Week ${game.week} · ${game.day.label}',
+                  ? '${weekLabel(game.week)} · ${game.day.label} · Preseason'
+                  : '${weekLabel(game.week)} · ${game.day.label}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: game.type == GameType.preseason
                     ? theme.colorScheme.primary

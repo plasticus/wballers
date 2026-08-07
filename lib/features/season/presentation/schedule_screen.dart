@@ -7,6 +7,7 @@ import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
+import '../generation/season_schedule_generator.dart' show weekLabel;
 import 'results_screen.dart';
 
 enum _ScheduleMode { myTeam, fullLeague }
@@ -152,7 +153,7 @@ class _MyTeamRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Week ${game.week}', style: theme.textTheme.bodyMedium),
+              Text(weekLabel(game.week), style: theme.textTheme.bodyMedium),
               Text(game.day.label, style: theme.textTheme.bodySmall),
             ],
           ),
@@ -202,13 +203,19 @@ class _TypeLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isPreseason = game.type == GameType.preseason;
+    final isContinentalCup = game.type == GameType.continentalCup;
+    // Cup games get the same unmissable treatment as Preseason -- just
+    // "🏆 WBL Continental Cup", no round number (2026-08-07, a direct GM
+    // ask). The round is still visible via the League screen's own Cup
+    // tab, which already groups games under a real round header.
+    final label = isContinentalCup ? '🏆 WBL Continental Cup' : game.typeLabel;
     return Text(
-      isPreseason
-          ? '${game.typeLabel} -- exhibition, doesn\'t count'
-          : game.typeLabel,
+      label,
       style: theme.textTheme.bodySmall?.copyWith(
-        color: isPreseason ? theme.colorScheme.primary : null,
-        fontWeight: isPreseason ? FontWeight.bold : null,
+        color: isPreseason || isContinentalCup
+            ? theme.colorScheme.primary
+            : null,
+        fontWeight: isPreseason || isContinentalCup ? FontWeight.bold : null,
       ),
     );
   }
@@ -322,7 +329,7 @@ class _WeekHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
       child: Text(
-        'Week $week',
+        weekLabel(week),
         style: theme.textTheme.titleMedium?.copyWith(
           color: theme.colorScheme.primary,
         ),

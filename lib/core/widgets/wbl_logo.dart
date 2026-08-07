@@ -24,3 +24,28 @@ class WblLogo extends StatelessWidget {
     );
   }
 }
+
+/// The WBL Continental Cup's own crest
+/// (`branding/wbl_continental_cup_logo_alpha.png`) -- same background
+/// removal treatment as [WblLogo] (flood-filled from the corners, fuzz
+/// 12%), from the GM-supplied `branding/wbl_continental_cup_logo.png`.
+/// Replaces [WblLogo] at the top of the League screen while its Cup tab
+/// is selected (2026-08-07, a direct GM ask), instead of the plain WBL
+/// crest showing regardless of which tab is active.
+class ContinentalCupLogo extends StatelessWidget {
+  const ContinentalCupLogo({required this.size, super.key});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    return Image.asset(
+      'branding/wbl_continental_cup_logo_alpha.png',
+      width: size,
+      height: size,
+      semanticLabel: 'WBL Continental Cup logo',
+      cacheWidth: (size * devicePixelRatio).round(),
+    );
+  }
+}

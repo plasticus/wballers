@@ -155,57 +155,61 @@ void main() {
     },
   );
 
-  testWidgets('preseason and Cup games note that they don\'t count toward '
-      'the record', (tester) async {
-    tester.view.physicalSize = const Size(800, 4000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'a preseason game is flagged plainly, no explanation (2026-08-07 GM '
+    'ask -- "people know what that means")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    final franchise = withFullActiveRoster(
-      createExpansionFranchise(
-        gmName: 'Jordan Ellis',
-        clubName: 'Comets',
-        homeCity: 'Springfield, IL',
-        conference: Conference.atlantic,
-        replacedTeamAbbreviation: 'BOS',
-        colors: kStarterPalettes.first,
-        emoji: '🏀',
-        simulationSeed: 1,
-      ),
-    );
-    final opponent = franchise.league.aiTeams.first.team;
-    final rosters = rostersByAbbreviation(franchise);
-    final match = simulateMatch(
-      Random(1),
-      homeRoster: rosters[franchise.team.abbreviation]!,
-      awayRoster: rosters[opponent.abbreviation]!,
-    );
-    final result = GameResult(
-      game: ScheduledGame(
-        week: 1,
-        day: GameDay.sunday,
-        homeTeamAbbreviation: franchise.team.abbreviation,
-        awayTeamAbbreviation: opponent.abbreviation,
-        type: GameType.preseason,
-      ),
-      match: match,
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
-        ],
-        child: MaterialApp(
-          home: GameResultScreen(franchise: franchise, result: result),
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      final opponent = franchise.league.aiTeams.first.team;
+      final rosters = rostersByAbbreviation(franchise);
+      final match = simulateMatch(
+        Random(1),
+        homeRoster: rosters[franchise.team.abbreviation]!,
+        awayRoster: rosters[opponent.abbreviation]!,
+      );
+      final result = GameResult(
+        game: ScheduledGame(
+          week: 1,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: franchise.team.abbreviation,
+          awayTeamAbbreviation: opponent.abbreviation,
+          type: GameType.preseason,
+        ),
+        match: match,
+      );
 
-    expect(
-      find.textContaining('doesn\'t count toward your record'),
-      findsOneWidget,
-    );
-  });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+          child: MaterialApp(
+            home: GameResultScreen(franchise: franchise, result: result),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Preseason'), findsOneWidget);
+      expect(
+        find.textContaining('doesn\'t count toward your record'),
+        findsNothing,
+      );
+    },
+  );
 }

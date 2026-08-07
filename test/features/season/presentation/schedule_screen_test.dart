@@ -6,7 +6,10 @@ import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/domain/game_result.dart';
+import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
+import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart'
+    show weekLabel;
 import 'package:womensbballmgr/features/season/presentation/schedule_screen.dart';
 
 import '../../../support/franchise_test_helpers.dart';
@@ -51,6 +54,47 @@ void main() {
     expect(find.text('Schedule'), findsOneWidget);
     expect(find.text('Upcoming'), findsNWidgets(ownGameCount));
   });
+
+  testWidgets(
+    'the GM\'s own Continental Cup Round 1 game is flagged as a Cup game, '
+    'trophy emoji and all (2026-08-07 GM ask)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      // Every team plays exactly one Continental Cup Round 1 game -- the
+      // GM's own club included -- so this is always findable, not
+      // seed-dependent.
+      final ownCupGame = franchise.seasonProgress.schedule.games.firstWhere(
+        (g) =>
+            g.type == GameType.continentalCup &&
+            (g.homeTeamAbbreviation == franchise.team.abbreviation ||
+                g.awayTeamAbbreviation == franchise.team.abbreviation),
+      );
+      expect(ownCupGame.continentalCupRound, 1);
+
+      await tester.pumpWidget(
+        MaterialApp(home: ScheduleScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      // Just the crest and the league name -- no round number (the round
+      // is what the League screen's own Cup tab is for).
+      expect(find.text('🏆 WBL Continental Cup'), findsOneWidget);
+      expect(find.textContaining('Round 1'), findsNothing);
+    },
+  );
 
   testWidgets('shows a final score once a game day is played', (tester) async {
     final franchise = withFullActiveRoster(
@@ -103,14 +147,12 @@ void main() {
       findsOneWidget,
     );
     // Every franchise's very first game day is preseason -- flagged
-    // clearly since a real, scored preseason game doesn't move the
-    // standings, which read as a bug before this was surfaced on screen.
+    // clearly (plain "Preseason", no explanation -- 2026-08-07 GM ask)
+    // since a real, scored preseason game doesn't move the standings,
+    // which read as a bug before this was surfaced on screen.
     // findsWidgets, not findsOneWidget: the preseason schedules 2 games
     // for every team, both showing this note.
-    expect(
-      find.textContaining('Preseason -- exhibition, doesn\'t count'),
-      findsWidgets,
-    );
+    expect(find.textContaining('Preseason'), findsWidgets);
   });
 
   testWidgets(
@@ -169,7 +211,7 @@ void main() {
       await tester.tap(find.text('Full League'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Week ${aiVsAiGame.week}'), findsWidgets);
+      expect(find.text(weekLabel(aiVsAiGame.week)), findsWidgets);
       expect(find.text(matchupText), findsOneWidget);
     },
   );

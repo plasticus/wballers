@@ -8,7 +8,6 @@ import '../../league/domain/team.dart';
 import '../../market/presentation/player_market_screen.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
-import '../../player/presentation/player_card_lab_screen.dart';
 import '../../player/presentation/player_card_widgets.dart';
 import '../../player/presentation/player_detail_screen.dart';
 import '../../player/presentation/trait_chip.dart';
@@ -149,18 +148,6 @@ class _RosterView extends StatelessWidget {
           },
           icon: const Icon(Icons.storefront_outlined),
           label: const Text('Player Market'),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        OutlinedButton.icon(
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PlayerCardLabScreen(franchise: franchise),
-              ),
-            );
-          },
-          icon: const Icon(Icons.style_outlined),
-          label: const Text('Card Lab'),
         ),
         const SizedBox(height: AppSpacing.lg),
         _RosterSection(

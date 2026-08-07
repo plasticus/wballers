@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/core/widgets/wbl_logo.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
@@ -273,8 +274,18 @@ void main() {
       final repository = await _seededRepository(franchise);
       await _pumpWithRepository(tester, repository);
 
+      // The header starts on the plain WBL crest -- the Cup tab isn't
+      // selected yet.
+      expect(find.byType(WblLogo), findsOneWidget);
+      expect(find.byType(ContinentalCupLogo), findsNothing);
+
       await tester.tap(find.text('Cup'));
       await tester.pumpAndSettle();
+
+      // Selecting the Cup tab swaps the header crest for the Cup's own --
+      // a direct GM ask, not just a decorative nicety.
+      expect(find.byType(WblLogo), findsNothing);
+      expect(find.byType(ContinentalCupLogo), findsOneWidget);
 
       expect(find.text('Round 1'), findsOneWidget);
       // Round 1 is always generated up front (`generateSeasonSchedule`) --

@@ -122,6 +122,7 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
               const SizedBox(height: AppSpacing.sm),
               for (var i = 0; i < coaches.length; i++) ...[
                 _CoachAssignmentCard(
+                  displayName: 'Individual Coach #${i + 1}',
                   coach: coaches[i],
                   assignment: _assignments[i],
                   eligiblePlayers: _eligiblePlayers,
@@ -217,12 +218,19 @@ class _CoachAssignment {
 
 class _CoachAssignmentCard extends StatelessWidget {
   const _CoachAssignmentCard({
+    required this.displayName,
     required this.coach,
     required this.assignment,
     required this.eligiblePlayers,
     required this.assignedElsewhereNames,
     required this.onChanged,
   });
+
+  /// "Individual Coach #1"/"#2"/"#3" -- the generated [coach]'s own name
+  /// isn't shown (2026-08-07, a direct GM ask: "the three training coaches
+  /// don't need names"). [coach] is still the real, distinct generated
+  /// coach underneath -- this only changes what's displayed.
+  final String displayName;
 
   final TrainingCoach coach;
   final _CoachAssignment assignment;
@@ -252,7 +260,7 @@ class _CoachAssignmentCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(coach.name, style: theme.textTheme.titleMedium),
+                child: Text(displayName, style: theme.textTheme.titleMedium),
               ),
               Text(
                 'DEV ${coach.developmentRating}',
@@ -337,12 +345,15 @@ class _CoachAssignmentCard extends StatelessWidget {
   }
 }
 
-/// "PG #49 Kayla Silva (67 OVR, 99 POT)" -- position, jersey number (when
-/// assigned), full name, overall, and potential, so the individual-coach
-/// picker doubles as a quick scan for "who's worth putting in one of these
-/// 3 slots" without leaving this screen.
+/// "PG #49 Silva (67 OVR, 99 POT)" -- position, jersey number (when
+/// assigned), last name only, overall, and potential, so the
+/// individual-coach picker doubles as a quick scan for "who's worth
+/// putting in one of these 3 slots" without leaving this screen. First
+/// name dropped (2026-08-07, a direct GM ask -- "too much information");
+/// last name alone is who a GM actually calls a player by.
 String _playerLabel(Player player) {
   final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
-  return '${player.primaryPosition.abbreviation} $jersey${player.name} '
+  final lastName = player.name.split(' ').skip(1).join(' ');
+  return '${player.primaryPosition.abbreviation} $jersey$lastName '
       '(${player.ratings.overall} OVR, ${player.ratings.potential} POT)';
 }

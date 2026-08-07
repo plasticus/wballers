@@ -76,7 +76,14 @@ class _LeagueView extends StatefulWidget {
 
 class _LeagueViewState extends State<_LeagueView>
     with SingleTickerProviderStateMixin {
-  late final _tabController = TabController(length: 3, vsync: this);
+  late final _tabController = TabController(length: 3, vsync: this)
+    ..addListener(() {
+      // The tab controller fires this listener throughout the swipe
+      // animation, not just on settle -- setState on every tick is what
+      // makes the header logo track a swipe instead of only snapping at
+      // the end.
+      setState(() {});
+    });
 
   @override
   void dispose() {
@@ -91,7 +98,11 @@ class _LeagueViewState extends State<_LeagueView>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Center(child: WblLogo(size: 144)),
+        Center(
+          child: _tabController.index == 1
+              ? const ContinentalCupLogo(size: 144)
+              : const WblLogo(size: 144),
+        ),
         const SizedBox(height: AppSpacing.lg),
         Row(
           children: [

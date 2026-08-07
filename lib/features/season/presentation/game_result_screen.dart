@@ -143,7 +143,10 @@ class _ScoreCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    '${game.typeLabel} -- doesn\'t count toward your record',
+                    game.type == GameType.preseason
+                        ? game.typeLabel
+                        : '${game.typeLabel} -- doesn\'t count toward your '
+                              'record',
                     style: theme.textTheme.labelSmall,
                   ),
                 ),

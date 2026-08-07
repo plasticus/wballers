@@ -308,9 +308,8 @@ void main() {
     expect(find.text('Ratings'), findsOneWidget);
   });
 
-  testWidgets('tapping Card Lab opens the Player Card Lab screen', (
-    tester,
-  ) async {
+  testWidgets('the Card Lab button is hidden -- dev tool, not for a normal '
+      'playthrough (2026-08-07)', (tester) async {
     final franchise = _franchiseWith();
     final repository = await _seededRepository(franchise);
 
@@ -322,13 +321,6 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Card Lab'));
-    await tester.pump();
-    // The route push transition, not portrait rendering -- deliberately not
-    // `pumpAndSettle`, which would also wait out `PlayerCardLabScreen`'s
-    // real async portrait work.
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(find.text('Player Card Lab'), findsOneWidget);
+    expect(find.text('Card Lab'), findsNothing);
   });
 }
