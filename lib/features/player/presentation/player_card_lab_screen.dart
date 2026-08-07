@@ -11,12 +11,18 @@ import '../domain/player.dart';
 import 'trait_chip.dart';
 
 /// A dev-facing comparison screen: the GM's first roster player, rendered
-/// via 4 differently-structured player-card layouts side by side, so the
-/// GM can pick a direction before any of them replace the current roster
-/// row -- built in direct response to "I don't like the current player
-/// card, but I want options before I say what to fix." Not linked from
-/// anywhere a normal playthrough would stumble into by accident, but not
-/// hidden either -- reachable via the Team tab's "Card Lab" button.
+/// via 5 variations on the compact-row shape, so the GM can pick a
+/// direction before one replaces the current roster row. Second pass --
+/// the first lab tried 4 wildly different shapes (a vertical trading
+/// card, a ticket stub, a scoreboard tile), and the compact row was the
+/// only one that landed: "I like the photo on the left, OVR on the
+/// right." This lab stays inside that shape and varies the details
+/// instead -- bigger photo, jersey number, years of WBL experience, and
+/// how much weight OVR carries -- since "I'm still not quite there, and I
+/// can't describe what I want very well" called for closer, not
+/// different, options. Not linked from anywhere a normal playthrough
+/// would stumble into by accident, but not hidden either -- reachable via
+/// the Team tab's "Card Lab" button.
 class PlayerCardLabScreen extends StatelessWidget {
   const PlayerCardLabScreen({required this.franchise, super.key});
 
@@ -34,35 +40,42 @@ class PlayerCardLabScreen extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
             Text(
-              'Same player, 4 different card layouts -- '
+              'Same player, 5 variations on the compact row -- '
               '${membership.player.name}.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: AppSpacing.xl),
             _LabSection(
-              label: '1. Compact Row (current roster-row style)',
-              child: _CompactRowCard(
+              label: '1. Bigger, Same Shape',
+              child: _BiggerSameShapeCard(
                 franchise: franchise,
                 membership: membership,
               ),
             ),
             _LabSection(
-              label: '2. Trading Card',
-              child: _TradingCard(franchise: franchise, membership: membership),
-            ),
-            _LabSection(
-              label: '3. Ticket Stat Strip',
-              child: _TicketStatStripCard(
+              label: '2. OVR Badge',
+              child: _OvrBadgeCard(
                 franchise: franchise,
                 membership: membership,
               ),
             ),
             _LabSection(
-              label: '4. Scoreboard Tile',
-              child: _ScoreboardTileCard(
+              label: '3. Stat Chips',
+              child: _StatChipsCard(
                 franchise: franchise,
                 membership: membership,
               ),
+            ),
+            _LabSection(
+              label: '4. Two-Line Header',
+              child: _TwoLineHeaderCard(
+                franchise: franchise,
+                membership: membership,
+              ),
+            ),
+            _LabSection(
+              label: '5. Minimal',
+              child: _MinimalCard(franchise: franchise, membership: membership),
             ),
           ],
         ),
@@ -94,14 +107,30 @@ class _LabSection extends StatelessWidget {
   }
 }
 
-/// 1. The existing roster-row shape (`team_roster_screen.dart`'s
-/// `_PlayerRow`, reproduced here rather than shared -- this screen is a
-/// throwaway comparison tool, not a place to route production code
-/// through): portrait, position badge, name/archetype/age/height,
-/// OFF/DEF/PHY summary, traits, OVR at the far end. Everything in one
-/// dense horizontal line.
-class _CompactRowCard extends StatelessWidget {
-  const _CompactRowCard({required this.franchise, required this.membership});
+/// "3 yr WBL" / "1 yr WBL" -- years of service, singular-aware. Shared by
+/// every card here since it's a new requirement across all 5, not just
+/// one variation.
+String _experienceLabel(Player player) {
+  final years = player.yearsOfService;
+  return '$years ${years == 1 ? 'yr' : 'yrs'} WBL';
+}
+
+/// "#7" or '' -- jersey numbers are nullable until a player is actually
+/// placed on a roster (shouldn't happen for anyone shown in this lab, but
+/// graceful regardless).
+String _jerseyLabel(Player player) =>
+    player.jerseyNumber != null ? '#${player.jerseyNumber}' : '';
+
+/// 1. A direct scale-up of the original compact row: bigger portrait
+/// (64px, up from 40px), jersey number folded into the position badge,
+/// years of WBL experience added to the identity line, and OVR bumped
+/// from `titleMedium` to a bold `headlineSmall` on the right -- every
+/// literal ask from the GM's feedback, minimal structural change.
+class _BiggerSameShapeCard extends StatelessWidget {
+  const _BiggerSameShapeCard({
+    required this.franchise,
+    required this.membership,
+  });
 
   final Franchise franchise;
   final RosterMembership membership;
@@ -120,32 +149,21 @@ class _CompactRowCard extends StatelessWidget {
             ownerId: player.id,
             appearance: player.appearance,
             jersey: parseHexColor(franchise.team.colors.primaryHex),
-            size: 40,
+            size: 64,
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xs,
-              vertical: 2,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              player.primaryPosition.abbreviation,
-              style: theme.textTheme.labelLarge,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(player.name, style: theme.textTheme.bodyLarge),
+                Text(
+                  '${player.primaryPosition.abbreviation} '
+                  '${_jerseyLabel(player)} ${player.name}',
+                  style: theme.textTheme.titleMedium,
+                ),
                 Text(
                   '${player.archetype.label} · Age ${player.age} · '
-                  '${formatHeightInches(player.heightInches)}',
+                  '${_experienceLabel(player)}',
                   style: theme.textTheme.bodySmall,
                 ),
                 Text(
@@ -174,7 +192,9 @@ class _CompactRowCard extends StatelessWidget {
             children: [
               Text(
                 '${player.ratings.overall}',
-                style: theme.textTheme.titleMedium,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text('OVR', style: theme.textTheme.labelSmall),
             ],
@@ -185,12 +205,12 @@ class _CompactRowCard extends StatelessWidget {
   }
 }
 
-/// 2. Portrait-forward, vertical, sports-trading-card shaped: a big
-/// centered portrait with the overall rating badged over its corner,
-/// name/archetype/position centered underneath, then a 3-column
-/// Physical/Offense/Defense stat block below a divider.
-class _TradingCard extends StatelessWidget {
-  const _TradingCard({required this.franchise, required this.membership});
+/// 2. Same identity block as #1, but OVR gets real visual weight: a big
+/// team-colored circular badge on the right instead of plain text --
+/// "Overall Score should be a bigger number than other stuff" taken as
+/// far as a compact row reasonably allows.
+class _OvrBadgeCard extends StatelessWidget {
+  const _OvrBadgeCard({required this.franchise, required this.membership});
 
   final Franchise franchise;
   final RosterMembership membership;
@@ -199,71 +219,142 @@ class _TradingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final player = membership.player;
-    final accentJersey = parseHexColor(franchise.team.colors.primaryHex);
     final accentColor = franchise.team.colors.primary;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              PortraitImage(
-                saveId: franchise.id,
-                ownerId: player.id,
-                appearance: player.appearance,
-                jersey: accentJersey,
-                size: 100,
+          PortraitImage(
+            saveId: franchise.id,
+            ownerId: player.id,
+            appearance: player.appearance,
+            jersey: parseHexColor(franchise.team.colors.primaryHex),
+            size: 60,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${player.primaryPosition.abbreviation} '
+                  '${_jerseyLabel(player)} ${player.name}',
+                  style: theme.textTheme.titleMedium,
+                ),
+                Text(
+                  '${player.archetype.label} · Age ${player.age} · '
+                  '${_experienceLabel(player)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                Text(
+                  'OFF ${player.ratings.offenseOverall} · '
+                  'DEF ${player.ratings.defenseOverall} · '
+                  'PHY ${player.ratings.physicalOverall}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Container(
+            width: 56,
+            height: 56,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accentColor,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '${player.ratings.overall}',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 3. OFF/DEF/PHY as small colored chips instead of a plain text line --
+/// more scannable at a glance than three numbers run together, same
+/// visual language the trait chips already use.
+class _StatChipsCard extends StatelessWidget {
+  const _StatChipsCard({required this.franchise, required this.membership});
+
+  final Franchise franchise;
+  final RosterMembership membership;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final player = membership.player;
+
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PortraitImage(
+            saveId: franchise.id,
+            ownerId: player.id,
+            appearance: player.appearance,
+            jersey: parseHexColor(franchise.team.colors.primaryHex),
+            size: 64,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${player.primaryPosition.abbreviation} '
+                  '${_jerseyLabel(player)} ${player.name}',
+                  style: theme.textTheme.titleMedium,
                 ),
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: theme.colorScheme.surface,
-                    width: 2,
-                  ),
+                Text(
+                  '${player.archetype.label} · Age ${player.age} · '
+                  '${_experienceLabel(player)}',
+                  style: theme.textTheme.bodySmall,
                 ),
-                child: Text(
-                  '${player.ratings.overall}',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    _StatChip(
+                      label: 'OFF',
+                      value: player.ratings.offenseOverall,
+                      color: Colors.orange.shade700,
+                    ),
+                    _StatChip(
+                      label: 'DEF',
+                      value: player.ratings.defenseOverall,
+                      color: Colors.blue.shade700,
+                    ),
+                    _StatChip(
+                      label: 'PHY',
+                      value: player.ratings.physicalOverall,
+                      color: Colors.green.shade700,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${player.ratings.overall}',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            player.name,
-            style: theme.textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
-          Text(
-            '${player.primaryPosition.abbreviation} · '
-            '${player.archetype.label}',
-            style: theme.textTheme.bodySmall,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _StatColumn(label: 'PHY', value: player.ratings.physicalOverall),
-              _StatColumn(label: 'OFF', value: player.ratings.offenseOverall),
-              _StatColumn(label: 'DEF', value: player.ratings.defenseOverall),
+              Text('OVR', style: theme.textTheme.labelSmall),
             ],
           ),
         ],
@@ -272,134 +363,8 @@ class _TradingCard extends StatelessWidget {
   }
 }
 
-class _StatColumn extends StatelessWidget {
-  const _StatColumn({required this.label, required this.value});
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        Text('$value', style: theme.textTheme.titleMedium),
-        Text(label, style: theme.textTheme.labelSmall),
-      ],
-    );
-  }
-}
-
-/// 3. Overall rating as the dominant visual element -- a big numeral in
-/// its own colored panel on the left, identity in the middle, and the
-/// three category ratings as a compact labeled-bar stack on the right.
-/// Reads left-to-right like a sports-ticket stub: "how good, who, how
-/// they're good."
-class _TicketStatStripCard extends StatelessWidget {
-  const _TicketStatStripCard({
-    required this.franchise,
-    required this.membership,
-  });
-
-  final Franchise franchise;
-  final RosterMembership membership;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final player = membership.player;
-    final accentColor = franchise.team.colors.primary;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 72,
-              color: accentColor,
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '${player.ratings.overall}',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'OVR',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Container(
-                color: theme.colorScheme.surfaceContainerHighest,
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(player.name, style: theme.textTheme.titleSmall),
-                          Text(
-                            '${player.primaryPosition.abbreviation} '
-                            '· Age ${player.age}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          Text(
-                            player.archetype.label,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        children: [
-                          _RatingBar(
-                            label: 'PHY',
-                            value: player.ratings.physicalOverall,
-                            color: accentColor,
-                          ),
-                          _RatingBar(
-                            label: 'OFF',
-                            value: player.ratings.offenseOverall,
-                            color: accentColor,
-                          ),
-                          _RatingBar(
-                            label: 'DEF',
-                            value: player.ratings.defenseOverall,
-                            color: accentColor,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RatingBar extends StatelessWidget {
-  const _RatingBar({
+class _StatChip extends StatelessWidget {
+  const _StatChip({
     required this.label,
     required this.value,
     required this.color,
@@ -412,49 +377,34 @@ class _RatingBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 28,
-            child: Text(label, style: theme.textTheme.labelSmall),
-          ),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: value / 99,
-                minHeight: 8,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation(color),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          SizedBox(
-            width: 20,
-            child: Text(
-              '$value',
-              style: theme.textTheme.labelSmall,
-              textAlign: TextAlign.right,
-            ),
-          ),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$label $value',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 }
 
-/// 4. A near-square scoreboard tile: position badge and jersey number
-/// pinned to opposite top corners, portrait centered, name below, and a
-/// bottom row of the three category ratings as plain numbers -- the
-/// "trading card sticker" shape, denser and more grid-like than card #2.
-class _ScoreboardTileCard extends StatelessWidget {
-  const _ScoreboardTileCard({
-    required this.franchise,
-    required this.membership,
-  });
+/// 4. The identity block splits into two deliberate lines -- a bold
+/// header ("PG #7 Kayla Silva") and a plain subtitle (archetype, age,
+/// experience) -- and OVR drops its "OVR" caption entirely, just a big
+/// number, on the theory that position in the layout already says what
+/// it is. The most OVR-dominant of the 5 -- no badge chrome around it,
+/// just size.
+class _TwoLineHeaderCard extends StatelessWidget {
+  const _TwoLineHeaderCard({required this.franchise, required this.membership});
 
   final Franchise franchise;
   final RosterMembership membership;
@@ -464,84 +414,124 @@ class _ScoreboardTileCard extends StatelessWidget {
     final theme = Theme.of(context);
     final player = membership.player;
 
-    return Center(
-      child: SizedBox(
-        width: 220,
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          PortraitImage(
+            saveId: franchise.id,
+            ownerId: player.id,
+            appearance: player.appearance,
+            jersey: parseHexColor(franchise.team.colors.primaryHex),
+            size: 68,
           ),
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xs,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      player.primaryPosition.abbreviation,
-                      style: theme.textTheme.labelMedium,
-                    ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${player.primaryPosition.abbreviation} '
+                  '${_jerseyLabel(player)} ${player.name}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  if (player.jerseyNumber != null)
-                    Text(
-                      '#${player.jerseyNumber}',
-                      style: theme.textTheme.labelMedium,
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              PortraitImage(
-                saveId: franchise.id,
-                ownerId: player.id,
-                appearance: player.appearance,
-                jersey: parseHexColor(franchise.team.colors.primaryHex),
-                size: 72,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                player.name,
-                style: theme.textTheme.bodyLarge,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                '${player.ratings.overall} OVR',
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const Divider(height: 1),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _StatColumn(
-                    label: 'PHY',
-                    value: player.ratings.physicalOverall,
-                  ),
-                  _StatColumn(
-                    label: 'OFF',
-                    value: player.ratings.offenseOverall,
-                  ),
-                  _StatColumn(
-                    label: 'DEF',
-                    value: player.ratings.defenseOverall,
+                ),
+                Text(
+                  '${player.archetype.label} · Age ${player.age} · '
+                  '${_experienceLabel(player)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (player.traits.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final trait in player.traits)
+                        TraitChip(trait: trait),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: AppSpacing.md),
+          Text(
+            '${player.ratings.overall}',
+            style: theme.textTheme.headlineLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: franchise.team.colors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 5. Deliberately the lightest of the 5 -- no OFF/DEF/PHY breakdown at
+/// all, just identity and traits next to a big photo and a big OVR. A
+/// clean contrast against the denser options above, for a GM who wants
+/// the roster row to read fast rather than show everything at once.
+class _MinimalCard extends StatelessWidget {
+  const _MinimalCard({required this.franchise, required this.membership});
+
+  final Franchise franchise;
+  final RosterMembership membership;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final player = membership.player;
+
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          PortraitImage(
+            saveId: franchise.id,
+            ownerId: player.id,
+            appearance: player.appearance,
+            jersey: parseHexColor(franchise.team.colors.primaryHex),
+            size: 56,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${player.primaryPosition.abbreviation} '
+                  '${_jerseyLabel(player)} ${player.name}',
+                  style: theme.textTheme.titleMedium,
+                ),
+                Text(
+                  'Age ${player.age} · ${_experienceLabel(player)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (player.traits.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final trait in player.traits)
+                        TraitChip(trait: trait),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '${player.ratings.overall}',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
