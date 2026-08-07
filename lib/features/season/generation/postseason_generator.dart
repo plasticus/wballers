@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../league/domain/team.dart';
 import '../../match/engine/match_engine.dart';
 import '../../match/engine/substitution_policy.dart';
 import '../../player/domain/player.dart';
@@ -7,6 +8,7 @@ import '../domain/game_day.dart';
 import '../domain/game_result.dart';
 import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
+import '../domain/season_progress.dart';
 import '../domain/series_result.dart';
 import '../domain/standings_entry.dart';
 import 'season_schedule_generator.dart';
@@ -258,4 +260,132 @@ String? seasonChampion(List<PlayedGame> playedGames) {
   }
   if (winsByTeam.isEmpty) return null;
   return winsByTeam.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+}
+
+/// One reconstructed postseason series -- who played, what actually
+/// happened, and who won -- rebuilt from a season's persisted
+/// [PlayedGame] history rather than carried forward from [SeriesResult]
+/// (which is transient, gone the moment [simulatePostseason] returns).
+/// [games] is empty for a series that hasn't been played yet -- a
+/// projected matchup, not a gap.
+class PostseasonSeriesView {
+  const PostseasonSeriesView({
+    required this.round,
+    required this.higherSeedAbbreviation,
+    required this.lowerSeedAbbreviation,
+    required this.games,
+  });
+
+  final int round;
+  final String higherSeedAbbreviation;
+  final String lowerSeedAbbreviation;
+  final List<PlayedGame> games;
+
+  int get higherSeedWins => games
+      .where((g) => g.winningTeamAbbreviation == higherSeedAbbreviation)
+      .length;
+
+  int get lowerSeedWins => games.length - higherSeedWins;
+
+  /// `null` until the series actually has a winner -- games.isEmpty (not
+  /// yet played) is the common case, but this also protects against ever
+  /// reading a tied win count as a false winner.
+  String? get winnerAbbreviation {
+    if (games.isEmpty) return null;
+    if (higherSeedWins == lowerSeedWins) return null;
+    return higherSeedWins > lowerSeedWins
+        ? higherSeedAbbreviation
+        : lowerSeedAbbreviation;
+  }
+}
+
+/// Rebuilds the full 3-round postseason bracket (First Round -> Semifinals
+/// -> Finals) from [progress]'s persisted history, using the exact same
+/// seeding/pairing rules [simulatePostseason] used to generate it in the
+/// first place ([postseasonSeeds], then the fixed 1v8/2v7/3v6/4v5 ->
+/// winners-cross bracket shape) -- so a series that hasn't been played yet
+/// still shows up as a projected matchup, not a gap in the list. A later
+/// round's list is empty until every series feeding into it has a winner
+/// (mirrors [PostseasonSeriesView.games] being empty for an unplayed
+/// series) -- `simulatePostseason` resolves the whole bracket in one
+/// shot, so in practice this is either "nothing played yet" (every round
+/// empty but the first) or "fully decided" (every round populated), not
+/// something that lingers half-done.
+///
+/// `null` if the regular season hasn't produced a full 8-team seed field
+/// yet ([postseasonSeeds]' own precondition) -- callers should gate this
+/// on [SeasonProgress.isComplete] the same way the Dashboard's own
+/// "Simulate Postseason" button does, rather than showing a seed
+/// projection built on a still-developing standings table.
+List<List<PostseasonSeriesView>>? reconstructPostseasonBracket(
+  SeasonProgress progress, {
+  required List<Team> leagueTeams,
+}) {
+  final standings = currentStandings(progress, leagueTeams);
+  if (standings.length < kPostseasonTeamCount) return null;
+  final seeds = postseasonSeeds(standings);
+
+  List<PlayedGame> gamesFor(int round, String a, String b) {
+    return [
+      for (final played in progress.playedGames)
+        if (played.game.type == GameType.postseason &&
+            played.game.postseasonRound == round &&
+            {
+              played.game.homeTeamAbbreviation,
+              played.game.awayTeamAbbreviation,
+            }.containsAll({a, b}))
+          played,
+    ];
+  }
+
+  final round1Pairs = [
+    (seeds[0], seeds[7]),
+    (seeds[1], seeds[6]),
+    (seeds[2], seeds[5]),
+    (seeds[3], seeds[4]),
+  ];
+  final round1 = [
+    for (final (higher, lower) in round1Pairs)
+      PostseasonSeriesView(
+        round: 1,
+        higherSeedAbbreviation: higher,
+        lowerSeedAbbreviation: lower,
+        games: gamesFor(1, higher, lower),
+      ),
+  ];
+
+  final round1Winners = [for (final s in round1) s.winnerAbbreviation];
+  var round2 = <PostseasonSeriesView>[];
+  if (round1Winners.every((w) => w != null)) {
+    final round2Pairs = [
+      (round1Winners[0]!, round1Winners[3]!),
+      (round1Winners[1]!, round1Winners[2]!),
+    ];
+    round2 = [
+      for (final (a, b) in round2Pairs)
+        PostseasonSeriesView(
+          round: 2,
+          higherSeedAbbreviation: _betterSeed(a, b, seeds),
+          lowerSeedAbbreviation: _worseSeed(a, b, seeds),
+          games: gamesFor(2, a, b),
+        ),
+    ];
+  }
+
+  var round3 = <PostseasonSeriesView>[];
+  final round2Winners = [for (final s in round2) s.winnerAbbreviation];
+  if (round2.length == 2 && round2Winners.every((w) => w != null)) {
+    final a = round2Winners[0]!;
+    final b = round2Winners[1]!;
+    round3 = [
+      PostseasonSeriesView(
+        round: 3,
+        higherSeedAbbreviation: _betterSeed(a, b, seeds),
+        lowerSeedAbbreviation: _worseSeed(a, b, seeds),
+        games: gamesFor(3, a, b),
+      ),
+    ];
+  }
+
+  return [round1, round2, round3];
 }

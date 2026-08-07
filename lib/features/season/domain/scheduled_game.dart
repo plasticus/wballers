@@ -51,6 +51,27 @@ class ScheduledGame {
   final int? postseasonRound;
 }
 
+/// "Round 1" / "Round 2" / "Quarterfinals" / "Semifinals" / "Final" -- just
+/// the round name, no "Continental Cup" prefix, for contexts where that's
+/// already implied (e.g. the League screen's Cup tab, grouped under its
+/// own "Continental Cup" heading). [GameTypeLabel.typeLabel] prefixes this
+/// for contexts where it isn't.
+String continentalCupRoundName(int round) => switch (round) {
+  1 => 'Round 1',
+  2 => 'Round 2',
+  3 => 'Quarterfinals',
+  4 => 'Semifinals',
+  _ => 'Final',
+};
+
+/// "First Round" / "Semifinals" / "Finals" -- the postseason equivalent of
+/// [continentalCupRoundName], same reasoning.
+String postseasonRoundName(int round) => switch (round) {
+  1 => 'First Round',
+  2 => 'Semifinals',
+  _ => 'Finals',
+};
+
 extension GameTypeLabel on ScheduledGame {
   /// "Preseason" / "Regular Season" / a named Continental Cup or postseason
   /// round -- promoted out of `schedule_screen.dart`'s private original so
@@ -60,18 +81,10 @@ extension GameTypeLabel on ScheduledGame {
   String get typeLabel => switch (type) {
     GameType.preseason => 'Preseason',
     GameType.regularSeason => 'Regular Season',
-    GameType.continentalCup => switch (continentalCupRound!) {
-      1 => 'Continental Cup Rd. 1',
-      2 => 'Continental Cup Rd. 2',
-      3 => 'Continental Cup Quarterfinals',
-      4 => 'Continental Cup Semifinals',
-      _ => 'Continental Cup Final',
-    },
-    GameType.postseason => switch (postseasonRound!) {
-      1 => 'Postseason First Round',
-      2 => 'Postseason Semifinals',
-      _ => 'Postseason Finals',
-    },
+    GameType.continentalCup =>
+      'Continental Cup ${continentalCupRoundName(continentalCupRound!)}',
+    GameType.postseason =>
+      'Postseason ${postseasonRoundName(postseasonRound!)}',
   };
 
   /// Only [GameType.regularSeason] games count toward `computeStandings`

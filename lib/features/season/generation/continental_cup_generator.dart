@@ -1,8 +1,25 @@
 import 'dart:math';
 
 import '../domain/game_result.dart';
+import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
 import 'season_schedule_generator.dart';
+
+/// The Continental Cup champion, derived from the Final's (Round 5) result
+/// in [playedGames] -- `null` until that single game has actually been
+/// played. Unlike [seasonChampion]'s (`postseason_generator.dart`)
+/// best-of-N Finals, the Cup Final is just one game, so "played" and
+/// "decided" are the same moment -- no partial-series ambiguity to worry
+/// about.
+String? continentalCupChampion(List<PlayedGame> playedGames) {
+  for (final played in playedGames) {
+    if (played.game.type == GameType.continentalCup &&
+        played.game.continentalCupRound == 5) {
+      return played.winningTeamAbbreviation;
+    }
+  }
+  return null;
+}
 
 /// How many of Round 1's 10 winners skip Round 2 entirely on a
 /// margin-of-victory bye. Round 1 (20 teams) produces 10 winners, but the

@@ -140,6 +140,76 @@ void main() {
     );
   });
 
+  test('reconstructPostseasonBracket rebuilds the exact bracket '
+      'simulatePostseason produced', () {
+    final abbreviations = _teamAbbreviations();
+    final progress = _completedRegularSeason(abbreviations);
+    final rosters = <String, List<Player>>{
+      for (final abbr in abbreviations) abbr: testRoster(abbr),
+    };
+    final leagueTeams = _leagueTeams(abbreviations);
+
+    final advance = simulatePostseason(
+      Random(3),
+      progress,
+      leagueTeams: leagueTeams,
+      rostersByAbbreviation: rosters,
+    );
+
+    final bracket = reconstructPostseasonBracket(
+      advance.progress,
+      leagueTeams: leagueTeams,
+    );
+
+    expect(bracket, isNotNull);
+    expect(bracket!.length, 3);
+    expect(bracket[0], hasLength(4)); // First Round: 4 series
+    expect(bracket[1], hasLength(2)); // Semifinals: 2 series
+    expect(bracket[2], hasLength(1)); // Finals: 1 series
+
+    for (final round in bracket) {
+      for (final series in round) {
+        expect(series.winnerAbbreviation, isNotNull);
+      }
+    }
+    expect(
+      bracket[2].single.winnerAbbreviation,
+      seasonChampion(advance.progress.playedGames),
+    );
+
+    // Round 1's pairing is the standard 1v8/2v7/3v6/4v5 bracket shape.
+    final seeds = postseasonSeeds(
+      currentStandings(advance.progress, leagueTeams),
+    );
+    expect(bracket[0][0].higherSeedAbbreviation, seeds[0]);
+    expect(bracket[0][0].lowerSeedAbbreviation, seeds[7]);
+    expect(bracket[0][3].higherSeedAbbreviation, seeds[3]);
+    expect(bracket[0][3].lowerSeedAbbreviation, seeds[4]);
+  });
+
+  test('reconstructPostseasonBracket previews Round 1 pairings before any '
+      'series is played, and leaves later rounds empty', () {
+    final abbreviations = _teamAbbreviations();
+    final progress = _completedRegularSeason(abbreviations);
+    final leagueTeams = _leagueTeams(abbreviations);
+
+    final bracket = reconstructPostseasonBracket(
+      progress,
+      leagueTeams: leagueTeams,
+    );
+
+    expect(bracket, isNotNull);
+    expect(bracket![0], hasLength(4));
+    for (final series in bracket[0]) {
+      expect(series.games, isEmpty);
+      expect(series.winnerAbbreviation, isNull);
+    }
+    // Nothing to seed yet for Semifinals/Finals until Round 1 has
+    // decided winners.
+    expect(bracket[1], isEmpty);
+    expect(bracket[2], isEmpty);
+  });
+
   test('is idempotent -- calling again on an already-played postseason '
       'is a no-op', () {
     final abbreviations = _teamAbbreviations();

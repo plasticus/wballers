@@ -10,6 +10,7 @@ import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league_draw.dart';
@@ -17,6 +18,8 @@ import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/league/league_screen.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
+import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
+import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
@@ -36,6 +39,49 @@ Future<void> _pumpWithRepository(
     ),
   );
   await tester.pump();
+}
+
+Franchise _newFranchise() => createExpansionFranchise(
+  gmName: 'Jordan Ellis',
+  clubName: 'Comets',
+  homeCity: 'Springfield, IL',
+  conference: Conference.atlantic,
+  replacedTeamAbbreviation: 'BOS',
+  colors: kStarterPalettes.first,
+  emoji: '🏀',
+  simulationSeed: 1,
+);
+
+/// Advances until Continental Cup Round 2 has been generated -- proof the
+/// Cup tab's "upcoming round matches" ask actually shows a real Round 2
+/// matchup once one exists, not just Round 1's.
+Franchise _franchiseThroughContinentalCupRound1() {
+  var franchise = _newFranchise();
+  var progress = franchise.seasonProgress;
+  for (var i = 0; i < 15; i++) {
+    if (progress.schedule.games.any((g) => g.continentalCupRound == 2)) {
+      break;
+    }
+    final advance = advanceToNextGameDay(
+      Random(franchise.simulationSeed + kSeasonAdvanceSeedOffset + i),
+      progress,
+      rostersByAbbreviation: rostersByAbbreviation(franchise),
+    );
+    progress = advance.progress;
+  }
+  return franchise.copyWithSeasonProgress(progress);
+}
+
+Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
+  final repository = InMemorySaveRepository();
+  await repository.writeSave(
+    kCurrentFranchiseSaveId,
+    SaveEnvelope(
+      schemaVersion: 1,
+      payload: franchiseToJson(franchise),
+    ).toJson(),
+  );
+  return repository;
 }
 
 void main() {
@@ -134,10 +180,14 @@ void main() {
       }
 
       // The drawn Pacific half is below the fold in the test viewport.
+      // `find.byType(Scrollable)` now matches 2 -- the tab view's own
+      // horizontal `PageView` alongside the Regular Season tab's vertical
+      // `ListView` -- `.last` is the nested, vertical one that actually
+      // needs scrolling.
       await tester.scrollUntilVisible(
         find.text('Pacific Conference'),
         300,
-        scrollable: find.byType(Scrollable),
+        scrollable: find.byType(Scrollable).last,
       );
       final pacificTeams = drawnTeams.where(
         (team) => team.conference == Conference.pacific,
@@ -204,4 +254,85 @@ void main() {
     expect(find.widgetWithText(AppBar, 'Results'), findsOneWidget);
     expect(find.text('No games played yet.'), findsOneWidget);
   });
+
+  testWidgets(
+    'the Cup tab lists Round 1 as upcoming and later rounds as not yet '
+    'determined',
+    (tester) async {
+      // Round 1's 10 games plus the 4 "not yet determined" placeholders
+      // for every later round all need to be on-screen at once -- a plain
+      // `ListView` (like every other list in this codebase) only mounts
+      // elements near the viewport, and the default test surface isn't
+      // tall enough to hold all of that.
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+      await _pumpWithRepository(tester, repository);
+
+      await tester.tap(find.text('Cup'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Round 1'), findsOneWidget);
+      // Round 1 is always generated up front (`generateSeasonSchedule`) --
+      // 10 games, none played yet.
+      expect(find.text('Upcoming'), findsNWidgets(10));
+      // Every later round is a real header with a "not decided yet"
+      // placeholder underneath it, not a gap in the list.
+      expect(find.text('Round 2'), findsOneWidget);
+      expect(find.text('Set once Round 1 finishes.'), findsOneWidget);
+      expect(find.text('Quarterfinals'), findsOneWidget);
+      expect(find.text('Set once Round 2 finishes.'), findsOneWidget);
+      expect(find.text('Semifinals'), findsOneWidget);
+      expect(find.text('Set once Quarterfinals finishes.'), findsOneWidget);
+      expect(find.text('Final'), findsOneWidget);
+      expect(find.text('Set once Semifinals finishes.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the Cup tab shows real Round 2 matchups once Round 1 is played',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _franchiseThroughContinentalCupRound1();
+      final repository = await _seededRepository(franchise);
+      await _pumpWithRepository(tester, repository);
+
+      await tester.tap(find.text('Cup'));
+      await tester.pumpAndSettle();
+
+      // Round 1 is fully played now (that's what generates Round 2), so
+      // every one of its games shows a real score, not "Upcoming" -- and
+      // Round 2's placeholder is gone, replaced by its 2 real (still
+      // unplayed) games.
+      expect(find.text('Set once Round 1 finishes.'), findsNothing);
+      expect(find.text('Upcoming'), findsNWidgets(2));
+      // Round 3 depends on Round 2's results, which haven't happened yet
+      // -- still the "not yet determined" placeholder.
+      expect(find.text('Set once Round 2 finishes.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the Playoffs tab shows a placeholder before the regular season wraps '
+    'up',
+    (tester) async {
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+      await _pumpWithRepository(tester, repository);
+
+      await tester.tap(find.text('Playoffs'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Playoffs begin once the regular season'),
+        findsOneWidget,
+      );
+    },
+  );
 }

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/match/domain/match_result.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/game_result.dart';
+import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/continental_cup_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
@@ -293,4 +294,62 @@ void main() {
       );
     });
   });
+
+  group('continentalCupChampion', () {
+    test('null until the Round 5 Final has actually been played', () {
+      final playedGames = [
+        _playedCupGame(
+          home: 'F1',
+          away: 'F2',
+          homeScore: 80,
+          awayScore: 70,
+          round: 4,
+        ),
+      ];
+
+      expect(continentalCupChampion(playedGames), isNull);
+    });
+
+    test('the Final\'s winner once it\'s been played', () {
+      final playedGames = [
+        _playedCupGame(
+          home: 'F1',
+          away: 'F2',
+          homeScore: 80,
+          awayScore: 70,
+          round: 4,
+        ),
+        _playedCupGame(
+          home: 'F1',
+          away: 'F3',
+          homeScore: 65,
+          awayScore: 90,
+          round: 5,
+        ),
+      ];
+
+      expect(continentalCupChampion(playedGames), 'F3');
+    });
+  });
+}
+
+PlayedGame _playedCupGame({
+  required String home,
+  required String away,
+  required int homeScore,
+  required int awayScore,
+  required int round,
+}) {
+  return PlayedGame(
+    game: ScheduledGame(
+      week: 1,
+      day: GameDay.thursday,
+      homeTeamAbbreviation: home,
+      awayTeamAbbreviation: away,
+      type: GameType.continentalCup,
+      continentalCupRound: round,
+    ),
+    homeScore: homeScore,
+    awayScore: awayScore,
+  );
 }
