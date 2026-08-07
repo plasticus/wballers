@@ -19,24 +19,32 @@ import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
 import '../domain/franchise.dart';
 import '../persistence/franchise_json.dart';
+import 'save_slots.dart';
 
-/// Phase 1 supports exactly one franchise save at a time -- there's no
-/// save-slot picker UI yet, so every read/write goes through this one
-/// fixed slot rather than [Franchise.id]. Multi-save-slot support is
-/// future work once that UI exists.
+/// The original single-save id, kept as-is rather than renamed -- it's
+/// now specifically slot 1 of [kSaveSlotIds] (`save_slots.dart`), not a
+/// standalone concept anymore, but every pre-existing save on a real
+/// device and every test's `_seededRepository` helper already writes
+/// here assuming [CurrentFranchiseNotifier] reads it by default, so
+/// renaming it would be pure churn for no behavior change.
 const kCurrentFranchiseSaveId = 'current-franchise';
 
 const _franchiseSchemaVersion = 1;
 
-/// The GM's current franchise, if one has been created yet. `null` means
-/// no franchise exists (onboarding hasn't run). Loads from disk on first
-/// read; [createFranchise] and every other write method here persist and
+/// The GM's current franchise, if one has been created yet, in whichever
+/// slot [activeSaveSlotProvider] currently points at. `null` means that
+/// slot is empty (either a fresh install, or a slot the GM hasn't
+/// started a franchise in yet). Loads from disk on first read;
+/// [createFranchise] and every other write method here persist and
 /// update this state, so nothing else needs to remember to save.
+/// Switching the active slot (`ActiveSaveSlotNotifier.setActiveSlot`)
+/// automatically reloads this, since [build] watches it.
 class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   @override
   Future<Franchise?> build() async {
     final repository = ref.watch(saveRepositoryProvider);
-    final raw = await repository.readSave(kCurrentFranchiseSaveId);
+    final slotId = await ref.watch(activeSaveSlotProvider.future);
+    final raw = await repository.readSave(slotId);
     if (raw == null) return null;
 
     final envelope = SaveEnvelope.fromJson(raw);
@@ -301,11 +309,12 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
   Future<void> _persist(Franchise franchise) async {
     final repository = ref.read(saveRepositoryProvider);
+    final slotId = await ref.read(activeSaveSlotProvider.future);
     final envelope = SaveEnvelope(
       schemaVersion: _franchiseSchemaVersion,
       payload: franchiseToJson(franchise),
     );
-    await repository.writeSave(kCurrentFranchiseSaveId, envelope.toJson());
+    await repository.writeSave(slotId, envelope.toJson());
     state = AsyncData(franchise);
   }
 }

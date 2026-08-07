@@ -565,6 +565,26 @@ void main() {
       expect(find.textContaining('No mail yet'), findsOneWidget);
     });
 
+    testWidgets('has a Settings button in the AppBar that opens '
+        'SettingsScreen', (tester) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: AppShell()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Settings'), findsWidgets);
+      expect(find.text('Text Size'), findsOneWidget);
+    });
+
     testWidgets(
       'shows a red unread badge on the Mail tab while the roster is short '
       'a player, and it clears once the inbox is opened',

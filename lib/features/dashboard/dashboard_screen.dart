@@ -27,6 +27,7 @@ import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/presentation/game_result_screen.dart';
 import '../season/presentation/match_preview_screen.dart';
 import '../season/presentation/season_recap_screen.dart';
+import '../settings/presentation/settings_screen.dart';
 import '../stats/presentation/stats_screen.dart';
 import '../training/domain/training_report.dart';
 import '../training/presentation/training_report_screen.dart';
@@ -55,6 +56,17 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: WblLogo(size: 32),
         ),
         title: Text(_titles[_selectedIndex]),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
