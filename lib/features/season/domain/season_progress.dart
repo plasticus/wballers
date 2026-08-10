@@ -107,6 +107,23 @@ List<StandingsEntry> currentStandings(
   ], leagueTeams: leagueTeams);
 }
 
+/// Which [GameType]s have at least one game scheduled on [progress]'s
+/// very next game day -- unlike [nextOwnGame], this doesn't care whether
+/// the GM's own team is playing that day at all, since a Continental Cup
+/// round still simulates for the rest of the league even after the GM's
+/// own team is out (2026-08-10, TODO.md item 12: the Dashboard's Season
+/// card needs to know "is this a Cup day" independent of "is it *my* Cup
+/// game"). Empty once the season's fully played out.
+Set<GameType> nextGameDayTypes(SeasonProgress progress) {
+  final gameDays = gameDaysInOrder(progress.schedule);
+  if (progress.nextGameDayIndex >= gameDays.length) return {};
+  final (week, day) = gameDays[progress.nextGameDayIndex];
+  return {
+    for (final game in progress.schedule.games)
+      if (game.week == week && game.day == day) game.type,
+  };
+}
+
 /// [teamAbbreviation]'s game on [progress]'s very next game day, if they
 /// have one -- `null` on a bye day (the next game day has games scheduled,
 /// just none involving this team). `null` too once the season's fully

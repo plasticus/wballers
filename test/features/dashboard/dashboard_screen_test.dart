@@ -392,6 +392,176 @@ void main() {
     },
   );
 
+  testWidgets(
+    'shows a Continental Cup Week note on the Season card when the next '
+    'game day is a Cup round, even with no game of the GM\'s own that day '
+    '(2026-08-10, TODO.md item 12)',
+    (tester) async {
+      final league = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      );
+      final ai1 = league.aiTeams[0].team.abbreviation;
+      final ai2 = league.aiTeams[1].team.abbreviation;
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [
+              ScheduledGame(
+                week: 4,
+                day: GameDay.thursday,
+                homeTeamAbbreviation: ai1,
+                awayTeamAbbreviation: ai2,
+                type: GameType.continentalCup,
+                continentalCupRound: 1,
+              ),
+            ],
+          ),
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continental Cup Week'), findsOneWidget);
+      // Not eliminated -- no follow-up note.
+      expect(find.textContaining('eliminated'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'adds an elimination follow-up note once the GM\'s own team is already '
+    'out of the Cup (2026-08-10, TODO.md item 12)',
+    (tester) async {
+      final league = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      );
+      final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+      final eliminator = league.aiTeams[0].team.abbreviation;
+      final ai1 = league.aiTeams[1].team.abbreviation;
+      final ai2 = league.aiTeams[2].team.abbreviation;
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [
+              ScheduledGame(
+                week: 6,
+                day: GameDay.thursday,
+                homeTeamAbbreviation: ai1,
+                awayTeamAbbreviation: ai2,
+                type: GameType.continentalCup,
+                continentalCupRound: 2,
+              ),
+            ],
+          ),
+          playedGames: [
+            // The GM's own team lost Round 1 -- already out.
+            PlayedGame(
+              game: ScheduledGame(
+                week: 4,
+                day: GameDay.thursday,
+                homeTeamAbbreviation: eliminator,
+                awayTeamAbbreviation: ownAbbreviation,
+                type: GameType.continentalCup,
+                continentalCupRound: 1,
+              ),
+              homeScore: 80,
+              awayScore: 70,
+            ),
+          ],
+          nextGameDayIndex: 0,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continental Cup Week'), findsOneWidget);
+      expect(find.textContaining('eliminated in the Round 1'), findsOneWidget);
+    },
+  );
+
+  testWidgets('advancing through a Continental Cup-only game day names the Cup '
+      'specifically in the snackbar (2026-08-10, TODO.md item 12)', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final league = testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    );
+    final ai1 = league.aiTeams[0].team.abbreviation;
+    final ai2 = league.aiTeams[1].team.abbreviation;
+    final franchise = _franchiseWith(
+      seasonProgress: SeasonProgress(
+        schedule: SeasonSchedule(
+          games: [
+            // Round 5 (the Final) specifically -- any earlier round
+            // makes `advanceToNextGameDay` try to auto-generate the
+            // *next* round from "today's results", which asserts on
+            // a real full field (e.g. Round 1 needs all 10 games'
+            // worth of results); Round 5 is the championship, nothing
+            // auto-generates after it, so a single hand-built game is
+            // safe to advance through.
+            ScheduledGame(
+              week: 12,
+              day: GameDay.thursday,
+              homeTeamAbbreviation: ai1,
+              awayTeamAbbreviation: ai2,
+              type: GameType.continentalCup,
+              continentalCupRound: 5,
+            ),
+          ],
+        ),
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      ),
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        // `DashboardScreen` itself has no `Scaffold` (it's always
+        // hosted inside `AppShell`'s in the real app) -- every other
+        // test in this file only ever reaches `MatchPreviewScreen`'s
+        // own route, never this screen's own `showSnackBar` call, so
+        // this is the first test that actually needs one here.
+        child: const MaterialApp(home: Scaffold(body: DashboardScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Advance to Next Game Day'));
+    await tester.pumpAndSettle();
+
+    // The GM's own team has no game this day (both scheduled teams are
+    // AI), so this always lands on the snackbar branch, never a
+    // MatchPreviewScreen/GameResultScreen detour.
+    expect(
+      find.text('Simulating 1 Continental Cup game across the league.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('offers "Simulate Postseason" once there are no game days left', (
     tester,
   ) async {

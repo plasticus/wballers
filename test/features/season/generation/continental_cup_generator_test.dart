@@ -331,6 +331,99 @@ void main() {
       expect(continentalCupChampion(playedGames), 'F3');
     });
   });
+
+  group('continentalCupEliminationRound (TODO.md item 12)', () {
+    test('null for a team that has not played a Cup game at all yet', () {
+      final playedGames = [
+        _playedCupGame(
+          home: 'F1',
+          away: 'F2',
+          homeScore: 80,
+          awayScore: 70,
+          round: 1,
+        ),
+      ];
+
+      expect(continentalCupEliminationRound(playedGames, 'NOPE'), isNull);
+    });
+
+    test('null for a team that won its most recent Cup game -- still '
+        'alive', () {
+      final playedGames = [
+        _playedCupGame(
+          home: 'F1',
+          away: 'F2',
+          homeScore: 80,
+          awayScore: 70,
+          round: 1,
+        ),
+      ];
+
+      expect(continentalCupEliminationRound(playedGames, 'F1'), isNull);
+    });
+
+    test('the round a team lost in, once they have lost', () {
+      final playedGames = [
+        _playedCupGame(
+          home: 'F1',
+          away: 'F2',
+          homeScore: 80,
+          awayScore: 70,
+          round: 1,
+        ),
+      ];
+
+      expect(continentalCupEliminationRound(playedGames, 'F2'), 1);
+    });
+
+    test('follows a team across multiple rounds -- only the most recent '
+        'result decides it', () {
+      final playedGames = [
+        // Round 1: F1 beats F2.
+        _playedCupGame(
+          home: 'F1',
+          away: 'F2',
+          homeScore: 80,
+          awayScore: 70,
+          round: 1,
+        ),
+        // Round 2: F1 loses to F3.
+        _playedCupGame(
+          home: 'F3',
+          away: 'F1',
+          homeScore: 90,
+          awayScore: 85,
+          round: 2,
+        ),
+      ];
+
+      // F1's Round 1 win doesn't matter anymore -- the Round 2 loss is
+      // what actually knocked them out, and that's the round reported.
+      expect(continentalCupEliminationRound(playedGames, 'F1'), 2);
+    });
+
+    test('null for the eventual champion, even after they won earlier '
+        'rounds too', () {
+      final playedGames = [
+        _playedCupGame(
+          home: 'F1',
+          away: 'F2',
+          homeScore: 80,
+          awayScore: 70,
+          round: 4,
+        ),
+        _playedCupGame(
+          home: 'F1',
+          away: 'F3',
+          homeScore: 65,
+          awayScore: 90,
+          round: 5,
+        ),
+      ];
+
+      expect(continentalCupEliminationRound(playedGames, 'F3'), isNull);
+    });
+  });
 }
 
 PlayedGame _playedCupGame({

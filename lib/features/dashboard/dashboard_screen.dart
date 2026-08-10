@@ -25,6 +25,8 @@ import '../season/domain/game_result.dart';
 import '../season/domain/scheduled_game.dart';
 import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
+import '../season/generation/continental_cup_generator.dart'
+    show continentalCupEliminationRound;
 import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/generation/season_schedule_generator.dart'
     show kPreseasonWeek, weekLabel;
@@ -669,6 +671,13 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     );
 
     final champion = seasonChampion(progress.playedGames);
+    final isCupWeek = nextGameDayTypes(
+      progress,
+    ).contains(GameType.continentalCup);
+    final cupEliminationRound = continentalCupEliminationRound(
+      progress.playedGames,
+      franchise.team.abbreviation,
+    );
 
     return AppCard(
       child: Column(
@@ -710,6 +719,35 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                   : const Text('Simulate Postseason'),
             ),
           ] else ...[
+            if (isCupWeek) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.emoji_events_outlined,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Continental Cup Week',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              if (cupEliminationRound != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Your club was eliminated in the '
+                  '${continentalCupRoundName(cupEliminationRound)} -- '
+                  'these games are for the rest of the league.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+            ],
             _UpcomingGamesList(franchise: franchise),
             const SizedBox(height: AppSpacing.md),
             if (_activeRosterCount(franchise) < kActiveRosterSize)
@@ -793,15 +831,30 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${results.length} game${results.length == 1 ? '' : 's'} '
-            'simulated across the league.',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_advanceSummary(results))));
     }
+  }
+
+  /// The snackbar copy for a game day the GM's own team had a bye on.
+  /// Names the Continental Cup specifically when that's what just
+  /// simulated (2026-08-10, TODO.md item 12: a direct GM ask -- a
+  /// generic "N games simulated" reads as confusing once the GM's own
+  /// team is already out of the Cup and nothing on screen says why the
+  /// app is still simulating anything at all) -- falls back to the plain
+  /// count for a regular-season/preseason day, where there's no more
+  /// specific label worth naming.
+  String _advanceSummary(List<GameResult> results) {
+    final cupGames = results
+        .where((result) => result.game.type == GameType.continentalCup)
+        .length;
+    if (cupGames == results.length) {
+      return 'Simulating $cupGames Continental Cup '
+          'game${cupGames == 1 ? '' : 's'} across the league.';
+    }
+    return '${results.length} game${results.length == 1 ? '' : 's'} '
+        'simulated across the league.';
   }
 
   /// Runs the whole postseason bracket in one shot. If the GM's own team

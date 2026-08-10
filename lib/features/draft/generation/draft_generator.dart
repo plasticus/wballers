@@ -39,6 +39,16 @@ const _fringeQualitySpread = 10;
 /// prospect gets drafted, same as real life.
 const kDefaultDraftClassSize = 70;
 
+/// Seed offset for a re-derived, not-yet-real "what pick would I have"
+/// projection off a completed season's final standings
+/// (`SeasonRecapScreen`, 2026-08-10, TODO.md item 13) -- same
+/// re-derive-fresh-every-render posture
+/// `player_market_preview_generator.dart`'s Draft tab preview already
+/// established for the prospect *class*, just applied to the pick
+/// *order* instead. Nothing wired to a real draft-day flow yet either
+/// way -- there is no Season 2 to actually pick in.
+const kDraftOrderSeedOffset = 13;
+
 (int qualityCenter, int qualitySpread) _qualityTierFor(int index, int total) {
   final eliteCount = min(_eliteCount, total);
   final solidCount = min(_solidCount, total - eliteCount);

@@ -21,6 +21,40 @@ String? continentalCupChampion(List<PlayedGame> playedGames) {
   return null;
 }
 
+/// The Continental Cup round [teamAbbreviation] was knocked out in, or
+/// `null` if they're not out -- either still alive (won their most recent
+/// Cup game, or haven't played one at all yet this Cup) or the eventual
+/// champion. `playedGames` isn't filtered to the Cup already, so this
+/// scans for it directly rather than assuming a caller pre-filtered.
+///
+/// Finds this team's *highest-round* Cup appearance -- a team keeps
+/// advancing as long as it keeps winning, so only the most recent result
+/// can tell you whether they're still in it (2026-08-10, TODO.md item
+/// 12: the Dashboard's Cup-week note and `SeasonRecapScreen` both need
+/// this to explain why a game day is still simulating Cup games for the
+/// rest of the league after the GM's own team is out).
+int? continentalCupEliminationRound(
+  List<PlayedGame> playedGames,
+  String teamAbbreviation,
+) {
+  PlayedGame? mostRecent;
+  for (final played in playedGames) {
+    if (played.game.type != GameType.continentalCup) continue;
+    if (played.game.homeTeamAbbreviation != teamAbbreviation &&
+        played.game.awayTeamAbbreviation != teamAbbreviation) {
+      continue;
+    }
+    if (mostRecent == null ||
+        played.game.continentalCupRound! >
+            mostRecent.game.continentalCupRound!) {
+      mostRecent = played;
+    }
+  }
+  if (mostRecent == null) return null;
+  if (mostRecent.winningTeamAbbreviation == teamAbbreviation) return null;
+  return mostRecent.game.continentalCupRound;
+}
+
 /// How many of Round 1's 10 winners skip Round 2 entirely on a
 /// margin-of-victory bye. Round 1 (20 teams) produces 10 winners, but the
 /// Quarterfinals (Round 3) need a clean 8 -- 6 byes + the 2 winners of a

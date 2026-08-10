@@ -29,13 +29,16 @@ ScheduledGame _game(
   String away, {
   int week = 2,
   GameDay day = GameDay.sunday,
+  GameType type = GameType.regularSeason,
+  int? continentalCupRound,
 }) {
   return ScheduledGame(
     week: week,
     day: day,
     homeTeamAbbreviation: home,
     awayTeamAbbreviation: away,
-    type: GameType.regularSeason,
+    type: type,
+    continentalCupRound: continentalCupRound,
   );
 }
 
@@ -275,6 +278,84 @@ void main() {
 
       // AAA does play later this season, just not on the next game day.
       expect(nextOwnGame(progress, 'AAA'), isNull);
+    });
+  });
+
+  group('nextGameDayTypes (TODO.md item 12)', () {
+    test('the game type(s) scheduled on the very next game day', () {
+      final schedule = SeasonSchedule(
+        games: [_game('AAA', 'BBB', week: 2, day: GameDay.sunday)],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+
+      expect(nextGameDayTypes(progress), {GameType.regularSeason});
+    });
+
+    test('reports Continental Cup even when the GM\'s own team has no game '
+        'that day -- the rest of the league is still playing', () {
+      final schedule = SeasonSchedule(
+        games: [
+          _game(
+            'CCC',
+            'DDD',
+            week: 4,
+            day: GameDay.thursday,
+            type: GameType.continentalCup,
+            continentalCupRound: 1,
+          ),
+        ],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+
+      expect(nextGameDayTypes(progress), {GameType.continentalCup});
+    });
+
+    test('can report more than one type on a day where the calendar '
+        'overlaps', () {
+      final schedule = SeasonSchedule(
+        games: [
+          _game('AAA', 'BBB', week: 4, day: GameDay.thursday),
+          _game(
+            'CCC',
+            'DDD',
+            week: 4,
+            day: GameDay.thursday,
+            type: GameType.continentalCup,
+            continentalCupRound: 1,
+          ),
+        ],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: 0,
+      );
+
+      expect(nextGameDayTypes(progress), {
+        GameType.regularSeason,
+        GameType.continentalCup,
+      });
+    });
+
+    test('empty once the season is fully played out', () {
+      final schedule = SeasonSchedule(
+        games: [_game('AAA', 'BBB', week: 2, day: GameDay.sunday)],
+      );
+      final progress = SeasonProgress(
+        schedule: schedule,
+        playedGames: const [],
+        nextGameDayIndex: gameDaysInOrder(schedule).length,
+      );
+
+      expect(nextGameDayTypes(progress), isEmpty);
     });
   });
 }

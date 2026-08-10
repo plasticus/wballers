@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
@@ -18,6 +19,7 @@ import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/season/generation/continental_cup_generator.dart';
 import 'package:womensbballmgr/features/season/generation/postseason_advancer.dart';
 import 'package:womensbballmgr/features/season/generation/postseason_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
@@ -96,6 +98,56 @@ void main() {
       expect(find.textContaining('are the champions.'), findsOneWidget);
     }
   });
+
+  testWidgets(
+    'shows a projected draft position matching a real lottery run, and a '
+    'Continental Cup elimination line exactly when the GM\'s own team was '
+    'actually eliminated (2026-08-10, TODO.md items 12/13)',
+    (tester) async {
+      final franchise = _playFullSeason(1);
+      final playedGames = franchise.seasonProgress.playedGames;
+
+      final leagueTeams = [
+        franchise.team,
+        for (final aiTeam in franchise.league.aiTeams) aiTeam.team,
+      ];
+      final standings = currentStandings(franchise.seasonProgress, leagueTeams);
+      final expectedDraftOrder = generateDraftOrder(
+        Random(franchise.simulationSeed + kDraftOrderSeedOffset),
+        standings,
+      );
+      final expectedPick =
+          expectedDraftOrder.indexOf(franchise.team.abbreviation) + 1;
+      final expectedEliminationRound = continentalCupEliminationRound(
+        playedGames,
+        franchise.team.abbreviation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(
+        find.textContaining('Projected pick: #$expectedPick overall'),
+        findsOneWidget,
+      );
+      if (expectedEliminationRound != null) {
+        expect(
+          find.textContaining(
+            'Eliminated from the Continental Cup in the '
+            '${continentalCupRoundName(expectedEliminationRound)}',
+          ),
+          findsOneWidget,
+        );
+      } else {
+        expect(
+          find.textContaining('Eliminated from the Continental Cup'),
+          findsNothing,
+        );
+      }
+    },
+  );
 
   testWidgets('shows a missed-the-playoffs message when the GM\'s own team '
       'never appears in a postseason game', (tester) async {
@@ -224,6 +276,10 @@ void main() {
       expect(find.textContaining('Riley Okafor'), findsOneWidget);
       // Net across both sources: +2 (week) + (-1 -1) (lump) = 0.
       expect(find.text('+0'), findsOneWidget);
+      // The per-player OVR change line (2026-08-10, TODO.md item 12) --
+      // overallBefore from the first entry (68), overallAfter from the
+      // last (68), net delta 0.
+      expect(find.text('OVR: 68 -> 68 (+0)'), findsOneWidget);
     },
   );
 

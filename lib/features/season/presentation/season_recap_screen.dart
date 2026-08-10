@@ -1,7 +1,10 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../draft/generation/draft_generator.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/position.dart';
 import '../../training/domain/training_report.dart';
@@ -10,7 +13,10 @@ import '../application/franchise_rosters.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
 import '../domain/standings_entry.dart';
-import '../generation/postseason_generator.dart' show seasonChampion;
+import '../generation/continental_cup_generator.dart'
+    show continentalCupEliminationRound;
+import '../generation/postseason_generator.dart'
+    show kPostseasonTeamCount, seasonChampion;
 
 /// A completed season's landing page -- fires once a champion has been
 /// crowned, reachable from the Dashboard's permanent trophy banner. This
@@ -70,6 +76,28 @@ class SeasonRecapScreen extends StatelessWidget {
               .reduce((a, b) => a > b ? a : b)
         : null;
 
+    final cupEliminationRound = continentalCupEliminationRound(
+      playedGames,
+      franchise.team.abbreviation,
+    );
+
+    // A projection, not a real pick -- there's no Season 2 draft-day flow
+    // to actually make it in yet (2026-08-10, TODO.md item 13). Reseeded
+    // fresh every render off the franchise's own seed, same
+    // never-persisted posture `player_market_preview_generator.dart`'s
+    // Draft tab preview already established for the prospect class.
+    // `generateDraftOrder` needs a real lottery field (more teams than
+    // make the playoffs) to work at all -- guards a full league always
+    // satisfies, but a handful of tests build a deliberately thin
+    // standings table that wouldn't.
+    final draftPosition = standings.length > kPostseasonTeamCount
+        ? generateDraftOrder(
+                Random(franchise.simulationSeed + kDraftOrderSeedOffset),
+                standings,
+              ).indexOf(franchise.team.abbreviation) +
+              1
+        : null;
+
     final seasonGrowth =
         aggregateSeasonGrowth(
           weeklyReports: franchise.trainingReports,
@@ -109,6 +137,13 @@ class SeasonRecapScreen extends StatelessWidget {
                               '${_postseasonRoundLabel(deepestRound!)}.'
                         : 'You missed the playoffs this season.',
                   ),
+                  if (cupEliminationRound != null) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Eliminated from the Continental Cup in the '
+                      '${continentalCupRoundName(cupEliminationRound)}.',
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -130,8 +165,37 @@ class SeasonRecapScreen extends StatelessWidget {
                 playerName: _playerLabel(seasonGrowth[i].playerId),
                 result: seasonGrowth[i],
               ),
+              Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.md, top: 2),
+                child: Text(
+                  'OVR: ${seasonGrowth[i].overallBefore} -> '
+                  '${seasonGrowth[i].overallAfter} '
+                  '(${seasonGrowth[i].overallDelta >= 0 ? '+' : ''}'
+                  '${seasonGrowth[i].overallDelta})',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
               if (i != seasonGrowth.length - 1)
                 const SizedBox(height: AppSpacing.sm),
+            ],
+            if (draftPosition != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Next Draft', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Projected pick: #$draftPosition overall '
+                      '(off this season\'s final standings -- not locked '
+                      'in until a real draft-day flow exists).',
+                    ),
+                  ],
+                ),
+              ),
             ],
             const SizedBox(height: AppSpacing.lg),
             AppCard(

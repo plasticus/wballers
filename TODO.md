@@ -51,15 +51,10 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
     31% FG · 33% 3PT · 66% FT
     ```
 
-## Game results / season flow
-
-12. **Dashboard should explain Cup gamedays, especially once eliminated** — right now, hitting "Advance to Next Game Day" during a Continental Cup week just shows a generic "simulating games" snackbar with no context, which reads as confusing once the GM's own team has already been eliminated from the Cup (why is it still simulating anything?). Add a small note on the Season card during Cup weeks ("Continental Cup Week"), plus a follow-up note if the GM's own team has already been eliminated, and make the snackbar copy specific ("Simulating 4 Continental Cup games across the league" instead of a vague generic message).
-13. **Season Recap should say more** — on top of the existing champion/record/Player Development sections: what round the GM's own team was eliminated from the Cup in (if applicable), each player's own OVR change for the season next to their development card, and what draft position the GM's team has earned for the next draft.
-
 ## Awards
 
-14. **End-of-season awards need a real design pass** — no list exists yet of what awards this game actually gives out (MVP, Most Improved, etc.). Wants a full brainstormed catalog (everything from MVP down) written up as an HTML doc, matching this project's established HTML-artifact convention for open design questions, before any of it gets built.
+12. **End-of-season awards need a real design pass** — no list exists yet of what awards this game actually gives out (MVP, Most Improved, etc.). Wants a full brainstormed catalog (everything from MVP down) written up as an HTML doc, matching this project's established HTML-artifact convention for open design questions, before any of it gets built.
 
 ## Roadmap
 
-15. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.
+13. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.
