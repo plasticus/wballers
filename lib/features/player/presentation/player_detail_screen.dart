@@ -164,9 +164,9 @@ class PlayerDetailScreen extends ConsumerWidget {
 /// `PhotoOvrRail` doc comment: cramming a photo and a growing text column
 /// into one row is what caused names to truncate and "feel dehumanizing"
 /// before that redesign). With this many lines to show now (EXP,
-/// handedness, secondary positions, college/country, biography -- none of
-/// which the old compact header had room for), the same mistake at a
-/// *bigger* portrait size would be worse, not better.
+/// handedness, secondary positions, college/country -- none of which the
+/// old compact header had room for), the same mistake at a *bigger*
+/// portrait size would be worse, not better.
 class _HeaderCard extends StatelessWidget {
   const _HeaderCard({required this.franchise, required this.player});
 
@@ -263,15 +263,13 @@ class _HeaderCard extends StatelessWidget {
                 : 'Country: ${player.hometown.split(', ').last}',
             style: theme.textTheme.bodySmall,
           ),
-          if (player.biography.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              player.biography,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
+          // player.biography deliberately not shown here (2026-08-10, a
+          // direct GM ask): every generated player currently gets the
+          // exact same auto-generated line ("Beijing, China-born power
+          // forward"), which reads as filler rather than real biography
+          // text. The field itself is untouched -- still generated, just
+          // not displayed -- in case real per-player biography text
+          // becomes worth showing later.
         ],
       ),
     );

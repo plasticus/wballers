@@ -85,7 +85,20 @@ class GameResultScreen extends StatelessWidget {
               awayOverall: teamOverallForPlayers(awayRoster),
               result: result,
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
+            // Right-aligned, between the box score and the individual
+            // player stats (2026-08-10, a direct GM ask) -- this screen
+            // is always pushed on top of the Dashboard (never popUntil),
+            // so a plain pop lands right back there.
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('Advance'),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
             firstSection,
             const SizedBox(height: AppSpacing.lg),
             secondSection,
@@ -142,11 +155,14 @@ class _ScoreCard extends StatelessWidget {
                     color: theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(999),
                   ),
+                  // Just the plain type label, no "doesn't count toward
+                  // your record" qualifier -- a preseason game already
+                  // got this simplification (2026-08-07, "people know
+                  // what that means"); a direct GM ask (2026-08-10)
+                  // extended it to Cup/postseason games too: "if it's
+                  // declared a Cup game, they'll figure it out."
                   child: Text(
-                    game.type == GameType.preseason
-                        ? game.typeLabel
-                        : '${game.typeLabel} -- doesn\'t count toward your '
-                              'record',
+                    game.typeLabel,
                     style: theme.textTheme.labelSmall,
                   ),
                 ),

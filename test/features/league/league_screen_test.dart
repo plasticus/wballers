@@ -18,6 +18,7 @@ import 'package:womensbballmgr/features/league/domain/league_draw.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/league/league_screen.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
@@ -299,8 +300,20 @@ void main() {
 
       expect(find.text('Round 1'), findsOneWidget);
       // Round 1 is always generated up front (`generateSeasonSchedule`) --
-      // 10 games, none played yet.
-      expect(find.text('Upcoming'), findsNWidgets(10));
+      // 10 games, none played yet, each showing its real scheduled date
+      // (2026-08-10, a direct GM ask -- "instead of 'Upcoming', put the
+      // actual date of the game") rather than a generic "Upcoming" label.
+      expect(find.text('Upcoming'), findsNothing);
+      final round1Games = franchise.seasonProgress.schedule.games.where(
+        (g) => g.continentalCupRound == 1,
+      );
+      expect(round1Games, hasLength(10));
+      for (final game in round1Games) {
+        expect(
+          find.text(formatFictionalDate(game.week, game.day)),
+          findsWidgets,
+        );
+      }
       // Every later round is a real header with a "not decided yet"
       // placeholder underneath it, not a gap in the list.
       expect(find.text('Round 2'), findsOneWidget);
@@ -329,11 +342,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // Round 1 is fully played now (that's what generates Round 2), so
-      // every one of its games shows a real score, not "Upcoming" -- and
+      // every one of its games shows a real score, not a date -- and
       // Round 2's placeholder is gone, replaced by its 2 real (still
-      // unplayed) games.
+      // unplayed, so date-labeled) games.
       expect(find.text('Set once Round 1 finishes.'), findsNothing);
-      expect(find.text('Upcoming'), findsNWidgets(2));
+      expect(find.text('Upcoming'), findsNothing);
+      final round2Games = franchise.seasonProgress.schedule.games.where(
+        (g) => g.continentalCupRound == 2,
+      );
+      expect(round2Games, hasLength(2));
+      for (final game in round2Games) {
+        expect(
+          find.text(formatFictionalDate(game.week, game.day)),
+          findsWidgets,
+        );
+      }
       // Round 3 depends on Round 2's results, which haven't happened yet
       // -- still the "not yet determined" placeholder.
       expect(find.text('Set once Round 2 finishes.'), findsOneWidget);

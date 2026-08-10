@@ -426,7 +426,10 @@ class _CupGameRow extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.sm),
         if (played == null)
-          Text('Upcoming', style: theme.textTheme.bodySmall)
+          Text(
+            formatFictionalDate(game.week, game.day),
+            style: theme.textTheme.bodySmall,
+          )
         else
           Text(
             '${played.awayScore}-${played.homeScore}',

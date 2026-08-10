@@ -36,7 +36,10 @@ Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
 }
 
 void main() {
-  testWidgets('shows an empty state once the inbox is genuinely empty', (
+  testWidgets('shows the roster-complete follow-up once the roster is full and '
+      'there are no training reports yet -- the inbox is never truly '
+      'empty for a real franchise anymore (2026-08-10, a direct GM ask: '
+      'a follow-up message after the roster-gap one gets resolved)', (
     tester,
   ) async {
     final franchise = withFullActiveRoster(_franchise());
@@ -50,7 +53,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('No mail yet'), findsOneWidget);
+    expect(find.text('Roster Set'), findsOneWidget);
+    expect(find.textContaining('No mail yet'), findsNothing);
   });
 
   testWidgets('prompts to create a franchise when none exists', (tester) async {

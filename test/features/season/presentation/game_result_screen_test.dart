@@ -212,4 +212,137 @@ void main() {
       );
     },
   );
+
+  testWidgets('a Continental Cup game is flagged plainly too, no explanation '
+      '(2026-08-10, a direct GM ask: "if it\'s declared a Cup game, '
+      'they\'ll figure it out")', (tester) async {
+    tester.view.physicalSize = const Size(800, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final opponent = franchise.league.aiTeams.first.team;
+    final rosters = rostersByAbbreviation(franchise);
+    final match = simulateMatch(
+      Random(1),
+      homeRoster: rosters[franchise.team.abbreviation]!,
+      awayRoster: rosters[opponent.abbreviation]!,
+    );
+    final result = GameResult(
+      game: ScheduledGame(
+        week: 4,
+        day: GameDay.sunday,
+        homeTeamAbbreviation: franchise.team.abbreviation,
+        awayTeamAbbreviation: opponent.abbreviation,
+        type: GameType.continentalCup,
+        continentalCupRound: 1,
+      ),
+      match: match,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+        child: MaterialApp(
+          home: GameResultScreen(franchise: franchise, result: result),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Continental Cup Round 1'), findsOneWidget);
+    expect(
+      find.textContaining('doesn\'t count toward your record'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('the Advance button returns to whatever pushed this screen '
+      '(2026-08-10, a direct GM ask)', (tester) async {
+    tester.view.physicalSize = const Size(800, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final opponent = franchise.league.aiTeams.first.team;
+    final rosters = rostersByAbbreviation(franchise);
+    final match = simulateMatch(
+      Random(1),
+      homeRoster: rosters[franchise.team.abbreviation]!,
+      awayRoster: rosters[opponent.abbreviation]!,
+    );
+    final result = GameResult(
+      game: ScheduledGame(
+        week: 2,
+        day: GameDay.sunday,
+        homeTeamAbbreviation: franchise.team.abbreviation,
+        awayTeamAbbreviation: opponent.abbreviation,
+        type: GameType.regularSeason,
+      ),
+      match: match,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => GameResultScreen(
+                        franchise: franchise,
+                        result: result,
+                      ),
+                    ),
+                  ),
+                  child: const Text('Open result'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open result'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Game Result'), findsOneWidget);
+    final advanceButton = find.widgetWithText(FilledButton, 'Advance');
+    expect(advanceButton, findsOneWidget);
+
+    await tester.tap(advanceButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Game Result'), findsNothing);
+    expect(find.text('Open result'), findsOneWidget);
+  });
 }

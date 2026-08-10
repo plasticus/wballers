@@ -33,12 +33,16 @@ void main() {
       );
     });
 
-    test('drops the roster-gap message once the roster is full', () {
+    test('swaps the roster-gap message for the roster-complete follow-up '
+        'once the roster is full (2026-08-10, a direct GM ask)', () {
       final franchise = withFullActiveRoster(_franchise());
 
       final items = mailboxFor(franchise);
 
-      expect(items.whereType<AssistantGmMailItem>(), isEmpty);
+      expect(
+        items.whereType<AssistantGmMailItem>().single.id,
+        kRosterCompleteMailId,
+      );
     });
 
     test('includes one TrainingReportMailItem per report, system message '
@@ -54,8 +58,8 @@ void main() {
       expect(reportItems.map((i) => i.report.week), [3, 2, 1]);
     });
 
-    test('sorts training reports newest-first even with no system message '
-        'present', () {
+    test('sorts training reports newest-first, after the roster-complete '
+        'system message', () {
       final franchise = _withTrainingReports(
         withFullActiveRoster(_franchise()),
         [1, 3, 2],
@@ -63,12 +67,12 @@ void main() {
 
       final items = mailboxFor(franchise);
 
-      expect(items.whereType<AssistantGmMailItem>(), isEmpty);
-      expect(items.map((i) => (i as TrainingReportMailItem).report.week), [
-        3,
-        2,
-        1,
-      ]);
+      expect(
+        items.whereType<AssistantGmMailItem>().single.id,
+        kRosterCompleteMailId,
+      );
+      final reportItems = items.whereType<TrainingReportMailItem>().toList();
+      expect(reportItems.map((i) => i.report.week), [3, 2, 1]);
     });
   });
 
@@ -89,8 +93,12 @@ void main() {
       expect(unreadMailCount(allRead), 0);
     });
 
-    test('is 0 for a franchise with nothing in its inbox at all', () {
-      final franchise = withFullActiveRoster(_franchise());
+    test('is 0 once the one always-present system message has been read '
+        '-- a full roster with no training reports yet still has the '
+        'roster-complete follow-up in it', () {
+      final franchise = withFullActiveRoster(
+        _franchise(),
+      ).copyWithReadMailIds({kRosterCompleteMailId});
       expect(unreadMailCount(franchise), 0);
     });
   });

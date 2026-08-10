@@ -99,49 +99,47 @@ Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
 void main() {
   group('header: everything known about the player (2026-08-10, '
       'Aug9bugs.md #18)', () {
-    testWidgets(
-      'shows EXP, handedness, secondary positions, hometown, biography, '
-      'and a College line for a domestic player',
-      (tester) async {
-        tester.view.physicalSize = const Size(800, 2400);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.reset);
+    testWidgets('shows EXP, handedness, secondary positions, hometown, and a '
+        'College line for a domestic player -- not the redundant '
+        'biography line (2026-08-10, a direct GM ask)', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-        final target = playerWithOverall(
-          65,
-          name: 'Riley Okafor',
-          yearsOfService: 4,
-          handedness: Handedness.left,
-          secondaryPositions: {Position.shootingGuard},
-          hometown: 'Springfield, IL',
-          biography: 'A steady floor general.',
-          college: kColleges.first,
-        );
-        final franchise = _franchiseWith(
-          target: RosterMembership(player: target, status: RosterStatus.active),
-        );
+      final target = playerWithOverall(
+        65,
+        name: 'Riley Okafor',
+        yearsOfService: 4,
+        handedness: Handedness.left,
+        secondaryPositions: {Position.shootingGuard},
+        hometown: 'Springfield, IL',
+        biography: 'A steady floor general.',
+        college: kColleges.first,
+      );
+      final franchise = _franchiseWith(
+        target: RosterMembership(player: target, status: RosterStatus.active),
+      );
 
-        await tester.pumpWidget(
-          ProviderScope(
-            child: MaterialApp(
-              home: PlayerDetailScreen(
-                franchise: franchise,
-                playerId: target.id,
-              ),
-            ),
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
           ),
-        );
-        await tester.pump();
+        ),
+      );
+      await tester.pump();
 
-        expect(find.textContaining('EXP: 4'), findsOneWidget);
-        expect(find.textContaining('Left-handed'), findsOneWidget);
-        expect(find.text('Also plays: Shooting Guard'), findsOneWidget);
-        expect(find.text('Hometown: Springfield, IL'), findsOneWidget);
-        expect(find.text('College: ${kColleges.first.name}'), findsOneWidget);
-        expect(find.textContaining('Country:'), findsNothing);
-        expect(find.text('A steady floor general.'), findsOneWidget);
-      },
-    );
+      expect(find.textContaining('EXP: 4'), findsOneWidget);
+      expect(find.textContaining('Left-handed'), findsOneWidget);
+      expect(find.text('Also plays: Shooting Guard'), findsOneWidget);
+      expect(find.text('Hometown: Springfield, IL'), findsOneWidget);
+      expect(find.text('College: ${kColleges.first.name}'), findsOneWidget);
+      expect(find.textContaining('Country:'), findsNothing);
+      // The biography line is deliberately not shown, even though this
+      // player has real biography text set -- every generated player
+      // gets the exact same auto-generated line, which read as filler.
+      expect(find.text('A steady floor general.'), findsNothing);
+    });
 
     testWidgets(
       'shows a Country line, not a College line, for an international '

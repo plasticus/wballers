@@ -621,9 +621,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // The AppBar title switches to "Mail" (findsWidgets since the
-      // NavigationDestination label reads the same).
+      // NavigationDestination label reads the same). A full roster
+      // (`_franchiseWith`'s default) always has at least the
+      // roster-complete system message now (2026-08-10) -- there's no
+      // "genuinely empty" inbox for a real franchise anymore.
       expect(find.text('Mail'), findsWidgets);
-      expect(find.textContaining('No mail yet'), findsOneWidget);
+      expect(find.text('Roster Set'), findsOneWidget);
     });
 
     testWidgets('has a Settings button in the AppBar that opens '

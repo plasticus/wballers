@@ -13,12 +13,26 @@ import '../domain/mail_item.dart';
 /// used, instead of a string literal drifting between call sites.
 const kRosterGapMailId = 'assistant_gm_roster_gap';
 
+/// Stable id for the "roster's full, here's what to do next" system
+/// message -- the Assistant GM's follow-up once [kRosterGapMailId]'s own
+/// ask gets fulfilled (2026-08-10, a direct GM ask: "after you hire a
+/// free agent, the Assistant GM should then send you another email
+/// saying that you should take a look at the roster, set up training,
+/// and order the roster"). Every fresh expansion roster starts exactly
+/// one player short of [kActiveRosterSize]
+/// (`starting_roster_generator.dart`'s doc comment), so reaching a full
+/// active roster only ever happens by signing a free agent -- no
+/// separate "a signing just happened" event log needed to know this
+/// message is warranted.
+const kRosterCompleteMailId = 'assistant_gm_roster_complete';
+
 /// The GM's current inbox, freshly derived from [franchise] -- see
 /// [MailItem]'s doc comment for why nothing here is persisted directly.
-/// System messages (currently just the roster-gap nudge) sort first,
-/// then every [TrainingReportMailItem] newest week first -- the same
-/// "actionable before passive" priority the Dashboard's own card
-/// ordering already uses.
+/// System messages ([kRosterGapMailId] while short a player, then
+/// [kRosterCompleteMailId] once that's fixed -- always exactly one of
+/// the two, never both) sort first, then every [TrainingReportMailItem]
+/// newest week first -- the same "actionable before passive" priority
+/// the Dashboard's own card ordering already uses.
 List<MailItem> mailboxFor(Franchise franchise) {
   final activeCount = franchise.roster
       .where((m) => m.status == RosterStatus.active)
@@ -30,6 +44,12 @@ List<MailItem> mailboxFor(Franchise franchise) {
         id: kRosterGapMailId,
         subject: 'Last Roster Spot',
         body: assistantGmRosterGapMessage(franchise),
+      )
+    else
+      AssistantGmMailItem(
+        id: kRosterCompleteMailId,
+        subject: 'Roster Set',
+        body: assistantGmRosterCompleteMessage,
       ),
     for (final report in franchise.trainingReports)
       TrainingReportMailItem(report),
@@ -79,3 +99,16 @@ String assistantGmRosterGapMessage(Franchise franchise) {
                 '(${prospect.primaryPosition.abbreviation}) -- that '
                 'ceiling is worth the roster spot.'}';
 }
+
+/// The Assistant GM's follow-up once the roster's actually full
+/// ([kRosterCompleteMailId]) -- a gentle nudge toward the 3 things worth
+/// double-checking before the next game, rather than just going quiet
+/// once the Day-0 signing is done. No franchise-specific detail to fold
+/// in (unlike [assistantGmRosterGapMessage], which names a real
+/// prospect), so this is a plain constant, not a function.
+const assistantGmRosterCompleteMessage =
+    'Boss -- roster\'s full and we\'re ready to go. Before the next game, '
+    'take a look at three things: the Team page (make sure the lineup '
+    'reads the way you want it to), Training (a focus for the group, '
+    'and whether anyone should get one-on-one attention), and Bench '
+    'Order (who\'s actually getting minutes). Let\'s build something.';
