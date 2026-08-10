@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/franchise/presentation/team_roster_screen.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
@@ -23,7 +24,10 @@ import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
-Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
+Franchise _franchiseWith({
+  List<RosterMembership>? extraMembers,
+  List<Player> freeAgents = const [],
+}) {
   final roster = [...generateStartingRoster(1), ...?extraMembers];
   return Franchise(
     id: 'franchise-1',
@@ -49,6 +53,7 @@ Franchise _franchiseWith({List<RosterMembership>? extraMembers}) {
     trainingCoaches: testTrainingCoaches(),
     trainingPlan: TrainingPlan.initial(),
     nextTrainingWeek: 1,
+    freeAgents: freeAgents,
   );
 }
 
@@ -69,7 +74,7 @@ void main() {
         overrides: [
           saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
         ],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();
@@ -90,7 +95,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();
@@ -104,6 +109,62 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'the sort dropdown reorders the Active Roster display -- picking OVR '
+    'puts the roster\'s single highest-OVR player first',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+      final active = franchise.roster
+          .where((m) => m.status == RosterStatus.active)
+          .toList();
+      final topByOverall =
+          ([...active]..sort(
+                (a, b) => b.player.ratings.overall.compareTo(
+                  a.player.ratings.overall,
+                ),
+              ))
+              .first
+              .player;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Sort: Position'), findsOneWidget);
+      await tester.tap(find.text('Sort: Position'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sort: OVR').last);
+      await tester.pumpAndSettle();
+
+      final topY = tester
+          .getTopLeft(find.textContaining(topByOverall.name).first)
+          .dy;
+      for (final membership in active) {
+        if (membership.player.id == topByOverall.id) continue;
+        final y = tester
+            .getTopLeft(find.textContaining(membership.player.name).first)
+            .dy;
+        expect(
+          topY,
+          lessThan(y),
+          reason:
+              '${topByOverall.name} (${topByOverall.ratings.overall} OVR) '
+              'should be listed above ${membership.player.name} '
+              '(${membership.player.ratings.overall} OVR) once sorted by '
+              'OVR',
+        );
+      }
+    },
+  );
 
   testWidgets('marks exactly the top 5 in bench order (roster list order) as '
       'starters -- there\'s no separate starting-lineup concept anymore', (
@@ -121,7 +182,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();
@@ -154,7 +215,8 @@ void main() {
     }
   });
 
-  testWidgets('a developmental player gets its own section', (tester) async {
+  testWidgets('a developmental player shows up in the Development Slots '
+      'section', (tester) async {
     final developmentalPlayer = generateStartingRoster(99).first.player;
     final franchise = _franchiseWith(
       extraMembers: [
@@ -169,20 +231,21 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();
 
-    // The Developmental section is below the fold behind 12 active-roster
-    // rows; the ListView only builds slivers near the viewport.
+    // The Development Slots section is below the fold behind 12
+    // active-roster rows; the ListView only builds slivers near the
+    // viewport.
     await tester.scrollUntilVisible(
-      find.text('Developmental (1)'),
+      find.text('Development Slots (1/2)'),
       300,
       scrollable: find.byType(Scrollable),
     );
 
-    expect(find.text('Developmental (1)'), findsOneWidget);
+    expect(find.text('Development Slots (1/2)'), findsOneWidget);
   });
 
   testWidgets(
@@ -200,13 +263,13 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-          child: const MaterialApp(home: TeamRosterScreen()),
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
         ),
       );
       await tester.pump();
 
       await tester.scrollUntilVisible(
-        find.text('Developmental (1)'),
+        find.text('Development Slots (1/2)'),
         300,
         scrollable: find.byType(Scrollable),
       );
@@ -242,13 +305,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();
 
     await tester.scrollUntilVisible(
-      find.text('Developmental (1)'),
+      find.text('Development Slots (1/2)'),
       300,
       scrollable: find.byType(Scrollable),
     );
@@ -261,21 +324,128 @@ void main() {
     expect(find.text('Sharpshooter'), findsWidgets);
   });
 
-  testWidgets('with no developmental or reserve players, those sections '
-      'are hidden', (tester) async {
-    final franchise = _franchiseWith();
+  testWidgets(
+    'with no developmental or reserve players, the Development/Inactive '
+    'slot sections still show, both empty (2026-08-10: slots are a real, '
+    'always-visible fact about the roster, not hidden when unused)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Development Slots (0/2)'), findsOneWidget);
+      expect(find.text('Inactive Slots (0/2)'), findsOneWidget);
+      expect(find.text('Empty slot'), findsNWidgets(4));
+      expect(find.text('Assign'), findsNWidgets(4));
+    },
+  );
+
+  testWidgets(
+    'tapping Assign on an empty Development slot and picking a roster '
+    'player moves them into it',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+      final target = franchise.roster
+          .firstWhere((m) => isDevelopmentalEligible(m.player))
+          .player;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Assign').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Assign to Developmental'), findsOneWidget);
+      expect(find.text('On Your Roster'), findsOneWidget);
+      // The candidate row's own label, not a bare name search -- the
+      // target is also still shown (behind the modal barrier) in the
+      // Active Roster section underneath, which a looser finder would
+      // match first and then fail to hit-test (it's obscured).
+      final targetLabel =
+          '${target.primaryPosition.abbreviation} ${target.lastName} '
+          '(${target.ratings.overall} OVR, ${target.ratings.potential} POT)';
+      await tester.tap(find.text(targetLabel));
+      await tester.pumpAndSettle();
+
+      // Sheet closed, and the move persisted.
+      expect(find.text('Assign to Developmental'), findsNothing);
+      expect(find.text('Development Slots (1/2)'), findsOneWidget);
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(
+        savedFranchise.roster
+            .firstWhere((m) => m.player.id == target.id)
+            .status,
+        RosterStatus.developmental,
+      );
+    },
+  );
+
+  testWidgets('signing a free agent from the Assign sheet places them directly '
+      'into the slot, not the active roster', (tester) async {
+    tester.view.physicalSize = const Size(800, 6000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final youngFreeAgent = playerWithOverall(
+      60,
+      name: 'Young Prospect',
+      yearsOfService: 1,
+    );
+    final franchise = _franchiseWith(freeAgents: [youngFreeAgent]);
     final repository = await _seededRepository(franchise);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();
 
-    expect(find.textContaining('Developmental'), findsNothing);
-    expect(find.textContaining('Reserve'), findsNothing);
+    await tester.tap(find.text('Assign').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Free Agents'), findsOneWidget);
+    final targetLabel =
+        '${youngFreeAgent.primaryPosition.abbreviation} '
+        '${youngFreeAgent.lastName} (${youngFreeAgent.ratings.overall} '
+        'OVR, ${youngFreeAgent.ratings.potential} POT)';
+    await tester.tap(find.text(targetLabel));
+    await tester.pumpAndSettle();
+
+    final saved = await repository.readSave(kCurrentFranchiseSaveId);
+    final savedFranchise = franchiseFromJson(
+      SaveEnvelope.fromJson(saved!).payload,
+    );
+    final signed = savedFranchise.roster.firstWhere(
+      (m) => m.player.id == youngFreeAgent.id,
+    );
+    expect(signed.status, RosterStatus.developmental);
+    expect(
+      savedFranchise.freeAgents.any((p) => p.id == youngFreeAgent.id),
+      isFalse,
+    );
   });
 
   testWidgets('tapping a player row opens their Player Detail screen', (
@@ -297,7 +467,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();
@@ -317,7 +487,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: TeamRosterScreen()),
+        child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
       ),
     );
     await tester.pump();

@@ -129,6 +129,44 @@ RosterMembership _activeMember(String id) {
   );
 }
 
+/// A deliberately maxed-out player -- 95 across the board -- so an OVR
+/// sort has an unambiguous, seed-independent winner regardless of what
+/// `generateStartingRoster` happened to roll for everyone else.
+RosterMembership _highOverallMember(String id) {
+  return RosterMembership(
+    player: Player(
+      id: id,
+      name: 'Star $id',
+      age: 26,
+      yearsOfService: 4,
+      hometown: 'Anywhere, USA',
+      primaryPosition: Position.center,
+      secondaryPositions: const {},
+      handedness: Handedness.right,
+      biography: '',
+      ratings: const PlayerRatings(
+        speed: 95,
+        agility: 95,
+        strength: 95,
+        stamina: 95,
+        ballControl: 95,
+        passing: 95,
+        interiorOffense: 95,
+        perimeterOffense: 95,
+        perimeterDefense: 95,
+        interiorDefense: 95,
+        disruption: 95,
+        blocking: 95,
+        potential: 95,
+      ),
+      heightInches: 76,
+      archetype: Archetype.shotBlocker,
+      traits: const {},
+    ),
+    status: RosterStatus.active,
+  );
+}
+
 Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
   final repository = InMemorySaveRepository();
   final envelope = SaveEnvelope(
@@ -195,6 +233,50 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    '"Let the Coach Set the Order" ranks by OVR and notes developmental '
+    'minutes are still the GM\'s call',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final star = _highOverallMember('star-1');
+      final franchise = _franchiseWith(extraMembers: [star]);
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: DepthChartScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Let the Coach Set the Order'));
+      await tester.pump();
+
+      expect(
+        find.textContaining('developmental minutes are still your call'),
+        findsOneWidget,
+      );
+
+      final active = franchise.roster
+          .where((m) => m.status == RosterStatus.active)
+          .toList();
+      final starY = tester.getTopLeft(find.text(_rowLabel(star.player))).dy;
+      for (final membership in active) {
+        if (membership.player.id == star.player.id) continue;
+        final y = tester.getTopLeft(find.text(_rowLabel(membership.player))).dy;
+        expect(
+          starY,
+          lessThan(y),
+          reason: 'the 95-OVR star should rank above ${membership.player.name}',
+        );
+      }
+    },
+  );
 
   testWidgets('Save Bench Order persists the roster and returns', (
     tester,

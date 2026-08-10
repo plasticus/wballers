@@ -71,37 +71,42 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   }
 
   /// Signs the free agent with [playerId] off `Franchise.freeAgents` and
-  /// onto the active roster -- the only way a free agent ever becomes a
-  /// real roster player. Assigns a jersey number that doesn't collide
-  /// with anyone already on the roster (`assignJerseyNumberAvoiding`)
-  /// without touching any other player's number.
+  /// onto the roster at [status] (active by default) -- the only way a
+  /// free agent ever becomes a real roster player. Assigns a jersey
+  /// number that doesn't collide with anyone already on the roster
+  /// (`assignJerseyNumberAvoiding`) without touching any other player's
+  /// number.
   ///
-  /// A no-op if there's no current franchise, the active roster is
-  /// already at [kActiveRosterSize], or [playerId] isn't actually in
-  /// [Franchise.freeAgents] -- defensive guards, not paths the real UI
-  /// should ever hit (the Player Market screen's Free Agents tab only
-  /// shows a "Sign" button when there's an open roster spot and the
-  /// player is genuinely still in the pool).
-  Future<void> signFreeAgent(String playerId) async {
+  /// A no-op if there's no current franchise, [playerId] isn't actually
+  /// in [Franchise.freeAgents], or [status]'s own slot is already full
+  /// ([kActiveRosterSize] for active, [kMaxDevelopmentalRosterSpots] for
+  /// developmental -- plus [isDevelopmentalEligible], since a free agent
+  /// with too many years of service can't go there at all --
+  /// [kMaxInactiveRosterSpots] for reserve/inactive) -- defensive guards,
+  /// not paths the real UI should ever hit (the Player Market screen's
+  /// Free Agents tab and the Team screen's Development/Inactive slot
+  /// pickers only ever offer a slot/player combination that's actually
+  /// legal).
+  Future<void> signFreeAgent(
+    String playerId, {
+    RosterStatus status = RosterStatus.active,
+  }) async {
     final franchise = await future;
     if (franchise == null) return;
 
-    final activeCount = franchise.roster
-        .where((m) => m.status == RosterStatus.active)
-        .length;
-    if (activeCount >= kActiveRosterSize) return;
-
     final index = franchise.freeAgents.indexWhere((p) => p.id == playerId);
     if (index == -1) return;
+    final candidate = franchise.freeAgents[index];
+    if (!_hasOpenSlot(franchise, status, candidate: candidate)) return;
 
     final signed = assignJerseyNumberAvoiding(
       Random(),
-      franchise.freeAgents[index],
+      candidate,
       franchise.roster,
     );
     final newRoster = [
       ...franchise.roster,
-      RosterMembership(player: signed, status: RosterStatus.active),
+      RosterMembership(player: signed, status: status),
     ];
     final newFreeAgents = [...franchise.freeAgents]..removeAt(index);
 
@@ -111,6 +116,64 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
         newFreeAgents: newFreeAgents,
       ),
     );
+  }
+
+  /// Moves the roster player with [playerId] to [newStatus] -- the Team
+  /// screen's Development/Inactive slot cards' "move in"/"move out"
+  /// actions (2026-08-10, a direct GM ask: "I'd need a way to move
+  /// players in/out of those slots"). A no-op if there's no current
+  /// franchise, [playerId] isn't on [Franchise.roster], or [newStatus]'s
+  /// own slot is already full -- see [signFreeAgent]'s doc comment for
+  /// the exact caps; same guard, same reasoning, just for a player who's
+  /// already on the roster rather than one being signed onto it.
+  Future<void> moveRosterStatus(String playerId, RosterStatus newStatus) async {
+    final franchise = await future;
+    if (franchise == null) return;
+
+    final index = franchise.roster.indexWhere((m) => m.player.id == playerId);
+    if (index == -1) return;
+    final membership = franchise.roster[index];
+    if (membership.status == newStatus) return;
+    if (!_hasOpenSlot(
+      franchise,
+      newStatus,
+      candidate: membership.player,
+      excludingPlayerId: playerId,
+    )) {
+      return;
+    }
+
+    final newRoster = [...franchise.roster];
+    newRoster[index] = RosterMembership(
+      player: membership.player,
+      status: newStatus,
+    );
+    await _persist(franchise.copyWithRoster(newRoster));
+  }
+
+  /// Whether [franchise] has room for one more player at [status] --
+  /// [candidate] matters only for the developmental eligibility check
+  /// ([isDevelopmentalEligible]). [excludingPlayerId], when given,
+  /// leaves that player out of the current count -- for
+  /// [moveRosterStatus] checking a slot the mover might already occupy
+  /// under a different status, which should never count against
+  /// themselves.
+  bool _hasOpenSlot(
+    Franchise franchise,
+    RosterStatus status, {
+    required Player candidate,
+    String? excludingPlayerId,
+  }) {
+    final count = franchise.roster
+        .where((m) => m.status == status && m.player.id != excludingPlayerId)
+        .length;
+    return switch (status) {
+      RosterStatus.active => count < kActiveRosterSize,
+      RosterStatus.developmental =>
+        count < kMaxDevelopmentalRosterSpots &&
+            isDevelopmentalEligible(candidate),
+      RosterStatus.reserveInactive => count < kMaxInactiveRosterSpots,
+    };
   }
 
   /// Releases the roster player with [playerId] and moves them onto

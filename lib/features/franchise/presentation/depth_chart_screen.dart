@@ -48,6 +48,26 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
     });
   }
 
+  /// "Let the Coach set the order" (2026-08-10, a direct GM ask) --
+  /// ranks by overall, best first, the simplest real stand-in for "win
+  /// now." Doesn't save on its own -- same as a manual drag, the GM
+  /// still has to tap Save (or can keep adjusting first).
+  void _autoFillByOverall() {
+    setState(() {
+      _active.sort(
+        (a, b) => b.player.ratings.overall.compareTo(a.player.ratings.overall),
+      );
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Coach set a win-now order by OVR -- developmental minutes are '
+          'still your call.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     setState(() => _isSaving = true);
     final reorderedIds = _active.map((m) => m.player.id).toList();
@@ -81,6 +101,12 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
               const Text(
                 'Drag to set your minutes-ranked order -- the top 5 are '
                 'your starters.',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: _autoFillByOverall,
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('Let the Coach Set the Order'),
               ),
               const SizedBox(height: AppSpacing.md),
               Expanded(
