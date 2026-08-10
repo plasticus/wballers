@@ -45,17 +45,26 @@ const _fillerPotentialCapSpread = 6;
 /// The one deliberately-planted "decent" free agent every new pool gets --
 /// a direct GM ask, paired with the Day-0 Assistant GM mail
 /// (`dashboard/dashboard_screen.dart`) that nudges toward exactly this
-/// kind of pickup: "try to find a high-potential player." Current ability
-/// and position are still left to `generatePlayer`'s own defaults
-/// ("everything else about them should be random"), unlike the starting
-/// roster's other hand-placed narrative players (which shape quality
-/// center too) -- but age, experience, and hometown are now also pinned
-/// (2026-08-09, a direct GM follow-up ask: "the age should be 23, an
-/// international rookie... give them a little runway to grow"), so this
-/// player is no longer *just* high-potential -- she's specifically young
-/// enough that a high potential actually has time to pay off.
+/// kind of pickup: "try to find a high-potential player." Position is
+/// still left to `generatePlayer`'s own default (fully random), but
+/// current ability is not -- it used to be ("everything else about them
+/// should be random"), left at `generatePlayer`'s flat default center
+/// (50), until a real problem surfaced (`Aug9bugs.md` #11): a player
+/// generated around 50 OVR is *below* every other player on a fresh
+/// 11-player starting roster, so signing "the good free agent" the
+/// Assistant GM specifically pointed to actively *lowered* the team's
+/// overall rating -- the opposite of the "found a gem" signing it was
+/// supposed to read as. [_decentFreeAgentQualityCenter] (62, empirically
+/// tuned alongside `starting_roster_generator.dart`'s own matching bump)
+/// makes this a real, competitive-if-unspectacular current contributor,
+/// with [kDecentFreeAgentPotential] doing all the work of making her feel
+/// like a find. Age, experience, and hometown are also pinned (2026-08-09,
+/// a direct GM follow-up ask: "the age should be 23, an international
+/// rookie... give them a little runway to grow").
 const kDecentFreeAgentPotential = 80;
 const _decentFreeAgentPotentialSpread = 3;
+const _decentFreeAgentQualityCenter = 62;
+const _decentFreeAgentQualitySpread = 10;
 
 /// The planted decent free agent's pinned age -- see
 /// [kDecentFreeAgentPotential]'s doc comment. 23 reads as "just arrived,"
@@ -113,6 +122,8 @@ Player _generateDecentFreeAgent(
   final player = generatePlayer(
     random,
     primaryPosition: position,
+    qualityCenter: _decentFreeAgentQualityCenter,
+    qualitySpread: _decentFreeAgentQualitySpread,
     minAge: kDecentFreeAgentAge,
     maxAge: kDecentFreeAgentAge,
     yearsOfService: _kDecentFreeAgentYearsOfService,

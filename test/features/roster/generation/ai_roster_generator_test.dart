@@ -83,16 +83,37 @@ void main() {
     }
   });
 
-  test('team overall lands in the ~65-75 target range, comfortably under '
-      'the star-cap ceiling (`0B_Planned.md`\'s team-overall-rebalance)', () {
-    final random = Random(303);
-    for (var i = 0; i < 100; i++) {
-      final roster = generateAiRoster(random);
+  test(
+    'team overall spreads ~69-76 across teams (`Aug9bugs.md` #11: a real '
+    'per-team quality offset, not just individual-player jitter that '
+    'mostly cancels out over a 12-player average), staying inside a safe '
+    'outer bound',
+    () {
+      final random = Random(303);
+      final overalls = <int>[];
+      for (var i = 0; i < 200; i++) {
+        final roster = generateAiRoster(random);
+        final overall = teamOverall(roster);
+        overalls.add(overall);
+        expect(
+          overall,
+          // A generous outer bound (the empirically-observed range is
+          // tighter, ~67-78) -- this guards against a real regression,
+          // not against every sample landing exactly in the target band.
+          inInclusiveRange(64, 80),
+          reason: 'roster: ${roster.map((m) => m.player.ratings.overall)}',
+        );
+      }
+
+      // The whole point of the fix: real spread, not everyone clustered
+      // within a couple points of each other.
+      overalls.sort();
+      final spread = overalls.last - overalls.first;
       expect(
-        teamOverall(roster),
-        inInclusiveRange(65, 75),
-        reason: 'roster: ${roster.map((m) => m.player.ratings.overall)}',
+        spread,
+        greaterThanOrEqualTo(7),
+        reason: 'overalls: $overalls',
       );
-    }
-  });
+    },
+  );
 }

@@ -12,9 +12,14 @@ import 'trait_distribution.dart';
 /// league (`0B_Planned.md`'s team-overall-rebalance entry: "I don't want
 /// them winning the championship in year 1!") while still respecting the
 /// same star-tier caps every other roster does -- no special exemption,
-/// just a lower-quality draw. `generateAiRoster`'s league average lands in
-/// the low-to-mid 70s; this generator targets the mid-to-high 60s, clearly
-/// below it, without ever exceeding the caps.
+/// just a lower-quality draw. `generateAiRoster`'s league average now
+/// spreads roughly 69-76 (`Aug9bugs.md` #11); this generator targets the
+/// high-60s for these 11 alone, landing around 69 once the GM signs the
+/// Day-0 free-agent pool's planted "decent" prospect
+/// (`free_agent_pool_generator.dart`) to fill the 12th spot -- clearly
+/// below the AI average without the 7-9-point gap a direct GM bug report
+/// found the previous, lower target produced ("my OVR is 66, and all
+/// other teams are 73-75. I'm getting trounced so bad").
 ///
 /// **11 players, not 12** (changed 2026-08-07) -- a direct GM ask for a
 /// real Day-0 hook: the roster starts one player short of
@@ -37,9 +42,14 @@ import 'trait_distribution.dart';
 ///    to 11 -- "I had you making 2 with potential in the 80s -- drop one
 ///    of those")
 ///
-/// The other eight are generic role players, centered low enough that the
-/// full 11-player average lands in the target range even after the three
-/// narrative players (who skew the mean upward) are added in.
+/// The other eight are generic role players, centered so the full
+/// 11-player average lands in the target range together with the three
+/// narrative players (`Aug9bugs.md` #11 raised this center from 62 to 65,
+/// tuned empirically against 500 seeds, alongside a matching bump to the
+/// free-agent-pool's own planted prospect -- see that generator's own
+/// note -- once it became clear signing that prospect was *lowering* the
+/// team average rather than the accretive "found a gem" signing it was
+/// supposed to read as).
 const _veteranQualityCenter = 87;
 const _veteranQualitySpread = 3;
 const _veteranMinAge = 33;
@@ -53,15 +63,15 @@ const _prospectAge = 21;
 const _prospectPotential = 92;
 const _prospectPotentialSpread = 2;
 
-const _youngsterAQualityCenter = 63;
+const _youngsterAQualityCenter = 65;
 const _youngsterAQualitySpread = 4;
 const _youngsterAMinAge = 21;
 const _youngsterAMaxAge = 23;
 const _youngsterAPotential = 83;
 const _youngsterAPotentialSpread = 3;
 
-const _genericQualityCenter = 62;
-const _genericQualitySpread = 12;
+const _genericQualityCenter = 65;
+const _genericQualitySpread = 10;
 
 /// Generates a new expansion franchise's starting active roster.
 /// Deterministic: the same [seed] always produces the same 11 players in

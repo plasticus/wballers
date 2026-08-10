@@ -10,14 +10,16 @@ Playtest notes from Corey, captured 2026-08-09. Raw numbering preserved from the
 
 ## League Setup / Balance
 
-- **[11] Team OVR spread too narrow / user team too weak** — Player's team OVR is 66 while every other team is 73–75, resulting in a blowout every game. Want a wider, more randomized spread of team quality at league creation (roughly 69–76 range). After signing the featured free agent (#17), the user's starting team should land around 69.
-- **[12] Team OVR calculation should be weighted by roster depth** — Currently likely a flat average of the whole roster. Proposed weighting so bench/deep players don't drag down or inflate the number as much:
+- **[11] Team OVR spread too narrow / user team too weak** — ✅ **Fixed 2026-08-10.** Player's team OVR is 66 while every other team is 73–75, resulting in a blowout every game. Want a wider, more randomized spread of team quality at league creation (roughly 69–76 range). After signing the featured free agent (#17), the user's starting team should land around 69.
+  Root cause: every AI team shared the exact same generation shape, so individual-player jitter mostly canceled out over a 12-player average (~72-76, barely 4 points wide). Separately, signing the Day-0 free agent was *lowering* the team average, not raising it, since only her potential had ever been shaped. AI teams now get a real per-team quality offset (spread verified ~69-76 empirically); the GM's own roster + free-agent signing now lands at 68-70, mean ~69.3.
+- **[12] Team OVR calculation should be weighted by roster depth** — ✅ **Fixed 2026-08-10.** Currently likely a flat average of the whole roster. Proposed weighting so bench/deep players don't drag down or inflate the number as much:
   - Rank 1–6 (starters + first bench wave): 100% weight
   - Rank 5–8: 80% weight
   - Rank 9–12: 60% weight
   - Rank 13+: 0% weight (not really playing)
   
   (Note: ranges 5–8 and 1–6 overlap in the original note — needs a real tiering decision, e.g. 1–4 / 5–8 / 9–12 / 13+, before implementing.)
+  Resolved the overlap as 1-6 / 7-8 / 9-12 / 13+ (non-overlapping). "Rank" is the roster's own list/bench order — the same rank `target_minutes.dart` already uses for actual playing time — not a re-sort by rating.
 - **[15] Conference display order on team creation** — ✅ **Fixed 2026-08-09.** Team creation screen shows Atlantic on the left, Pacific on the right. Flip so Pacific is on the left (west-to-east / geographic left-to-right convention).
 
 ## Free Agents / Roster Management

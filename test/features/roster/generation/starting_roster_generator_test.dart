@@ -62,12 +62,13 @@ void main() {
 
   test('team overall lands on the low end of the league range, notably '
       'below a typical AI roster (`0B_Planned.md`\'s team-overall-rebalance: '
-      '"I don\'t want them winning the championship in year 1")', () {
+      '"I don\'t want them winning the championship in year 1") -- around '
+      '69, per `Aug9bugs.md` #11\'s retuning', () {
     for (var seed = 0; seed < 100; seed++) {
       final roster = generateStartingRoster(seed);
       expect(
         teamOverall(roster),
-        inInclusiveRange(60, 70),
+        inInclusiveRange(66, 73),
         reason: 'seed $seed',
       );
     }
