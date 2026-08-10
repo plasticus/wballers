@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/player/generation/player_generator_data.dart';
 import 'package:womensbballmgr/features/roster/generation/free_agent_pool_generator.dart';
 
 void main() {
@@ -58,6 +59,31 @@ void main() {
     }
     expect(maxOverall, lessThanOrEqualTo(70));
   });
+
+  test(
+    'the decent prospect is a 23-year-old international rookie -- a '
+    'direct GM ask so a high-potential pickup has real runway to grow',
+    () {
+      for (var seed = 0; seed < 100; seed++) {
+        final pool = generateFreeAgentPool(Random(seed));
+        final decent = pool.reduce(
+          (a, b) => a.ratings.potential > b.ratings.potential ? a : b,
+        );
+
+        expect(decent.age, kDecentFreeAgentAge, reason: 'seed $seed');
+        expect(
+          decent.yearsOfService,
+          0,
+          reason: 'seed $seed: a rookie, not a late-debuting veteran',
+        );
+        expect(
+          kInternationalHometowns,
+          contains(decent.hometown),
+          reason: 'seed $seed: should read as international, not domestic',
+        );
+      }
+    },
+  );
 
   test('different seeds produce meaningfully different pools', () {
     final a = generateFreeAgentPool(Random(10));

@@ -2,7 +2,9 @@ import 'dart:math';
 
 import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
+import '../../player/generation/player_generator_data.dart';
 import '../../player/generation/trait_generator.dart';
+import '../../portrait/domain/portrait_weights.dart';
 
 /// Seed offset for the free-agent pool -- keeps this stream from
 /// correlating with any other (coach=0, roster=1, league draw=2, league
@@ -43,45 +45,90 @@ const _fillerPotentialCapSpread = 6;
 /// The one deliberately-planted "decent" free agent every new pool gets --
 /// a direct GM ask, paired with the Day-0 Assistant GM mail
 /// (`dashboard/dashboard_screen.dart`) that nudges toward exactly this
-/// kind of pickup: "try to find a high-potential player." High potential
-/// is the *only* thing deliberately shaped about them -- current ability,
-/// position, and age are all left to `generatePlayer`'s own defaults
+/// kind of pickup: "try to find a high-potential player." Current ability
+/// and position are still left to `generatePlayer`'s own defaults
 /// ("everything else about them should be random"), unlike the starting
-/// roster's other hand-placed narrative players, which shape quality
-/// center and age too.
+/// roster's other hand-placed narrative players (which shape quality
+/// center too) -- but age, experience, and hometown are now also pinned
+/// (2026-08-09, a direct GM follow-up ask: "the age should be 23, an
+/// international rookie... give them a little runway to grow"), so this
+/// player is no longer *just* high-potential -- she's specifically young
+/// enough that a high potential actually has time to pay off.
 const kDecentFreeAgentPotential = 80;
 const _decentFreeAgentPotentialSpread = 3;
+
+/// The planted decent free agent's pinned age -- see
+/// [kDecentFreeAgentPotential]'s doc comment. 23 reads as "just arrived,"
+/// old enough to already be a real, evaluable prospect (not a total
+/// question mark) but young enough that -- combined with
+/// [_kDecentFreeAgentYearsOfService] pinning her as a rookie -- most of
+/// [kDecentFreeAgentPotential]'s gap-to-potential growth is still ahead of
+/// her rather than behind her.
+const kDecentFreeAgentAge = 23;
+
+/// Pinned to 0 (`generatePlayer`'s own "freshly drafted prospect" value,
+/// same one `draft_generator.dart` uses) rather than left to the normal
+/// debut-age roll, which could otherwise put a handful of "years of
+/// service" behind a player who's supposed to read as a rookie taking her
+/// very first pro contract.
+const _kDecentFreeAgentYearsOfService = 0;
 
 /// Generates a new franchise's starting free-agent pool: [count] players,
 /// one of them the deliberately-planted "decent" prospect (landing at a
 /// random position within the pool, not always slot 0), the rest random
 /// filler. Deterministic for a given [random] stream.
+///
+/// [portraitWeights] is optional and threads straight through to
+/// [generatePlayer] -- omitted (e.g. in tests), every free agent's
+/// [Player.appearance] stays `null`, same fallback [generatePlayer] itself
+/// already documents. This was missing entirely until a GM playtest bug
+/// report (2026-08-09, `Aug9bugs.md` #2: "free agents should have a
+/// face") -- every other generated roster (`generateStartingRoster`,
+/// `generateLeague`, `generateCoach`) already threaded it through from
+/// `expansion_franchise_factory.dart`; free agents were the one pool that
+/// didn't, so every free agent generated before this fix has `null`
+/// appearance and renders as the portrait system's generic placeholder
+/// instead of a real face.
 List<Player> generateFreeAgentPool(
   Random random, {
   int count = kFreeAgentPoolSize,
+  PortraitWeights? portraitWeights,
 }) {
   final decentIndex = random.nextInt(count);
   return [
     for (var i = 0; i < count; i++)
       i == decentIndex
-          ? _generateDecentFreeAgent(random)
-          : _generateFillerFreeAgent(random),
+          ? _generateDecentFreeAgent(random, portraitWeights)
+          : _generateFillerFreeAgent(random, portraitWeights),
   ];
 }
 
-Player _generateDecentFreeAgent(Random random) {
+Player _generateDecentFreeAgent(
+  Random random,
+  PortraitWeights? portraitWeights,
+) {
   final position = Position.values[random.nextInt(Position.values.length)];
+  final hometown =
+      kInternationalHometowns[random.nextInt(kInternationalHometowns.length)];
   final player = generatePlayer(
     random,
     primaryPosition: position,
+    minAge: kDecentFreeAgentAge,
+    maxAge: kDecentFreeAgentAge,
+    yearsOfService: _kDecentFreeAgentYearsOfService,
+    hometownOverride: hometown,
     potentialOverride: kDecentFreeAgentPotential,
     potentialOverrideSpread: _decentFreeAgentPotentialSpread,
+    portraitWeights: portraitWeights,
   );
   final traits = generateTraits(random);
   return traits.isEmpty ? player : player.copyWithTraits(traits);
 }
 
-Player _generateFillerFreeAgent(Random random) {
+Player _generateFillerFreeAgent(
+  Random random,
+  PortraitWeights? portraitWeights,
+) {
   final position = Position.values[random.nextInt(Position.values.length)];
   final player = generatePlayer(
     random,
@@ -90,6 +137,7 @@ Player _generateFillerFreeAgent(Random random) {
     qualitySpread: _fillerQualitySpread,
     potentialOverride: _fillerPotentialCap,
     potentialOverrideSpread: _fillerPotentialCapSpread,
+    portraitWeights: portraitWeights,
   );
   final traits = generateTraits(random);
   return traits.isEmpty ? player : player.copyWithTraits(traits);

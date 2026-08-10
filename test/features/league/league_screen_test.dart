@@ -160,7 +160,10 @@ void main() {
       await _pumpWithRepository(tester, repository);
 
       expect(find.text(clubTeam.name), findsOneWidget);
-      expect(find.text('Your Team'), findsOneWidget);
+      // Row highlight instead of a "Your Team" text badge (2026-08-09) --
+      // `team_row_test.dart` covers the highlight/announcement itself in
+      // isolation; here it's enough to confirm the badge text is gone.
+      expect(find.text('Your Team'), findsNothing);
       expect(find.text(replaced.name), findsNothing);
       final activePlayers = [
         for (final m in roster)

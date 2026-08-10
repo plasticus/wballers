@@ -81,6 +81,24 @@ void main() {
         findsNWidgets(franchise.freeAgents.length),
       );
       expect(find.text('Sign'), findsNWidgets(franchise.freeAgents.length));
+
+      // Every free agent's card shows a POT chip alongside OFF/DEF/PHY --
+      // a direct GM ask (2026-08-09, `Aug9bugs.md` #2): "should be able to
+      // see potential. That's a huge part of what free agent you might
+      // want." Grouped by value (rather than asserting `findsOneWidget`
+      // per player) since two free agents can land on the same potential
+      // by chance -- this still catches a missing/wrong chip either way.
+      final potentialCounts = <int, int>{};
+      for (final freeAgent in franchise.freeAgents) {
+        potentialCounts[freeAgent.ratings.potential] =
+            (potentialCounts[freeAgent.ratings.potential] ?? 0) + 1;
+      }
+      for (final entry in potentialCounts.entries) {
+        expect(
+          find.text('POT ${entry.key}'),
+          findsNWidgets(entry.value),
+        );
+      }
     },
   );
 

@@ -261,6 +261,7 @@ void main() {
 String _playerLabel(Player player) {
   final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
   final lastName = player.name.split(' ').skip(1).join(' ');
-  return '${player.primaryPosition.abbreviation} $jersey$lastName '
-      '(${player.ratings.overall} OVR, ${player.ratings.potential} POT)';
+  return '${player.primaryPosition.abbreviation} $jersey$lastName, '
+      '${player.age}y (${player.ratings.overall} OVR, '
+      '${player.ratings.potential} POT)';
 }

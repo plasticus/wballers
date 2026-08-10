@@ -46,8 +46,22 @@ class TeamRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+    return Container(
+      // A background tint instead of a "Your Team" text chip (a direct GM
+      // ask, 2026-08-09: "just highlight your team in a color") -- the row
+      // itself now carries the signal, so nothing needs to compete with
+      // the team name for space on narrow screens. Rounded so the tint
+      // reads as a deliberate highlight, not a stray full-bleed band.
+      decoration: isUserTeam
+          ? BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : null,
+      padding: EdgeInsets.symmetric(
+        vertical: AppSpacing.xs,
+        horizontal: isUserTeam ? AppSpacing.sm : 0,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -80,30 +94,21 @@ class TeamRow extends StatelessWidget {
                     Text(team.emoji, style: const TextStyle(fontSize: 18)),
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
-                      child: Text(team.name, style: theme.textTheme.bodyLarge),
-                    ),
-                    if (isUserTeam) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.15,
-                          ),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Your Team',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
+                      child: Semantics(
+                        // The tint alone doesn't announce anything to a
+                        // screen reader the way the old "Your Team" chip's
+                        // own text did -- this keeps that announcement
+                        // without needing the chip's on-screen space back.
+                        label: isUserTeam ? '${team.name}, Your Team' : null,
+                        child: ExcludeSemantics(
+                          excluding: isUserTeam,
+                          child: Text(
+                            team.name,
+                            style: theme.textTheme.bodyLarge,
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
                 Text(

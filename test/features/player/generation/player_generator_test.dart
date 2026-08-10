@@ -106,6 +106,18 @@ void main() {
     }
   });
 
+  test('an explicit hometownOverride skips the random kHometowns roll', () {
+    final random = Random(654);
+    for (var i = 0; i < 50; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.pointGuard,
+        hometownOverride: 'Nowhereville, XX',
+      );
+      expect(player.hometown, 'Nowhereville, XX');
+    }
+  });
+
   test('every generated height stays within bounds, for every position', () {
     final random = Random(17);
     for (var i = 0; i < 200; i++) {

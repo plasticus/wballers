@@ -13,6 +13,7 @@ import '../franchise/presentation/team_roster_screen.dart';
 import '../league/domain/team.dart';
 import '../league/league_screen.dart';
 import '../mail/application/mailbox.dart';
+import '../mail/domain/mail_item.dart';
 import '../mail/presentation/mail_screen.dart';
 import '../market/presentation/player_market_screen.dart';
 import '../roster/domain/roster_legality.dart';
@@ -24,6 +25,8 @@ import '../season/domain/scheduled_game.dart';
 import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
 import '../season/generation/postseason_generator.dart' show seasonChampion;
+import '../season/generation/season_schedule_generator.dart'
+    show kPreseasonWeek, weekLabel;
 import '../season/presentation/game_result_screen.dart';
 import '../season/presentation/match_preview_screen.dart';
 import '../season/presentation/season_recap_screen.dart';
@@ -186,7 +189,7 @@ class DashboardScreen extends ConsumerWidget {
                       ],
                       const SizedBox(height: AppSpacing.lg),
                       _SeasonAdvanceCard(franchise: value),
-                      if (_isTrainingReportReady(value)) ...[
+                      if (_hasTrainingReportToShow(value)) ...[
                         const SizedBox(height: AppSpacing.lg),
                         _TrainingReadyCard(franchise: value),
                       ],
@@ -298,15 +301,62 @@ class _FranchiseSummaryCard extends StatelessWidget {
   }
 }
 
-/// Whether a new weekly training result is waiting to be resolved -- true
-/// once [lastFullyCompletedWeek] has moved past [Franchise.nextTrainingWeek],
-/// the same guard [runTraining] itself uses. Checked here (rather than
-/// just trying [runTrainingAndPersist] and seeing what comes back) so the
-/// Dashboard only shows the affordance when there's actually something to
-/// resolve.
+/// Whether a training week is still waiting to be resolved -- true once
+/// [lastFullyCompletedWeek] has moved past [Franchise.nextTrainingWeek],
+/// the same guard [runTraining] itself uses. In normal play this is
+/// basically always false: [CurrentFranchiseNotifier.advanceGameDay]
+/// already resolves every week the moment it completes
+/// (`_catchUpTraining`'s doc comment). This only still fires for a save
+/// that predates that auto-resolve, or anything else that moved
+/// [Franchise.seasonProgress] some other way -- [_TrainingReadyCard]
+/// falls back to actually resolving it on tap for exactly that case.
 bool _isTrainingReportReady(Franchise franchise) {
   final week = lastFullyCompletedWeek(franchise.seasonProgress);
   return week != null && week >= franchise.nextTrainingWeek;
+}
+
+/// The most recently-resolved [TrainingReport] the GM hasn't opened yet,
+/// if any -- `null` mail id lookup mirrors [unreadMailCount]/[mailboxFor]'s
+/// own read-tracking, just narrowed to training reports since that's the
+/// only kind of unread mail this card cares about surfacing. This is what
+/// the Dashboard card points at in the normal case: the report already
+/// exists (auto-resolved by [CurrentFranchiseNotifier.advanceGameDay]),
+/// it just hasn't been seen yet.
+TrainingReport? _newestUnreadTrainingReport(Franchise franchise) {
+  final unread = [
+    for (final report in franchise.trainingReports)
+      if (!franchise.readMailIds.contains(trainingReportMailId(report.week)))
+        report,
+  ]..sort((a, b) => b.week.compareTo(a.week));
+  return unread.isEmpty ? null : unread.first;
+}
+
+/// Whether [_TrainingReadyCard] has anything to show at all -- either an
+/// unresolved week ([_isTrainingReportReady], the old-save fallback path)
+/// or an already-resolved report the GM hasn't opened yet
+/// ([_newestUnreadTrainingReport], the normal path now that training
+/// auto-resolves).
+bool _hasTrainingReportToShow(Franchise franchise) {
+  return _isTrainingReportReady(franchise) ||
+      _newestUnreadTrainingReport(franchise) != null;
+}
+
+/// "May 3 · Week 1" -- the current point on the fictional season calendar,
+/// a direct GM ask (2026-08-09: "we need to see what the actual date is,
+/// and what Week that is"). "Current" is the next game day still on the
+/// schedule (what's coming up, the same day [_UpcomingGamesList] would
+/// show first) -- once nothing's left to advance to, falls back to the
+/// last day actually played, so a finished season still shows a real date
+/// instead of nothing. `null` schedule (no game days at all) shouldn't
+/// happen for a real franchise, but falls back to just [weekLabel] with no
+/// date rather than crashing.
+String _currentDateLabel(SeasonProgress progress) {
+  final gameDays = gameDaysInOrder(progress.schedule);
+  if (gameDays.isEmpty) return weekLabel(kPreseasonWeek);
+  final (week, day) = progress.nextGameDayIndex < gameDays.length
+      ? gameDays[progress.nextGameDayIndex]
+      : gameDays.last;
+  return '${formatFictionalDate(week, day)} · ${weekLabel(week)}';
 }
 
 int _activeRosterCount(Franchise franchise) =>
@@ -375,13 +425,22 @@ class _AssistantGmMailCard extends ConsumerWidget {
   }
 }
 
-/// "Your training staff has feedback" -- the actionable prompt for a
-/// training result that hasn't been resolved yet. Resolves training on
-/// tap and hands off to [TrainingReportScreen] for the surfaced moment,
-/// same "here's your transient window" deal [_SeasonAdvanceCard] gives a
-/// game result. Distinct from `NewsScreen`, which is the passive archive
-/// of every report once it's been resolved -- this card is what actually
-/// produces the entry `NewsScreen` will go on to list.
+/// "Your training staff has feedback" -- points the GM at whatever
+/// training report they haven't seen yet and hands off to
+/// [TrainingReportScreen] for the surfaced moment, same "here's your
+/// transient window" deal [_SeasonAdvanceCard] gives a game result.
+/// Distinct from `MailScreen`, which is the passive archive of every
+/// report once it's been seen -- this card is just pointing at unread
+/// mail early, same as `_AssistantGmMailCard` does for the roster-gap
+/// nudge.
+///
+/// In normal play the report already exists by the time this card shows
+/// -- [CurrentFranchiseNotifier.advanceGameDay] auto-resolves training the
+/// moment a week completes (`_catchUpTraining`'s doc comment) -- so a tap
+/// just opens [_newestUnreadTrainingReport]. [runTrainingAndPersist] is
+/// tried first only as a fallback for a save that predates auto-resolve
+/// (`_isTrainingReportReady`'s doc comment); it's a no-op the rest of the
+/// time.
 class _TrainingReadyCard extends ConsumerStatefulWidget {
   const _TrainingReadyCard({required this.franchise});
 
@@ -396,16 +455,18 @@ class _TrainingReadyCardState extends ConsumerState<_TrainingReadyCard> {
 
   Future<void> _resolveTraining() async {
     setState(() => _isResolving = true);
-    final report = await ref
+    final resolved = await ref
         .read(currentFranchiseProvider.notifier)
         .runTrainingAndPersist();
     if (!mounted) return;
     setState(() => _isResolving = false);
-    if (report == null) return;
 
     final updatedFranchise = ref.read(currentFranchiseProvider).value;
     if (updatedFranchise == null) return;
+    final report = resolved ?? _newestUnreadTrainingReport(updatedFranchise);
+    if (report == null) return;
 
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
@@ -589,6 +650,8 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Season', style: theme.textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Text(_currentDateLabel(progress), style: theme.textTheme.bodySmall),
           const SizedBox(height: AppSpacing.sm),
           Text('${record.wins}-${record.losses}'),
           const SizedBox(height: AppSpacing.sm),

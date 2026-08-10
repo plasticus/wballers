@@ -93,8 +93,8 @@ class PhotoWithJerseyBadge extends StatelessWidget {
         ),
         if (player.jerseyNumber != null)
           Positioned(
-            bottom: -4,
-            right: -4,
+            top: -4,
+            left: -4,
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.xs,
@@ -198,11 +198,19 @@ class StatChip extends StatelessWidget {
   }
 }
 
-/// OFF/DEF/PHY as 3 `StatChip`s in a row.
+/// OFF/DEF/PHY as 3 `StatChip`s in a row, plus whatever [extra] chips a
+/// caller wants tacked onto the same `Wrap` -- e.g. Player Market's rows
+/// (`market/presentation/player_market_screen.dart`) add a POT chip here
+/// rather than this widget always showing one, since potential matters
+/// most exactly where a GM is evaluating someone *not* already on the
+/// roster (a free agent, a trade target, a draft prospect) -- the
+/// production roster row (`team_roster_screen.dart`) and Card Lab both
+/// call this with no [extra] and are unaffected.
 class StatChipRow extends StatelessWidget {
-  const StatChipRow({required this.player, super.key});
+  const StatChipRow({required this.player, this.extra = const [], super.key});
 
   final Player player;
+  final List<Widget> extra;
 
   @override
   Widget build(BuildContext context) {
@@ -225,6 +233,7 @@ class StatChipRow extends StatelessWidget {
           value: player.ratings.physicalOverall,
           color: Colors.green.shade700,
         ),
+        ...extra,
       ],
     );
   }

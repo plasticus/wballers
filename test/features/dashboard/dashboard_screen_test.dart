@@ -13,6 +13,7 @@ import 'package:womensbballmgr/features/franchise/application/current_franchise_
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/mail/domain/mail_item.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
@@ -25,6 +26,8 @@ import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
+import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart'
+    show weekLabel;
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
@@ -83,6 +86,7 @@ Franchise _franchiseWith({
   // exception, and passes false to see the real 11-player starting shape.
   bool includeTwelfthMember = true,
   List<Player> freeAgents = const [],
+  Set<String> readMailIds = const {},
 }) {
   final roster = [
     ...generateStartingRoster(1),
@@ -116,6 +120,7 @@ Franchise _franchiseWith({
     freeAgents: freeAgents,
     nextTrainingWeek: 1,
     trainingReports: trainingReports,
+    readMailIds: readMailIds,
   );
 }
 
@@ -149,6 +154,28 @@ void main() {
     expect(find.text('Upcoming Games'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows the current fictional date and week on the Season card '
+    '(2026-08-09, a direct GM ask)',
+    (tester) async {
+      // Nothing played yet -- "current" is the season's very first game
+      // day, the preseason opener, which formatFictionalDate/weekLabel
+      // both special-case to read "Week 0".
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining(weekLabel(1)), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'shows an Assistant GM mail card naming the pool\'s best prospect, and '
@@ -520,7 +547,13 @@ void main() {
       addTearDown(tester.view.reset);
 
       const report = TrainingReport(week: 3, results: []);
-      final franchise = _franchiseWith(trainingReports: const [report]);
+      // Already read -- this test is only about the Recent News preview
+      // list, not the unread-report affordance covered by the
+      // 'training-ready affordance' group above.
+      final franchise = _franchiseWith(
+        trainingReports: const [report],
+        readMailIds: {trainingReportMailId(3)},
+      );
       final repository = await _seededRepository(franchise);
 
       await tester.pumpWidget(

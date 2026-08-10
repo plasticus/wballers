@@ -323,12 +323,7 @@ class _PlayerRow extends StatelessWidget {
                       ),
                       if (isStarter) ...[
                         const SizedBox(width: AppSpacing.xs),
-                        Icon(
-                          Icons.star,
-                          size: 16,
-                          color: theme.colorScheme.primary,
-                          semanticLabel: 'Starter',
-                        ),
+                        const _StarterBadge(),
                       ],
                     ],
                   ),
@@ -354,6 +349,42 @@ class _PlayerRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Marks a player among the top 5 in roster order (see [_PlayerRow]'s
+/// [_PlayerRow.isStarter]). A small text badge instead of a lone star icon
+/// (2026-08-09, a direct GM ask) -- a bare star here read as a quality
+/// rating to the GM at a glance, since this app has a real star-quality
+/// concept elsewhere and nothing distinguished the two. Text can't be
+/// misread the same way. Same rounded-pill treatment the Dashboard's
+/// PRESEASON tag uses (`dashboard_screen.dart`'s `_UpcomingGameRow`), just
+/// primary-tinted rather than neutral gray -- this is meant to read as a
+/// highlight, the same spirit the League tab's "Your Team" tint carries,
+/// not a plain informational fact.
+class _StarterBadge extends StatelessWidget {
+  const _StarterBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 1,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'STARTER',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

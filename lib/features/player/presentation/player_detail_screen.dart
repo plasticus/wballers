@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
@@ -21,7 +23,12 @@ import 'trait_chip.dart';
 /// multi-season concept on `Franchise` at all (no season/year field, no
 /// "start next season" flow), so that section is an honest placeholder
 /// rather than missing silently.
-class PlayerDetailScreen extends StatelessWidget {
+///
+/// A `ConsumerWidget` (not plain `StatelessWidget`) since the Drop action
+/// (2026-08-09, a direct GM ask -- "I need a way to drop a player, so I
+/// can free up a roster spot for a free agent") needs the provider to
+/// actually release the player.
+class PlayerDetailScreen extends ConsumerWidget {
   const PlayerDetailScreen({
     required this.franchise,
     required this.playerId,
@@ -31,15 +38,69 @@ class PlayerDetailScreen extends StatelessWidget {
   final Franchise franchise;
   final String playerId;
 
+  Future<void> _confirmDrop(BuildContext context, WidgetRef ref) async {
+    final membership = franchise.roster.firstWhere(
+      (m) => m.player.id == playerId,
+    );
+    final player = membership.player;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Drop this player?'),
+        content: Text(
+          '${player.name} will be released to free agency -- any team, '
+          'including yours, could sign them back later.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Drop'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await ref.read(currentFranchiseProvider.notifier).dropPlayer(playerId);
+    if (!context.mounted) return;
+
+    // Captured before popping -- the ScaffoldMessengerState itself
+    // belongs to an ancestor (the roster screen this pops back to), so it
+    // stays valid, but `context` is this (about-to-be-removed) route's
+    // own and shouldn't be reused for a lookup after `pop()`.
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      SnackBar(content: Text('${player.name} was released to free agency.')),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final membership = franchise.roster.firstWhere(
       (m) => m.player.id == playerId,
     );
     final player = membership.player;
 
     return Scaffold(
-      appBar: AppBar(title: Text(player.name)),
+      appBar: AppBar(
+        title: Text(player.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_remove_outlined),
+            tooltip: 'Drop from Roster',
+            onPressed: () => _confirmDrop(context, ref),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),

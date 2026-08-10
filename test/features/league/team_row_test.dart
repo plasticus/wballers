@@ -52,23 +52,50 @@ void main() {
     expect(find.text('12-4'), findsOneWidget);
   });
 
-  testWidgets('shows the "Your Team" badge alongside a record', (tester) async {
-    await _pump(
-      tester,
-      const TeamRow(
-        team: _team,
-        isUserTeam: true,
-        record: StandingsEntry(
-          teamAbbreviation: 'BOS',
-          wins: 0,
-          losses: 0,
-          pointsFor: 0,
-          pointsAgainst: 0,
+  testWidgets(
+    'highlights the row and announces "Your Team" instead of showing a '
+    'text badge',
+    (tester) async {
+      await _pump(
+        tester,
+        const TeamRow(
+          team: _team,
+          isUserTeam: true,
+          record: StandingsEntry(
+            teamAbbreviation: 'BOS',
+            wins: 0,
+            losses: 0,
+            pointsFor: 0,
+            pointsAgainst: 0,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Your Team'), findsOneWidget);
-    expect(find.text('0-0'), findsOneWidget);
+      // No on-screen "Your Team" text anymore -- a background tint on the
+      // row carries the signal instead (2026-08-09, a direct GM ask).
+      expect(find.text('Your Team'), findsNothing);
+      expect(find.text('0-0'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Boston Comets, Your Team'),
+        findsOneWidget,
+      );
+
+      final container = tester.widget<Container>(
+        find.ancestor(
+          of: find.text(_team.name),
+          matching: find.byType(Container),
+        ),
+      );
+      final decoration = container.decoration as BoxDecoration?;
+      expect(decoration, isNotNull);
+    },
+  );
+
+  testWidgets('does not highlight or announce "Your Team" for another club', (
+    tester,
+  ) async {
+    await _pump(tester, const TeamRow(team: _team));
+
+    expect(find.bySemanticsLabel('Boston Comets, Your Team'), findsNothing);
   });
 }

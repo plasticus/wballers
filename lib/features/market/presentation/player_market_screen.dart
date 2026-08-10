@@ -334,7 +334,16 @@ class _PlayerMarketRow extends StatelessWidget {
                       style: theme.textTheme.bodySmall,
                     ),
                     const SizedBox(height: AppSpacing.xs),
-                    StatChipRow(player: player),
+                    StatChipRow(
+                      player: player,
+                      extra: [
+                        StatChip(
+                          label: 'POT',
+                          value: player.ratings.potential,
+                          color: Colors.purple.shade700,
+                        ),
+                      ],
+                    ),
                     if (player.traits.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.xs),
                       Wrap(

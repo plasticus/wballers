@@ -259,13 +259,12 @@ class Franchise {
     );
   }
 
-  /// Returns a copy reflecting one free-agent signing: [newRoster] gains
-  /// the newly-signed player, [newFreeAgents] no longer includes them.
-  /// Bundled into one method rather than two separate `copyWithX` calls
-  /// because these two always change together -- a signed player leaves
-  /// [freeAgents] and joins [roster] in the same instant, never just one
-  /// or the other. `current_franchise_provider.dart`'s `signFreeAgent` is
-  /// the only caller.
+  /// Returns a copy reflecting [roster]/[freeAgents] moving a player
+  /// between them: [newRoster] and [newFreeAgents] always change together
+  /// -- a signed player leaves [freeAgents] and joins [roster] in the same
+  /// instant (`current_franchise_provider.dart`'s `signFreeAgent`), and a
+  /// dropped player does the reverse (`dropPlayer`) -- never just one side
+  /// or the other.
   Franchise copyWithRosterAndFreeAgents({
     required List<RosterMembership> newRoster,
     required List<Player> newFreeAgents,

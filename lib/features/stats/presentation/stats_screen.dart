@@ -208,8 +208,17 @@ class _LeadersTab extends StatelessWidget {
     final mvpRanking = [...leaders.values]
       ..sort((a, b) => b.mvpScore.compareTo(a.mvpScore));
 
+    // Vertical padding only -- AppShell's own body Padding
+    // (`dashboard_screen.dart`) already surrounds every tab, Stats
+    // included, with `AppSpacing.lg` on every side; adding another full
+    // `EdgeInsets.all` on top of that doubled the *side* margins and was
+    // cramping row content into wrapping lines (a direct GM ask,
+    // 2026-08-09, to fix). The vertical gap above the first section /
+    // below the last is still wanted, since AppShell's own top/bottom
+    // padding lands above the TabBar, not between it and this tab's
+    // content.
     return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       children: [
         _LeaderSection(
           title: 'MVP Race',
@@ -367,8 +376,10 @@ class _TeamsTab extends StatelessWidget {
       );
     }
 
+    // Vertical padding only -- see the Leaders tab's own comment on why
+    // (`_LeadersTab.build`, above).
     return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       children: [
         Row(
           children: [
@@ -538,8 +549,10 @@ class _RosterTabState extends State<_RosterTab> {
         return bPpg.compareTo(aPpg);
       });
 
+    // Vertical padding only -- see the Leaders tab's own comment on why
+    // (`_LeadersTab.build`, above).
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

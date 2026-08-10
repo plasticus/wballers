@@ -256,7 +256,11 @@ class Player {
   /// Returns a copy with [newJerseyNumber] replacing [jerseyNumber] --
   /// used by `assignJerseyNumbers` (`roster/generation/`), which assigns
   /// numbers across a roster after every player in it already exists,
-  /// same pattern as [copyWithTraits]/`distributeTraits`.
+  /// same pattern as [copyWithTraits]/`distributeTraits`. Also how
+  /// `current_franchise_provider.dart`'s `dropPlayer` clears a released
+  /// player's number (`null`) on the way back to free agency -- no free
+  /// agent generated fresh ever has one, and `signFreeAgent` assigns a new
+  /// one anyway the moment someone signs them back onto a roster.
   Player copyWithJerseyNumber(int? newJerseyNumber) {
     return Player(
       id: id,

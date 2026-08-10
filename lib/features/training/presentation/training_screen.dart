@@ -345,15 +345,18 @@ class _CoachAssignmentCard extends StatelessWidget {
   }
 }
 
-/// "PG #49 Silva (67 OVR, 99 POT)" -- position, jersey number (when
-/// assigned), last name only, overall, and potential, so the
+/// "PG #49 Silva, 24y (67 OVR, 99 POT)" -- position, jersey number (when
+/// assigned), last name only, age, overall, and potential, so the
 /// individual-coach picker doubles as a quick scan for "who's worth
 /// putting in one of these 3 slots" without leaving this screen. First
 /// name dropped (2026-08-07, a direct GM ask -- "too much information");
-/// last name alone is who a GM actually calls a player by.
+/// last name alone is who a GM actually calls a player by. Age added
+/// (2026-08-09, a direct GM ask) since it's a big part of that read --
+/// abbreviated "24y" rather than "Age 24" to keep the row from wrapping.
 String _playerLabel(Player player) {
   final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
   final lastName = player.name.split(' ').skip(1).join(' ');
-  return '${player.primaryPosition.abbreviation} $jersey$lastName '
-      '(${player.ratings.overall} OVR, ${player.ratings.potential} POT)';
+  return '${player.primaryPosition.abbreviation} $jersey$lastName, '
+      '${player.age}y (${player.ratings.overall} OVR, '
+      '${player.ratings.potential} POT)';
 }

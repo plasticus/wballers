@@ -18,7 +18,7 @@ This is the editable design source for the league's team pool. Every team abbrev
 | TOR | Toronto, ON | Toronto Talons | 🦅 | `#1D3557` | `#E63946` | `#A8DADC` | Sharp, athletic, and international. |
 | ATL | Atlanta, GA | Atlanta Pulse | 💓 | `#C8102E` | `#1B1B1B` | `#F2C14E` | Electric energy and a fast, confident pulse. |
 | BAL | Baltimore, MD | Baltimore Crabs | 🦀 | `#002B5C` | `#FF8200` | `#E8DCC4` | Harborfront hustle and steady nerve. |
-| CHI | Chicago, IL | Chicago Windy | 💨 | `#0C2340` | `#A5ACAF` | `#FFFFFF` | Lakefront gusts and blue-collar swagger. |
+| CHI | Chicago, IL | Chicago Gale | 💨 | `#0C2340` | `#A5ACAF` | `#FFFFFF` | Lakefront gusts and blue-collar swagger. |
 | DET | Detroit, MI | Detroit Motors | 🚗 | `#1B1B1B` | `#C8102E` | `#A5ACAF` | Assembly-line precision and industrial pride. |
 | NYC | New York, NY | New York Empire | 🗽 | `#1B1F3B` | `#C9A227` | `#F4F1E8` | Skyline ambition that never sleeps. |
 | ORL | Orlando, FL | Orlando Sunburst | ☀️ | `#2E2A6E` | `#FFC72C` | `#F7F7F7` | Sunshine energy with a competitive flash. |

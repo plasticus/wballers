@@ -212,14 +212,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Text('Conference', style: theme.textTheme.titleSmall),
               const SizedBox(height: AppSpacing.sm),
               SegmentedButton<Conference>(
+                // Pacific (west) shown before Atlantic (east) -- reads
+                // left-to-right the way a US map does, a direct GM ask
+                // (2026-08-09).
                 segments: const [
-                  ButtonSegment(
-                    value: Conference.atlantic,
-                    label: Text('Atlantic'),
-                  ),
                   ButtonSegment(
                     value: Conference.pacific,
                     label: Text('Pacific'),
+                  ),
+                  ButtonSegment(
+                    value: Conference.atlantic,
+                    label: Text('Atlantic'),
                   ),
                 ],
                 selected: {_conference},

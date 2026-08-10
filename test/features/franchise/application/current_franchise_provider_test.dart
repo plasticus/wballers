@@ -507,6 +507,109 @@ void main() {
     });
   });
 
+  group('dropPlayer', () {
+    test(
+      'removes the player from roster and adds them to freeAgents with '
+      'their jersey number cleared',
+      () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final franchise = createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+        final target = franchise.roster.first.player;
+        expect(target.jerseyNumber, isNotNull); // real roster players do
+
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .dropPlayer(target.id);
+
+        final updated = container.read(currentFranchiseProvider).value!;
+        expect(updated.roster.any((m) => m.player.id == target.id), isFalse);
+        expect(updated.roster, hasLength(franchise.roster.length - 1));
+        final droppedPlayer = updated.freeAgents.firstWhere(
+          (p) => p.id == target.id,
+        );
+        expect(droppedPlayer.jerseyNumber, isNull);
+        expect(
+          updated.freeAgents,
+          hasLength(franchise.freeAgents.length + 1),
+        );
+
+        // Actually persisted, not just held in memory.
+        final saved = await repository.readSave(kCurrentFranchiseSaveId);
+        final savedFranchise = franchiseFromJson(
+          SaveEnvelope.fromJson(saved!).payload,
+        );
+        expect(
+          savedFranchise.roster.any((m) => m.player.id == target.id),
+          isFalse,
+        );
+        expect(
+          savedFranchise.freeAgents.any((p) => p.id == target.id),
+          isTrue,
+        );
+      },
+    );
+
+    test('is a no-op when the given id isn\'t actually on the roster', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .dropPlayer('not-a-real-roster-id');
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.roster.length, franchise.roster.length);
+      expect(updated.freeAgents.length, franchise.freeAgents.length);
+    });
+
+    test('does nothing when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .dropPlayer('whatever');
+
+      expect(container.read(currentFranchiseProvider).value, isNull);
+    });
+  });
+
   group('markMailRead', () {
     test('adds the given id to readMailIds and persists it', () async {
       final repository = InMemorySaveRepository();
@@ -974,57 +1077,111 @@ void main() {
       expect(report, isNull);
     });
 
-    test('once the preseason week is fully played, resolves training and '
-        'persists the result', () async {
-      final repository = InMemorySaveRepository();
-      final container = ProviderContainer(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
-      final franchise = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .createFranchise(franchise);
-      // The preseason (week 1) has 2 game days (Sunday, Thursday) --
-      // both need to be played before the week counts as fully complete.
-      await container.read(currentFranchiseProvider.notifier).advanceGameDay();
-      await container.read(currentFranchiseProvider.notifier).advanceGameDay();
+    test(
+      'advanceGameDay auto-resolves training the moment the preseason '
+      'week completes, so this becomes a no-op right after',
+      () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+        // The preseason (week 1) has 2 game days (Sunday, Thursday) --
+        // both need to be played before the week counts as fully complete.
+        // advanceGameDay itself resolves training for week 1 as soon as
+        // the second call completes it (see `_catchUpTraining`'s doc
+        // comment on `current_franchise_provider.dart`) -- no separate
+        // resolve step needed anymore.
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
 
-      final report = await container
-          .read(currentFranchiseProvider.notifier)
-          .runTrainingAndPersist();
+        final updated = container.read(currentFranchiseProvider).value;
+        expect(updated!.nextTrainingWeek, 2);
+        expect(updated.trainingReports, hasLength(1));
+        expect(updated.trainingReports.single.week, 1);
 
-      expect(report, isNotNull);
-      expect(report!.week, 1);
+        final saved = await repository.readSave(kCurrentFranchiseSaveId);
+        final savedFranchise = franchiseFromJson(
+          SaveEnvelope.fromJson(saved!).payload,
+        );
+        expect(savedFranchise.nextTrainingWeek, 2);
+        expect(savedFranchise.trainingReports, hasLength(1));
 
-      final updated = container.read(currentFranchiseProvider).value;
-      expect(updated!.nextTrainingWeek, 2);
-      expect(updated.trainingReports, hasLength(1));
+        // Already resolved by advanceGameDay -- an explicit call now is a
+        // no-op.
+        final again = await container
+            .read(currentFranchiseProvider.notifier)
+            .runTrainingAndPersist();
+        expect(again, isNull);
+      },
+    );
 
-      final saved = await repository.readSave(kCurrentFranchiseSaveId);
-      final savedFranchise = franchiseFromJson(
-        SaveEnvelope.fromJson(saved!).payload,
-      );
-      expect(savedFranchise.nextTrainingWeek, 2);
-      expect(savedFranchise.trainingReports, hasLength(1));
+    test(
+      'catches up every completed week individually, not just the most '
+      'recent one, when several game days are advanced in a row',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+        );
+        addTearDown(container.dispose);
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
 
-      // Calling again before the next week completes is a no-op.
-      final again = await container
-          .read(currentFranchiseProvider.notifier)
-          .runTrainingAndPersist();
-      expect(again, isNull);
-    });
+        // Play through several game days in one burst, the way a GM who
+        // doesn't check the Dashboard after every single day would --
+        // nothing in between ever calls runTrainingAndPersist.
+        for (var i = 0; i < 6; i++) {
+          final result = await container
+              .read(currentFranchiseProvider.notifier)
+              .advanceGameDay();
+          if (result == null) break;
+        }
+
+        final updated = container.read(currentFranchiseProvider).value!;
+        final weeks = updated.trainingReports.map((r) => r.week).toList();
+        // Every fully-completed week got its own report -- no week
+        // silently missing because it fell inside a multi-day burst, and
+        // no duplicate/merged entries either.
+        expect(weeks, weeks.toSet().toList());
+        expect(updated.nextTrainingWeek, weeks.isEmpty ? 1 : weeks.reduce(
+          (a, b) => a > b ? a : b,
+        ) + 1);
+      },
+    );
 
     test('is deterministic for a given simulationSeed', () async {
       Franchise freshFranchise() => withFullActiveRoster(
@@ -1050,16 +1207,20 @@ void main() {
         await container
             .read(currentFranchiseProvider.notifier)
             .createFranchise(freshFranchise());
+        // advanceGameDay auto-resolves week 1's training the moment the
+        // second call completes it -- see `_catchUpTraining`.
         await container
             .read(currentFranchiseProvider.notifier)
             .advanceGameDay();
         await container
             .read(currentFranchiseProvider.notifier)
             .advanceGameDay();
-        final report = await container
-            .read(currentFranchiseProvider.notifier)
-            .runTrainingAndPersist();
-        return report!.results.fold<int>(
+        final report = container
+            .read(currentFranchiseProvider)
+            .value!
+            .trainingReports
+            .single;
+        return report.results.fold<int>(
           0,
           (sum, r) => sum + r.fieldDeltas.values.fold<int>(0, (a, b) => a + b),
         );

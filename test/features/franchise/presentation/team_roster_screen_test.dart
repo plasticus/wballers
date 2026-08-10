@@ -126,10 +126,11 @@ void main() {
     );
     await tester.pump();
 
+    // A "STARTER" text badge, not a star icon (2026-08-09) -- a lone star
+    // read as a quality rating at a glance, since this app has a real
+    // star-quality concept elsewhere.
     bool isStarterIcon(Widget widget) =>
-        widget is Icon &&
-        widget.icon == Icons.star &&
-        widget.semanticLabel == 'Starter';
+        widget is Text && widget.data == 'STARTER';
 
     expect(find.byWidgetPredicate(isStarterIcon), findsNWidgets(5));
     // Specifically the first 5 in roster order, not e.g. the 5

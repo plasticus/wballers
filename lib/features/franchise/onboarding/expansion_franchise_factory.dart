@@ -20,6 +20,15 @@ import '../domain/franchise.dart';
 /// checkbox), rather than a fully free color picker that could collide
 /// with another team's existing palette. Full custom color picking is
 /// future "Team profile" work (`FLUTTER_APP_PLAN.md`), not onboarding.
+///
+/// The original 6 all lean dark/moody -- a direct GM ask (2026-08-09,
+/// "let's bring in 6 more that are brighter, or semi-bold... Fuschia!
+/// Cobalt blue!") added a second bank of 6 bolder/brighter primaries
+/// (fuchsia, cobalt, lime, teal, sky, sunset orange) so the swatch grid
+/// isn't just dark-navy variations. Appended rather than interleaved --
+/// index order here is display order (`onboarding_screen.dart`'s swatch
+/// grid), and the original 6 staying first keeps every existing save's
+/// picked palette at the same index it was chosen from.
 const kStarterPalettes = <TeamColors>[
   TeamColors(
     primaryHex: '#14213D',
@@ -50,6 +59,42 @@ const kStarterPalettes = <TeamColors>[
     primaryHex: '#3C096C',
     secondaryHex: '#C77DFF',
     accentHex: '#F8F0FC',
+  ),
+  // Fuchsia
+  TeamColors(
+    primaryHex: '#D6006D',
+    secondaryHex: '#FFD60A',
+    accentHex: '#FFF0F7',
+  ),
+  // Cobalt blue
+  TeamColors(
+    primaryHex: '#0047FF',
+    secondaryHex: '#FFB703',
+    accentHex: '#F0F4FF',
+  ),
+  // Lime green
+  TeamColors(
+    primaryHex: '#5BE12C',
+    secondaryHex: '#1B1B1B',
+    accentHex: '#F4FFED',
+  ),
+  // Teal
+  TeamColors(
+    primaryHex: '#00B4A6',
+    secondaryHex: '#FF6B6B',
+    accentHex: '#EFFFFC',
+  ),
+  // Light blue
+  TeamColors(
+    primaryHex: '#4CC9F0',
+    secondaryHex: '#023047',
+    accentHex: '#F0FBFF',
+  ),
+  // Sunset orange
+  TeamColors(
+    primaryHex: '#FF6B35',
+    secondaryHex: '#004E89',
+    accentHex: '#FFF4EE',
   ),
 ];
 
@@ -143,6 +188,7 @@ Franchise createExpansionFranchise({
   // here on (not regenerated every save/reload).
   final freeAgents = generateFreeAgentPool(
     Random(simulationSeed + kFreeAgentPoolSeedOffset),
+    portraitWeights: portraitWeights,
   );
 
   final league = generateLeague(

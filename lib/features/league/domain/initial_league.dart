@@ -167,7 +167,7 @@ const kLeagueTeamPool = <Team>[
   Team(
     abbreviation: 'CHI',
     location: 'Chicago, IL',
-    name: 'Chicago Windy',
+    name: 'Chicago Gale',
     conference: Conference.atlantic,
     colors: TeamColors(
       primaryHex: '#0C2340',

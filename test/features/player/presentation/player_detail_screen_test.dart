@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/save_envelope.dart';
+import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
@@ -18,6 +23,7 @@ import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
+import '../../../support/in_memory_save_repository.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
@@ -78,6 +84,16 @@ Franchise _franchiseWith({
   );
 }
 
+Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
+  final repository = InMemorySaveRepository();
+  final envelope = SaveEnvelope(
+    schemaVersion: 1,
+    payload: franchiseToJson(franchise),
+  );
+  await repository.writeSave(kCurrentFranchiseSaveId, envelope.toJson());
+  return repository;
+}
+
 void main() {
   testWidgets('shows ratings, traits, and an empty-state note for a player '
       'with no games played yet', (tester) async {
@@ -95,8 +111,10 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+      ProviderScope(
+        child: MaterialApp(
+          home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+        ),
       ),
     );
     await tester.pump();
@@ -152,8 +170,10 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+      ProviderScope(
+        child: MaterialApp(
+          home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+        ),
       ),
     );
     await tester.pump();
@@ -185,12 +205,132 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+      ProviderScope(
+        child: MaterialApp(
+          home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+        ),
       ),
     );
     await tester.pump();
 
     expect(find.text('League MVP (Season 0)'), findsOneWidget);
+  });
+
+  group('Drop from Roster', () {
+    testWidgets('shows a confirmation dialog; cancelling leaves the roster '
+        'untouched', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final target = playerWithOverall(65, name: 'Riley Okafor');
+      final franchise = _franchiseWith(
+        target: RosterMembership(player: target, status: RosterStatus.active),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: PlayerDetailScreen(
+              franchise: franchise,
+              playerId: target.id,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Drop from Roster'));
+      await tester.pumpAndSettle();
+      expect(find.text('Drop this player?'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(
+        savedFranchise.roster.any((m) => m.player.id == target.id),
+        isTrue,
+      );
+    });
+
+    testWidgets(
+      'confirming releases the player to free agency, clears their jersey '
+      'number, and confirms with a SnackBar',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final target = playerWithOverall(
+          65,
+          name: 'Riley Okafor',
+        ).copyWithJerseyNumber(23);
+        final franchise = _franchiseWith(
+          target: RosterMembership(
+            player: target,
+            status: RosterStatus.active,
+          ),
+        );
+        final repository = await _seededRepository(franchise);
+
+        // A real navigation stack, not a bare `home:` -- the Drop flow
+        // pops back to whatever's underneath after releasing the player,
+        // same as it does from the real roster screen; a `PlayerDetailScreen`
+        // with nothing beneath it (as every other test in this file uses,
+        // none of which pop) would leave `Navigator.pop()` nothing to
+        // return to.
+        final navigatorKey = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+            child: MaterialApp(
+              navigatorKey: navigatorKey,
+              home: const Scaffold(body: Text('Roster')),
+            ),
+          ),
+        );
+        await tester.pump();
+        navigatorKey.currentState!.push(
+          MaterialPageRoute(
+            builder: (_) =>
+                PlayerDetailScreen(franchise: franchise, playerId: target.id),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Drop from Roster'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Drop'));
+        await tester.pumpAndSettle();
+
+        // Back on the underlying screen, with the confirmation SnackBar.
+        expect(find.text('Roster'), findsOneWidget);
+        expect(
+          find.text('Riley Okafor was released to free agency.'),
+          findsOneWidget,
+        );
+
+        final saved = await repository.readSave(kCurrentFranchiseSaveId);
+        final savedFranchise = franchiseFromJson(
+          SaveEnvelope.fromJson(saved!).payload,
+        );
+        expect(
+          savedFranchise.roster.any((m) => m.player.id == target.id),
+          isFalse,
+        );
+        final droppedPlayer = savedFranchise.freeAgents.firstWhere(
+          (p) => p.id == target.id,
+        );
+        // Cleared, not carried over -- a fresh free agent never has one,
+        // and signFreeAgent assigns a new one anyway if re-signed.
+        expect(droppedPlayer.jerseyNumber, isNull);
+      },
+    );
   });
 }

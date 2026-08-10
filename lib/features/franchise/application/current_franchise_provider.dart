@@ -113,6 +113,43 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     );
   }
 
+  /// Releases the roster player with [playerId] and moves them onto
+  /// [Franchise.freeAgents] -- a direct GM ask (2026-08-09): "I need a way
+  /// to drop a player, so I can free up a roster spot for a free agent,"
+  /// with the explicit follow-up that a dropped player should land back
+  /// in free agency, not just vanish. Clears their jersey number
+  /// ([Player.copyWithJerseyNumber]) on the way out -- an unrostered
+  /// player wearing a number would be the only free agent in the pool
+  /// with one, and [signFreeAgent] assigns a fresh one anyway the moment
+  /// someone signs them back.
+  ///
+  /// A no-op if there's no current franchise or [playerId] isn't actually
+  /// on [Franchise.roster] -- same defensive-guard posture as
+  /// [signFreeAgent]. No minimum-roster-size check: `roster_legality.dart`
+  /// deliberately doesn't enforce one (a team can choose to run under
+  /// [kActiveRosterSize]), so dropping below it is a real, allowed GM
+  /// choice -- it just means [advanceGameDay] won't let the season move
+  /// again until a replacement is signed, the same gate a fresh Day-0
+  /// roster already hits.
+  Future<void> dropPlayer(String playerId) async {
+    final franchise = await future;
+    if (franchise == null) return;
+
+    final index = franchise.roster.indexWhere((m) => m.player.id == playerId);
+    if (index == -1) return;
+
+    final dropped = franchise.roster[index].player.copyWithJerseyNumber(null);
+    final newRoster = [...franchise.roster]..removeAt(index);
+    final newFreeAgents = [...franchise.freeAgents, dropped];
+
+    await _persist(
+      franchise.copyWithRosterAndFreeAgents(
+        newRoster: newRoster,
+        newFreeAgents: newFreeAgents,
+      ),
+    );
+  }
+
   /// Replaces the coach's portrait appearance and persists it. Same
   /// no-op-if-no-franchise and await-future rationale as
   /// [updateRosterOrder].
@@ -217,7 +254,10 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       ownTeamAbbreviation: franchise.team.abbreviation,
     );
 
-    await _persist(franchise.copyWithSeasonProgress(advance.progress));
+    final withTraining = _catchUpTraining(
+      franchise.copyWithSeasonProgress(advance.progress),
+    );
+    await _persist(withTraining);
     return advance.gamesPlayed;
   }
 
@@ -247,7 +287,10 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     );
     if (advance.gamesPlayed.isEmpty) return null; // already played
 
-    await _persist(franchise.copyWithSeasonProgress(advance.progress));
+    final withTraining = _catchUpTraining(
+      franchise.copyWithSeasonProgress(advance.progress),
+    );
+    await _persist(withTraining);
     return advance.gamesPlayed;
   }
 
@@ -262,8 +305,16 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
   /// Resolves training for whatever week just became eligible and
   /// persists the result. Returns the [TrainingReport] so the caller can
-  /// show it once (the Dashboard's "Training Report Ready" affordance),
-  /// same "here's your transient window" deal as [advanceGameDay].
+  /// show it once, same "here's your transient window" deal as
+  /// [advanceGameDay].
+  ///
+  /// [advanceGameDay] and [simulatePostseasonAndPersist] both already call
+  /// [_catchUpTraining] themselves the moment a week completes, so in
+  /// normal play there's nothing left pending by the time anything else
+  /// would call this -- it exists as a manual fallback (a save from before
+  /// that auto-resolve existed, or any other path that moved
+  /// [SeasonProgress] without going through those two methods) rather than
+  /// the primary way training ever resolves.
   ///
   /// Returns `null` if there's no current franchise, or if no new week is
   /// ready yet ([lastFullyCompletedWeek] hasn't advanced past
@@ -292,6 +343,46 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
     await _persist(advance.franchise);
     return advance.report;
+  }
+
+  /// Resolves training for *every* week that's fully completed but hasn't
+  /// been trained yet on [franchise] -- not just the single most-recent
+  /// one -- so a real GM session that advances several game days (or an
+  /// entire week) in a row before checking Mail still gets one distinct
+  /// [TrainingReport] per week, instead of [runTraining] quietly folding
+  /// several weeks' worth of minutes and aging into whichever single call
+  /// happens to resolve them.
+  ///
+  /// This is the fix for a real bug: training used to only ever resolve
+  /// when the GM tapped the Dashboard's "Training Report Ready" card while
+  /// it happened to be showing, and that card is itself only visible in
+  /// the narrow window right after a week completes and before the next
+  /// game day pushes into the following week (`lastFullyCompletedWeek`
+  /// goes back to returning `null` mid-week). Skip that window -- by
+  /// playing on without visiting the Dashboard right then -- and the
+  /// skipped week's report never got created at all: the next `runTraining`
+  /// call just relabeled the combined gap under the newer week's number.
+  /// That's what produced training reports on weeks 2, 6, 8, 9 of a season
+  /// instead of every week, and made a report look like it "disappeared"
+  /// if it wasn't opened the moment it appeared. Calling this from
+  /// [advanceGameDay] and [simulatePostseasonAndPersist] -- every path
+  /// that can complete a week -- means a week's report exists the instant
+  /// that week finishes, full stop, with no dependence on the GM's UI
+  /// timing at all.
+  Franchise _catchUpTraining(Franchise franchise) {
+    var current = franchise;
+    while (true) {
+      final advance = runTraining(
+        Random(
+          current.simulationSeed +
+              kTrainingAdvanceSeedOffset +
+              current.nextTrainingWeek,
+        ),
+        current,
+      );
+      if (advance == null) return current;
+      current = advance.franchise;
+    }
   }
 
   /// Marks a Mail inbox item (`mail/domain/mail_item.dart`'s `MailItem.id`)
