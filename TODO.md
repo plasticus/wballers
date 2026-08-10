@@ -13,7 +13,3 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 ## Open questions
 
 3. **Do coach attributes actually do anything yet?** — need to confirm whether coach stats (Motivation, Offense, etc.) currently have any real gameplay effect, or are still cosmetic/unused.
-
-## Save slots
-
-4. **Empty/delete save slots on the main screen** — a GM ask (2026-08-10). Note: `MainMenuScreen` already has a per-slot Delete button with a confirm dialog (`main_menu_screen.dart`) -- worth checking with the GM whether this item is about a real gap (not visible/working as expected) or something more specific ("empty" a slot back to blank without fully deleting it, maybe) before treating it as done.

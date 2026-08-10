@@ -16,6 +16,14 @@ import '../domain/franchise.dart';
 /// boot screen -- `WomensBasketballManagerApp.home` is still `AppShell`,
 /// so a GM who never opens Settings never sees this at all, same as
 /// before multi-slot support existed.
+///
+/// A slot whose save exists but fails to even parse
+/// (`saveSlotFranchiseProvider`'s `AsyncError` -- an old save from before
+/// a schema change, expected fallout of this codebase's own delete-and-
+/// recreate save convention rather than a bug to migrate around) gets a
+/// Delete button too (2026-08-10, a direct GM report: a save stuck in
+/// "Could not load this save" had no way out at all, since Delete used
+/// to only render once a save had already loaded successfully).
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
 
@@ -78,18 +86,30 @@ class _SaveSlotCard extends ConsumerWidget {
     );
   }
 
+  /// [teamName] names the save being deleted in the confirmation dialog
+  /// when known -- `null` for a slot whose save exists but failed to even
+  /// parse (`AsyncError`, e.g. an old save from before a schema change --
+  /// this codebase's own delete-and-recreate save convention means that's
+  /// expected, not a bug to migrate around), where there's no [Franchise]
+  /// to read a team name from in the first place. Either way this was a
+  /// real gap before it was fixed (2026-08-10, a direct GM report): a
+  /// slot stuck in "Could not load this save" had no way to ever leave
+  /// that state, since the Delete button only used to render in the
+  /// success branch below.
   Future<void> _confirmDelete(
     BuildContext context,
-    WidgetRef ref,
-    Franchise franchise,
-  ) async {
+    WidgetRef ref, {
+    String? teamName,
+  }) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete this save?'),
         content: Text(
-          '${franchise.team.name} will be gone for good -- this can\'t '
-          'be undone.',
+          teamName != null
+              ? '$teamName will be gone for good -- this can\'t be undone.'
+              : 'This save could not be loaded and will be gone for good -- '
+                    'this can\'t be undone.',
         ),
         actions: [
           TextButton(
@@ -152,7 +172,11 @@ class _SaveSlotCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     OutlinedButton(
-                      onPressed: () => _confirmDelete(context, ref, value),
+                      onPressed: () => _confirmDelete(
+                        context,
+                        ref,
+                        teamName: value.team.name,
+                      ),
                       child: const Text('Delete'),
                     ),
                   ],
@@ -175,9 +199,23 @@ class _SaveSlotCard extends ConsumerWidget {
                 ),
               ],
             ),
-            AsyncError() => Text(
-              'Could not load this save.',
-              style: TextStyle(color: theme.colorScheme.error),
+            AsyncError() => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Could not load this save.',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                OutlinedButton(
+                  onPressed: () => _confirmDelete(context, ref),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                    side: BorderSide(color: theme.colorScheme.error),
+                  ),
+                  child: const Text('Delete'),
+                ),
+              ],
             ),
             _ => const Center(
               child: Padding(

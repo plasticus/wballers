@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/application/save_slots.dart';
@@ -149,6 +150,55 @@ void main() {
         ),
         isNull,
       );
+    },
+  );
+
+  testWidgets(
+    'a slot whose save fails to parse still gets a working Delete button '
+    '(2026-08-10, a direct GM report: a save stuck in "Could not load '
+    'this save" previously had no way out at all)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      // Not franchiseToJson's real output -- an empty payload that
+      // franchiseFromJson can't possibly parse, standing in for an old
+      // save from before a schema change (this codebase's own delete-
+      // and-recreate save convention means that's expected, not a bug
+      // to migrate around).
+      await repository.writeSave(
+        kCurrentFranchiseSaveId,
+        const SaveEnvelope(schemaVersion: 1, payload: {}).toJson(),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: MainMenuScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Could not load this save.'), findsOneWidget);
+
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // No team name to show for a save that never even parsed.
+      expect(find.text('Delete this save?'), findsOneWidget);
+      expect(find.textContaining('could not be loaded'), findsOneWidget);
+
+      await tester.tap(find.text('Delete').last); // the dialog's own button
+      await tester.pumpAndSettle();
+
+      expect(find.text('Could not load this save.'), findsNothing);
+      expect(find.text('Empty'), findsNWidgets(3));
     },
   );
 }
