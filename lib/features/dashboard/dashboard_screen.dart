@@ -9,6 +9,7 @@ import '../../core/widgets/wbl_logo.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/domain/franchise.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
+import '../franchise/presentation/main_menu_screen.dart';
 import '../franchise/presentation/team_roster_screen.dart';
 import '../league/domain/team.dart';
 import '../league/league_screen.dart';
@@ -49,6 +50,30 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Automatic recovery for a save that fails to load -- most commonly
+    // the active slot at app boot, but this covers any later transition
+    // into AsyncError too (2026-08-10, a direct GM report: opening the
+    // app to a franchise stuck failing to load had no way out before
+    // this -- MainMenuScreen's own Delete button, added earlier the same
+    // day, needs the GM to actually get there first). Fires once per
+    // real state transition (ref.listen, not every rebuild), and only
+    // while AppShell itself is mounted -- navigating away here removes
+    // it from the tree, so there's no risk of it firing again once the
+    // GM is already on MainMenuScreen picking a different slot.
+    ref.listen<AsyncValue<Franchise?>>(currentFranchiseProvider, (
+      previous,
+      next,
+    ) {
+      if (!next.hasError) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MainMenuScreen()),
+          (route) => false,
+        );
+      });
+    });
+
     final franchise = ref.watch(currentFranchiseProvider).value;
     final unreadCount = franchise == null ? 0 : unreadMailCount(franchise);
 

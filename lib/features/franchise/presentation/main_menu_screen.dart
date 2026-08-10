@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,11 +31,19 @@ class MainMenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // ~3x the old fixed 96 on a typical phone width -- tied to the
+    // ~3x the old fixed 96 on a typical tall phone -- tied to the
     // screen's own width (a direct GM ask) rather than a flat literal so
     // it scales sensibly across device sizes instead of just happening
-    // to look right on one.
-    final logoSize = MediaQuery.sizeOf(context).width * 0.75;
+    // to look right on one. Also capped by a fraction of the *height*
+    // (WblLogo is a square asset, so its height grows 1:1 with size) --
+    // 75% of width alone overflowed on anything wider-than-tall (a real
+    // bug this surfaced in, not just a test-viewport artifact: a tablet
+    // or landscape orientation has plenty of width but nowhere near
+    // enough height for a logo sized off width alone, on top of the
+    // title text, subtitle, and 3 slot cards all still needing to fit
+    // underneath it).
+    final screenSize = MediaQuery.sizeOf(context);
+    final logoSize = min(screenSize.width * 0.75, screenSize.height * 0.32);
     return Scaffold(
       body: SafeArea(
         child: Padding(

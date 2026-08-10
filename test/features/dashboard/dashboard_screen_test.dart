@@ -572,6 +572,37 @@ void main() {
   );
 
   group('AppShell', () {
+    testWidgets('bounces to MainMenuScreen when the active save fails to load '
+        '(2026-08-10, a direct GM report: no automatic recovery before this)', (
+      tester,
+    ) async {
+      final repository = InMemorySaveRepository();
+      // Not franchiseToJson's real output -- an empty payload that
+      // franchiseFromJson can't possibly parse, standing in for a save
+      // that fails to load at boot (an old save from before a schema
+      // change, most likely -- this codebase's own delete-and-recreate
+      // save convention means that's expected, not a bug to migrate
+      // around).
+      await repository.writeSave(
+        kCurrentFranchiseSaveId,
+        const SaveEnvelope(schemaVersion: 1, payload: {}).toJson(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: AppShell()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Choose a save to play, or start a new one.'),
+        findsOneWidget,
+      );
+      expect(find.text('Could not load your franchise save.'), findsNothing);
+    });
+
     testWidgets('has a Mail tab that opens MailScreen', (tester) async {
       final franchise = _franchiseWith();
       final repository = await _seededRepository(franchise);
