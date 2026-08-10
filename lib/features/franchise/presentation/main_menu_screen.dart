@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
-import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/wbl_logo.dart';
 import '../../dashboard/dashboard_screen.dart';
 import '../application/save_slots.dart';
@@ -30,6 +29,11 @@ class MainMenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // ~3x the old fixed 96 on a typical phone width -- tied to the
+    // screen's own width (a direct GM ask) rather than a flat literal so
+    // it scales sensibly across device sizes instead of just happening
+    // to look right on one.
+    final logoSize = MediaQuery.sizeOf(context).width * 0.75;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -37,9 +41,9 @@ class MainMenuScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: AppSpacing.xl),
-              const Center(child: WblLogo(size: 96)),
               const SizedBox(height: AppSpacing.md),
+              Center(child: WblLogo(size: logoSize)),
+              const SizedBox(height: AppSpacing.xs),
               Text(
                 'Women\'s Basketball Manager',
                 textAlign: TextAlign.center,
@@ -130,105 +134,126 @@ class _SaveSlotCard extends ConsumerWidget {
     await deleteSaveSlot(ref, slotId);
   }
 
+  /// Tighter than [FilledButton]/[OutlinedButton]'s own default padding
+  /// and minimum height -- what actually shrinks a slot card vertically
+  /// (2026-08-10, a direct GM ask: "the Slot cards can be a lot smaller
+  /// vertically"), since the buttons were the tallest element in each
+  /// card's action row.
+  static const _compactButtonStyle = ButtonStyle(
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+    ),
+    minimumSize: WidgetStatePropertyAll(Size(0, 32)),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final franchiseAsync = ref.watch(saveSlotFranchiseProvider(slotId));
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Slot $slotNumber', style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          switch (franchiseAsync) {
-            AsyncData(:final value?) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      value.team.emoji,
-                      style: const TextStyle(fontSize: 22),
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: switch (franchiseAsync) {
+          AsyncData(:final value?) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Text('Slot $slotNumber', style: theme.textTheme.labelSmall),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(value.team.emoji, style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      value.team.name,
+                      style: theme.textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        value.team.name,
-                        style: theme.textTheme.titleMedium,
-                      ),
+                  ),
+                ],
+              ),
+              Text('GM ${value.gmName}', style: theme.textTheme.bodySmall),
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: _compactButtonStyle,
+                      onPressed: () => _play(context, ref),
+                      child: const Text('Play'),
                     ),
-                  ],
-                ),
-                Text('GM ${value.gmName}', style: theme.textTheme.bodySmall),
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => _play(context, ref),
-                        child: const Text('Play'),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    OutlinedButton(
-                      onPressed: () => _confirmDelete(
-                        context,
-                        ref,
-                        teamName: value.team.name,
-                      ),
-                      child: const Text('Delete'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            AsyncData() => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  OutlinedButton(
+                    style: _compactButtonStyle,
+                    onPressed: () =>
+                        _confirmDelete(context, ref, teamName: value.team.name),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          AsyncData() => Row(
+            children: [
+              Text('Slot $slotNumber', style: theme.textTheme.labelSmall),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
                   'Empty',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                FilledButton(
-                  onPressed: () => _play(context, ref),
-                  child: const Text('Play'),
-                ),
-              ],
-            ),
-            AsyncError() => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+              ),
+              FilledButton(
+                style: _compactButtonStyle,
+                onPressed: () => _play(context, ref),
+                child: const Text('Play'),
+              ),
+            ],
+          ),
+          AsyncError() => Row(
+            children: [
+              Text('Slot $slotNumber', style: theme.textTheme.labelSmall),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
                   'Could not load this save.',
                   style: TextStyle(color: theme.colorScheme.error),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                OutlinedButton(
-                  onPressed: () => _confirmDelete(context, ref),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
-                    side: BorderSide(color: theme.colorScheme.error),
-                  ),
-                  child: const Text('Delete'),
-                ),
-              ],
-            ),
-            _ => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.sm),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
+              OutlinedButton(
+                style: _compactButtonStyle.copyWith(
+                  foregroundColor: WidgetStatePropertyAll(
+                    theme.colorScheme.error,
+                  ),
+                  side: WidgetStatePropertyAll(
+                    BorderSide(color: theme.colorScheme.error),
+                  ),
+                ),
+                onPressed: () => _confirmDelete(context, ref),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+          _ => const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-          },
-        ],
+          ),
+        },
       ),
     );
   }
