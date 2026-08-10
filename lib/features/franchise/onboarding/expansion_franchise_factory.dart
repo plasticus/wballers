@@ -100,8 +100,12 @@ const kStarterPalettes = <TeamColors>[
 
 /// Derives a 3-letter team abbreviation from a club name: the first three
 /// letters, uppercased, padded with `X` if the name is too short. Doesn't
-/// try to be clever about word boundaries -- a GM who wants a specific
-/// abbreviation can get that from the future team-profile editor.
+/// try to be clever about word boundaries. Real onboarding no longer uses
+/// this as the primary path (2026-08-10) -- the GM now picks their own
+/// abbreviation directly (`onboarding_screen.dart`'s "Abbreviation"
+/// field), since a derived one can't tell "DSM" from "DMD" apart -- this
+/// is now only [createExpansionFranchise]'s fallback for a caller that
+/// doesn't pass one explicitly (mostly tests).
 String deriveTeamAbbreviation(String clubName) {
   final lettersOnly = clubName.toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
   final letters = lettersOnly.padRight(3, 'X');
@@ -154,10 +158,29 @@ String deriveTeamAbbreviation(String clubName) {
 /// GM's pick straight through here). Omitted, this falls back to the
 /// original single-random-coach behavior, which every pre-existing
 /// caller (mostly tests) still relies on.
+///
+/// [homeState]/[abbreviation] are both optional (2026-08-10, a direct GM
+/// report with a screenshot: the GM's own club was showing "Deebers" /
+/// "DEE · Des Moines" instead of the AI pool's "Chicago Gale" / "CHI ·
+/// Chicago, IL" convention) -- real onboarding always passes both now
+/// (new "State/Province" and "Abbreviation" fields, `onboarding_screen.dart`),
+/// but every pre-existing caller (mostly tests, dozens of them, none of
+/// which care about this distinction) keeps working unchanged: omitting
+/// [homeState] leaves [Team.location] as bare [homeCity] exactly like
+/// before, and omitting [abbreviation] falls back to [deriveTeamAbbreviation].
+/// [clubName] itself is unchanged -- always [Team.name] verbatim -- but
+/// onboarding now asks the GM to type the *whole* branded name directly
+/// ("Des Moines Deebers," or "Iowa Deebers" if they'd rather name the
+/// club after the state than the city) instead of a bare nickname the
+/// UI used to silently prepend [homeCity] to only in its own preview,
+/// never in the actual saved [Team.name] -- that mismatch was the real
+/// bug underneath the GM's report, not just a missing field.
 Franchise createExpansionFranchise({
   required String gmName,
   required String clubName,
   required String homeCity,
+  String? homeState,
+  String? abbreviation,
   required Conference conference,
   required int simulationSeed,
   required String replacedTeamAbbreviation,
@@ -168,8 +191,10 @@ Franchise createExpansionFranchise({
   PortraitManifest? portraitManifest,
 }) {
   final team = Team(
-    abbreviation: deriveTeamAbbreviation(clubName),
-    location: homeCity,
+    abbreviation: abbreviation ?? deriveTeamAbbreviation(clubName),
+    location: (homeState == null || homeState.isEmpty)
+        ? homeCity
+        : '$homeCity, $homeState',
     name: clubName,
     conference: conference,
     colors: colors,

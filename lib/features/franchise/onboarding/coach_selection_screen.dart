@@ -30,6 +30,8 @@ class CoachSelectionScreen extends ConsumerStatefulWidget {
     required this.gmName,
     required this.clubName,
     required this.homeCity,
+    required this.homeState,
+    required this.abbreviation,
     required this.conference,
     required this.simulationSeed,
     required this.replacedTeamAbbreviation,
@@ -41,6 +43,8 @@ class CoachSelectionScreen extends ConsumerStatefulWidget {
   final String gmName;
   final String clubName;
   final String homeCity;
+  final String homeState;
+  final String abbreviation;
   final Conference conference;
   final int simulationSeed;
   final String replacedTeamAbbreviation;
@@ -82,6 +86,8 @@ class _CoachSelectionScreenState extends ConsumerState<CoachSelectionScreen> {
       gmName: widget.gmName,
       clubName: widget.clubName,
       homeCity: widget.homeCity,
+      homeState: widget.homeState,
+      abbreviation: widget.abbreviation,
       conference: widget.conference,
       simulationSeed: widget.simulationSeed,
       replacedTeamAbbreviation: widget.replacedTeamAbbreviation,
@@ -136,9 +142,9 @@ class _CoachSelectionScreenState extends ConsumerState<CoachSelectionScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'As the new GM of ${widget.homeCity} ${widget.clubName} '
-            '${widget.emoji}, your first task is to select a Head Coach. '
-            'These are the three leading candidates:',
+            'As the new GM of ${widget.clubName} ${widget.emoji}, your '
+            'first task is to select a Head Coach. These are the three '
+            'leading candidates:',
             style: theme.textTheme.bodyLarge,
           ),
           const SizedBox(height: AppSpacing.lg),

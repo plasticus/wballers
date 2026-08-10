@@ -27,6 +27,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _gmNameController = TextEditingController();
   final _clubNameController = TextEditingController();
   final _homeCityController = TextEditingController();
+  final _homeStateController = TextEditingController();
+  final _abbreviationController = TextEditingController();
   var _conference = Conference.atlantic;
   // Not `late final` -- "Reroll League" replaces both after the fact, see
   // [_rerollLeague].
@@ -57,6 +59,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _gmNameController,
       _clubNameController,
       _homeCityController,
+      _homeStateController,
+      _abbreviationController,
     ]) {
       controller.addListener(() => setState(() {}));
     }
@@ -87,6 +91,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _gmNameController.dispose();
     _clubNameController.dispose();
     _homeCityController.dispose();
+    _homeStateController.dispose();
+    _abbreviationController.dispose();
     super.dispose();
   }
 
@@ -114,10 +120,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return options[Random().nextInt(options.length)];
   }
 
+  /// Exactly 3 letters, same shape as every `kLeagueTeamPool` entry
+  /// (`Team.abbreviation`'s own doc comment) -- a derived abbreviation
+  /// can't tell "DSM" from "DMD" apart for a team like the GM's own
+  /// "Des Moines Deebers" example, so this is now a real GM choice, not
+  /// guessed from the team name.
+  static final _abbreviationPattern = RegExp(r'^[A-Za-z]{3}$');
+
   bool get _isValid =>
       _gmNameController.text.trim().isNotEmpty &&
       _clubNameController.text.trim().isNotEmpty &&
-      _homeCityController.text.trim().isNotEmpty;
+      _homeCityController.text.trim().isNotEmpty &&
+      _homeStateController.text.trim().isNotEmpty &&
+      _abbreviationPattern.hasMatch(_abbreviationController.text.trim());
 
   void _continue() {
     Navigator.of(context).push(
@@ -126,6 +141,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           gmName: _gmNameController.text.trim(),
           clubName: _clubNameController.text.trim(),
           homeCity: _homeCityController.text.trim(),
+          homeState: _homeStateController.text.trim(),
+          abbreviation: _abbreviationController.text.trim().toUpperCase(),
           conference: _conference,
           simulationSeed: _simulationSeed,
           replacedTeamAbbreviation: _replacedTeamAbbreviation,
@@ -142,6 +159,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final gmName = _gmNameController.text.trim();
     final clubName = _clubNameController.text.trim();
     final homeCity = _homeCityController.text.trim();
+    final homeState = _homeStateController.text.trim();
+    final abbreviation = _abbreviationController.text.trim().toUpperCase();
 
     return Scaffold(
       appBar: AppBar(title: const Text('New Expansion Franchise')),
@@ -171,27 +190,67 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
+              // Team Name is the *whole* branded name, verbatim -- not
+              // just a nickname the app silently prepends a city to
+              // (2026-08-10, a direct GM report with a screenshot: a
+              // club named "Deebers" was only ever showing as "Deebers"
+              // in the league, not "Des Moines Deebers" like the preview
+              // below implied). Typing the full name here also answers
+              // the GM's own follow-up -- naming a club after a state
+              // instead of its home city ("the Iowa Deebers, who play in
+              // Des Moines") just means typing "Iowa Deebers" here; City/
+              // State below is independent flavor text, not a name
+              // source.
+              TextField(
+                controller: _clubNameController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Team Name',
+                  hintText: 'e.g. Des Moines Deebers',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 3,
                     child: TextField(
                       controller: _homeCityController,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
-                        labelText: 'City/State',
+                        labelText: 'Home City',
+                        hintText: 'Des Moines',
                         border: OutlineInputBorder(),
                       ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
+                    flex: 2,
                     child: TextField(
-                      controller: _clubNameController,
+                      controller: _homeStateController,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
-                        labelText: 'Club Name',
+                        labelText: 'State/Province',
+                        hintText: 'IA',
                         border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    flex: 2,
+                    child: TextField(
+                      controller: _abbreviationController,
+                      textCapitalization: TextCapitalization.characters,
+                      maxLength: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Abbr.',
+                        hintText: 'DSM',
+                        border: OutlineInputBorder(),
+                        counterText: '',
                       ),
                     ),
                   ),
@@ -205,7 +264,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   gmName: gmName,
                   clubName: clubName,
                   homeCity: homeCity,
+                  homeState: homeState,
+                  abbreviation: abbreviation,
                   emoji: _selectedEmoji,
+                  conference: _conference,
+                  colors: _selectedColors,
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
@@ -332,43 +395,60 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
 /// A live preview of how the club will read once created -- updates as
 /// the GM types, so the identity choice feels concrete before committing
-/// to it. Shows the same emoji "crest" treatment the Dashboard's team
-/// card uses, so it's not a surprise once the franchise is real.
+/// to it. Below the GM-name line, renders a real [TeamRow] off a
+/// throwaway [Team] built from the in-progress fields -- pixel-identical
+/// to how this club will actually show up on the League screen
+/// (2026-08-10, a direct GM report with a screenshot: the old preview's
+/// own "$homeCity $clubName" line didn't match what actually got saved
+/// as [Team.name], so what the GM saw here didn't match the league once
+/// created -- showing the *real* row widget instead of a hand-rolled
+/// approximation makes that mismatch structurally impossible from here
+/// on).
 class _IdentityPreviewCard extends StatelessWidget {
   const _IdentityPreviewCard({
     required this.gmName,
     required this.clubName,
     required this.homeCity,
+    required this.homeState,
+    required this.abbreviation,
     required this.emoji,
+    required this.conference,
+    required this.colors,
   });
 
   final String gmName;
   final String clubName;
   final String homeCity;
+  final String homeState;
+  final String abbreviation;
   final String emoji;
+  final Conference conference;
+  final TeamColors colors;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final displayGmName = gmName.isEmpty ? 'Your name' : gmName;
-    final displayClub = [
-      if (homeCity.isNotEmpty) homeCity,
-      if (clubName.isNotEmpty) clubName,
-    ].join(' ');
+    final previewTeam = Team(
+      abbreviation: abbreviation.isEmpty ? '???' : abbreviation,
+      location: homeState.isEmpty ? homeCity : '$homeCity, $homeState',
+      name: clubName.isEmpty ? 'Your Team' : clubName,
+      conference: conference,
+      colors: colors,
+      identityNote: '',
+      emoji: emoji,
+    );
 
     return AppCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 40)),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              displayClub.isEmpty
-                  ? '$displayGmName, General Manager'
-                  : '$displayGmName, General Manager of the $displayClub',
-              style: theme.textTheme.bodyLarge,
-            ),
+          Text(
+            '$displayGmName, General Manager',
+            style: theme.textTheme.bodyLarge,
           ),
+          const SizedBox(height: AppSpacing.sm),
+          TeamRow(team: previewTeam),
         ],
       ),
     );

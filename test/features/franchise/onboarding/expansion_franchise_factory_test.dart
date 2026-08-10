@@ -173,6 +173,47 @@ void main() {
       );
     });
 
+    test('explicit homeState/abbreviation match the AI pool\'s "ABBR · City, '
+        'ST" convention exactly -- the real fix behind a direct GM report '
+        '(2026-08-10): a club named "Deebers" in "Des Moines" was only ever '
+        'showing "DEE · Des Moines", never "Des Moines, IA" or a chosen '
+        'abbreviation', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Des Moines Deebers',
+        homeCity: 'Des Moines',
+        homeState: 'IA',
+        abbreviation: 'DSM',
+        conference: Conference.pacific,
+        replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      expect(franchise.team.name, 'Des Moines Deebers');
+      expect(franchise.team.location, 'Des Moines, IA');
+      expect(franchise.team.abbreviation, 'DSM');
+    });
+
+    test('an empty homeState falls back to bare homeCity, same as omitting '
+        'it entirely', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield',
+        homeState: '',
+        abbreviation: 'COM',
+        conference: Conference.pacific,
+        replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      expect(franchise.team.location, 'Springfield');
+    });
+
     test('generates a free-agent pool with a real high-potential '
         'prospect in it', () {
       final franchise = createExpansionFranchise(

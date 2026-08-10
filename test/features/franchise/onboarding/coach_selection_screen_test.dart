@@ -42,7 +42,9 @@ void main() {
           home: CoachSelectionScreen(
             gmName: 'Jordan Ellis',
             clubName: 'Comets',
-            homeCity: 'Springfield, IL',
+            homeCity: 'Springfield',
+            homeState: 'IL',
+            abbreviation: 'CMT',
             conference: Conference.atlantic,
             simulationSeed: _simulationSeed,
             replacedTeamAbbreviation: 'BOS',

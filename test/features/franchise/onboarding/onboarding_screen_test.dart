@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/franchise/onboarding/onboarding_screen.d
 import 'package:womensbballmgr/features/franchise/onboarding/team_emoji_options.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/league/team_row.dart';
 
 import '../../../support/in_memory_portrait_cache.dart';
 import '../../../support/in_memory_save_repository.dart';
@@ -52,13 +53,18 @@ void main() {
       'Jordan Ellis',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'City/State'),
-      'Springfield, IL',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Club Name'),
+      find.widgetWithText(TextField, 'Team Name'),
       'Comets',
     );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Home City'),
+      'Springfield',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'State/Province'),
+      'IL',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Abbr.'), 'CMT');
     await tester.pump();
   }
 
@@ -144,16 +150,27 @@ void main() {
     expect(continueButton().onPressed, isNull);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Club Name'),
+      find.widgetWithText(TextField, 'Team Name'),
       'Comets',
     );
     await tester.pump();
     expect(continueButton().onPressed, isNull);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'City/State'),
-      'Springfield, IL',
+      find.widgetWithText(TextField, 'Home City'),
+      'Springfield',
     );
+    await tester.pump();
+    expect(continueButton().onPressed, isNull);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'State/Province'),
+      'IL',
+    );
+    await tester.pump();
+    expect(continueButton().onPressed, isNull);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Abbr.'), 'CMT');
     await tester.pump();
 
     expect(continueButton().onPressed, isNotNull);
@@ -172,17 +189,35 @@ void main() {
     expect(find.text('Corey M, General Manager'), findsOneWidget);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'City/State'),
+      find.widgetWithText(TextField, 'Team Name'),
+      'Sunfish',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Home City'),
       'Seattle',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Club Name'),
-      'Sunfish',
+      find.widgetWithText(TextField, 'State/Province'),
+      'WA',
     );
+    await tester.enterText(find.widgetWithText(TextField, 'Abbr.'), 'SEA');
     await tester.pump();
 
+    // The preview delegates to the real TeamRow widget (2026-08-10) --
+    // typed fields show up through it exactly as they would on the real
+    // League screen, not a separately hand-formatted preview string.
+    // Scoped to TeamRow specifically -- "Sunfish" also matches the still-
+    // mounted TextField's own EditableText otherwise.
+    expect(find.text('Corey M, General Manager'), findsOneWidget);
     expect(
-      find.text('Corey M, General Manager of the Seattle Sunfish'),
+      find.descendant(of: find.byType(TeamRow), matching: find.text('Sunfish')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(TeamRow),
+        matching: find.text('SEA · Seattle, WA'),
+      ),
       findsOneWidget,
     );
   });
