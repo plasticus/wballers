@@ -1306,6 +1306,89 @@ void main() {
           .player;
       expect(restoredVeteran.ratings.overall, lessThan(70));
     });
+
+    test('also trains every AI team\'s roster, all at once, once the '
+        'postseason resolves (TODO.md item 8, a direct GM ask -- "all AI '
+        'training... at the end of the season... in one big lump")', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      var progress = franchise.seasonProgress;
+      var guard = 0;
+      while (!progress.isComplete && guard < 60) {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        progress = container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress;
+        guard++;
+      }
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+
+      // A real, full 310-game season gives every AI roster real minutes
+      // for real players across ~18-21 training-eligible weeks -- across
+      // 19 teams x 12 players, at least someone's ratings moved.
+      var anyAiPlayerChanged = false;
+      outer:
+      for (var i = 0; i < franchise.league.aiTeams.length; i++) {
+        final before = franchise.league.aiTeams[i].roster;
+        final after = savedFranchise.league.aiTeams[i].roster;
+        for (var j = 0; j < before.length; j++) {
+          if (before[j].player.ratings.overall !=
+                  after[j].player.ratings.overall ||
+              before[j].player.id != after[j].player.id) {
+            // An id mismatch here would itself be a real bug (roster
+            // reordering), not just "no growth" -- either way, this
+            // player counts as evidence the pass actually ran.
+            anyAiPlayerChanged = true;
+            break outer;
+          }
+        }
+      }
+      expect(anyAiPlayerChanged, isTrue);
+
+      // Team identity/roster composition is never touched by training --
+      // same 19 teams, same players on each, only ratings can move.
+      expect(savedFranchise.league.aiTeams.length, 19);
+      for (var i = 0; i < franchise.league.aiTeams.length; i++) {
+        expect(
+          savedFranchise.league.aiTeams[i].team.abbreviation,
+          franchise.league.aiTeams[i].team.abbreviation,
+        );
+        expect(
+          savedFranchise.league.aiTeams[i].roster.map((m) => m.player.id),
+          franchise.league.aiTeams[i].roster.map((m) => m.player.id),
+        );
+      }
+    });
   });
 
   group('updateTrainingPlan', () {

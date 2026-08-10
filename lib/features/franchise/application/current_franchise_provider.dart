@@ -339,9 +339,12 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// This is also the one moment the whole season is unambiguously over,
   /// which is why it's the single call site for [resolveSeasonEndAging]
   /// (TODO.md item 1's other half, see that function's own doc comment
-  /// for why) -- gated behind the exact same `advance.gamesPlayed.isEmpty`
-  /// idempotency check as everything else in this method, so the lump
-  /// can never apply twice to one season.
+  /// for why) and [resolveAiTeamSeasonTraining] (TODO.md item 8 -- every
+  /// AI roster's whole season of training resolves right here too, in
+  /// one lump, per the GM's own design call) -- both gated behind the
+  /// exact same `advance.gamesPlayed.isEmpty` idempotency check as
+  /// everything else in this method, so neither can ever apply twice to
+  /// one season.
   Future<List<GameResult>?> simulatePostseasonAndPersist() async {
     final franchise = await future;
     if (franchise == null || !franchise.seasonProgress.isComplete) {
@@ -364,7 +367,13 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       Random(withTraining.simulationSeed + kSeasonEndAgingSeedOffset),
       withTraining,
     );
-    await _persist(agingAdvance.franchise);
+    final aiTrainingAdvance = resolveAiTeamSeasonTraining(
+      Random(agingAdvance.franchise.simulationSeed + kAiTeamTrainingSeedOffset),
+      agingAdvance.franchise,
+    );
+    await _persist(
+      agingAdvance.franchise.copyWithLeague(aiTrainingAdvance.league),
+    );
     return advance.gamesPlayed;
   }
 

@@ -1,7 +1,10 @@
 import 'dart:math';
 
 import '../../../core/ratings/rating_scale.dart';
+import '../../coach/domain/coach_stats.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../league/domain/ai_team_roster.dart';
+import '../../league/domain/league.dart';
 import '../../player/domain/player.dart';
 import '../../player/domain/trait.dart';
 import '../../roster/domain/roster_membership.dart';
@@ -89,6 +92,11 @@ const kTrainingAdvanceSeedOffset = 8;
 /// rather than tacking a new number on the end.
 const kSeasonEndAgingSeedOffset = 9;
 
+/// Seed offset for [resolveAiTeamSeasonTraining]'s [Random] stream --
+/// next free number after `draft_generator.dart`'s
+/// `kDraftOrderSeedOffset` (13).
+const kAiTeamTrainingSeedOffset = 14;
+
 /// What one weekly training cycle produced: the updated [Franchise]
 /// (roster with new ratings, `nextTrainingWeek` advanced, the new report
 /// appended to history) and the [TrainingReport] itself, for a caller
@@ -104,12 +112,13 @@ class TrainingAdvance {
 /// (`lastFullyCompletedWeek`), or returns `null` if no new week is ready
 /// yet -- callers should treat `null` as "nothing to do," not an error.
 ///
-/// Scope, deliberately: only [Franchise.roster] trains here -- the other
-/// 19 AI teams' rosters don't age or improve through this system yet.
-/// Real follow-up work, not a silent gap; see `0A_Completed.md`.
-/// `RosterStatus.reserveInactive` players are skipped entirely (not part
-/// of team training activities); active and developmental players both
-/// train, with the developmental slot applying its own multiplier.
+/// Scope, deliberately: only [Franchise.roster] trains here, live,
+/// week by week -- the 19 AI teams' rosters train too, just not through
+/// this function; see [resolveAiTeamSeasonTraining] for why their whole
+/// season resolves as one lump instead. `RosterStatus.reserveInactive`
+/// players are skipped entirely (not part of team training activities);
+/// active and developmental players both train, with the developmental
+/// slot applying its own multiplier.
 ///
 /// The growth/decline math itself (age curve, gap-to-potential, minutes,
 /// coach quality, traits, training focus) lives in this file's private
@@ -305,6 +314,108 @@ SeasonEndAgingAdvance resolveSeasonEndAging(
     ),
     results: results,
   );
+}
+
+/// The updated [League] a full season's worth of AI-team training
+/// produces -- see [resolveAiTeamSeasonTraining]. Deliberately no
+/// per-player [PlayerGrowthResult] list alongside it, unlike
+/// [TrainingAdvance]/[SeasonEndAgingAdvance] -- nothing surfaces this to
+/// the GM (there's no mail item, report, or Dashboard card for a roster
+/// they don't manage), so there's nothing that needs one.
+class AiTeamTrainingAdvance {
+  const AiTeamTrainingAdvance({required this.league});
+
+  final League league;
+}
+
+/// Resolves an entire season's worth of training for every AI team in
+/// [franchise]'s league, all in one lump -- a direct GM design call
+/// (2026-08-10, TODO.md item 8, resolving the fairness question the item
+/// itself raised: every AI roster sitting static all season while only
+/// the GM's own team trains): "I'd like for all AI training to occur at
+/// the end of the season, after the players[' own training resolves],
+/// in one big lump. Do similar numbers as they'd get week to week,
+/// just... all at the end." Meant to be called exactly once per season,
+/// right alongside [resolveSeasonEndAging] -- same call site
+/// (`current_franchise_provider.dart`'s `simulatePostseasonAndPersist`),
+/// same idempotency guard.
+///
+/// "Similar numbers as they'd get week to week" rules out the tempting
+/// shortcut of summing a whole season's minutes into one combined delta
+/// -- [_kMinutesFactorCap] caps a single delta's minutes credit at 1.3x
+/// one week's worth no matter how many real weeks it spans, so a
+/// mega-week calculation would badly *undercount* growth relative to
+/// what actually resolving week by week produces. Instead, this replays
+/// [_newFieldValuesFor] once per distinct scheduled week (preseason
+/// through the postseason, whatever [franchise.seasonProgress] actually
+/// has played games for) -- the exact same formula [runTraining] uses
+/// for the GM's own roster, with that week's own minutes only, letting
+/// each week's growth compound into the next exactly like a real season
+/// would. The only real difference from the GM's own path is *when* the
+/// result becomes visible (all at once, at the end) rather than *how*
+/// it's computed.
+///
+/// AI teams have no [TrainingPlan]/individual coach slots to read (no GM
+/// exists to set one) and no generated head coach of their own --
+/// [AiTeamRoster] only ever carried identity + roster, nothing like
+/// [Franchise.coach]. Every AI player trains under
+/// [TrainingFocus.balanced] at a flat [CoachStats.neutral] development
+/// rating (50, [_totalWeeklyDelta]'s exact "no boost, no penalty"
+/// midpoint) -- the same fallback the GM's own roster already gets for
+/// any player nobody individually assigned, just without a head coach to
+/// vary it team to team. `RosterStatus.reserveInactive` players are
+/// skipped, same as [runTraining]/[resolveSeasonEndAging].
+AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
+  Random random,
+  Franchise franchise,
+) {
+  final playedGames = franchise.seasonProgress.playedGames;
+  final weeks = {for (final played in playedGames) played.game.week}.toList()
+    ..sort();
+
+  const focus = IndividualTrainingFocus.broad(TrainingFocus.balanced);
+
+  final newAiTeams = <AiTeamRoster>[];
+  for (final aiTeam in franchise.league.aiTeams) {
+    var roster = aiTeam.roster;
+    for (final week in weeks) {
+      final minutesThisWeek = _minutesInWeekRange(
+        playedGames,
+        fromWeekInclusive: week,
+        toWeekInclusive: week,
+      );
+
+      final newRoster = <RosterMembership>[];
+      for (final membership in roster) {
+        if (membership.status == RosterStatus.reserveInactive) {
+          newRoster.add(membership);
+          continue;
+        }
+        final player = membership.player;
+        final newFieldValues = _newFieldValuesFor(
+          random,
+          player: player,
+          minutesThisWeek: minutesThisWeek[player.id] ?? 0,
+          focus: focus,
+          coachDevelopmentRating: CoachStats.neutral.development,
+          isDevelopmentalSlot: membership.status == RosterStatus.developmental,
+          isIndividuallySlotted: false,
+        );
+        if (newFieldValues.isEmpty) {
+          newRoster.add(membership);
+          continue;
+        }
+        final (newPlayer, _) = _applyFieldValues(player, newFieldValues);
+        newRoster.add(
+          RosterMembership(player: newPlayer, status: membership.status),
+        );
+      }
+      roster = newRoster;
+    }
+    newAiTeams.add(AiTeamRoster(team: aiTeam.team, roster: roster));
+  }
+
+  return AiTeamTrainingAdvance(league: League(aiTeams: newAiTeams));
 }
 
 /// Sums [PlayedGame.minutesByPlayerId] across every game in

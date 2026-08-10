@@ -315,6 +315,31 @@ class Franchise {
     );
   }
 
+  /// Returns a copy with [newLeague] replacing [league] -- currently only
+  /// [resolveAiTeamSeasonTraining]'s doing (`training_advancer.dart`),
+  /// which is the one thing that ever changes an AI team's roster after
+  /// franchise creation.
+  Franchise copyWithLeague(League newLeague) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: newLeague,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+    );
+  }
+
   /// Returns a copy reflecting [roster]/[freeAgents] moving a player
   /// between them: [newRoster] and [newFreeAgents] always change together
   /// -- a signed player leaves [freeAgents] and joins [roster] in the same

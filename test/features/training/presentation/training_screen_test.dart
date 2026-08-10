@@ -96,6 +96,30 @@ void main() {
     // for any of the 3 idle coaches yet.
     expect(find.text('Unassigned'), findsNWidgets(3));
     expect(find.text('Broad'), findsNothing);
+    // The brief plain-language explainer, below the Save button
+    // (2026-08-10, TODO.md item 6, a direct GM ask -- "I am writing the
+    // program, and even I don't know how it works").
+    expect(find.text('How Training Works'), findsOneWidget);
+  });
+
+  testWidgets('the Coach Picker Lab button opens CoachPickerLabScreen '
+      '(2026-08-10, TODO.md item 5)', (tester) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: TrainingScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Coach Picker Lab'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Coach Picker Lab'), findsOneWidget);
+    expect(find.text('1. Current Format (for reference)'), findsOneWidget);
   });
 
   testWidgets('changing the team focus and saving persists it', (tester) async {

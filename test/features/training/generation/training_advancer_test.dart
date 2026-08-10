@@ -5,7 +5,9 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/league/domain/ai_team_roster.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
@@ -651,6 +653,241 @@ void main() {
         advance.franchise.roster.single.player.ratings.overall,
         lessThan(70),
       );
+    });
+  });
+
+  group('resolveAiTeamSeasonTraining (TODO.md item 8: AI teams train too, '
+      'all at once at season end)', () {
+    /// A franchise whose league has exactly one controlled AI team
+    /// ([controlledRoster], at [targetTeam]) -- the other 18 come
+    /// straight from [testLeague] untouched, satisfying [League]'s own
+    /// "exactly 19 AI teams" assert without this test needing to build
+    /// all 19 by hand.
+    Franchise franchiseWithAiTeam({
+      required List<RosterMembership> controlledRoster,
+      required List<PlayedGame> playedGames,
+    }) {
+      final baseLeague = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      );
+      final targetTeam = baseLeague.aiTeams.first.team;
+      final league = League(
+        aiTeams: [
+          AiTeamRoster(team: targetTeam, roster: controlledRoster),
+          ...baseLeague.aiTeams.skip(1),
+        ],
+      );
+      return Franchise(
+        id: 'test-franchise',
+        gmName: 'Test GM',
+        team: kLeagueTeamPool[1],
+        coach: const Coach(
+          name: 'Head Coach',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: const [],
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: league,
+        seasonProgress: SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [for (final g in playedGames) g.game],
+          ),
+          playedGames: playedGames,
+          nextGameDayIndex: playedGames.length,
+        ),
+        trainingCoaches: const [
+          TrainingCoach(name: 'Coach A'),
+          TrainingCoach(name: 'Coach B'),
+          TrainingCoach(name: 'Coach C'),
+        ],
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 1,
+      );
+    }
+
+    /// The raw sum of all 12 current-ability fields -- unlike
+    /// `PlayerRatings.overall` (a rounded 12-field average), this always
+    /// reflects real growth even when it's concentrated in just one or
+    /// two fields, too small on its own to move the rounded overall by a
+    /// whole point.
+    int totalRatingFields(PlayerRatings r) =>
+        r.speed +
+        r.agility +
+        r.strength +
+        r.stamina +
+        r.ballControl +
+        r.passing +
+        r.interiorOffense +
+        r.perimeterOffense +
+        r.perimeterDefense +
+        r.interiorDefense +
+        r.disruption +
+        r.blocking;
+
+    PlayedGame weekGame(int week, Map<String, double> minutesByPlayerId) {
+      return PlayedGame(
+        game: ScheduledGame(
+          week: week,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: 'AAA',
+          awayTeamAbbreviation: 'BBB',
+          type: GameType.regularSeason,
+        ),
+        homeScore: 80,
+        awayScore: 70,
+        minutesByPlayerId: minutesByPlayerId,
+      );
+    }
+
+    test('AI rosters actually change -- a young, wide-gap-to-potential '
+        'player with real minutes grows', () {
+      final player = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+      final franchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(player: player, status: RosterStatus.active),
+        ],
+        playedGames: [
+          weekGame(1, {'ai1': 40}),
+          weekGame(2, {'ai1': 40}),
+          weekGame(3, {'ai1': 40}),
+        ],
+      );
+
+      final advance = resolveAiTeamSeasonTraining(Random(1), franchise);
+      final grownPlayer = advance.league.aiTeams.first.roster.single.player;
+
+      // Real growth can land as a single point on one field without
+      // moving the rounded `overall` at all -- see `totalRatingFields`'s
+      // own doc comment.
+      expect(
+        totalRatingFields(grownPlayer.ratings),
+        greaterThan(totalRatingFields(player.ratings)),
+      );
+    });
+
+    test('reserve/inactive AI players never change', () {
+      final player = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+      final franchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(
+            player: player,
+            status: RosterStatus.reserveInactive,
+          ),
+        ],
+        playedGames: [
+          weekGame(1, {'ai1': 40}),
+        ],
+      );
+
+      final advance = resolveAiTeamSeasonTraining(Random(1), franchise);
+      final untouchedPlayer = advance.league.aiTeams.first.roster.single.player;
+
+      expect(untouchedPlayer.ratings.overall, 50);
+    });
+
+    test('every other AI team trains too, without changing who\'s on which '
+        'roster -- same 19 teams, same order, same players', () {
+      final player = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+      final franchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(player: player, status: RosterStatus.active),
+        ],
+        playedGames: [
+          weekGame(1, {'ai1': 40}),
+        ],
+      );
+
+      final advance = resolveAiTeamSeasonTraining(Random(1), franchise);
+
+      expect(advance.league.aiTeams.length, 19);
+      for (var i = 0; i < advance.league.aiTeams.length; i++) {
+        // Team identity and roster composition are untouched -- only
+        // ratings can move, never who's on the team or in what order.
+        // (The team at index 0 is this test's own controlled team, which
+        // trains too, exactly like the other 18 -- that's the whole
+        // point of this feature, not something to assert against here.)
+        expect(
+          advance.league.aiTeams[i].team.abbreviation,
+          franchise.league.aiTeams[i].team.abbreviation,
+        );
+        final beforeIds = franchise.league.aiTeams[i].roster
+            .map((m) => m.player.id)
+            .toList();
+        final afterIds = advance.league.aiTeams[i].roster
+            .map((m) => m.player.id)
+            .toList();
+        expect(afterIds, beforeIds);
+      }
+    });
+
+    test('the same seed produces the same result', () {
+      final player = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+      final franchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(player: player, status: RosterStatus.active),
+        ],
+        playedGames: [
+          weekGame(1, {'ai1': 40}),
+          weekGame(2, {'ai1': 40}),
+        ],
+      );
+
+      final a = resolveAiTeamSeasonTraining(Random(5), franchise);
+      final b = resolveAiTeamSeasonTraining(Random(5), franchise);
+
+      expect(
+        a.league.aiTeams.first.roster.single.player.ratings.overall,
+        b.league.aiTeams.first.roster.single.player.ratings.overall,
+      );
+    });
+
+    test('replaying the formula per real week produces more growth than '
+        'collapsing the same total minutes into one combined delta -- '
+        '"similar numbers as they\'d get week to week," not a '
+        'mega-week that undercounts growth via the minutes-factor cap', () {
+      final player = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+
+      // Per-week: 6 separate weeks of 40 minutes each, resolved the way
+      // resolveAiTeamSeasonTraining actually does it.
+      final perWeekFranchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(player: player, status: RosterStatus.active),
+        ],
+        playedGames: [
+          for (var w = 1; w <= 6; w++) weekGame(w, {'ai1': 40}),
+        ],
+      );
+      final perWeekAdvance = resolveAiTeamSeasonTraining(
+        Random(1),
+        perWeekFranchise,
+      );
+      final perWeekTotal = totalRatingFields(
+        perWeekAdvance.league.aiTeams.first.roster.single.player.ratings,
+      );
+
+      // Mega-week: the exact same 240 total minutes, but all recorded on
+      // a single week -- one combined delta, capped by
+      // _kMinutesFactorCap regardless of how much real time that spans.
+      final megaWeekFranchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(player: player, status: RosterStatus.active),
+        ],
+        playedGames: [
+          weekGame(1, {'ai1': 240}),
+        ],
+      );
+      final megaWeekAdvance = resolveAiTeamSeasonTraining(
+        Random(1),
+        megaWeekFranchise,
+      );
+      final megaWeekTotal = totalRatingFields(
+        megaWeekAdvance.league.aiTeams.first.roster.single.player.ratings,
+      );
+
+      expect(perWeekTotal, greaterThan(megaWeekTotal));
     });
   });
 }
