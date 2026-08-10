@@ -25,27 +25,10 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 7. **New "Season To Date Report" on the Training page** — an ongoing, always-current report (not a one-off like `TrainingReportScreen`) listing every roster player's total stat-field growth so far this season, sorted most-improved to least; within a player's own row, their individual field deltas sorted descending too (e.g. "Agility +7, Passing +5, Disruption +3" in that order). Strong reuse opportunity: `SeasonRecapScreen`'s "Player Development" section (2026-08-10) already does almost exactly this via `aggregateSeasonGrowth`/`PlayerGrowthCard` -- the only real difference is this needs to be readable *mid-season*, not just after the season ends, so it can't include the season-end aging lump the way the recap screen's version does.
 8. **Are AI teams training at all?** — confirmed no: `training_advancer.dart`'s own doc comment already says so ("the other 19 AI teams' rosters don't age or improve through this system yet"), tracked as known follow-up work in `0B_Planned.md`. The GM flagged this as a real fairness concern on replay (every AI team's roster staying static all season while only the GM's own team develops/declines) -- promoting it here to make sure it actually gets picked up, not just left as a background note.
 
-## Player detail
-
-9. **Reformat the This Season stat block** — from a flat averages line to: a "N games played" header, an "Averages per game:" label, then one stat per line (Points, Assists, Rebounds, Blocks, Steals, and a new one not currently shown at all -- **Turnovers**), then a separate line for shooting splits (FG%/3PT%/FT%). GM's own mockup:
-    ```
-    3 games played
-
-    Averages per game:
-    7.3 Points
-    3.0 Assists
-    2.7 Rebounds
-    0.3 Blocks
-    0.0 Steals
-    2.5 Turnovers
-
-    31% FG · 33% 3PT · 66% FT
-    ```
-
 ## Awards
 
-10. **End-of-season awards need a real design pass** — no list exists yet of what awards this game actually gives out (MVP, Most Improved, etc.). Wants a full brainstormed catalog (everything from MVP down) written up as an HTML doc, matching this project's established HTML-artifact convention for open design questions, before any of it gets built.
+9. **End-of-season awards need a real design pass** — no list exists yet of what awards this game actually gives out (MVP, Most Improved, etc.). Wants a full brainstormed catalog (everything from MVP down) written up as an HTML doc, matching this project's established HTML-artifact convention for open design questions, before any of it gets built.
 
 ## Roadmap
 
-11. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.
+10. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.

@@ -313,13 +313,19 @@ void main() {
     await tester.pump();
 
     expect(find.text('2 games played'), findsOneWidget);
+    expect(find.text('Averages per game:'), findsOneWidget);
     // Both games used the same stat line, so per-game averages equal the
-    // single game's own numbers exactly.
-    expect(
-      find.text('20.0 PPG · 6.0 RPG · 4.0 APG · 1.0 SPG · 1.0 BPG'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('FG 53%'), findsOneWidget);
+    // single game's own numbers exactly. One stat per line, this exact
+    // order (2026-08-10, TODO.md item 9 -- the GM's own mockup),
+    // including Turnovers, which the old single-line summary never
+    // showed at all.
+    expect(find.text('20.0 Points'), findsOneWidget);
+    expect(find.text('4.0 Assists'), findsOneWidget);
+    expect(find.text('6.0 Rebounds'), findsOneWidget);
+    expect(find.text('1.0 Blocks'), findsOneWidget);
+    expect(find.text('1.0 Steals'), findsOneWidget);
+    expect(find.text('2.0 Turnovers'), findsOneWidget);
+    expect(find.text('53% FG · 40% 3PT · 100% FT'), findsOneWidget);
   });
 
   testWidgets('lists earned awards', (tester) async {

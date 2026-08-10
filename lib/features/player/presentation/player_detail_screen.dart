@@ -408,25 +408,38 @@ class _SeasonStatsCard extends StatelessWidget {
     String pct(double made, double attempts) =>
         attempts == 0 ? '--' : '${(made / attempts * 100).round()}%';
 
+    // One stat per line, this exact order (Points, Assists, Rebounds,
+    // Blocks, Steals, Turnovers) -- the GM's own mockup (2026-08-10,
+    // TODO.md item 9), replacing the old flat "7.3 PPG · 2.7 RPG · ..."
+    // single-line summary. Turnovers is new here -- `PlayedGameStatLine`
+    // already tracked it, nothing else on this screen showed it.
+    final statLines = <(String label, double value)>[
+      ('Points', perGame((l) => l.points)),
+      ('Assists', perGame((l) => l.assists)),
+      ('Rebounds', perGame((l) => l.totalRebounds)),
+      ('Blocks', perGame((l) => l.blocks)),
+      ('Steals', perGame((l) => l.steals)),
+      ('Turnovers', perGame((l) => l.turnovers)),
+    ];
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('$gamesPlayed games played', style: theme.textTheme.bodyMedium),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '${perGame((l) => l.points).toStringAsFixed(1)} PPG · '
-            '${perGame((l) => l.totalRebounds).toStringAsFixed(1)} RPG · '
-            '${perGame((l) => l.assists).toStringAsFixed(1)} APG · '
-            '${perGame((l) => l.steals).toStringAsFixed(1)} SPG · '
-            '${perGame((l) => l.blocks).toStringAsFixed(1)} BPG',
-            style: theme.textTheme.bodyLarge,
-          ),
+          const SizedBox(height: AppSpacing.md),
+          Text('Averages per game:', style: theme.textTheme.bodyMedium),
           const SizedBox(height: AppSpacing.xs),
+          for (final (label, value) in statLines)
+            Text(
+              '${value.toStringAsFixed(1)} $label',
+              style: theme.textTheme.bodyLarge,
+            ),
+          const SizedBox(height: AppSpacing.md),
           Text(
-            'FG ${pct(fgMade, fgAttempts)} · '
-            '3PT ${pct(threeMade, threeAttempts)} · '
-            'FT ${pct(ftMade, ftAttempts)}',
+            '${pct(fgMade, fgAttempts)} FG · '
+            '${pct(threeMade, threeAttempts)} 3PT · '
+            '${pct(ftMade, ftAttempts)} FT',
             style: theme.textTheme.bodyMedium,
           ),
         ],
