@@ -48,6 +48,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -102,3 +103,28 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# App icon, generated from the real WBL crest (`TODO.md`'s app-icon item,
+# `branding/wbl_logo_alpha.png`) via `dart run flutter_launcher_icons` --
+# regenerate with that command if the source logo ever changes, don't hand-
+# edit the generated mipmap/web icon files directly.
+flutter_launcher_icons:
+  android: true
+  image_path: "branding/wbl_logo_alpha.png"
+  # The full crest's illustration already reaches almost edge-to-edge
+  # (`wbl_logo_adaptive_foreground.png`'s own generation script), so the
+  # plain image_path above would lose its top/bottom points to Android's
+  # adaptive-icon safe-zone mask (~66% of the canvas, on a circular or
+  # squircle launcher). `wbl_logo_adaptive_foreground.png` is the same
+  # crest scaled to ~62% of a transparent square canvas specifically so
+  # nothing gets clipped.
+  adaptive_icon_foreground: "branding/wbl_logo_adaptive_foreground.png"
+  # Sampled directly from the crest's own dark navy interior (not the
+  # app's separate `#0B1B35` brand navy) so the adaptive background reads
+  # as a seamless continuation of the crest, not a mismatched fill.
+  adaptive_icon_background: "#000D1D"
+  web:
+    generate: true
+    image_path: "branding/wbl_logo_alpha.png"
+    background_color: "#000D1D"
+    theme_color: "#000D1D"

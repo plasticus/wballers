@@ -22,7 +22,3 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 ## Open questions
 
 6. **Do coach attributes actually do anything yet?** — need to confirm whether coach stats (Motivation, Offense, etc.) currently have any real gameplay effect, or are still cosmetic/unused.
-
-## Polish
-
-7. **Real app icon** — replace the default Flutter icon with the WBL logo (`branding/wbl_logo_alpha.png` already in the repo).
