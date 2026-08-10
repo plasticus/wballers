@@ -61,14 +61,37 @@ void main() {
     expect(player.traits, isEmpty);
   });
 
-  test('a legacy save falls back to no appearance, achievements, nickname, or '
-      'jersey number', () {
+  test('a legacy save falls back to no appearance, achievements, nickname, '
+      'jersey number, or college', () {
     final player = playerFromJson(_legacyPlayerJson());
 
     expect(player.appearance, isNull);
     expect(player.achievements, isEmpty);
     expect(player.nickname, isNull);
     expect(player.jerseyNumber, isNull);
+    expect(player.college, isNull);
+  });
+
+  test('playerToJson/playerFromJson round-trips a college by abbreviation', () {
+    final player = playerFromJson(_legacyPlayerJson());
+    final withCollege = Player(
+      id: player.id,
+      name: player.name,
+      age: player.age,
+      yearsOfService: player.yearsOfService,
+      hometown: player.hometown,
+      primaryPosition: player.primaryPosition,
+      handedness: player.handedness,
+      biography: player.biography,
+      ratings: player.ratings,
+      heightInches: player.heightInches,
+      archetype: player.archetype,
+      college: kColleges.first,
+    );
+
+    final roundTripped = playerFromJson(playerToJson(withCollege));
+
+    expect(roundTripped.college?.abbreviation, kColleges.first.abbreviation);
   });
 
   test('playerToJson/playerFromJson round-trips a jersey number', () {

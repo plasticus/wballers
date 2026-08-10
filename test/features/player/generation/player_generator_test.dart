@@ -6,6 +6,7 @@ import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/player/generation/player_generator.dart';
+import 'package:womensbballmgr/features/player/generation/player_generator_data.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_height_tier.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 
@@ -117,6 +118,48 @@ void main() {
       expect(player.hometown, 'Nowhereville, XX');
     }
   });
+
+  test(
+    'domestic players get a college, international players get null -- '
+    'never both, never neither',
+    () {
+      final random = Random(789);
+      for (var i = 0; i < 300; i++) {
+        final player = generatePlayer(random, primaryPosition: Position.center);
+        final isInternational = kInternationalHometowns.contains(
+          player.hometown,
+        );
+        if (isInternational) {
+          expect(
+            player.college,
+            isNull,
+            reason: 'international hometown: ${player.hometown}',
+          );
+        } else {
+          expect(
+            player.college,
+            isNotNull,
+            reason: 'domestic hometown: ${player.hometown}',
+          );
+          expect(kColleges, contains(player.college));
+        }
+      }
+    },
+  );
+
+  test(
+    'a hometownOverride from kInternationalHometowns produces a player '
+    'with no college',
+    () {
+      final random = Random(321);
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.pointGuard,
+        hometownOverride: kInternationalHometowns.first,
+      );
+      expect(player.college, isNull);
+    },
+  );
 
   test('every generated height stays within bounds, for every position', () {
     final random = Random(17);

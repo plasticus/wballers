@@ -407,6 +407,12 @@ const Map<Position, int> _heightCenterInches = {
 };
 const _heightJitterInches = 4;
 
+/// Computed once (a top-level `final`, not recomputed per generated
+/// player) since [weightedColleges] itself does real list-expansion work
+/// -- every call to [generatePlayer] for a domestic player picks from
+/// this same shared pool.
+final _weightedCollegePool = weightedColleges();
+
 int _generateHeight(Random random, Position position) {
   final center = _heightCenterInches[position]!;
   final jitter =
@@ -606,6 +612,15 @@ Player generatePlayer(
   final lastName = kLastNames[random.nextInt(kLastNames.length)];
   final hometown =
       hometownOverride ?? kHometowns[random.nextInt(kHometowns.length)];
+  // Every domestic player gets a college; every international one gets
+  // `null` instead -- `Player.college`'s doc comment on why those two are
+  // mutually exclusive and exhaustive, never both, never neither. Consumes
+  // a random draw only on the domestic branch, same "skip what an
+  // override/non-applicable branch doesn't need" posture
+  // [hometownOverride] itself already established just above.
+  final college = kInternationalHometowns.contains(hometown)
+      ? null
+      : _weightedCollegePool[random.nextInt(_weightedCollegePool.length)];
   // Practically-unique within one franchise's roster, not globally --
   // that's all a lineup slot reference needs.
   final id = random.nextInt(0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
@@ -633,6 +648,7 @@ Player generatePlayer(
     heightInches: heightInches,
     archetype: archetype,
     appearance: appearance,
+    college: college,
   );
 }
 

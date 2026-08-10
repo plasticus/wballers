@@ -1,10 +1,12 @@
 import '../../portrait/domain/portrait_appearance.dart';
 import 'achievement.dart';
 import 'archetype.dart';
+import 'college.dart';
 import 'player_ratings.dart';
 import 'position.dart';
 import 'trait.dart';
 
+export 'college.dart';
 export 'position.dart';
 
 enum Handedness { left, right }
@@ -58,6 +60,7 @@ class Player {
     this.achievements = const [],
     this.nickname,
     this.jerseyNumber,
+    this.college,
   }) : assert(age > 0, 'age must be positive'),
        assert(
          jerseyNumber == null || (jerseyNumber >= 0 && jerseyNumber <= 99),
@@ -150,6 +153,18 @@ class Player {
   /// [nickname] being assigned later rather than at generation time.
   final int? jerseyNumber;
 
+  /// The fictional college this player went to -- `null` means
+  /// international rather than "unknown": `generatePlayer` assigns one to
+  /// every domestically-[hometown]ed player and leaves this `null`
+  /// specifically for players whose [hometown] reads international
+  /// (`player_generator_data.dart`'s `kInternationalHometowns`), never
+  /// both and never neither. `PlayerDetailScreen` uses that mutual
+  /// exclusivity directly: show [college] if set, otherwise parse a
+  /// country out of [hometown] -- a direct GM ask (2026-08-10, `Aug9bugs.md`
+  /// #18) for the page to show "what college they went to, OR if they're
+  /// international, the country they're from."
+  final College? college;
+
   /// The surname off of [name] ("Danielle Tran" -> "Tran") -- every
   /// generated name is "First Last" (`player_generator.dart`'s
   /// `kFirstNames`/`kLastNames` pools, no multi-word entries in either),
@@ -179,6 +194,7 @@ class Player {
       achievements: achievements,
       nickname: nickname,
       jerseyNumber: jerseyNumber,
+      college: college,
     );
   }
 
@@ -204,6 +220,7 @@ class Player {
       achievements: achievements,
       nickname: nickname,
       jerseyNumber: jerseyNumber,
+      college: college,
     );
   }
 
@@ -227,6 +244,7 @@ class Player {
       achievements: achievements,
       nickname: newNickname,
       jerseyNumber: jerseyNumber,
+      college: college,
     );
   }
 
@@ -250,6 +268,7 @@ class Player {
       achievements: [...achievements, record],
       nickname: nickname,
       jerseyNumber: jerseyNumber,
+      college: college,
     );
   }
 
@@ -280,6 +299,7 @@ class Player {
       achievements: achievements,
       nickname: nickname,
       jerseyNumber: newJerseyNumber,
+      college: college,
     );
   }
 
@@ -304,6 +324,7 @@ class Player {
       achievements: achievements,
       nickname: nickname,
       jerseyNumber: jerseyNumber,
+      college: college,
     );
   }
 }

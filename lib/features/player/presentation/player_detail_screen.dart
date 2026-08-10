@@ -6,7 +6,6 @@ import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../portrait/presentation/portrait_editor_screen.dart';
-import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../season/domain/played_game_stat_line.dart';
 import '../../training/domain/player_rating_field.dart';
@@ -14,7 +13,16 @@ import '../domain/achievement.dart';
 import '../domain/archetype.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
+import 'player_card_widgets.dart';
 import 'trait_chip.dart';
+
+/// The hero portrait's size on this screen -- an integer multiple of the
+/// 32x32 base sprite (`portraits.md`'s own render-size rule) well past the
+/// 64px every list row uses elsewhere, since this is the one screen a GM
+/// opens specifically to look at a single player closely (a direct GM
+/// ask, 2026-08-10, `Aug9bugs.md` #18: "there should be a huge version of
+/// their portrait").
+const _kHeroPortraitSize = 128.0;
 
 /// One player's full profile: ratings, traits, this season's stats, and
 /// awards -- the screen `0B_Planned.md` pulled forward as an early Phase 2
@@ -149,6 +157,16 @@ class PlayerDetailScreen extends ConsumerWidget {
   }
 }
 
+/// The header's identity block: a hero-sized portrait, then everything
+/// known about the player laid out full-width below it rather than
+/// squeezed into a column beside the photo -- the same lesson the
+/// production roster row already learned the hard way (`player_card_widgets.dart`'s
+/// `PhotoOvrRail` doc comment: cramming a photo and a growing text column
+/// into one row is what caused names to truncate and "feel dehumanizing"
+/// before that redesign). With this many lines to show now (EXP,
+/// handedness, secondary positions, college/country, biography -- none of
+/// which the old compact header had room for), the same mistake at a
+/// *bigger* portrait size would be worse, not better.
 class _HeaderCard extends StatelessWidget {
   const _HeaderCard({required this.franchise, required this.player});
 
@@ -158,73 +176,96 @@ class _HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accentColor = franchise.team.colors.primary;
+
     return AppCard(
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PortraitEditorScreen(
-                    franchise: franchise,
-                    playerId: player.id,
-                  ),
-                ),
-              );
-            },
-            child: PortraitImage(
-              saveId: franchise.id,
-              ownerId: player.id,
-              appearance: player.appearance,
-              jersey: parseHexColor(franchise.team.colors.primaryHex),
-              size: 64,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  [
-                    if (player.jerseyNumber != null) '#${player.jerseyNumber}',
-                    player.nickname == null
-                        ? player.name
-                        : '${player.name} "${player.nickname}"',
-                  ].join(' '),
-                  style: theme.textTheme.titleLarge,
-                ),
-                Text.rich(
-                  TextSpan(
-                    style: theme.textTheme.bodyMedium,
-                    children: [
-                      TextSpan(text: player.primaryPosition.label),
-                      TextSpan(
-                        text: ' (${player.archetype.label})',
-                        style: theme.textTheme.bodySmall,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PortraitEditorScreen(
+                        franchise: franchise,
+                        playerId: player.id,
                       ),
-                    ],
-                  ),
+                    ),
+                  );
+                },
+                child: PhotoWithJerseyBadge(
+                  franchise: franchise,
+                  player: player,
+                  accentColor: accentColor,
+                  jersey: parseHexColor(franchise.team.colors.primaryHex),
+                  size: _kHeroPortraitSize,
                 ),
-                Text(
-                  'Age ${player.age} · ${formatHeightInches(player.heightInches)} '
-                  '· ${player.hometown}',
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OvrBubble(overall: player.ratings.overall, color: accentColor),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text('OVR', style: theme.textTheme.labelSmall),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            player.nickname == null
+                ? player.name
+                : '${player.name} "${player.nickname}"',
+            style: theme.textTheme.headlineSmall,
+          ),
+          Text.rich(
+            TextSpan(
+              style: theme.textTheme.bodyMedium,
+              children: [
+                TextSpan(text: player.primaryPosition.label),
+                TextSpan(
+                  text: ' (${player.archetype.label})',
                   style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${player.ratings.overall}',
-                style: theme.textTheme.titleLarge,
-              ),
-              Text('OVR', style: theme.textTheme.labelSmall),
-            ],
+          if (player.secondaryPositions.isNotEmpty)
+            Text(
+              'Also plays: '
+              '${player.secondaryPositions.map((p) => p.label).join(', ')}',
+              style: theme.textTheme.bodySmall,
+            ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Age ${player.age} · ${formatHeightInches(player.heightInches)} '
+            '· ${player.handedness == Handedness.right ? 'Right' : 'Left'}'
+            '-handed · ${experienceLabel(player)}',
+            style: theme.textTheme.bodySmall,
           ),
+          Text('Hometown: ${player.hometown}', style: theme.textTheme.bodySmall),
+          Text(
+            player.college != null
+                ? 'College: ${player.college!.name}'
+                // `Player.college`'s doc comment: `null` here specifically
+                // means international, and every international hometown
+                // is "City, Country" -- the part after the last comma.
+                : 'Country: ${player.hometown.split(', ').last}',
+            style: theme.textTheme.bodySmall,
+          ),
+          if (player.biography.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              player.biography,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ],
       ),
     );

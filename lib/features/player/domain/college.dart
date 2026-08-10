@@ -4,15 +4,20 @@ enum CollegeRegion { west, midwest, northeast, south, canada }
 
 /// How strong a program's recruiting pipeline usually is. Per
 /// `colleges.md`'s own draft-pool guidelines: this affects which college a
-/// prospect gets assigned to (`draft_generator.dart` weights toward
-/// [premier] schools) but **never** the prospect's actual ratings --
-/// potential, growth, and outcomes are generated completely independently
-/// of it (`0B_Planned.md`'s Draft item).
+/// player gets assigned to ([weightedColleges] weights toward [premier]
+/// schools) but **never** their actual ratings -- potential, growth, and
+/// outcomes are generated completely independently of it (`0B_Planned.md`'s
+/// Draft item).
 enum CollegePrestige { developing, strong, premier }
 
-/// One fictional college in the draft pipeline (`colleges.md` is the
-/// source of truth this was transcribed from -- update both together if
-/// the list changes).
+/// One fictional college a domestic (non-international, see
+/// `player_generator_data.dart`'s `kInternationalHometowns`) player went
+/// to (`colleges.md` is the source of truth this was transcribed from --
+/// update both together if the list changes). Started as a draft-prospect-
+/// only concept (`draft/domain/draft_prospect.dart`) before moving here
+/// (2026-08-10) once every generated player -- not just draft prospects --
+/// started getting one (`Player.college`, `player_generator.dart`): a
+/// domestic player's alma mater isn't really a draft-specific fact.
 class College {
   const College({
     required this.abbreviation,
@@ -735,3 +740,31 @@ const List<College> kColleges = [
     prestige: CollegePrestige.developing,
   ),
 ];
+
+/// [kColleges] repeated proportionally to their prestige (premier x3,
+/// strong x2, developing x1) -- `colleges.md`'s draft-pool guideline that
+/// prestige affects "prospect exposure," implemented as premier programs
+/// simply producing more of the domestic-player pool, never as any effect
+/// on an individual player's ratings ([College]'s own doc comment). Pick
+/// a random entry from this (`weightedColleges()[random.nextInt(...)]`)
+/// rather than picking straight from [kColleges] whenever a college needs
+/// to feel realistically distributed by program strength -- both
+/// `player_generator.dart` (every domestic player) and
+/// `draft/generation/draft_generator.dart` (draft prospects specifically)
+/// do this.
+List<College> weightedColleges() {
+  return [
+    for (final college in kColleges)
+      for (
+        var i = 0;
+        i <
+            switch (college.prestige) {
+              CollegePrestige.premier => 3,
+              CollegePrestige.strong => 2,
+              CollegePrestige.developing => 1,
+            };
+        i++
+      )
+        college,
+  ];
+}

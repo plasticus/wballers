@@ -81,6 +81,10 @@ Map<String, dynamic> playerToJson(Player player) {
         .toList(),
     'nickname': player.nickname,
     'jerseyNumber': player.jerseyNumber,
+    // Just the abbreviation -- [kColleges] is the stable source of truth
+    // for everything else about a college, so a full nested object here
+    // would just be denormalized data to keep in sync.
+    'college': player.college?.abbreviation,
   };
 }
 
@@ -124,5 +128,14 @@ Player playerFromJson(Map<String, dynamic> json) {
         .toList(),
     nickname: json['nickname'] as String?,
     jerseyNumber: json['jerseyNumber'] as int?,
+    // Missing key (a save from before this field existed) and an explicit
+    // `null` (an international player, by design) both fall back to
+    // `null` here -- exactly the same "no college" state either way, so
+    // there's nothing to distinguish.
+    college: json['college'] == null
+        ? null
+        : kColleges.firstWhere(
+            (college) => college.abbreviation == json['college'] as String,
+          ),
   );
 }

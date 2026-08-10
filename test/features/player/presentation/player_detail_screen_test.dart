@@ -11,7 +11,9 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
+import 'package:womensbballmgr/features/player/presentation/player_card_widgets.dart';
 import 'package:womensbballmgr/features/player/presentation/player_detail_screen.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
@@ -95,6 +97,155 @@ Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
 }
 
 void main() {
+  group('header: everything known about the player (2026-08-10, '
+      'Aug9bugs.md #18)', () {
+    testWidgets(
+      'shows EXP, handedness, secondary positions, hometown, biography, '
+      'and a College line for a domestic player',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final target = playerWithOverall(
+          65,
+          name: 'Riley Okafor',
+          yearsOfService: 4,
+          handedness: Handedness.left,
+          secondaryPositions: {Position.shootingGuard},
+          hometown: 'Springfield, IL',
+          biography: 'A steady floor general.',
+          college: kColleges.first,
+        );
+        final franchise = _franchiseWith(
+          target: RosterMembership(
+            player: target,
+            status: RosterStatus.active,
+          ),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: PlayerDetailScreen(
+                franchise: franchise,
+                playerId: target.id,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.textContaining('EXP: 4'), findsOneWidget);
+        expect(find.textContaining('Left-handed'), findsOneWidget);
+        expect(
+          find.text('Also plays: Shooting Guard'),
+          findsOneWidget,
+        );
+        expect(find.text('Hometown: Springfield, IL'), findsOneWidget);
+        expect(
+          find.text('College: ${kColleges.first.name}'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Country:'), findsNothing);
+        expect(
+          find.text('A steady floor general.'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'shows a Country line, not a College line, for an international '
+      'player (college == null)',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final target = playerWithOverall(
+          65,
+          name: 'Amara Okoye',
+          hometown: 'Lagos, Nigeria',
+          college: null,
+        );
+        final franchise = _franchiseWith(
+          target: RosterMembership(
+            player: target,
+            status: RosterStatus.active,
+          ),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: PlayerDetailScreen(
+                franchise: franchise,
+                playerId: target.id,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Country: Nigeria'), findsOneWidget);
+        expect(find.textContaining('College:'), findsNothing);
+      },
+    );
+
+    testWidgets('shows a rookie as EXP: Rookie, not EXP: 0', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final target = playerWithOverall(
+        65,
+        name: 'Riley Okafor',
+        yearsOfService: 0,
+      );
+      final franchise = _franchiseWith(
+        target: RosterMembership(player: target, status: RosterStatus.active),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Rookie'), findsOneWidget);
+    });
+
+    testWidgets('renders the portrait at the hero size, not the compact '
+        'list-row size', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final target = playerWithOverall(65, name: 'Riley Okafor');
+      final franchise = _franchiseWith(
+        target: RosterMembership(player: target, status: RosterStatus.active),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final photoBadge = tester.widget<PhotoWithJerseyBadge>(
+        find.byType(PhotoWithJerseyBadge),
+      );
+      expect(photoBadge.size, 128.0);
+    });
+  });
+
   testWidgets('shows ratings, traits, and an empty-state note for a player '
       'with no games played yet', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);

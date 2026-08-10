@@ -4,7 +4,6 @@ import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
 import '../../player/generation/trait_generator.dart';
 import '../../season/domain/standings_entry.dart';
-import '../domain/college.dart';
 import '../domain/draft_pick.dart';
 import '../domain/draft_prospect.dart';
 
@@ -50,28 +49,6 @@ const kDefaultDraftClassSize = 70;
   return (_fringeQualityCenter, _fringeQualitySpread);
 }
 
-/// Colleges repeated proportionally to their prestige (premier x3, strong
-/// x2, developing x1) -- `colleges.md`'s draft-pool guideline that
-/// prestige affects "prospect exposure," implemented as premier programs
-/// simply producing more of the draft class, never as any effect on an
-/// individual prospect's ratings (`DraftProspect`'s doc comment).
-List<College> _weightedColleges() {
-  return [
-    for (final college in kColleges)
-      for (
-        var i = 0;
-        i <
-            switch (college.prestige) {
-              CollegePrestige.premier => 3,
-              CollegePrestige.strong => 2,
-              CollegePrestige.developing => 1,
-            };
-        i++
-      )
-        college,
-  ];
-}
-
 /// Generates [count] draft-eligible prospects: young (20-23), no
 /// professional experience yet ([Player.yearsOfService] pinned to 0
 /// regardless of the normal debut-age roll), each with a shot at 0-2
@@ -83,10 +60,10 @@ List<DraftProspect> generateDraftClass(
   Random random, {
   int count = kDefaultDraftClassSize,
 }) {
-  final weightedColleges = _weightedColleges();
+  final collegePool = weightedColleges();
   return [
     for (var i = 0; i < count; i++)
-      _generateProspect(random, i, count, weightedColleges),
+      _generateProspect(random, i, count, collegePool),
   ];
 }
 
@@ -94,7 +71,7 @@ DraftProspect _generateProspect(
   Random random,
   int index,
   int classSize,
-  List<College> weightedColleges,
+  List<College> collegePool,
 ) {
   final position = Position.values[random.nextInt(Position.values.length)];
   final (qualityCenter, qualitySpread) = _qualityTierFor(index, classSize);
@@ -109,7 +86,7 @@ DraftProspect _generateProspect(
   );
   final traits = generateTraits(random);
   final withTraits = traits.isEmpty ? player : player.copyWithTraits(traits);
-  final college = weightedColleges[random.nextInt(weightedColleges.length)];
+  final college = collegePool[random.nextInt(collegePool.length)];
   return DraftProspect(player: withTraits, college: college);
 }
 

@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:womensbballmgr/features/draft/domain/college.dart';
+import 'package:womensbballmgr/features/player/domain/college.dart';
 import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/season/domain/standings_entry.dart';
