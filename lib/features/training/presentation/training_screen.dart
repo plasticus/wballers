@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
-import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/player.dart';
@@ -46,12 +45,12 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
   /// The roster players eligible to be assigned to a coach at all --
   /// mirrors [runTraining]'s own skip of `RosterStatus.reserveInactive`,
   /// so the picker never offers an assignment that would silently do
-  /// nothing. Carries enough to render "PG #49 Kayla Silva (67 OVR, 99
-  /// POT)" in the picker -- a bare name gave the GM no way to tell a
-  /// promising 21-year-old from a declining vet without leaving this
-  /// screen, which mattered most exactly where it's used: putting high-
-  /// potential players in these 3 individually-coached slots is the whole
-  /// point.
+  /// nothing. Carries enough to render `_playerLabel`'s "PG · 67 OVR ·
+  /// 99 POT · 24y · Silva" in the picker -- a bare name gave the GM no
+  /// way to tell a promising 21-year-old from a declining vet without
+  /// leaving this screen, which mattered most exactly where it's used:
+  /// putting high-potential players in these 3 individually-coached
+  /// slots is the whole point.
   List<({String id, String label})> get _eligiblePlayers => [
     for (final membership in widget.franchise.roster)
       if (membership.status != RosterStatus.reserveInactive)
@@ -253,110 +252,127 @@ class _CoachAssignmentCard extends StatelessWidget {
           player,
     ];
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(displayName, style: theme.textTheme.titleMedium),
-              ),
-              Text(
-                'DEV ${coach.developmentRating}',
-                style: theme.textTheme.labelMedium,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          DropdownButtonFormField<String?>(
-            initialValue: assignment.playerId,
-            // Without this, a long player label sizes the closed
-            // dropdown's own Row to its intrinsic (unbounded) width
-            // instead of the field's actual width, overflowing next to
-            // the dropdown arrow -- `overflow`/`maxLines` on the Text
-            // itself can't help since that Row never constrains it in
-            // the first place.
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Assigned player',
-              border: OutlineInputBorder(),
-              isDense: true,
+    // Not AppCard -- its generous EdgeInsets.all(AppSpacing.lg) was eating
+    // into the one thing on this card that actually needs the room: the
+    // player-picker dropdown (2026-08-10, a direct GM ask -- "no reason
+    // not to use 100% of the horizontal space for this menu"). Tighter
+    // horizontal padding here reclaims real width for it without touching
+    // the rest of the screen's layout.
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.md,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(displayName, style: theme.textTheme.titleMedium),
+                ),
+                Text(
+                  'DEV ${coach.developmentRating}',
+                  style: theme.textTheme.labelMedium,
+                ),
+              ],
             ),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('Unassigned')),
-              for (final player in selectable)
-                DropdownMenuItem(
-                  value: player.id,
-                  child: Text(
-                    player.label,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+            const SizedBox(height: AppSpacing.sm),
+            DropdownButtonFormField<String?>(
+              initialValue: assignment.playerId,
+              // Without this, a long player label sizes the closed
+              // dropdown's own Row to its intrinsic (unbounded) width
+              // instead of the field's actual width, overflowing next to
+              // the dropdown arrow -- `overflow`/`maxLines` on the Text
+              // itself can't help since that Row never constrains it in
+              // the first place.
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Assigned player',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Unassigned')),
+                for (final player in selectable)
+                  DropdownMenuItem(
+                    value: player.id,
+                    child: Text(
+                      player.label,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+              ],
+              onChanged: (playerId) =>
+                  onChanged(assignment.copyWith(playerId: () => playerId)),
+            ),
+            if (assignment.isAssigned) ...[
+              const SizedBox(height: AppSpacing.md),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Broad')),
+                  ButtonSegment(value: true, label: Text('Specific')),
+                ],
+                selected: {assignment.isSpecific},
+                onSelectionChanged: (selection) =>
+                    onChanged(assignment.copyWith(isSpecific: selection.first)),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (assignment.isSpecific)
+                DropdownButtonFormField<PlayerRatingField>(
+                  initialValue: assignment.specificField,
+                  decoration: const InputDecoration(
+                    labelText: 'Rating to hyper-focus',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    for (final field in PlayerRatingField.values)
+                      DropdownMenuItem(value: field, child: Text(field.label)),
+                  ],
+                  onChanged: (field) {
+                    if (field != null) {
+                      onChanged(assignment.copyWith(specificField: field));
+                    }
+                  },
+                )
+              else
+                SegmentedButton<TrainingFocus>(
+                  segments: [
+                    for (final focus in TrainingFocus.values)
+                      ButtonSegment(value: focus, label: Text(focus.label)),
+                  ],
+                  selected: {assignment.broadFocus},
+                  onSelectionChanged: (selection) => onChanged(
+                    assignment.copyWith(broadFocus: selection.first),
                   ),
                 ),
             ],
-            onChanged: (playerId) =>
-                onChanged(assignment.copyWith(playerId: () => playerId)),
-          ),
-          if (assignment.isAssigned) ...[
-            const SizedBox(height: AppSpacing.md),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Broad')),
-                ButtonSegment(value: true, label: Text('Specific')),
-              ],
-              selected: {assignment.isSpecific},
-              onSelectionChanged: (selection) =>
-                  onChanged(assignment.copyWith(isSpecific: selection.first)),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            if (assignment.isSpecific)
-              DropdownButtonFormField<PlayerRatingField>(
-                initialValue: assignment.specificField,
-                decoration: const InputDecoration(
-                  labelText: 'Rating to hyper-focus',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: [
-                  for (final field in PlayerRatingField.values)
-                    DropdownMenuItem(value: field, child: Text(field.label)),
-                ],
-                onChanged: (field) {
-                  if (field != null) {
-                    onChanged(assignment.copyWith(specificField: field));
-                  }
-                },
-              )
-            else
-              SegmentedButton<TrainingFocus>(
-                segments: [
-                  for (final focus in TrainingFocus.values)
-                    ButtonSegment(value: focus, label: Text(focus.label)),
-                ],
-                selected: {assignment.broadFocus},
-                onSelectionChanged: (selection) =>
-                    onChanged(assignment.copyWith(broadFocus: selection.first)),
-              ),
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/// "PG #49 Silva, 24y (67 OVR, 99 POT)" -- position, jersey number (when
-/// assigned), last name only, age, overall, and potential, so the
-/// individual-coach picker doubles as a quick scan for "who's worth
-/// putting in one of these 3 slots" without leaving this screen. First
-/// name dropped (2026-08-07, a direct GM ask -- "too much information");
-/// last name alone is who a GM actually calls a player by. Age added
-/// (2026-08-09, a direct GM ask) since it's a big part of that read --
-/// abbreviated "24y" rather than "Age 24" to keep the row from wrapping.
+/// "PG #49 67 OVR · 99 POT · 24y · Richardson" -- position,
+/// jersey number (when assigned), overall, potential, age, and last name
+/// only, in that specific priority order (2026-08-10, a direct GM ask):
+/// with `overflow: TextOverflow.ellipsis` truncating from the *end* of
+/// the string, whatever's listed last is what disappears first when a
+/// row runs out of room -- name is deliberately least important of the
+/// bunch and goes last, since a long surname (the GM's own examples:
+/// "Richardson," "Henderson") was pushing POT off-screen entirely under
+/// the old name-first ordering. First name dropped entirely (2026-08-07,
+/// a direct GM ask -- "too much information"); last name alone is who a
+/// GM actually calls a player by. Age uses "24y" rather than "Age 24" to
+/// stay compact.
 String _playerLabel(Player player) {
   final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
   final lastName = player.name.split(' ').skip(1).join(' ');
-  return '${player.primaryPosition.abbreviation} $jersey$lastName, '
-      '${player.age}y (${player.ratings.overall} OVR, '
-      '${player.ratings.potential} POT)';
+  return '${player.primaryPosition.abbreviation} $jersey· '
+      '${player.ratings.overall} OVR · ${player.ratings.potential} POT '
+      '· ${player.age}y · $lastName';
 }
