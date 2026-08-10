@@ -3,10 +3,13 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/ratings/rating_scale.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
+import 'package:womensbballmgr/features/player/domain/country.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
+import 'package:womensbballmgr/features/player/generation/name_pools_by_country.dart';
 import 'package:womensbballmgr/features/player/generation/player_generator.dart';
 import 'package:womensbballmgr/features/player/generation/player_generator_data.dart';
+import 'package:womensbballmgr/features/player/generation/usa_skin_tone_floor_names.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_height_tier.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 
@@ -14,6 +17,32 @@ final _portraitWeights = PortraitWeights(
   skinTone: const {'medium': 1},
   hairColorByTone: const {
     'medium': {'black': 1},
+  },
+  hair: const {'hair_afro': 1},
+  neonHair: const {'natural': 1},
+  eyes: const {'eyes_1center': 1},
+  nose: const {'nose_1': 1},
+  mouth: const {'mouth_1': 1},
+  eyebrows: const {'eyebrow_1': 1},
+  facial: const {'none': 1},
+  accessories: const {'none': 1},
+);
+
+/// Distinct per-country skin-tone tables (unlike [_portraitWeights]'
+/// single-value flat table) so country-wiring tests can assert something
+/// meaningful about which tone comes out.
+final _countryAwarePortraitWeights = PortraitWeights(
+  skinTone: const {'medium': 1},
+  skinToneByCountry: const {
+    'nigeria': {'deep': 1, 'chocolate': 1},
+    'usa': {'pale': 1, 'light': 1, 'medium': 1, 'deep': 1, 'chocolate': 1},
+  },
+  hairColorByTone: const {
+    'pale': {'black': 1},
+    'light': {'black': 1},
+    'medium': {'black': 1},
+    'deep': {'black': 1},
+    'chocolate': {'black': 1},
   },
   hair: const {'hair_afro': 1},
   neonHair: const {'natural': 1},
@@ -107,7 +136,8 @@ void main() {
     }
   });
 
-  test('an explicit hometownOverride skips the random kHometowns roll', () {
+  test('an explicit hometownOverride skips the random per-country hometown '
+      'roll', () {
     final random = Random(654);
     for (var i = 0; i < 50; i++) {
       final player = generatePlayer(
@@ -119,47 +149,102 @@ void main() {
     }
   });
 
-  test(
-    'domestic players get a college, international players get null -- '
-    'never both, never neither',
-    () {
-      final random = Random(789);
-      for (var i = 0; i < 300; i++) {
-        final player = generatePlayer(random, primaryPosition: Position.center);
-        final isInternational = kInternationalHometowns.contains(
-          player.hometown,
+  test('domestic players get a college, international players get null -- '
+      'never both, never neither', () {
+    final random = Random(789);
+    for (var i = 0; i < 300; i++) {
+      final player = generatePlayer(random, primaryPosition: Position.center);
+      final country = kHometownsByCountry.entries
+          .firstWhere((entry) => entry.value.contains(player.hometown))
+          .key;
+      if (country.isDomestic) {
+        expect(
+          player.college,
+          isNotNull,
+          reason: 'domestic hometown: ${player.hometown}',
         );
-        if (isInternational) {
-          expect(
-            player.college,
-            isNull,
-            reason: 'international hometown: ${player.hometown}',
-          );
-        } else {
-          expect(
-            player.college,
-            isNotNull,
-            reason: 'domestic hometown: ${player.hometown}',
-          );
-          expect(kColleges, contains(player.college));
-        }
+        expect(kColleges, contains(player.college));
+      } else {
+        expect(
+          player.college,
+          isNull,
+          reason: 'international hometown: ${player.hometown}',
+        );
       }
-    },
-  );
+    }
+  });
 
-  test(
-    'a hometownOverride from kInternationalHometowns produces a player '
-    'with no college',
-    () {
-      final random = Random(321);
+  test('a countryOverride pins the given/surname/hometown pool and '
+      'domestic/international status', () {
+    final random = Random(321);
+    for (var i = 0; i < 20; i++) {
       final player = generatePlayer(
         random,
         primaryPosition: Position.pointGuard,
-        hometownOverride: kInternationalHometowns.first,
+        countryOverride: Country.nigeria,
       );
+      expect(
+        kGivenNamesByCountry[Country.nigeria],
+        contains(player.name.split(' ').first),
+      );
+      expect(kSurnamesByCountry[Country.nigeria], contains(player.lastName));
+      expect(kHometownsByCountry[Country.nigeria], contains(player.hometown));
       expect(player.college, isNull);
-    },
-  );
+    }
+  });
+
+  test('a domestic countryOverride produces a player with a college', () {
+    final random = Random(4);
+    final player = generatePlayer(
+      random,
+      primaryPosition: Position.pointGuard,
+      countryOverride: Country.canada,
+    );
+    expect(player.college, isNotNull);
+    expect(kColleges, contains(player.college));
+  });
+
+  test('a Nigeria countryOverride only ever generates deep or chocolate skin '
+      'tone', () {
+    final random = Random(55);
+    for (var i = 0; i < 50; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.center,
+        countryOverride: Country.nigeria,
+        portraitWeights: _countryAwarePortraitWeights,
+      );
+      expect(player.appearance!.skinTone, anyOf('deep', 'chocolate'));
+    }
+  });
+
+  test('a USA player with a floored given name never generates pale or '
+      'light skin tone', () {
+    final random = Random(99);
+    var sawFlooredName = false;
+    for (var i = 0; i < 500; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.center,
+        countryOverride: Country.usa,
+        portraitWeights: _countryAwarePortraitWeights,
+      );
+      final firstName = player.name.split(' ').first;
+      if (kSkinToneFlooredGivenNames.contains(firstName)) {
+        sawFlooredName = true;
+        expect(
+          player.appearance!.skinTone,
+          isNot(anyOf('pale', 'light')),
+          reason: '$firstName should be floored to medium+',
+        );
+      }
+    }
+    expect(
+      sawFlooredName,
+      isTrue,
+      reason: 'expected at least one floored name across 500 draws',
+    );
+  });
 
   test('every generated height stays within bounds, for every position', () {
     final random = Random(17);

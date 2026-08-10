@@ -54,14 +54,24 @@ Map<String, double> _coachEligibleAccessories(Map<String, double> pool) {
 /// defaults to [PortraitHeightTier.baseline], correct for a coach (no
 /// height stat) or any caller that doesn't have a player's height handy.
 /// Real athlete generation passes `portraitHeightTierForInches(heightInches)`.
+///
+/// [skinToneOverride], when given, replaces [PortraitWeights.skinTone] as
+/// the table [pickWeighted] draws a skin tone from -- `player_generator.dart`
+/// passes a player's country-specific table (falling back to the flat
+/// [PortraitWeights.skinTone] itself if the country isn't in
+/// [PortraitWeights.skinToneByCountry]), optionally with pale/light
+/// already filtered out for a `kSkinToneFlooredGivenNames` first name.
+/// `null` (every coach, and any player call before country wiring
+/// existed) keeps the old flat-table behavior exactly.
 PortraitAppearance generatePortraitAppearance(
   Random random, {
   required bool isCoach,
   required PortraitWeights weights,
   PortraitManifest? manifest,
   PortraitHeightTier heightTier = PortraitHeightTier.baseline,
+  Map<String, double>? skinToneOverride,
 }) {
-  final skinTone = pickWeighted(random, weights.skinTone);
+  final skinTone = pickWeighted(random, skinToneOverride ?? weights.skinTone);
   final hairColor = pickWeighted(random, weights.hairColorByTone[skinTone]!);
 
   final hair = pickWeighted(random, weights.hair);

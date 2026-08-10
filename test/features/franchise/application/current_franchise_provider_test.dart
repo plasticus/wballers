@@ -809,7 +809,12 @@ void main() {
       await container
           .read(currentFranchiseProvider.notifier)
           .createFranchise(franchise);
-      final target = franchise.freeAgents.first;
+      // Not just `.first` -- whichever free agent lands first in the
+      // generated pool isn't guaranteed to be developmental-eligible, and
+      // signing an ineligible one into a developmental slot is a no-op by
+      // design (`current_franchise_provider.dart`'s `_hasOpenSlot`), which
+      // would make this test's own assertions fail for the wrong reason.
+      final target = franchise.freeAgents.firstWhere(isDevelopmentalEligible);
 
       await container
           .read(currentFranchiseProvider.notifier)

@@ -1,15 +1,18 @@
 import 'dart:math';
 
-import '../../../core/generation/name_pools.dart';
 import '../../../core/ratings/rating_scale.dart';
 import '../../portrait/domain/portrait_height_tier.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../portrait/generation/portrait_generator.dart';
 import '../domain/archetype.dart';
+import '../domain/country.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
 import 'archetype_generator.dart';
+import 'country_pool.dart';
+import 'name_pools_by_country.dart';
 import 'player_generator_data.dart';
+import 'usa_skin_tone_floor_names.dart';
 
 /// Per-position rating adjustments, layered on top of a random base value
 /// before clamping to the 1-99 scale. Reflects standard basketball
@@ -459,13 +462,22 @@ int _generateHeight(Random random, Position position) {
 /// bug this same file fixed for the general population
 /// (`starting_roster_generator.dart`).
 ///
-/// [hometownOverride] skips the random [kHometowns] pick entirely and uses
-/// that value directly -- same "pin one specific detail for a hand-placed
-/// narrative player, leave the rest to chance" pattern [potentialOverride]
-/// already establishes. What lets a caller guarantee a player reads as
-/// international (`free_agent_pool_generator.dart`'s planted Day-0
-/// prospect) without a random roll occasionally landing on a domestic
-/// city instead.
+/// [countryOverride] skips the random [kCountrySelectionWeights] pick
+/// entirely and uses that [Country] directly -- what a caller uses to
+/// guarantee a player reads as international
+/// (`free_agent_pool_generator.dart`'s planted Day-0 prospect) without a
+/// random roll occasionally landing on USA/Canada instead. [Country]
+/// drives the given/surname pool ([kGivenNamesByCountry]/
+/// [kSurnamesByCountry]), the hometown pool ([kHometownsByCountry]),
+/// domestic/international status (and therefore [Player.college]), and
+/// -- when [portraitWeights] is given -- the skin-tone table
+/// ([PortraitWeights.skinToneByCountry]) together, same "pin one specific
+/// detail for a hand-placed narrative player, leave the rest to chance"
+/// pattern [potentialOverride] already establishes.
+///
+/// [hometownOverride] skips the random hometown-within-country pick and
+/// uses that literal string directly instead -- independent of
+/// [countryOverride]; a caller can pin either, both, or neither.
 Player generatePlayer(
   Random random, {
   required Position primaryPosition,
@@ -476,6 +488,7 @@ Player generatePlayer(
   int maxAge = 34,
   int? potentialOverride,
   int potentialOverrideSpread = 3,
+  Country? countryOverride,
   String? hometownOverride,
   PortraitWeights? portraitWeights,
 }) {
@@ -608,19 +621,28 @@ Player generatePlayer(
       ? Handedness.right
       : Handedness.left;
 
-  final firstName = kFirstNames[random.nextInt(kFirstNames.length)];
-  final lastName = kLastNames[random.nextInt(kLastNames.length)];
+  // The shared root for name pool, hometown pool, domestic/international
+  // status, and (below) skin tone -- see [countryOverride]'s doc comment
+  // on why these four are generated together off one country rather than
+  // as independent random rolls.
+  final Country country =
+      countryOverride ?? pickWeighted(random, kCountrySelectionWeights);
+  final givenNamePool = kGivenNamesByCountry[country]!;
+  final surnamePool = kSurnamesByCountry[country]!;
+  final firstName = givenNamePool[random.nextInt(givenNamePool.length)];
+  final lastName = surnamePool[random.nextInt(surnamePool.length)];
+  final hometownPool = kHometownsByCountry[country]!;
   final hometown =
-      hometownOverride ?? kHometowns[random.nextInt(kHometowns.length)];
+      hometownOverride ?? hometownPool[random.nextInt(hometownPool.length)];
   // Every domestic player gets a college; every international one gets
   // `null` instead -- `Player.college`'s doc comment on why those two are
   // mutually exclusive and exhaustive, never both, never neither. Consumes
   // a random draw only on the domestic branch, same "skip what an
   // override/non-applicable branch doesn't need" posture
   // [hometownOverride] itself already established just above.
-  final college = kInternationalHometowns.contains(hometown)
-      ? null
-      : _weightedCollegePool[random.nextInt(_weightedCollegePool.length)];
+  final college = country.isDomestic
+      ? _weightedCollegePool[random.nextInt(_weightedCollegePool.length)]
+      : null;
   // Practically-unique within one franchise's roster, not globally --
   // that's all a lineup slot reference needs.
   final id = random.nextInt(0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
@@ -633,6 +655,11 @@ Player generatePlayer(
           isCoach: false,
           weights: portraitWeights,
           heightTier: portraitHeightTierForInches(heightInches),
+          skinToneOverride: _skinToneWeightsFor(
+            portraitWeights,
+            country,
+            firstName,
+          ),
         );
 
   return Player(
@@ -650,6 +677,34 @@ Player generatePlayer(
     appearance: appearance,
     college: college,
   );
+}
+
+/// The skin-tone table [generatePortraitAppearance] should draw from for
+/// this [country]/[firstName] pair -- [country]'s own
+/// [PortraitWeights.skinToneByCountry] entry (falling back to
+/// [PortraitWeights.skinTone] if that country isn't in the table), with
+/// pale and light hard-excluded when [firstName] is one of
+/// [kSkinToneFlooredGivenNames] -- USA-only, per that set's own doc
+/// comment on why no other [Country] gets name-based logic. `null`
+/// weights (`medium`/`deep`/`chocolate` all zero-or-absent, which
+/// shouldn't happen for any real `weights.json`) fall through to the
+/// unfiltered table rather than handing [pickWeighted] an empty map.
+Map<String, double>? _skinToneWeightsFor(
+  PortraitWeights weights,
+  Country country,
+  String firstName,
+) {
+  final countryTable = weights.skinToneByCountry[country.weightsKey];
+  if (country != Country.usa ||
+      !kSkinToneFlooredGivenNames.contains(firstName)) {
+    return countryTable;
+  }
+  final floored = Map.fromEntries(
+    (countryTable ?? weights.skinTone).entries.where(
+      (entry) => entry.key != 'pale' && entry.key != 'light',
+    ),
+  );
+  return floored.isEmpty ? countryTable : floored;
 }
 
 String _positionLabel(Position position) {

@@ -6,6 +6,28 @@
     "deep": 38,
     "chocolate": 26
   },
+  "skin_tone_by_country": {
+    "usa": { "pale": 3, "light": 15, "medium": 18, "deep": 38, "chocolate": 26 },
+    "canada": { "pale": 70, "light": 20, "medium": 5, "deep": 5 },
+    "australia": { "pale": 12, "light": 45, "medium": 25, "deep": 12, "chocolate": 6 },
+    "belgium": { "pale": 30, "light": 40, "medium": 20, "deep": 7, "chocolate": 3 },
+    "brazil": { "pale": 5, "light": 20, "medium": 35, "deep": 25, "chocolate": 15 },
+    "china": { "pale": 10, "light": 55, "medium": 30, "deep": 4, "chocolate": 1 },
+    "czechRepublic": { "pale": 70, "light": 30 },
+    "finland": { "pale": 80, "light": 20 },
+    "france": { "pale": 20, "light": 30, "medium": 25, "deep": 15, "chocolate": 10 },
+    "germany": { "pale": 30, "light": 40, "medium": 20, "deep": 7, "chocolate": 3 },
+    "greece": { "pale": 15, "light": 35, "medium": 35, "deep": 10, "chocolate": 5 },
+    "hungary": { "pale": 38, "light": 40, "medium": 16, "deep": 4, "chocolate": 2 },
+    "italy": { "pale": 15, "light": 35, "medium": 35, "deep": 10, "chocolate": 5 },
+    "mexico": { "pale": 5, "light": 20, "medium": 50, "deep": 18, "chocolate": 7 },
+    "nigeria": { "pale": 0, "light": 0, "medium": 0, "deep": 20, "chocolate": 80 },
+    "senegal": { "pale": 0, "light": 0, "medium": 0, "deep": 20, "chocolate": 80 },
+    "serbia": { "pale": 35, "light": 40, "medium": 20, "deep": 3, "chocolate": 2 },
+    "slovenia": { "pale": 38, "light": 40, "medium": 18, "deep": 3, "chocolate": 1 },
+    "spain": { "pale": 15, "light": 40, "medium": 30, "deep": 10, "chocolate": 5 },
+    "turkey": { "pale": 10, "light": 30, "medium": 45, "deep": 10, "chocolate": 5 }
+  },
   "hair_color": {
     "pale": {
       "blonde": 22,

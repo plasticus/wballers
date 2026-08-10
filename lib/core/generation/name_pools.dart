@@ -1,9 +1,10 @@
-/// Shared seed data for generating people (players, coaches). Purely
-/// invented — not drawn from any real athlete or coach roster — combined
-/// at random, so any resemblance to a real person's full name is
-/// coincidental. Deliberately spans a range of naming traditions to match
-/// the fictional world's international pipeline (see `colleges.md`,
-/// `question.md` decision 22's note on international rookies).
+/// Seed data for generating coaches -- players moved to
+/// `player/generation/name_pools_by_country.dart`'s country-specific
+/// pools (2026-08-10) once same-surname roster collisions made this flat
+/// 44-name shared pool too small; coaches have no country concept, so
+/// they kept this one. Purely invented — not drawn from any real coach's
+/// name — combined at random, so any resemblance to a real person's full
+/// name is coincidental.
 const kFirstNames = <String>[
   'Aaliyah',
   'Sofia',

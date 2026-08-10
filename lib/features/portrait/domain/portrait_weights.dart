@@ -11,6 +11,7 @@ import 'dart:math';
 class PortraitWeights {
   const PortraitWeights({
     required this.skinTone,
+    this.skinToneByCountry = const {},
     required this.hairColorByTone,
     required this.hair,
     required this.neonHair,
@@ -23,6 +24,15 @@ class PortraitWeights {
   });
 
   final Map<String, double> skinTone;
+
+  /// Per-[Country] skin-tone tables (`weights.json`'s `skin_tone_by_country`,
+  /// keyed by `CountryLabel.weightsKey`) -- `player_generator.dart` looks a
+  /// country up here and falls back to [skinTone] if it's missing.
+  /// Defaults to empty (rather than required) so every pre-existing direct
+  /// `PortraitWeights(...)` test fixture -- coach generation included,
+  /// which has no country concept and always wants the flat [skinTone]
+  /// table -- keeps working unchanged.
+  final Map<String, Map<String, double>> skinToneByCountry;
   final Map<String, Map<String, double>> hairColorByTone;
   final Map<String, double> hair;
   final Map<String, double> neonHair;
@@ -44,9 +54,15 @@ PortraitWeights portraitWeightsFromJson(Map<String, dynamic> json) {
   final hairColorByTone = (json['hair_color'] as Map<String, dynamic>).map(
     (tone, colors) => MapEntry(tone, weightMap(colors)),
   );
+  final skinToneByCountryJson =
+      json['skin_tone_by_country'] as Map<String, dynamic>?;
+  final skinToneByCountry = (skinToneByCountryJson ?? const {}).map(
+    (country, tones) => MapEntry(country, weightMap(tones)),
+  );
 
   return PortraitWeights(
     skinTone: weightMap(json['skin_tone']),
+    skinToneByCountry: skinToneByCountry,
     hairColorByTone: hairColorByTone,
     hair: weightMap(json['hair']),
     neonHair: weightMap(json['neon_hair']),

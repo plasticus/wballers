@@ -1,10 +1,16 @@
 import 'dart:math';
 
+import '../../player/domain/country.dart';
 import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
-import '../../player/generation/player_generator_data.dart';
 import '../../player/generation/trait_generator.dart';
 import '../../portrait/domain/portrait_weights.dart';
+
+/// Every non-domestic [Country] -- the pool [_generateDecentFreeAgent]
+/// rolls from to guarantee the planted prospect reads as international.
+final _kNonDomesticCountries = Country.values
+    .where((country) => !country.isDomestic)
+    .toList();
 
 /// Seed offset for the free-agent pool -- keeps this stream from
 /// correlating with any other (coach=0, roster=1, league draw=2, league
@@ -117,8 +123,8 @@ Player _generateDecentFreeAgent(
   PortraitWeights? portraitWeights,
 ) {
   final position = Position.values[random.nextInt(Position.values.length)];
-  final hometown =
-      kInternationalHometowns[random.nextInt(kInternationalHometowns.length)];
+  final country =
+      _kNonDomesticCountries[random.nextInt(_kNonDomesticCountries.length)];
   final player = generatePlayer(
     random,
     primaryPosition: position,
@@ -127,7 +133,7 @@ Player _generateDecentFreeAgent(
     minAge: kDecentFreeAgentAge,
     maxAge: kDecentFreeAgentAge,
     yearsOfService: _kDecentFreeAgentYearsOfService,
-    hometownOverride: hometown,
+    countryOverride: country,
     potentialOverride: kDecentFreeAgentPotential,
     potentialOverrideSpread: _decentFreeAgentPotentialSpread,
     portraitWeights: portraitWeights,

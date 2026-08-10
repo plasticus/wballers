@@ -7,6 +7,10 @@ void main() {
   test('portraitWeightsFromJson parses every table', () {
     final weights = portraitWeightsFromJson({
       'skin_tone': {'pale': 3, 'deep': 38},
+      'skin_tone_by_country': {
+        'usa': {'pale': 3, 'deep': 38},
+        'nigeria': {'deep': 20, 'chocolate': 80},
+      },
       'hair_color': {
         'pale': {'blonde': 22, 'black': 8},
         'deep': {'black': 55, 'blonde': 3},
@@ -22,10 +26,34 @@ void main() {
     });
 
     expect(weights.skinTone, {'pale': 3.0, 'deep': 38.0});
+    expect(weights.skinToneByCountry['usa'], {'pale': 3.0, 'deep': 38.0});
+    expect(weights.skinToneByCountry['nigeria'], {
+      'deep': 20.0,
+      'chocolate': 80.0,
+    });
     expect(weights.hairColorByTone['pale'], {'blonde': 22.0, 'black': 8.0});
     expect(weights.hair['hair_afro'], 4.0);
     expect(weights.neonHair['natural'], 95.0);
     expect(weights.accessories['none'], 55.0);
+  });
+
+  test('skin_tone_by_country defaults to empty when the JSON omits it', () {
+    final weights = portraitWeightsFromJson({
+      'skin_tone': {'pale': 3, 'deep': 38},
+      'hair_color': {
+        'pale': {'blonde': 1},
+      },
+      'hair': {'none': 1},
+      'neon_hair': {'natural': 1},
+      'eyes': {'eyes_1center': 1},
+      'nose': {'nose_1': 1},
+      'mouth': {'mouth_1': 1},
+      'eyebrows': {'none': 1},
+      'facial': {'none': 1},
+      'accessories': {'none': 1},
+    });
+
+    expect(weights.skinToneByCountry, isEmpty);
   });
 
   test('pickWeighted never returns a zero-weight key', () {

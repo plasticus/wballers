@@ -10,9 +10,9 @@ enum CollegeRegion { west, midwest, northeast, south, canada }
 /// Draft item).
 enum CollegePrestige { developing, strong, premier }
 
-/// One fictional college a domestic (non-international, see
-/// `player_generator_data.dart`'s `kInternationalHometowns`) player went
-/// to (`colleges.md` is the source of truth this was transcribed from --
+/// One fictional college a domestic (`Country.usa`/`Country.canada`, see
+/// `country.dart`'s `CountryLabel.isDomestic`) player went to
+/// (`colleges.md` is the source of truth this was transcribed from --
 /// update both together if the list changes). Started as a draft-prospect-
 /// only concept (`draft/domain/draft_prospect.dart`) before moving here
 /// (2026-08-10) once every generated player -- not just draft prospects --

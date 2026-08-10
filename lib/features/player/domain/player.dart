@@ -155,10 +155,9 @@ class Player {
 
   /// The fictional college this player went to -- `null` means
   /// international rather than "unknown": `generatePlayer` assigns one to
-  /// every domestically-[hometown]ed player and leaves this `null`
-  /// specifically for players whose [hometown] reads international
-  /// (`player_generator_data.dart`'s `kInternationalHometowns`), never
-  /// both and never neither. `PlayerDetailScreen` uses that mutual
+  /// every player generated from a domestic `Country` (USA or Canada,
+  /// `CountryLabel.isDomestic`) and leaves this `null` for everyone else,
+  /// never both and never neither. `PlayerDetailScreen` uses that mutual
   /// exclusivity directly: show [college] if set, otherwise parse a
   /// country out of [hometown] -- a direct GM ask (2026-08-10, `Aug9bugs.md`
   /// #18) for the page to show "what college they went to, OR if they're

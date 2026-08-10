@@ -23,10 +23,6 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 
 6. **Do coach attributes actually do anything yet?** — need to confirm whether coach stats (Motivation, Offense, etc.) currently have any real gameplay effect, or are still cosmetic/unused.
 
-## Blocked / waiting on the GM
-
-7. **Player name pool** — same-surname collisions keep showing up on a single roster. GM dropped `~/Downloads/wnba_names_final_v3.csv` (2026-08-10): 1,350 names, `Country,Type,Name` columns -- USA has 250 given + 150 surname, 19 other countries (Australia, Belgium, Brazil, Canada, China, Czech Republic, Finland, France, Germany, Greece, Hungary, Italy, Mexico, Nigeria, Senegal, Serbia, Slovenia, Spain, Turkey) get ~25 given + ~25 surname each -- matches this game's existing international-hometown concept. One malformed row spotted on a first look (`Given,Shona` -- looks like a missing Country value shifted the columns) to flag before building against it. Not started -- discussing the actual design (how it replaces `core/generation/name_pools.dart`, whether it ties to `Player.college`/hometown-country, collision-avoidance approach) before implementing.
-
 ## Polish
 
-8. **Real app icon** — replace the default Flutter icon with the WBL logo (`branding/wbl_logo_alpha.png` already in the repo).
+7. **Real app icon** — replace the default Flutter icon with the WBL logo (`branding/wbl_logo_alpha.png` already in the repo).

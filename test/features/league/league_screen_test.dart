@@ -169,8 +169,15 @@ void main() {
         for (final m in roster)
           if (m.status == RosterStatus.active) m.player,
       ];
+      // The club's own row text, not just a bare "NN OVR" substring --
+      // a generated AI team can coincidentally land on the same overall,
+      // and a page-wide OVR-only search would then flag a false failure
+      // even though the club's own row rendered exactly right.
       expect(
-        find.textContaining('${teamOverallForPlayers(activePlayers)} OVR'),
+        find.text(
+          '${clubTeam.abbreviation} · ${clubTeam.location} · '
+          '${teamOverallForPlayers(activePlayers)} OVR',
+        ),
         findsOneWidget,
       );
 
