@@ -155,9 +155,9 @@ Franchise _franchiseWith({
     trainingCoaches:
         trainingCoaches ??
         const [
-          TrainingCoach(name: 'Coach A', developmentRating: 50),
-          TrainingCoach(name: 'Coach B', developmentRating: 50),
-          TrainingCoach(name: 'Coach C', developmentRating: 50),
+          TrainingCoach(name: 'Coach A'),
+          TrainingCoach(name: 'Coach B'),
+          TrainingCoach(name: 'Coach C'),
         ],
     trainingPlan: trainingPlan ?? TrainingPlan.initial(),
     nextTrainingWeek: nextTrainingWeek,
@@ -394,14 +394,16 @@ void main() {
     expect(individualTotal, greaterThan(teamWideTotal));
   });
 
-  test('an individually-assigned training coach overrides the team plan '
-      'and uses that coach\'s own rating', () {
+  test('an individually-assigned coach slot overrides the team-wide focus, '
+      'but training-coach identity no longer affects quality at all -- '
+      'that always comes from the head coach (TODO.md item 7: "they should '
+      'all simply be an extension of the head coach\'s capabilities")', () {
     final player = _player(id: 'p1', age: 21, overall: 45, potential: 90);
-    final franchise = _franchiseWith(
+    Franchise franchiseWith(List<TrainingCoach> coaches) => _franchiseWith(
       roster: [RosterMembership(player: player, status: RosterStatus.active)],
       week: 2,
       minutesByPlayerId: {'p1': 200},
-      coachDevelopment: 10, // weak head coach
+      coachDevelopment: 90,
       trainingPlan: TrainingPlan(
         teamFocus: TrainingFocus.balanced,
         coachSlots: [
@@ -413,23 +415,38 @@ void main() {
           const TrainingCoachSlot(),
         ],
       ),
-      trainingCoaches: const [
-        TrainingCoach(name: 'Star Developer', developmentRating: 95),
-        TrainingCoach(name: 'Idle B', developmentRating: 50),
-        TrainingCoach(name: 'Idle C', developmentRating: 50),
-      ],
+      trainingCoaches: coaches,
     );
 
-    final advance = runTraining(Random(3), franchise)!;
+    final advanceA = runTraining(
+      Random(3),
+      franchiseWith(const [
+        TrainingCoach(name: 'Coach A'),
+        TrainingCoach(name: 'Idle B'),
+        TrainingCoach(name: 'Idle C'),
+      ]),
+    )!;
+    final advanceB = runTraining(
+      Random(3),
+      franchiseWith(const [
+        TrainingCoach(name: 'A Totally Different Name'),
+        TrainingCoach(name: 'Idle B'),
+        TrainingCoach(name: 'Idle C'),
+      ]),
+    )!;
 
-    final result = advance.report.results.single;
-    // A 95-rated individual coach should clearly outgrow a 10-rated head
-    // coach's team-wide default -- the offense-focused fields should
-    // dominate the change.
-    final offenseFieldsChanged = result.fieldDeltas.keys.where(
-      kOffenseFields.contains,
-    );
+    // The focus override still routes growth toward offense fields.
+    final offenseFieldsChanged = advanceA.report.results.single.fieldDeltas.keys
+        .where(kOffenseFields.contains);
     expect(offenseFieldsChanged, isNotEmpty);
+
+    // Same seed, same head coach, same everything except which name
+    // sits in slot 0 -- identical result proves coach identity itself
+    // has no effect on quality anymore.
+    expect(
+      advanceA.report.results.single.fieldDeltas,
+      advanceB.report.results.single.fieldDeltas,
+    );
   });
 
   test('report only lists players who actually changed', () {

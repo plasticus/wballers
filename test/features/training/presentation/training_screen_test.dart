@@ -23,9 +23,9 @@ import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
 
 const _coaches = [
-  TrainingCoach(name: 'Coach Amara', developmentRating: 60),
-  TrainingCoach(name: 'Coach Blake', developmentRating: 50),
-  TrainingCoach(name: 'Coach Cruz', developmentRating: 40),
+  TrainingCoach(name: 'Coach Amara'),
+  TrainingCoach(name: 'Coach Blake'),
+  TrainingCoach(name: 'Coach Cruz'),
 ];
 
 Franchise _franchiseWith({TrainingPlan? trainingPlan}) {
@@ -89,7 +89,9 @@ void main() {
     expect(find.text('Individual Coach #2'), findsOneWidget);
     expect(find.text('Individual Coach #3'), findsOneWidget);
     expect(find.text('Coach Amara'), findsNothing);
-    expect(find.text('DEV 60'), findsOneWidget);
+    // No development-rating readout (2026-08-10, a direct GM ask) -- a
+    // training coach carries no rating of its own to show at all.
+    expect(find.textContaining('DEV'), findsNothing);
     // Unassigned by default (TrainingPlan.initial) -- no focus picker shown
     // for any of the 3 idle coaches yet.
     expect(find.text('Unassigned'), findsNWidgets(3));

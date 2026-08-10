@@ -14,16 +14,6 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 
 3. **Do coach attributes actually do anything yet?** — need to confirm whether coach stats (Motivation, Offense, etc.) currently have any real gameplay effect, or are still cosmetic/unused.
 
-## Main Menu / save slots
-
-4. ~~**App boot should bounce to the Main Menu if the last-used save fails to load**~~ — **Done (2026-08-10).** `AppShell` now `ref.listen`s `currentFranchiseProvider` and auto-navigates (`pushAndRemoveUntil`) to `MainMenuScreen` the moment it sees `AsyncError`. Along the way, testing this surfaced and fixed a real overflow bug in item 5's own logo resize (75% of width alone overflowed on a wide-but-short viewport -- now also capped by 32% of height). Not yet committed.
-5. ~~**Main Menu visual polish**~~ — **Done (2026-08-10).** Committed.
-
-## Training
-
-6. ~~**Individual-coaching player picker needs reformatting again — too wide**~~ — **Done (2026-08-10).** Committed.
-7. **Individual coaches shouldn't have their own independent Development rating at all** — a real design decision, not just a display tweak: "I hate the idea of those 3 being different from one another. They should all simply be an extension of the head coach's capabilities." Currently (`training_coach_generator.dart`) each of the 3 individual coaches gets its own independently-rolled `developmentRating`, separate from the head coach's own `CoachStats.development` -- that's what needs to go. Two things to change together: (1) the generation/mechanics side (`training_coach_generator.dart`, and wherever `training_advancer.dart`'s `_effectiveFocusAndCoach` currently reads an individually-assigned coach's own rating) should have all 3 slots use the head coach's own development capability instead of rolling something separate; (2) the Training screen's per-card "DEV NN" readout should come off entirely, since there'd no longer be a distinct number worth showing per coach ("that's engine stuff the player doesn't need to see").
-
 ## Blocked / waiting on the GM
 
-8. **League team City/State/Team Name data is still a mess** — the 40-team league pool's city/state/name combinations need real cleanup. GM is going to acquire better data for this before it can be fixed properly. Not started.
+4. **League team City/State/Team Name data is still a mess** — the 40-team league pool's city/state/name combinations need real cleanup. GM is going to acquire better data for this before it can be fixed properly. Not started.

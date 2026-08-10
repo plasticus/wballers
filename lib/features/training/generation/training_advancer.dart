@@ -330,30 +330,31 @@ Map<String, double> _minutesInWeekRange(
   return totals;
 }
 
-/// Which focus and coach quality apply to [playerId]: whichever training
-/// coach slot has them assigned (that coach's own `developmentRating`),
-/// or -- if no coach has them -- the team-wide [TrainingPlan.teamFocus]
-/// and the head coach's `CoachStats.development`. The third element is
-/// whether [playerId] landed one of the 3 individual slots at all --
-/// [_totalWeeklyDelta] applies [_kIndividualAttentionMultiplier] only
-/// when it did.
+/// Which focus applies to [playerId]: whichever training coach slot has
+/// them assigned, or -- if no coach has them -- the team-wide
+/// [TrainingPlan.teamFocus]. Coach *quality* is always the head coach's
+/// own `CoachStats.development`, individually-slotted or not -- the 3
+/// training coaches carry no rating of their own to use instead
+/// (`TrainingCoach`'s own doc comment: a direct GM design call, "they
+/// should all simply be an extension of the head coach's capabilities").
+/// The third element is whether [playerId] landed one of the 3
+/// individual slots at all -- [_totalWeeklyDelta] applies
+/// [_kIndividualAttentionMultiplier] only when it did, entirely
+/// independent of coach quality.
 (IndividualTrainingFocus, int, bool) _effectiveFocusAndCoach(
   Franchise franchise,
   String playerId,
 ) {
+  final headCoachDevelopment = franchise.coach.stats.development;
   final slots = franchise.trainingPlan.coachSlots;
   for (var i = 0; i < slots.length; i++) {
     if (slots[i].playerId == playerId) {
-      return (
-        slots[i].focus!,
-        franchise.trainingCoaches[i].developmentRating,
-        true,
-      );
+      return (slots[i].focus!, headCoachDevelopment, true);
     }
   }
   return (
     IndividualTrainingFocus.broad(franchise.trainingPlan.teamFocus),
-    franchise.coach.stats.development,
+    headCoachDevelopment,
     false,
   );
 }

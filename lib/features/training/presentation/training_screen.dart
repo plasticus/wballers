@@ -267,17 +267,11 @@ class _CoachAssignmentCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(displayName, style: theme.textTheme.titleMedium),
-                ),
-                Text(
-                  'DEV ${coach.developmentRating}',
-                  style: theme.textTheme.labelMedium,
-                ),
-              ],
-            ),
+            // No development-rating readout here (2026-08-10, a direct GM
+            // ask: "that's engine stuff the player doesn't need to see")
+            // -- this coach carries no rating of its own to show at all
+            // (`TrainingCoach`'s own doc comment on why).
+            Text(displayName, style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<String?>(
               initialValue: assignment.playerId,
