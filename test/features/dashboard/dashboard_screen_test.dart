@@ -155,27 +155,24 @@ void main() {
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
   });
 
-  testWidgets(
-    'shows the current fictional date and week on the Season card '
-    '(2026-08-09, a direct GM ask)',
-    (tester) async {
-      // Nothing played yet -- "current" is the season's very first game
-      // day, the preseason opener, which formatFictionalDate/weekLabel
-      // both special-case to read "Week 0".
-      final franchise = _franchiseWith();
-      final repository = await _seededRepository(franchise);
+  testWidgets('shows the current fictional date and week on the Season card '
+      '(2026-08-09, a direct GM ask)', (tester) async {
+    // Nothing played yet -- "current" is the season's very first game
+    // day, the preseason opener, which formatFictionalDate/weekLabel
+    // both special-case to read "Week 0".
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-          child: const MaterialApp(home: DashboardScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.textContaining(weekLabel(1)), findsOneWidget);
-    },
-  );
+    expect(find.textContaining(weekLabel(1)), findsOneWidget);
+  });
 
   testWidgets(
     'shows an Assistant GM mail card naming the pool\'s best prospect, and '

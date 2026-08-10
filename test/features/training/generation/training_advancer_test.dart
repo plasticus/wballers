@@ -465,4 +465,175 @@ void main() {
     expect(advance.franchise.nextTrainingWeek, 3);
     expect(runTraining(Random(1), advance.franchise), isNull);
   });
+
+  group('resolveSeasonEndAging (TODO.md item 1: off-season lump)', () {
+    test('reserve/inactive players never change', () {
+      final player = _player(id: 'p1', age: 34, overall: 60, potential: 60);
+      final franchise = _franchiseWith(
+        roster: [
+          RosterMembership(
+            player: player,
+            status: RosterStatus.reserveInactive,
+          ),
+        ],
+        week: 2,
+        minutesByPlayerId: const {},
+      );
+
+      final advance = resolveSeasonEndAging(Random(1), franchise);
+
+      expect(advance.franchise.roster.single.player.ratings.overall, 60);
+      expect(advance.results, isEmpty);
+    });
+
+    test('a growing or plateaued player gets nothing -- this is the '
+        'veteran-decline half only', () {
+      final young = _player(id: 'p1', age: 22, overall: 45, potential: 90);
+      final plateaued = _player(id: 'p2', age: 28, overall: 60, potential: 60);
+      final franchise = _franchiseWith(
+        roster: [
+          RosterMembership(player: young, status: RosterStatus.active),
+          RosterMembership(player: plateaued, status: RosterStatus.active),
+        ],
+        week: 2,
+        minutesByPlayerId: const {},
+      );
+
+      final advance = resolveSeasonEndAging(Random(1), franchise);
+
+      expect(advance.results, isEmpty);
+    });
+
+    test('an old veteran declines via the one-time lump, even with zero '
+        'minutes -- same "aging happens regardless of minutes" rule as '
+        'weekly decline', () {
+      final player = _player(id: 'p1', age: 34, overall: 70, potential: 70);
+      final franchise = _franchiseWith(
+        roster: [RosterMembership(player: player, status: RosterStatus.active)],
+        week: 2,
+        minutesByPlayerId: const {},
+      );
+
+      var advance = resolveSeasonEndAging(Random(1), franchise);
+      for (var seed = 2; advance.results.isEmpty && seed <= 20; seed++) {
+        advance = resolveSeasonEndAging(Random(seed), franchise);
+      }
+
+      expect(advance.results, hasLength(1));
+      final total = advance.results.single.fieldDeltas.values.fold(
+        0,
+        (a, b) => a + b,
+      );
+      expect(total, lessThan(0));
+    });
+
+    test('the one-time lump moves a veteran meaningfully more than a '
+        'single week of the softened in-season decline does', () {
+      final forLump = _player(id: 'p1', age: 34, overall: 70, potential: 70);
+      final forWeek = _player(id: 'p1', age: 34, overall: 70, potential: 70);
+      final franchise = _franchiseWith(
+        roster: [
+          RosterMembership(player: forWeek, status: RosterStatus.active),
+        ],
+        week: 2,
+        minutesByPlayerId: const {},
+      );
+
+      var weeklyTotal = 0;
+      var lumpTotal = 0;
+      const sampleSize = 100;
+      for (var seed = 0; seed < sampleSize; seed++) {
+        final weekly = runTraining(Random(seed), franchise)!;
+        weeklyTotal += _totalFieldDelta(weekly.report);
+
+        final lump = resolveSeasonEndAging(
+          Random(seed),
+          _franchiseWith(
+            roster: [
+              RosterMembership(player: forLump, status: RosterStatus.active),
+            ],
+            week: 2,
+            minutesByPlayerId: const {},
+          ),
+        );
+        lumpTotal += lump.results.fold(
+          0,
+          (sum, r) => sum + r.fieldDeltas.values.fold(0, (a, b) => a + b),
+        );
+      }
+
+      // Both are negative (decline); the lump's magnitude should clearly
+      // outweigh one week's.
+      expect(lumpTotal.abs(), greaterThan(weeklyTotal.abs()));
+    });
+
+    test('the gymRat trait softens the lump, same as it softens weekly '
+        'decline', () {
+      final plain = _player(id: 'p1', age: 34, overall: 70, potential: 70);
+      final gymRat = _player(
+        id: 'p1',
+        age: 34,
+        overall: 70,
+        potential: 70,
+        traits: {Trait.gymRat},
+      );
+
+      var plainTotal = 0;
+      var gymRatTotal = 0;
+      const sampleSize = 100;
+      for (var seed = 0; seed < sampleSize; seed++) {
+        final plainAdvance = resolveSeasonEndAging(
+          Random(seed),
+          _franchiseWith(
+            roster: [
+              RosterMembership(player: plain, status: RosterStatus.active),
+            ],
+            week: 2,
+            minutesByPlayerId: const {},
+          ),
+        );
+        final gymRatAdvance = resolveSeasonEndAging(
+          Random(seed),
+          _franchiseWith(
+            roster: [
+              RosterMembership(player: gymRat, status: RosterStatus.active),
+            ],
+            week: 2,
+            minutesByPlayerId: const {},
+          ),
+        );
+        plainTotal += plainAdvance.results.fold(
+          0,
+          (sum, r) => sum + r.fieldDeltas.values.fold(0, (a, b) => a + b),
+        );
+        gymRatTotal += gymRatAdvance.results.fold(
+          0,
+          (sum, r) => sum + r.fieldDeltas.values.fold(0, (a, b) => a + b),
+        );
+      }
+
+      expect(gymRatTotal.abs(), lessThan(plainTotal.abs()));
+    });
+
+    test('the returned franchise carries the roster change through '
+        'copyWithSeasonEndAging', () {
+      final player = _player(id: 'p1', age: 34, overall: 70, potential: 70);
+      final franchise = _franchiseWith(
+        roster: [RosterMembership(player: player, status: RosterStatus.active)],
+        week: 2,
+        minutesByPlayerId: const {},
+      );
+
+      var advance = resolveSeasonEndAging(Random(1), franchise);
+      for (var seed = 2; advance.results.isEmpty && seed <= 20; seed++) {
+        advance = resolveSeasonEndAging(Random(seed), franchise);
+      }
+
+      expect(advance.franchise.seasonEndAgingResults, advance.results);
+      expect(
+        advance.franchise.roster.single.player.ratings.overall,
+        lessThan(70),
+      );
+    });
+  });
 }

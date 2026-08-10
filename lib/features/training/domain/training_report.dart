@@ -40,3 +40,59 @@ class TrainingReport {
   /// week and nothing else pushing them doesn't get an entry.
   final List<PlayerGrowthResult> results;
 }
+
+/// Aggregates a season's worth of training history into one
+/// [PlayerGrowthResult] per player who moved at all -- field deltas
+/// summed across every entry in [weeklyReports] (chronological order,
+/// same as [Franchise.trainingReports] itself), with [seasonEndAging]'s
+/// one-time lump folded in on top as if it were simply the last entry.
+/// `SeasonRecapScreen`'s player-development section (TODO.md item 2) is
+/// the only consumer -- `TrainingReportScreen` shows one week's own
+/// [TrainingReport.results] directly, with no aggregation needed there.
+///
+/// [PlayerGrowthResult.overallBefore] on a returned result is the
+/// player's overall before *any* training this season (the first report
+/// they appear in); [PlayerGrowthResult.overallAfter] is after the *last*
+/// thing that touched them (the season-end lump if it did, otherwise
+/// their most recent weekly report) -- so
+/// [PlayerGrowthResult.overallDelta] reads as a genuine season-long
+/// swing, not just whichever single entry happened to be summed last.
+List<PlayerGrowthResult> aggregateSeasonGrowth({
+  required List<TrainingReport> weeklyReports,
+  required List<PlayerGrowthResult> seasonEndAging,
+}) {
+  final fieldDeltasByPlayer = <String, Map<PlayerRatingField, int>>{};
+  final overallBeforeByPlayer = <String, int>{};
+  final overallAfterByPlayer = <String, int>{};
+
+  void fold(PlayerGrowthResult result) {
+    final deltas = fieldDeltasByPlayer.putIfAbsent(result.playerId, () => {});
+    for (final entry in result.fieldDeltas.entries) {
+      deltas[entry.key] = (deltas[entry.key] ?? 0) + entry.value;
+    }
+    overallBeforeByPlayer.putIfAbsent(
+      result.playerId,
+      () => result.overallBefore,
+    );
+    overallAfterByPlayer[result.playerId] = result.overallAfter;
+  }
+
+  for (final report in weeklyReports) {
+    for (final result in report.results) {
+      fold(result);
+    }
+  }
+  for (final result in seasonEndAging) {
+    fold(result);
+  }
+
+  return [
+    for (final playerId in fieldDeltasByPlayer.keys)
+      PlayerGrowthResult(
+        playerId: playerId,
+        fieldDeltas: fieldDeltasByPlayer[playerId]!,
+        overallBefore: overallBeforeByPlayer[playerId]!,
+        overallAfter: overallAfterByPlayer[playerId]!,
+      ),
+  ];
+}

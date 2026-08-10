@@ -118,10 +118,7 @@ void main() {
           college: kColleges.first,
         );
         final franchise = _franchiseWith(
-          target: RosterMembership(
-            player: target,
-            status: RosterStatus.active,
-          ),
+          target: RosterMembership(player: target, status: RosterStatus.active),
         );
 
         await tester.pumpWidget(
@@ -138,20 +135,11 @@ void main() {
 
         expect(find.textContaining('EXP: 4'), findsOneWidget);
         expect(find.textContaining('Left-handed'), findsOneWidget);
-        expect(
-          find.text('Also plays: Shooting Guard'),
-          findsOneWidget,
-        );
+        expect(find.text('Also plays: Shooting Guard'), findsOneWidget);
         expect(find.text('Hometown: Springfield, IL'), findsOneWidget);
-        expect(
-          find.text('College: ${kColleges.first.name}'),
-          findsOneWidget,
-        );
+        expect(find.text('College: ${kColleges.first.name}'), findsOneWidget);
         expect(find.textContaining('Country:'), findsNothing);
-        expect(
-          find.text('A steady floor general.'),
-          findsOneWidget,
-        );
+        expect(find.text('A steady floor general.'), findsOneWidget);
       },
     );
 
@@ -170,10 +158,7 @@ void main() {
           college: null,
         );
         final franchise = _franchiseWith(
-          target: RosterMembership(
-            player: target,
-            status: RosterStatus.active,
-          ),
+          target: RosterMembership(player: target, status: RosterStatus.active),
         );
 
         await tester.pumpWidget(
@@ -384,10 +369,7 @@ void main() {
         ProviderScope(
           overrides: [saveRepositoryProvider.overrideWithValue(repository)],
           child: MaterialApp(
-            home: PlayerDetailScreen(
-              franchise: franchise,
-              playerId: target.id,
-            ),
+            home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
           ),
         ),
       );
@@ -423,10 +405,7 @@ void main() {
           name: 'Riley Okafor',
         ).copyWithJerseyNumber(23);
         final franchise = _franchiseWith(
-          target: RosterMembership(
-            player: target,
-            status: RosterStatus.active,
-          ),
+          target: RosterMembership(player: target, status: RosterStatus.active),
         );
         final repository = await _seededRepository(franchise);
 

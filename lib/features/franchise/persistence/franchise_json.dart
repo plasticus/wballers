@@ -30,6 +30,9 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'trainingReports': franchise.trainingReports
         .map(trainingReportToJson)
         .toList(),
+    'seasonEndAgingResults': franchise.seasonEndAgingResults
+        .map(playerGrowthResultToJson)
+        .toList(),
     'freeAgents': franchise.freeAgents.map(playerToJson).toList(),
     'readMailIds': franchise.readMailIds.toList(),
   };
@@ -59,6 +62,11 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     nextTrainingWeek: json['nextTrainingWeek'] as int,
     trainingReports: (json['trainingReports'] as List<dynamic>)
         .map((value) => trainingReportFromJson(value as Map<String, dynamic>))
+        .toList(),
+    seasonEndAgingResults: (json['seasonEndAgingResults'] as List<dynamic>)
+        .map(
+          (value) => playerGrowthResultFromJson(value as Map<String, dynamic>),
+        )
         .toList(),
     freeAgents: (json['freeAgents'] as List<dynamic>)
         .map((value) => playerFromJson(value as Map<String, dynamic>))

@@ -339,4 +339,54 @@ void main() {
       throwsA(isA<AssertionError>()),
     );
   });
+
+  test('offenseMargin at or above kBlowoutPaceMargin makes possessions run '
+      'longer overall (TODO.md item 5: blowout pace rubber-banding)', () {
+    final offense = testLineup('off');
+    final defense = testLineup('def');
+
+    var totalNormal = 0.0;
+    var totalProtecting = 0.0;
+    const sampleSize = 200;
+    for (var seed = 0; seed < sampleSize; seed++) {
+      // Same seed for both, so the only thing that can differ between
+      // the pair is the pacing bonus itself, not the underlying rolls.
+      final normal = simulatePossession(
+        Random(seed),
+        offense: offense,
+        defense: defense,
+      );
+      final protecting = simulatePossession(
+        Random(seed),
+        offense: offense,
+        defense: defense,
+        offenseMargin: kBlowoutPaceMargin,
+      );
+      totalNormal += normal.secondsElapsed;
+      totalProtecting += protecting.secondsElapsed;
+    }
+
+    expect(totalProtecting, greaterThan(totalNormal));
+  });
+
+  test('offenseMargin just below kBlowoutPaceMargin has no pacing effect at '
+      'all -- identical to a plain possession, action for action', () {
+    final offense = testLineup('off');
+    final defense = testLineup('def');
+
+    final normal = simulatePossession(
+      Random(11),
+      offense: offense,
+      defense: defense,
+    );
+    final almostProtecting = simulatePossession(
+      Random(11),
+      offense: offense,
+      defense: defense,
+      offenseMargin: kBlowoutPaceMargin - 1,
+    );
+
+    expect(almostProtecting.secondsElapsed, normal.secondsElapsed);
+    expect(almostProtecting.pointsScored, normal.pointsScored);
+  });
 }

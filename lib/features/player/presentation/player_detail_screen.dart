@@ -208,7 +208,10 @@ class _HeaderCard extends StatelessWidget {
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  OvrBubble(overall: player.ratings.overall, color: accentColor),
+                  OvrBubble(
+                    overall: player.ratings.overall,
+                    color: accentColor,
+                  ),
                   const SizedBox(height: AppSpacing.xs),
                   Text('OVR', style: theme.textTheme.labelSmall),
                 ],
@@ -247,7 +250,10 @@ class _HeaderCard extends StatelessWidget {
             '-handed · ${experienceLabel(player)}',
             style: theme.textTheme.bodySmall,
           ),
-          Text('Hometown: ${player.hometown}', style: theme.textTheme.bodySmall),
+          Text(
+            'Hometown: ${player.hometown}',
+            style: theme.textTheme.bodySmall,
+          ),
           Text(
             player.college != null
                 ? 'College: ${player.college!.name}'

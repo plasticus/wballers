@@ -94,10 +94,7 @@ void main() {
             (potentialCounts[freeAgent.ratings.potential] ?? 0) + 1;
       }
       for (final entry in potentialCounts.entries) {
-        expect(
-          find.text('POT ${entry.key}'),
-          findsNWidgets(entry.value),
-        );
+        expect(find.text('POT ${entry.key}'), findsNWidgets(entry.value));
       }
     },
   );

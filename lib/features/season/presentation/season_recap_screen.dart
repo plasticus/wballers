@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../player/domain/position.dart';
+import '../../training/domain/training_report.dart';
+import '../../training/presentation/player_growth_card.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
@@ -22,6 +25,23 @@ class SeasonRecapScreen extends StatelessWidget {
   const SeasonRecapScreen({required this.franchise, super.key});
 
   final Franchise franchise;
+
+  /// Same lookup-with-fallback `TrainingReportScreen`'s own `_playerLabel`
+  /// already established -- a player who's since left the roster (a
+  /// free-agent swap; there's no trade system yet) still gets a readable
+  /// label instead of a crash.
+  String _playerLabel(String playerId) {
+    for (final membership in franchise.roster) {
+      if (membership.player.id == playerId) {
+        final player = membership.player;
+        final jersey = player.jerseyNumber != null
+            ? '#${player.jerseyNumber} '
+            : '';
+        return '${player.primaryPosition.abbreviation} $jersey${player.name}';
+      }
+    }
+    return 'Former Player';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +69,15 @@ class SeasonRecapScreen extends StatelessWidget {
               .map((played) => played.game.postseasonRound!)
               .reduce((a, b) => a > b ? a : b)
         : null;
+
+    final seasonGrowth =
+        aggregateSeasonGrowth(
+          weeklyReports: franchise.trainingReports,
+          seasonEndAging: franchise.seasonEndAgingResults,
+        )..sort(
+          (a, b) =>
+              totalPlayerGrowthDelta(b).compareTo(totalPlayerGrowthDelta(a)),
+        );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Season Recap')),
@@ -84,6 +113,27 @@ class SeasonRecapScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+            Text('Player Development', style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              seasonGrowth.isEmpty
+                  ? 'No development results recorded this season.'
+                  : '${seasonGrowth.length} player'
+                        '${seasonGrowth.length == 1 ? '' : 's'} changed -- '
+                        'the whole season\'s training plus the off-season '
+                        'conditioning that follows it.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (var i = 0; i < seasonGrowth.length; i++) ...[
+              PlayerGrowthCard(
+                playerName: _playerLabel(seasonGrowth[i].playerId),
+                result: seasonGrowth[i],
+              ),
+              if (i != seasonGrowth.length - 1)
+                const SizedBox(height: AppSpacing.sm),
+            ],
+            const SizedBox(height: AppSpacing.lg),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,7 +146,7 @@ class SeasonRecapScreen extends StatelessWidget {
                     'aged-up roster and a fresh draft class -- is coming in '
                     'a future update. For now, you can still browse '
                     'everything that happened this season from the '
-                    'Results and News tabs.',
+                    'Results and Mail tabs.',
                   ),
                 ],
               ),

@@ -75,10 +75,7 @@ void main() {
       // row carries the signal instead (2026-08-09, a direct GM ask).
       expect(find.text('Your Team'), findsNothing);
       expect(find.text('0-0'), findsOneWidget);
-      expect(
-        find.bySemanticsLabel('Boston Comets, Your Team'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsLabel('Boston Comets, Your Team'), findsOneWidget);
 
       final container = tester.widget<Container>(
         find.ancestor(

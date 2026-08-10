@@ -66,6 +66,13 @@ Player _tallest(List<Player> players) =>
 ///   than 4 entries when this happens.
 /// - **No energy/fatigue model yet** (`0B_Planned.md`'s stamina appendix)
 ///   -- substitutions are driven purely by target minutes and foul-outs.
+/// - **Blowout pace rubber-banding** (TODO.md item 5): whichever team is
+///   ahead by `kBlowoutPaceMargin` or more slows its own possessions down
+///   (`possession_engine.dart`'s `simulatePossession` `offenseMargin`
+///   param) -- longer possessions eat clock for both teams, capping how
+///   many total possessions (and therefore points) are left for the
+///   margin to keep growing on. Pacing only -- no rating or shot-quality
+///   change for either team.
 MatchResult simulateMatch(
   Random random, {
   required List<Player> homeRoster,
@@ -142,12 +149,16 @@ MatchResult simulateMatch(
       final defenseInBonus = offenseIsHome
           ? awayTeamFouls >= _teamFoulBonusThreshold
           : homeTeamFouls >= _teamFoulBonusThreshold;
+      final offenseMargin = offenseIsHome
+          ? homeScore - awayScore
+          : awayScore - homeScore;
 
       final result = simulatePossession(
         random,
         offense: offense,
         defense: defense,
         defenseInBonus: defenseInBonus,
+        offenseMargin: offenseMargin,
       );
       events.addAll(result.events);
       quarterClock -= result.secondsElapsed;

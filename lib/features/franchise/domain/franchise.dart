@@ -51,6 +51,7 @@ class Franchise {
     required this.trainingPlan,
     required this.nextTrainingWeek,
     this.trainingReports = const [],
+    this.seasonEndAgingResults = const [],
     this.freeAgents = const [],
     this.readMailIds = const {},
   }) : assert(
@@ -112,11 +113,30 @@ class Franchise {
   /// `training_advancer.dart`).
   final int nextTrainingWeek;
 
-  /// Every training report so far this season -- what `NewsScreen`
-  /// (`news/presentation/news_screen.dart`) lists. Lean by construction
+  /// Every training report so far this season -- what the Mail tab
+  /// (`mail/application/mailbox.dart`'s `mailboxFor`) lists a
+  /// `TrainingReportMailItem` for, one per entry. Lean by construction
   /// (`TrainingReport` only records players who actually changed), so
   /// keeping the whole season's worth doesn't meaningfully grow the save.
   final List<TrainingReport> trainingReports;
+
+  /// The one-time off-season aging lump's own results
+  /// (`training/generation/training_advancer.dart`'s
+  /// `resolveSeasonEndAging`) -- empty until a season's postseason bracket
+  /// actually finishes. Deliberately not folded into [trainingReports]:
+  /// that list means "one schedule week's worth of minutes-and-coaching
+  /// training," and every entry in it automatically becomes a Mail inbox
+  /// item and a Dashboard training-report card
+  /// (`mail/application/mailbox.dart`, `dashboard_screen.dart`) -- the
+  /// off-season lump is a different concept (age alone, no minutes/coach
+  /// involved) that `SeasonRecapScreen`'s player-development section
+  /// reads directly rather than surfacing through either of those. Only
+  /// ever one season's worth right now -- there's no multi-season flow
+  /// yet (`0B_Planned.md`) to reset or accumulate a history across, so
+  /// this simply gets overwritten if a season somehow re-resolved (which
+  /// [current_franchise_provider.dart]'s `simulatePostseasonAndPersist`
+  /// already guards against in practice).
+  final List<PlayerGrowthResult> seasonEndAgingResults;
 
   /// Unrostered players available to sign -- real, persisted game state
   /// (not to be confused with the Player Market screen's still-preview-only
@@ -156,6 +176,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -178,6 +199,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -200,6 +222,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -222,6 +245,7 @@ class Franchise {
       trainingPlan: newTrainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -254,6 +278,38 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: newNextTrainingWeek,
       trainingReports: [...trainingReports, newReport],
+      seasonEndAgingResults: seasonEndAgingResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+    );
+  }
+
+  /// Returns a copy reflecting the one-time off-season aging lump having
+  /// resolved: [newRoster] carries whatever decline it produced, and
+  /// [newResults] replaces [seasonEndAgingResults] outright (not
+  /// appended -- there's only ever one season's worth right now, see
+  /// [seasonEndAgingResults]'s own doc comment).
+  /// `training_advancer.dart`'s `resolveSeasonEndAging` is the only
+  /// producer of both.
+  Franchise copyWithSeasonEndAging({
+    required List<RosterMembership> newRoster,
+    required List<PlayerGrowthResult> newResults,
+  }) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: newRoster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: newResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -283,6 +339,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
     );
@@ -306,6 +363,7 @@ class Franchise {
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
       freeAgents: freeAgents,
       readMailIds: newReadMailIds,
     );

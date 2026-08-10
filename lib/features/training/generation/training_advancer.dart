@@ -25,7 +25,20 @@ const _kFullWeekMinutes = 50.0; // a real heavy-usage starter's weekly
 const _kMinutesFactorCap = 1.3; // heavy minutes cap slightly above "full".
 const _kGapNormalization = 40.0; // gap-to-potential that reads as "wide open".
 const _kGrowthScale = 3.2;
-const _kDeclineScale = 3.0;
+// Cut from the original 3.0 (2026-08-10, TODO.md item 1: "aging curve too
+// punishing in-season" -- a real GM complaint, not a hypothetical one).
+// The original scale, over a full season's ~18-21 training-eligible weeks
+// (`lastFullyCompletedWeek` only fires on weeks with games -- preseason +
+// 17 regular-season weeks, plus up to 3 postseason weeks for a team that
+// goes all the way), worked out to roughly -22 to -50 total rating points
+// for a veteran across the 30-34 age bands -- an entire season's worth of
+// decline concentrated into dozens of small, alarming weekly dips. 0.5
+// keeps the same age-curve shape (`_ageCurveFactor`'s bands are the GM's
+// own confirmed shape, untouched here) but brings the in-season total down
+// to roughly -4 to -8 over a season -- felt, not brutal. The rest of a
+// veteran's yearly decline now happens as a one-time lump at season's end
+// instead (`_kOffSeasonDeclineScale`, below) -- see `resolveSeasonEndAging`.
+const _kDeclineScale = 0.5;
 const _kDevelopmentalSlotMultiplier = 1.4;
 // A player in one of the 3 individually-coached slots gets this on top of
 // whatever the assigned coach's own quality already contributes -- real,
@@ -43,6 +56,16 @@ const _kStubbornMultiplier = 0.6;
 const _kGymRatGrowthFloor = 0.3; // unconditional, independent of coach.
 const _kGymRatDeclineSoftening = 0.5; // "ages more gracefully".
 const _kJitterFloor = 0.15; // keeps an at-potential player from a hard 0.
+// The one-time off-season lump's own scale (`resolveSeasonEndAging`) --
+// deliberately much bigger than `_kDeclineScale` since it's applied once a
+// season, not once a week. Reuses `_ageCurveFactor`'s same decline bands
+// (30-31 at -0.4, 32-34 at -0.8), so 30-31 loses ~5 total and 32-34 loses
+// ~10 -- on top of the softer in-season total, a 32-34-year-old's full
+// season (in-season + off-season) now lands around -16 to -18, well
+// under the old system's -43 to -50, with most of it landing as one
+// clean "the off-season caught up with her" event rather than trickling
+// out week by week.
+const _kOffSeasonDeclineScale = 12.5;
 const _kBroadFocusShare = 0.8; // how much of a broad focus's delta goes
 // to its own 4 fields, vs. trickling to the other 8.
 const _kSpecificFocusShare = 0.7; // how much of a specific-rating focus's
@@ -57,6 +80,14 @@ const _kSpecificFocusShare = 0.7; // how much of a specific-rating focus's
 /// save/reload. Distinct from `kTrainingCoachSeedOffset`, which only
 /// seeds one-time coach generation at franchise creation.
 const kTrainingAdvanceSeedOffset = 8;
+
+/// Seed offset for [resolveSeasonEndAging]'s [Random] stream -- offset 9
+/// was the one gap left in the existing seed-offset numbering (coach=0,
+/// roster=1, league draw=2, league AI rosters=3, season schedule=4,
+/// game-day advancement=5, postseason=6, training coaches=7, training
+/// advancement=8, market previews=10-11, free-agent pool=12), reused here
+/// rather than tacking a new number on the end.
+const kSeasonEndAgingSeedOffset = 9;
 
 /// What one weekly training cycle produced: the updated [Franchise]
 /// (roster with new ratings, `nextTrainingWeek` advanced, the new report
@@ -126,26 +157,18 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
       continue;
     }
 
-    var newRatings = player.ratings;
-    for (final entry in newFieldValues.entries) {
-      newRatings = newRatings.copyWithField(entry.key, entry.value);
-    }
-    final newPlayer = player.copyWithRatings(newRatings);
+    final (newPlayer, actualDeltas) = _applyFieldValues(player, newFieldValues);
     newRoster.add(
       RosterMembership(player: newPlayer, status: membership.status),
     );
 
-    final actualDeltas = {
-      for (final entry in newFieldValues.entries)
-        entry.key: entry.value - player.ratings.valueOf(entry.key),
-    }..removeWhere((_, delta) => delta == 0);
     if (actualDeltas.isNotEmpty) {
       results.add(
         PlayerGrowthResult(
           playerId: player.id,
           fieldDeltas: actualDeltas,
           overallBefore: player.ratings.overall,
-          overallAfter: newRatings.overall,
+          overallAfter: newPlayer.ratings.overall,
         ),
       );
     }
@@ -158,6 +181,130 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
     newReport: report,
   );
   return TrainingAdvance(franchise: updatedFranchise, report: report);
+}
+
+/// Applies [newFieldValues] (already-clamped new values, e.g. from
+/// [_newFieldValuesFor]) to [player], returning the updated player and
+/// the actual per-field deltas that resulted -- shared by [runTraining]'s
+/// weekly loop and [resolveSeasonEndAging]'s lump pass, which otherwise
+/// duplicated this exact "apply the map, diff against the original,
+/// hand back both" dance.
+(Player, Map<PlayerRatingField, int>) _applyFieldValues(
+  Player player,
+  Map<PlayerRatingField, int> newFieldValues,
+) {
+  var newRatings = player.ratings;
+  for (final entry in newFieldValues.entries) {
+    newRatings = newRatings.copyWithField(entry.key, entry.value);
+  }
+  final newPlayer = player.copyWithRatings(newRatings);
+  final actualDeltas = {
+    for (final entry in newFieldValues.entries)
+      entry.key: entry.value - player.ratings.valueOf(entry.key),
+  }..removeWhere((_, delta) => delta == 0);
+  return (newPlayer, actualDeltas);
+}
+
+/// What one season-end aging resolution produced: the updated [Franchise]
+/// (roster with the lump decline applied) and the [results] themselves,
+/// for a caller that wants to show or aggregate them without re-deriving
+/// anything -- same shape as [TrainingAdvance], deliberately not reusing
+/// [TrainingReport] itself (that type means "one schedule week's worth of
+/// minutes-and-coaching training," and this isn't that -- see
+/// [resolveSeasonEndAging]'s own doc comment).
+class SeasonEndAgingAdvance {
+  const SeasonEndAgingAdvance({required this.franchise, required this.results});
+
+  final Franchise franchise;
+  final List<PlayerGrowthResult> results;
+}
+
+/// Applies a one-time "off-season" decline lump to every aging veteran on
+/// [franchise]'s roster -- the other half of `_kDeclineScale`'s softened
+/// in-season weekly decay (TODO.md item 1: "smaller week-to-week veteran
+/// decay during the season, with more of the decline concentrated in the
+/// off-season instead"). Meant to be called exactly once, right when a
+/// season's postseason bracket finishes
+/// (`current_franchise_provider.dart`'s `simulatePostseasonAndPersist`,
+/// which already guards against re-resolving an already-played
+/// postseason) -- there's no real multi-season flow yet
+/// (`0B_Planned.md`), so "the off-season" is, for now, just that one
+/// moment a season wraps up, not an actual calendar phase a GM plays
+/// through.
+///
+/// Same scope as [runTraining]: [RosterStatus.reserveInactive] players
+/// are skipped entirely, and only [_ageCurveFactor] matters -- no
+/// gap-to-potential, minutes, or coach-quality inputs, since those are
+/// growth-side concepts that don't apply here, same reasoning
+/// [_totalWeeklyDelta]'s own doc comment gives for why weekly decline
+/// itself is minutes-gate-free. Growing/plateaued players
+/// ([_ageCurveFactor] `>= 0`) get nothing here -- this is specifically
+/// the veteran-decay half of the yearly budget, not a second growth pass.
+SeasonEndAgingAdvance resolveSeasonEndAging(
+  Random random,
+  Franchise franchise,
+) {
+  final newRoster = <RosterMembership>[];
+  final results = <PlayerGrowthResult>[];
+
+  for (final membership in franchise.roster) {
+    if (membership.status == RosterStatus.reserveInactive) {
+      newRoster.add(membership);
+      continue;
+    }
+
+    final player = membership.player;
+    final ageFactor = _ageCurveFactor(player.age);
+    if (ageFactor >= 0) {
+      newRoster.add(membership);
+      continue;
+    }
+
+    var totalDelta = ageFactor * _kOffSeasonDeclineScale;
+    if (player.traits.contains(Trait.gymRat)) {
+      totalDelta *= _kGymRatDeclineSoftening;
+    }
+
+    final perField = _distributeAcrossFields(totalDelta, null);
+    final newFieldValues = <PlayerRatingField, int>{};
+    for (final field in PlayerRatingField.values) {
+      final raw = perField[field] ?? 0.0;
+      if (raw == 0.0) continue;
+      final delta = _roundStochastic(random, raw);
+      if (delta == 0) continue;
+      final current = player.ratings.valueOf(field);
+      final clamped = (current + delta).clamp(kMinRating, kMaxRating);
+      if (clamped != current) newFieldValues[field] = clamped;
+    }
+
+    if (newFieldValues.isEmpty) {
+      newRoster.add(membership);
+      continue;
+    }
+
+    final (newPlayer, actualDeltas) = _applyFieldValues(player, newFieldValues);
+    newRoster.add(
+      RosterMembership(player: newPlayer, status: membership.status),
+    );
+    if (actualDeltas.isNotEmpty) {
+      results.add(
+        PlayerGrowthResult(
+          playerId: player.id,
+          fieldDeltas: actualDeltas,
+          overallBefore: player.ratings.overall,
+          overallAfter: newPlayer.ratings.overall,
+        ),
+      );
+    }
+  }
+
+  return SeasonEndAgingAdvance(
+    franchise: franchise.copyWithSeasonEndAging(
+      newRoster: newRoster,
+      newResults: results,
+    ),
+    results: results,
+  );
 }
 
 /// Sums [PlayedGame.minutesByPlayerId] across every game in

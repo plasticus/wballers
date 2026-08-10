@@ -9,6 +9,9 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/player/domain/position.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
@@ -19,12 +22,15 @@ import 'package:womensbballmgr/features/season/generation/postseason_advancer.da
 import 'package:womensbballmgr/features/season/generation/postseason_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/season/presentation/season_recap_screen.dart';
+import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
+import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
 import '../../../support/franchise_test_helpers.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
+import '../../roster/domain/roster_test_helpers.dart';
 
 /// Plays a real franchise all the way through the regular season,
 /// Continental Cup, and postseason -- same "play it for real, don't fake
@@ -147,4 +153,119 @@ void main() {
     expect(find.text('🏆 You are the champions!'), findsNothing);
     expect(find.textContaining('You missed the playoffs'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows a Player Development section aggregating weekly training and '
+    'the season-end aging lump',
+    (tester) async {
+      final player = playerWithOverall(
+        70,
+        id: 'p1',
+        name: 'Riley Okafor',
+        primaryPosition: Position.pointGuard,
+      );
+      final franchise = Franchise(
+        id: 'franchise-1',
+        gmName: 'Taylor Reed',
+        team: kLeagueTeamPool.first,
+        coach: const Coach(
+          name: 'Jordan Ellis',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: [RosterMembership(player: player, status: RosterStatus.active)],
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: testLeague(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ),
+        seasonProgress: testSeasonProgress(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+          ownTeam: kLeagueTeamPool.first,
+        ),
+        trainingCoaches: testTrainingCoaches(),
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 3,
+        trainingReports: const [
+          TrainingReport(
+            week: 2,
+            results: [
+              PlayerGrowthResult(
+                playerId: 'p1',
+                fieldDeltas: {PlayerRatingField.speed: 2},
+                overallBefore: 68,
+                overallAfter: 69,
+              ),
+            ],
+          ),
+        ],
+        seasonEndAgingResults: const [
+          PlayerGrowthResult(
+            playerId: 'p1',
+            fieldDeltas: {
+              PlayerRatingField.speed: -1,
+              PlayerRatingField.agility: -1,
+            },
+            overallBefore: 69,
+            overallAfter: 68,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(find.text('Player Development'), findsOneWidget);
+      expect(find.textContaining('PG'), findsWidgets);
+      expect(find.textContaining('Riley Okafor'), findsOneWidget);
+      // Net across both sources: +2 (week) + (-1 -1) (lump) = 0.
+      expect(find.text('+0'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'shows an empty-state message when no development results exist yet',
+    (tester) async {
+      final roster = generateStartingRoster(1);
+      final franchise = Franchise(
+        id: 'franchise-1',
+        gmName: 'Taylor Reed',
+        team: kLeagueTeamPool.first,
+        coach: const Coach(
+          name: 'Jordan Ellis',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: roster,
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: testLeague(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ),
+        seasonProgress: testSeasonProgress(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+          ownTeam: kLeagueTeamPool.first,
+        ),
+        trainingCoaches: testTrainingCoaches(),
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('No development results recorded this season.'),
+        findsOneWidget,
+      );
+    },
+  );
 }

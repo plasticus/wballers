@@ -9,6 +9,7 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
@@ -17,6 +18,7 @@ import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
 import '../../../support/franchise_test_helpers.dart';
 import '../../../support/in_memory_save_repository.dart';
+import '../../roster/domain/roster_test_helpers.dart';
 
 const _newAppearance = PortraitAppearance(
   version: 2,
@@ -1238,6 +1240,71 @@ void main() {
           .read(currentFranchiseProvider.notifier)
           .simulatePostseasonAndPersist();
       expect(again, isNull);
+    });
+
+    test('also resolves the one-time off-season aging lump for a veteran on '
+        'the roster (TODO.md item 1)', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      var franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      // Swap in a guaranteed-declining veteran -- generatePlayer's own
+      // random age roll doesn't promise one exists on a fresh roster,
+      // and this test needs to know for certain the lump has someone
+      // real to apply to.
+      final veteran = playerWithOverall(70, id: 'veteran-1', age: 34);
+      franchise = franchise.copyWithRoster([
+        RosterMembership(player: veteran, status: RosterStatus.active),
+        ...franchise.roster.skip(1),
+      ]);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      var progress = franchise.seasonProgress;
+      var guard = 0;
+      while (!progress.isComplete && guard < 60) {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        progress = container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress;
+        guard++;
+      }
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(savedFranchise.seasonEndAgingResults, isNotEmpty);
+      final veteranResult = savedFranchise.seasonEndAgingResults
+          .where((r) => r.playerId == 'veteran-1')
+          .toList();
+      expect(veteranResult, hasLength(1));
+      expect(veteranResult.single.overallDelta, lessThan(0));
+      final restoredVeteran = savedFranchise.roster
+          .firstWhere((m) => m.player.id == 'veteran-1')
+          .player;
+      expect(restoredVeteran.ratings.overall, lessThan(70));
     });
   });
 

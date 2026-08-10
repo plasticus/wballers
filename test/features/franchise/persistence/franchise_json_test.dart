@@ -11,7 +11,9 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
+import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
@@ -252,5 +254,40 @@ void main() {
     final restored = franchiseFromJson(franchiseToJson(franchise));
 
     expect(restored.readMailIds, isEmpty);
+  });
+
+  test('round-trips seasonEndAgingResults', () {
+    final franchise = _sampleFranchise().copyWithSeasonEndAging(
+      newRoster: _sampleFranchise().roster,
+      newResults: const [
+        PlayerGrowthResult(
+          playerId: 'p-starter',
+          fieldDeltas: {
+            PlayerRatingField.speed: -2,
+            PlayerRatingField.agility: -1,
+          },
+          overallBefore: 72,
+          overallAfter: 70,
+        ),
+      ],
+    );
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.seasonEndAgingResults, hasLength(1));
+    final result = restored.seasonEndAgingResults.single;
+    expect(result.playerId, 'p-starter');
+    expect(result.fieldDeltas[PlayerRatingField.speed], -2);
+    expect(result.fieldDeltas[PlayerRatingField.agility], -1);
+    expect(result.overallBefore, 72);
+    expect(result.overallAfter, 70);
+  });
+
+  test('seasonEndAgingResults defaults to empty when absent', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.seasonEndAgingResults, isEmpty);
   });
 }

@@ -335,6 +335,13 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// standings to seed). Also returns `null` (a no-op) if the postseason
   /// has already been played this season -- see
   /// [simulatePostseason]'s idempotency note.
+  ///
+  /// This is also the one moment the whole season is unambiguously over,
+  /// which is why it's the single call site for [resolveSeasonEndAging]
+  /// (TODO.md item 1's other half, see that function's own doc comment
+  /// for why) -- gated behind the exact same `advance.gamesPlayed.isEmpty`
+  /// idempotency check as everything else in this method, so the lump
+  /// can never apply twice to one season.
   Future<List<GameResult>?> simulatePostseasonAndPersist() async {
     final franchise = await future;
     if (franchise == null || !franchise.seasonProgress.isComplete) {
@@ -353,7 +360,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withTraining = _catchUpTraining(
       franchise.copyWithSeasonProgress(advance.progress),
     );
-    await _persist(withTraining);
+    final agingAdvance = resolveSeasonEndAging(
+      Random(withTraining.simulationSeed + kSeasonEndAgingSeedOffset),
+      withTraining,
+    );
+    await _persist(agingAdvance.franchise);
     return advance.gamesPlayed;
   }
 

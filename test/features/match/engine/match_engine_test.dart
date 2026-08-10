@@ -75,7 +75,14 @@ void main() {
   });
 
   test('some games actually go to overtime', () {
-    final random = Random(23);
+    // Not a magic seed -- 23 used to reliably produce one within 100
+    // games, but the blowout-pace rubber-banding fix
+    // (`possession_engine.dart`'s `kBlowoutPaceMargin`) changes how many
+    // seconds a possession takes once either side is up by 20+, which
+    // shifts every later possession's timing enough to change which of
+    // these evenly-matched games land on a regulation tie. 1 is a
+    // re-verified seed that still reliably hits one within 100 games.
+    final random = Random(1);
     var sawOvertime = false;
 
     for (var i = 0; i < 100; i++) {

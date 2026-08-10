@@ -16,6 +16,32 @@ const _offensiveReboundShotClock = 14.0;
 const _minActionSeconds = 1.0;
 const _maxActionSeconds = 5.0;
 
+/// Point margin at which the leading team starts protecting its lead by
+/// slowing the pace down on its own possessions -- a direct GM ask
+/// (2026-08-10, TODO.md item 5): longer possessions to eat clock and cut
+/// down on 40+ point blowouts, explicitly *not* weaker shooting or any
+/// other stat change -- pacing/clock management only. Only the
+/// possession belonging to the team that's ahead by this much slows
+/// down; the trailing team keeps playing at a normal pace, still trying
+/// to come back, same as real basketball's "up big, milk the clock"
+/// instinct not applying to whoever's behind.
+const kBlowoutPaceMargin = 20;
+
+/// How much longer each action runs, on top of the normal 1-5s roll,
+/// once [kBlowoutPaceMargin] kicks in -- empirically tuned via a real
+/// before/after diagnostic (500-game samples of realistic AI-vs-AI
+/// matchups, `generateAiRoster`), not a guess. Without this, 40+ margins
+/// hit ~1.2-2.8% of games (max observed 72) and 50+ margins weren't
+/// unheard of; at 5.0, 40+ margins all but disappeared (0-1 per 500
+/// across two independent seed ranges, max observed 40) while a
+/// genuinely dominant team (a large, real rating gap, not just typical
+/// AI-vs-AI variance) can still win by 30-70 -- this softens the
+/// ordinary case without capping real separation when a team actually
+/// is that much better. Values above ~6 stopped helping and started
+/// reversing (fewer, longer possessions means less of the shot clock's
+/// own natural smoothing survives per game) -- 5.0 sits past that curve.
+const _kBlowoutPaceActionBonusSeconds = 5.0;
+
 /// Below this many seconds left, the ball handler stops considering a pass
 /// and is forced into a shot -- nobody holds the ball into a shot-clock
 /// violation on purpose.
@@ -98,9 +124,12 @@ enum _BallHandlerChoice { pass, drive, jumper }
 
 int _averageRating(int a, int b) => ((a + b) / 2).round();
 
-double _rollActionSeconds(Random random) =>
-    _minActionSeconds +
-    random.nextDouble() * (_maxActionSeconds - _minActionSeconds);
+double _rollActionSeconds(Random random, {bool isProtectingLead = false}) {
+  final base =
+      _minActionSeconds +
+      random.nextDouble() * (_maxActionSeconds - _minActionSeconds);
+  return isProtectingLead ? base + _kBlowoutPaceActionBonusSeconds : base;
+}
 
 _BallHandlerChoice _chooseAction(Random random, double shotClockRemaining) {
   if (shotClockRemaining <= _forcedShotThreshold) {
@@ -200,6 +229,13 @@ int _shootFreeThrows(
 /// (reach-in) foul sends the offense to the line -- shooting fouls always
 /// do, regardless of bonus, same as real rules.
 ///
+/// [offenseMargin] is [offense]'s score minus [defense]'s score right
+/// before this possession -- `>=` [kBlowoutPaceMargin] slows every action
+/// in *this* possession down (`_rollActionSeconds`'s `isProtectingLead`),
+/// nothing else. Defaults to 0 (never protecting a lead) for any caller
+/// that doesn't track a running score -- every real game does
+/// (`match_engine.dart`), but a possession-level test shouldn't have to.
+///
 /// There's no court-position model yet (`0B_Planned.md`'s Phase 4 court
 /// presentation): "driving" and "shooting a jumper" are modeled as a
 /// choice between [PlayerRatings.interiorOffense] and
@@ -212,9 +248,11 @@ PossessionResult simulatePossession(
   required List<Player> offense,
   required List<Player> defense,
   bool defenseInBonus = false,
+  int offenseMargin = 0,
 }) {
   assert(offense.length == 5, 'offense must have exactly 5 players on court');
   assert(defense.length == 5, 'defense must have exactly 5 players on court');
+  final isProtectingLead = offenseMargin >= kBlowoutPaceMargin;
 
   final events = <MatchEvent>[];
   var shotClock = _shotClockSeconds;
@@ -236,7 +274,10 @@ PossessionResult simulatePossession(
   }
 
   while (true) {
-    final actionSeconds = _rollActionSeconds(random);
+    final actionSeconds = _rollActionSeconds(
+      random,
+      isProtectingLead: isProtectingLead,
+    );
     if (actionSeconds >= shotClock) {
       totalElapsed += shotClock;
       events.add(
