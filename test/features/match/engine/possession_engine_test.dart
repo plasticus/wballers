@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/match/domain/match_event.dart';
 import 'package:womensbballmgr/features/match/domain/possession_result.dart';
 import 'package:womensbballmgr/features/match/engine/possession_engine.dart';
+import 'package:womensbballmgr/features/player/domain/trait.dart';
 
 import '../../../support/match_test_players.dart';
 
@@ -388,5 +389,170 @@ void main() {
 
     expect(almostProtecting.secondsElapsed, normal.secondsElapsed);
     expect(almostProtecting.pointsScored, normal.pointsScored);
+  });
+
+  group('effectiveHomeAwayRating (TODO.md item 11: home team advantage)', () {
+    test('a home player with no traits gets the flat kHomeAdvantageBonus '
+        'bump', () {
+      final player = testPlayer(id: 'p', rating: 50);
+      expect(effectiveHomeAwayRating(player, 50, true), 51); // 50 * 1.025
+    });
+
+    test('an away player with no traits is completely unchanged', () {
+      final player = testPlayer(id: 'p', rating: 50);
+      expect(effectiveHomeAwayRating(player, 50, false), 50);
+    });
+
+    test('Home Court Hero stacks on top of the base home bump, only at '
+        'home', () {
+      final hero = testPlayer(
+        id: 'p',
+        rating: 50,
+        traits: {Trait.homeCourtHero},
+      );
+      // 50 * (1 + 0.025 + 0.05) = 53.75 -> rounds to 54.
+      expect(effectiveHomeAwayRating(hero, 50, true), 54);
+      // On the road, Home Court Hero does nothing at all.
+      expect(effectiveHomeAwayRating(hero, 50, false), 50);
+    });
+
+    test('Road Warrior only helps on the road, independent of the home '
+        'bump', () {
+      final warrior = testPlayer(
+        id: 'p',
+        rating: 50,
+        traits: {Trait.roadWarrior},
+      );
+      // 50 * 1.05 = 52.5 -> rounds to 53.
+      expect(effectiveHomeAwayRating(warrior, 50, false), 53);
+      // At home, Road Warrior does nothing -- only the flat home bump
+      // applies, same as a player with no trait at all.
+      expect(effectiveHomeAwayRating(warrior, 50, true), 51);
+    });
+
+    test('never boosts a rating past kMaxRating', () {
+      final hero = testPlayer(
+        id: 'p',
+        rating: 99,
+        traits: {Trait.homeCourtHero},
+      );
+      expect(effectiveHomeAwayRating(hero, 99, true), 99);
+    });
+  });
+
+  test('a home offense scores more often than an identical away offense '
+      'against the same unboosted defense (TODO.md item 11)', () {
+    final homeOffense = testLineup('home', rating: 50);
+    final awayOffense = testLineup('away', rating: 50);
+    final defense = testLineup('def', rating: 50);
+    // kHomeAdvantageBonus is a *flat* 2.5% bump, which barely moves the
+    // odds of any single roll -- the base case (no trait) needs a large
+    // sample to separate from noise reliably (empirically ~0.8 points of
+    // scoring rate at this rating, verified via a throwaway diagnostic
+    // script before picking this sample size -- 200k keeps the expected
+    // gap several standard errors clear of a false negative).
+    const sampleSize = 200000;
+
+    var homeScores = 0;
+    final homeRandom = Random(1);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        homeRandom,
+        offense: homeOffense,
+        defense: defense,
+        offenseIsHome: true,
+      );
+      if (result.end == PossessionEnd.scored) homeScores++;
+    }
+
+    var awayScores = 0;
+    final awayRandom = Random(1);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        awayRandom,
+        offense: awayOffense,
+        defense: defense,
+      );
+      if (result.end == PossessionEnd.scored) awayScores++;
+    }
+
+    expect(homeScores, greaterThan(awayScores));
+  });
+
+  test('a Home Court Hero-stacked home offense scores even more often than '
+      'a plain home offense (TODO.md item 11)', () {
+    final heroOffense = testLineup(
+      'hero',
+      rating: 50,
+      traits: {Trait.homeCourtHero},
+    );
+    final plainOffense = testLineup('plain', rating: 50);
+    final defense = testLineup('def', rating: 50);
+    // The extra 5% (on top of the flat 2.5% both offenses already get)
+    // is a bigger gap than the base test above, so a smaller sample
+    // still separates cleanly from noise.
+    const sampleSize = 50000;
+
+    var heroScores = 0;
+    final heroRandom = Random(2);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        heroRandom,
+        offense: heroOffense,
+        defense: defense,
+        offenseIsHome: true,
+      );
+      if (result.end == PossessionEnd.scored) heroScores++;
+    }
+
+    var plainScores = 0;
+    final plainRandom = Random(2);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        plainRandom,
+        offense: plainOffense,
+        defense: defense,
+        offenseIsHome: true,
+      );
+      if (result.end == PossessionEnd.scored) plainScores++;
+    }
+
+    expect(heroScores, greaterThan(plainScores));
+  });
+
+  test('a Road Warrior-stacked away offense scores more often than a plain '
+      'away offense (TODO.md item 11)', () {
+    final warriorOffense = testLineup(
+      'warrior',
+      rating: 50,
+      traits: {Trait.roadWarrior},
+    );
+    final plainOffense = testLineup('plain', rating: 50);
+    final defense = testLineup('def', rating: 50);
+    const sampleSize = 50000;
+
+    var warriorScores = 0;
+    final warriorRandom = Random(3);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        warriorRandom,
+        offense: warriorOffense,
+        defense: defense,
+      );
+      if (result.end == PossessionEnd.scored) warriorScores++;
+    }
+
+    var plainScores = 0;
+    final plainRandom = Random(3);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        plainRandom,
+        offense: plainOffense,
+        defense: defense,
+      );
+      if (result.end == PossessionEnd.scored) plainScores++;
+    }
+
+    expect(warriorScores, greaterThan(plainScores));
   });
 }

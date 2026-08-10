@@ -179,11 +179,11 @@ extension TraitDetails on Trait {
       'Extra loyalty and fan-favorite bonus specifically for a player this '
           'franchise drafted and developed.',
     Trait.homeCourtHero =>
-      'Fires up the home crowd; team gets a small home-court boost when '
-          'this player is on a heater.',
+      'Extra ratings bump at home, on top of every home player\'s own '
+          'home-court boost.',
     Trait.roadWarrior =>
-      'Thrives specifically in hostile road environments, unfazed by crowd '
-          'noise.',
+      'Extra ratings bump on the road, unfazed by playing in front of a '
+          'hostile crowd.',
     Trait.glassCleaner =>
       'Rebounding: wins contested boards beyond what strength/interior '
           'ratings alone predict.',

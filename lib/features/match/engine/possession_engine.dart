@@ -1,6 +1,8 @@
 import 'dart:math';
 
+import '../../../core/ratings/rating_scale.dart';
 import '../../player/domain/player.dart';
+import '../../player/domain/trait.dart';
 import '../domain/match_event.dart';
 import '../domain/possession_result.dart';
 import 'contest_resolver.dart';
@@ -120,9 +122,68 @@ const _blockRateSteepness = 0.03;
 const _passCleanFloor = 0.90;
 const _passCleanCeiling = 0.99;
 
+/// Flat rating bump every home-team player gets for the game (TODO.md
+/// item 11, a direct GM ask -- "at home, every home-team player's
+/// in-game stats get a flat +2.5% bump"). Applied per underlying rating
+/// before any averaging/contest math, not to a final blended number, so
+/// it reads the same regardless of which two ratings a given contest
+/// happens to combine.
+const kHomeAdvantageBonus = 0.025;
+
+/// Additional bump for a home player with [Trait.homeCourtHero] -- stacks
+/// on top of [kHomeAdvantageBonus] rather than replacing it, per the
+/// GM's own spec ("an additional +5% at home, stacking with the base
+/// bump").
+const kHomeCourtHeroBonus = 0.05;
+
+/// Bump for a visiting player with [Trait.roadWarrior] -- independent of
+/// [kHomeAdvantageBonus], since the away team never gets that bump to
+/// begin with.
+const kRoadWarriorBonus = 0.05;
+
 enum _BallHandlerChoice { pass, drive, jumper }
 
+/// Applies the home-court/trait bonuses above to one of [player]'s raw
+/// ratings, ahead of any contest that reads it. [isHome] is which side of
+/// *this specific contest* [player] is playing on -- callers thread
+/// through whichever of `offenseIsHome`/`defenseIsHome` matches which
+/// list [player] came from, not a property of the player itself (the
+/// same roster is the home team for the whole game either way).
+///
+/// Deliberately a real (non-underscored) top-level function rather than
+/// private to this file -- the actual bonus math is exact and
+/// deterministic, unlike the rest of this engine's stochastic contests, so
+/// it's tested directly against known inputs/outputs rather than inferred
+/// statistically from thousands of simulated possessions.
+int effectiveHomeAwayRating(Player player, int rawRating, bool isHome) {
+  var multiplier = 1.0;
+  if (isHome) {
+    multiplier += kHomeAdvantageBonus;
+    if (player.traits.contains(Trait.homeCourtHero)) {
+      multiplier += kHomeCourtHeroBonus;
+    }
+  } else if (player.traits.contains(Trait.roadWarrior)) {
+    multiplier += kRoadWarriorBonus;
+  }
+  if (multiplier == 1.0) return rawRating;
+  return (rawRating * multiplier).round().clamp(kMinRating, kMaxRating);
+}
+
 int _averageRating(int a, int b) => ((a + b) / 2).round();
+
+/// Same as [_averageRating], but applies [effectiveHomeAwayRating] to each raw
+/// rating first -- the usual way a contest rating gets built in this
+/// file, since almost every check here combines two of a player's
+/// ratings rather than reading one alone.
+int _averageEffectiveRating(
+  Player player,
+  int ratingA,
+  int ratingB,
+  bool isHome,
+) => _averageRating(
+  effectiveHomeAwayRating(player, ratingA, isHome),
+  effectiveHomeAwayRating(player, ratingB, isHome),
+);
 
 double _rollActionSeconds(Random random, {bool isProtectingLead = false}) {
   final base =
@@ -159,19 +220,25 @@ Player _randomOf(Random random, List<Player> players) =>
 ({bool offensiveRebound, Player rebounder}) _resolveRebound(
   Random random,
   List<Player> offense,
-  List<Player> defense,
-) {
+  List<Player> defense, {
+  required bool offenseIsHome,
+  required bool defenseIsHome,
+}) {
   final offensiveRebounder = _randomOf(random, offense);
   final defensiveRebounder = _randomOf(random, defense);
   final offenseWins = resolveContest(
     random,
-    attackerRating: _averageRating(
+    attackerRating: _averageEffectiveRating(
+      offensiveRebounder,
       offensiveRebounder.ratings.strength,
       offensiveRebounder.ratings.interiorOffense,
+      offenseIsHome,
     ),
-    defenderRating: _averageRating(
+    defenderRating: _averageEffectiveRating(
+      defensiveRebounder,
       defensiveRebounder.ratings.strength,
       defensiveRebounder.ratings.interiorDefense,
+      defenseIsHome,
     ),
     floor: 0.05,
     ceiling: 0.6,
@@ -186,18 +253,24 @@ Player _randomOf(Random random, List<Player> players) =>
 /// event for each, and returns how many went in. Resolved against a fixed
 /// neutral rating (`_neutralFreeThrowDefense`) via [perimeterOffense] as
 /// the closest existing proxy for touch -- there's no dedicated
-/// free-throw rating.
+/// free-throw rating. [shooterIsHome] is always the *offense*'s home
+/// status -- a free-throw shooter is always the team that had the ball.
 int _shootFreeThrows(
   Random random,
   List<MatchEvent> events,
   Player shooter,
-  int attempts,
-) {
+  int attempts, {
+  required bool shooterIsHome,
+}) {
   var made = 0;
   for (var i = 0; i < attempts; i++) {
     final success = resolveContest(
       random,
-      attackerRating: shooter.ratings.perimeterOffense,
+      attackerRating: effectiveHomeAwayRating(
+        shooter,
+        shooter.ratings.perimeterOffense,
+        shooterIsHome,
+      ),
       defenderRating: _neutralFreeThrowDefense,
       floor: _freeThrowFloor,
       ceiling: _freeThrowCeiling,
@@ -236,6 +309,14 @@ int _shootFreeThrows(
 /// that doesn't track a running score -- every real game does
 /// (`match_engine.dart`), but a possession-level test shouldn't have to.
 ///
+/// [offenseIsHome]/[defenseIsHome] drive [kHomeAdvantageBonus] and the
+/// [Trait.homeCourtHero]/[Trait.roadWarrior] bumps -- both default to
+/// `false`, so a possession-level test that doesn't care about home
+/// court gets the exact old behavior (neither side boosted) rather than
+/// having to opt out explicitly. `match_engine.dart` is the only caller
+/// that sets these for real, one `true` and one `false` every possession
+/// since a game always has exactly one home team.
+///
 /// There's no court-position model yet (`0B_Planned.md`'s Phase 4 court
 /// presentation): "driving" and "shooting a jumper" are modeled as a
 /// choice between [PlayerRatings.interiorOffense] and
@@ -249,6 +330,8 @@ PossessionResult simulatePossession(
   required List<Player> defense,
   bool defenseInBonus = false,
   int offenseMargin = 0,
+  bool offenseIsHome = false,
+  bool defenseIsHome = false,
 }) {
   assert(offense.length == 5, 'offense must have exactly 5 players on court');
   assert(defense.length == 5, 'defense must have exactly 5 players on court');
@@ -299,13 +382,17 @@ PossessionResult simulatePossession(
       final defender = _randomOf(random, defense);
       final clean = resolveContest(
         random,
-        attackerRating: _averageRating(
+        attackerRating: _averageEffectiveRating(
+          ballHandler,
           ballHandler.ratings.agility,
           ballHandler.ratings.passing,
+          offenseIsHome,
         ),
-        defenderRating: _averageRating(
+        defenderRating: _averageEffectiveRating(
+          defender,
           defender.ratings.agility,
           defender.ratings.disruption,
+          defenseIsHome,
         ),
         floor: _passCleanFloor,
         ceiling: _passCleanCeiling,
@@ -383,6 +470,7 @@ PossessionResult simulatePossession(
           events,
           ballHandler,
           2,
+          shooterIsHome: offenseIsHome,
         );
         return finish(
           freeThrowPoints > 0
@@ -407,22 +495,30 @@ PossessionResult simulatePossession(
     final isDrive = choice == _BallHandlerChoice.drive;
     final defender = _randomOf(random, defense);
     final shooterRating = isDrive
-        ? _averageRating(
+        ? _averageEffectiveRating(
+            ballHandler,
             ballHandler.ratings.strength,
             ballHandler.ratings.interiorOffense,
+            offenseIsHome,
           )
-        : _averageRating(
+        : _averageEffectiveRating(
+            ballHandler,
             ballHandler.ratings.agility,
             ballHandler.ratings.perimeterOffense,
+            offenseIsHome,
           );
     final defenderRating = isDrive
-        ? _averageRating(
+        ? _averageEffectiveRating(
+            defender,
             defender.ratings.strength,
             defender.ratings.interiorDefense,
+            defenseIsHome,
           )
-        : _averageRating(
+        : _averageEffectiveRating(
+            defender,
             defender.ratings.agility,
             defender.ratings.perimeterDefense,
+            defenseIsHome,
           );
 
     final isThree = !isDrive && random.nextDouble() < _threePointAttemptRate;
@@ -485,6 +581,7 @@ PossessionResult simulatePossession(
         events,
         ballHandler,
         freeThrowAttempts,
+        shooterIsHome: offenseIsHome,
       );
       final totalPoints = (made ? attemptPoints : 0) + freeThrowPoints;
       return finish(
@@ -526,7 +623,13 @@ PossessionResult simulatePossession(
     );
     final blocked = resolveContest(
       random,
-      attackerRating: defender.ratings.blocking,
+      attackerRating: effectiveHomeAwayRating(
+        defender,
+        defender.ratings.blocking,
+        defenseIsHome,
+      ),
+      // shooterRating is already boosted for offenseIsHome above -- reused
+      // as-is rather than re-derived.
       defenderRating: shooterRating,
       floor: _blockRateFloor,
       ceiling: _blockRateCeiling,
@@ -542,7 +645,13 @@ PossessionResult simulatePossession(
         ),
       );
     }
-    final rebound = _resolveRebound(random, offense, defense);
+    final rebound = _resolveRebound(
+      random,
+      offense,
+      defense,
+      offenseIsHome: offenseIsHome,
+      defenseIsHome: defenseIsHome,
+    );
     events.add(
       MatchEvent(
         type: rebound.offensiveRebound

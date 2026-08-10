@@ -1,6 +1,7 @@
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
+import 'package:womensbballmgr/features/player/domain/trait.dart';
 
 /// A player with every rating pinned to [rating], for match-engine tests
 /// that need controllable, predictable inputs rather than the natural
@@ -10,6 +11,7 @@ Player testPlayer({
   int rating = 50,
   int heightInches = 70,
   Position position = Position.smallForward,
+  Set<Trait> traits = const {},
 }) {
   return Player(
     id: id,
@@ -37,13 +39,21 @@ Player testPlayer({
     ),
     heightInches: heightInches,
     archetype: kArchetypesByPosition[position]!.first,
+    traits: traits,
   );
 }
 
 /// Five players sharing [label] as an id prefix and all pinned to
 /// [rating] -- a full on-court lineup for possession-engine tests.
-List<Player> testLineup(String label, {int rating = 50}) {
-  return List.generate(5, (i) => testPlayer(id: '$label-$i', rating: rating));
+List<Player> testLineup(
+  String label, {
+  int rating = 50,
+  Set<Trait> traits = const {},
+}) {
+  return List.generate(
+    5,
+    (i) => testPlayer(id: '$label-$i', rating: rating, traits: traits),
+  );
 }
 
 /// Twelve players sharing [label] as an id prefix, with a distinct

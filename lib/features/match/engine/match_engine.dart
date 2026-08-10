@@ -73,6 +73,12 @@ Player _tallest(List<Player> players) =>
 ///   many total possessions (and therefore points) are left for the
 ///   margin to keep growing on. Pacing only -- no rating or shot-quality
 ///   change for either team.
+/// - **Home team advantage** (TODO.md item 11): every home-team player's
+///   ratings get a flat `kHomeAdvantageBonus` bump for every contest this
+///   game (`possession_engine.dart`), on top of which
+///   [Trait.homeCourtHero] adds a further home-only bump and
+///   [Trait.roadWarrior] adds an away-only one. [homeRoster] is always
+///   the home team here -- there's no neutral-site game.
 MatchResult simulateMatch(
   Random random, {
   required List<Player> homeRoster,
@@ -159,6 +165,8 @@ MatchResult simulateMatch(
         defense: defense,
         defenseInBonus: defenseInBonus,
         offenseMargin: offenseMargin,
+        offenseIsHome: offenseIsHome,
+        defenseIsHome: !offenseIsHome,
       );
       events.addAll(result.events);
       quarterClock -= result.secondsElapsed;

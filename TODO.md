@@ -34,13 +34,9 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
     - Suggested split (GM's own starting numbers, open to tuning): Guards 85% position-typical / 10% common outlier / 5% anything else. Forwards the same 85/10/5. Centers 70/15/15 (loosest of the three).
 10. **International player mix should be a flat 80/20, not the current weighting** — direct GM ask: 80% USA, 20% international, with the international 20% split evenly across all 19 non-USA countries (retune `country_pool.dart`'s `kCountrySelectionWeights`, currently USA 60% / Canada 4% / 18 others at 2% each). Doesn't change Canada's domestic status for hometown/college purposes (`Country.isDomestic`), only its selection odds.
 
-## Match engine
-
-11. **Home team advantage** — at home, every home-team player's in-game stats get a flat +2.5% bump for that game. Two new traits to go with it: **Home Court Hero** (an additional +5% at home, stacking with the base bump) and **Road Warrior** (+5% for a visiting player with this trait, independent of the home bump).
-
 ## Player detail
 
-12. **Reformat the This Season stat block** — from a flat averages line to: a "N games played" header, an "Averages per game:" label, then one stat per line (Points, Assists, Rebounds, Blocks, Steals, and a new one not currently shown at all -- **Turnovers**), then a separate line for shooting splits (FG%/3PT%/FT%). GM's own mockup:
+11. **Reformat the This Season stat block** — from a flat averages line to: a "N games played" header, an "Averages per game:" label, then one stat per line (Points, Assists, Rebounds, Blocks, Steals, and a new one not currently shown at all -- **Turnovers**), then a separate line for shooting splits (FG%/3PT%/FT%). GM's own mockup:
     ```
     3 games played
 
@@ -57,13 +53,13 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 
 ## Game results / season flow
 
-13. **Dashboard should explain Cup gamedays, especially once eliminated** — right now, hitting "Advance to Next Game Day" during a Continental Cup week just shows a generic "simulating games" snackbar with no context, which reads as confusing once the GM's own team has already been eliminated from the Cup (why is it still simulating anything?). Add a small note on the Season card during Cup weeks ("Continental Cup Week"), plus a follow-up note if the GM's own team has already been eliminated, and make the snackbar copy specific ("Simulating 4 Continental Cup games across the league" instead of a vague generic message).
-14. **Season Recap should say more** — on top of the existing champion/record/Player Development sections: what round the GM's own team was eliminated from the Cup in (if applicable), each player's own OVR change for the season next to their development card, and what draft position the GM's team has earned for the next draft.
+12. **Dashboard should explain Cup gamedays, especially once eliminated** — right now, hitting "Advance to Next Game Day" during a Continental Cup week just shows a generic "simulating games" snackbar with no context, which reads as confusing once the GM's own team has already been eliminated from the Cup (why is it still simulating anything?). Add a small note on the Season card during Cup weeks ("Continental Cup Week"), plus a follow-up note if the GM's own team has already been eliminated, and make the snackbar copy specific ("Simulating 4 Continental Cup games across the league" instead of a vague generic message).
+13. **Season Recap should say more** — on top of the existing champion/record/Player Development sections: what round the GM's own team was eliminated from the Cup in (if applicable), each player's own OVR change for the season next to their development card, and what draft position the GM's team has earned for the next draft.
 
 ## Awards
 
-15. **End-of-season awards need a real design pass** — no list exists yet of what awards this game actually gives out (MVP, Most Improved, etc.). Wants a full brainstormed catalog (everything from MVP down) written up as an HTML doc, matching this project's established HTML-artifact convention for open design questions, before any of it gets built.
+14. **End-of-season awards need a real design pass** — no list exists yet of what awards this game actually gives out (MVP, Most Improved, etc.). Wants a full brainstormed catalog (everything from MVP down) written up as an HTML doc, matching this project's established HTML-artifact convention for open design questions, before any of it gets built.
 
 ## Roadmap
 
-16. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.
+15. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.
