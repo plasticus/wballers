@@ -248,6 +248,63 @@ void main() {
       expect(withTurnover.turnovers, 1);
     });
 
+    test('still finds every player when homeRoster/awayRoster are different '
+        'Player *objects* with the same ids as the ones in the match result '
+        '-- regression test for a real bug (fixed 2026-08-10): '
+        'advanceGameDay auto-resolving training in the same call it '
+        'simulates a game day meant GameResultScreen could re-derive its '
+        'roster from a *post-training* franchise (new Player objects for '
+        'anyone whose ratings changed), while the match itself was '
+        'simulated *pre-training* -- only players training left untouched '
+        'still matched by object identity, silently dropping everyone '
+        'else from the box score', () {
+      final result = resultWithEvents([
+        MatchEvent(
+          type: MatchEventType.shotAttempt,
+          secondsElapsed: 3,
+          player: scorer,
+          isThreePointAttempt: false,
+        ),
+        MatchEvent(
+          type: MatchEventType.shotMade,
+          secondsElapsed: 0,
+          player: scorer,
+          isThreePointAttempt: false,
+          points: 2,
+        ),
+      ]);
+
+      // Same ids, brand new Player objects -- exactly what a post-
+      // training roster looks like for players whose ratings changed.
+      final postTrainingHomeRoster = [
+        for (final p in homeRoster) p.copyWithRatings(p.ratings),
+      ];
+      final postTrainingAwayRoster = [
+        for (final p in awayRoster) p.copyWithRatings(p.ratings),
+      ];
+      expect(
+        identical(postTrainingHomeRoster.first, homeRoster.first),
+        isFalse,
+        reason: 'the test setup itself must produce distinct objects',
+      );
+
+      final boxScores = computeBoxScore(
+        result,
+        homeRoster: postTrainingHomeRoster,
+        awayRoster: postTrainingAwayRoster,
+      );
+
+      // Every one of the 10 players on the two test lineups shows up,
+      // not just the ones an identity check would get lucky on.
+      expect(boxScores.length, homeRoster.length + awayRoster.length);
+      final postTrainingScorer = postTrainingHomeRoster.firstWhere(
+        (p) => p.id == scorer.id,
+      );
+      final scorerLine = boxScores.firstWhere((b) => b.player.id == scorer.id);
+      expect(scorerLine.points, 2);
+      expect(scorerLine.player, same(postTrainingScorer));
+    });
+
     test('only includes players who actually appeared in the game', () {
       final result = MatchResult(
         homeScore: 0,

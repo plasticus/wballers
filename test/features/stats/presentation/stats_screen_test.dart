@@ -156,6 +156,56 @@ void main() {
   });
 
   testWidgets(
+    'Teams tab never overflows, even at a realistic phone width and the '
+    'app\'s max text-scale setting (2026-08-10, a direct GM bug report '
+    'with a screenshot: stat columns running together, DIFF wrapping '
+    'onto its own line, team names hard-truncated)',
+    (tester) async {
+      // A real phone's logical width, not the wide viewports used
+      // elsewhere in this file to defeat ListView clipping -- this is
+      // specifically about column collision/overflow at realistic width.
+      tester.view.physicalSize = const Size(412, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _franchiseWithRegularSeasonGames();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            // kMaxTextScale (app_preferences.dart) -- the top of the
+            // combined system x coach-preference range this screen has
+            // to hold up under.
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(2.2)),
+              child: child!,
+            ),
+            home: const Scaffold(body: StatsScreen()),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Teams'));
+      await tester.pumpAndSettle();
+
+      // No RenderFlex/RenderBox overflow assertion fired during layout.
+      expect(tester.takeException(), isNull);
+      // Every column is still there -- reachable (via the horizontal
+      // scroll fallback if the coach's setting genuinely needs more
+      // width than the screen has), not silently dropped or clipped
+      // out of the tree.
+      expect(find.text('W-L'), findsOneWidget);
+      expect(find.text('PPG'), findsOneWidget);
+      expect(find.text('OPP'), findsOneWidget);
+      expect(find.text('DIFF'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'Roster tab defaults to the GM\'s own team and can switch to another',
     (tester) async {
       tester.view.physicalSize = const Size(800, 3000);

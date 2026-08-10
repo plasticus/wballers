@@ -55,8 +55,8 @@ class PlayerBoxScore {
       freeThrowAttempts == 0 ? 0 : freeThrowsMade / freeThrowAttempts;
 }
 
-void _increment(Map<Player, int> counts, Player player, [int by = 1]) {
-  counts[player] = (counts[player] ?? 0) + by;
+void _increment(Map<String, int> counts, String playerId, [int by = 1]) {
+  counts[playerId] = (counts[playerId] ?? 0) + by;
 }
 
 /// Reduces [result]'s event log into a [PlayerBoxScore] per player who
@@ -67,64 +67,85 @@ void _increment(Map<Player, int> counts, Player player, [int by = 1]) {
 /// pass, or a deflected pass recovered by the other team (needs
 /// [homeRoster]/[awayRoster] to tell whether a [MatchEventType.passRedirected]
 /// recovery crossed team lines).
+///
+/// Everything internally keys off [Player.id], not the [Player] object
+/// itself, even though [result]'s events and [homeRoster]/[awayRoster]
+/// can be *different* object instances for the conceptually same player
+/// (real bug, fixed 2026-08-10: `advanceGameDay` now auto-resolves
+/// training in the same call that simulates a game day, which builds a
+/// new roster with new `Player` objects for anyone whose ratings
+/// changed that week -- `GameResultScreen` re-derives its roster from
+/// the *post-training* franchise, while `result`'s own event log and
+/// `minutesPlayed`/`personalFouls` maps were captured *pre-training*, at
+/// simulation time. `Player` deliberately has no `==`/`hashCode`
+/// override (this codebase always compares players by `.id`, never
+/// object identity -- see `current_franchise_provider.dart`'s many
+/// `.id ==` lookups), so a `Map<Player, ...>` or `List<Player>.contains`
+/// call silently missed every player whose training that week actually
+/// changed something -- only players training left untouched still
+/// matched by chance, which is exactly the "only a handful of players,
+/// minutes not summing to a full game" bug report.
 List<PlayerBoxScore> computeBoxScore(
   MatchResult result, {
   required List<Player> homeRoster,
   required List<Player> awayRoster,
 }) {
-  final points = <Player, int>{};
-  final fieldGoalsMade = <Player, int>{};
-  final fieldGoalAttempts = <Player, int>{};
-  final threePointersMade = <Player, int>{};
-  final threePointAttempts = <Player, int>{};
-  final freeThrowsMade = <Player, int>{};
-  final freeThrowAttempts = <Player, int>{};
-  final offensiveRebounds = <Player, int>{};
-  final defensiveRebounds = <Player, int>{};
-  final assists = <Player, int>{};
-  final steals = <Player, int>{};
-  final blocks = <Player, int>{};
-  final turnovers = <Player, int>{};
+  final points = <String, int>{};
+  final fieldGoalsMade = <String, int>{};
+  final fieldGoalAttempts = <String, int>{};
+  final threePointersMade = <String, int>{};
+  final threePointAttempts = <String, int>{};
+  final freeThrowsMade = <String, int>{};
+  final freeThrowAttempts = <String, int>{};
+  final offensiveRebounds = <String, int>{};
+  final defensiveRebounds = <String, int>{};
+  final assists = <String, int>{};
+  final steals = <String, int>{};
+  final blocks = <String, int>{};
+  final turnovers = <String, int>{};
+
+  final homeRosterIds = homeRoster.map((p) => p.id).toSet();
 
   for (final event in result.events) {
     switch (event.type) {
       case MatchEventType.shotAttempt:
-        _increment(fieldGoalAttempts, event.player!);
+        _increment(fieldGoalAttempts, event.player!.id);
         if (event.isThreePointAttempt == true) {
-          _increment(threePointAttempts, event.player!);
+          _increment(threePointAttempts, event.player!.id);
         }
       case MatchEventType.shotMade:
-        _increment(fieldGoalsMade, event.player!);
-        _increment(points, event.player!, event.points ?? 0);
+        _increment(fieldGoalsMade, event.player!.id);
+        _increment(points, event.player!.id, event.points ?? 0);
         if (event.isThreePointAttempt == true) {
-          _increment(threePointersMade, event.player!);
+          _increment(threePointersMade, event.player!.id);
         }
       case MatchEventType.freeThrowMade:
-        _increment(freeThrowsMade, event.player!);
-        _increment(freeThrowAttempts, event.player!);
-        _increment(points, event.player!, event.points ?? 0);
+        _increment(freeThrowsMade, event.player!.id);
+        _increment(freeThrowAttempts, event.player!.id);
+        _increment(points, event.player!.id, event.points ?? 0);
       case MatchEventType.freeThrowMissed:
-        _increment(freeThrowAttempts, event.player!);
+        _increment(freeThrowAttempts, event.player!.id);
       case MatchEventType.offensiveRebound:
-        _increment(offensiveRebounds, event.player!);
+        _increment(offensiveRebounds, event.player!.id);
       case MatchEventType.defensiveRebound:
-        _increment(defensiveRebounds, event.player!);
+        _increment(defensiveRebounds, event.player!.id);
       case MatchEventType.assist:
-        _increment(assists, event.player!);
+        _increment(assists, event.player!.id);
       case MatchEventType.steal:
-        _increment(steals, event.player!);
-        _increment(turnovers, event.secondPlayer!);
+        _increment(steals, event.player!.id);
+        _increment(turnovers, event.secondPlayer!.id);
       case MatchEventType.shotBlocked:
-        _increment(blocks, event.player!);
+        _increment(blocks, event.player!.id);
       case MatchEventType.shotClockViolation:
       case MatchEventType.passOutOfBounds:
-        _increment(turnovers, event.player!);
+        _increment(turnovers, event.player!.id);
       case MatchEventType.passRedirected:
         final recoverer = event.player!;
         final passer = event.secondPlayer;
         if (passer != null &&
-            homeRoster.contains(passer) != homeRoster.contains(recoverer)) {
-          _increment(turnovers, passer);
+            homeRosterIds.contains(passer.id) !=
+                homeRosterIds.contains(recoverer.id)) {
+          _increment(turnovers, passer.id);
         }
       case MatchEventType.tipOff:
       case MatchEventType.passAttempt:
@@ -136,26 +157,33 @@ List<PlayerBoxScore> computeBoxScore(
     }
   }
 
+  final minutesPlayedById = {
+    for (final entry in result.minutesPlayed.entries) entry.key.id: entry.value,
+  };
+  final personalFoulsById = {
+    for (final entry in result.personalFouls.entries) entry.key.id: entry.value,
+  };
+
   return [
     for (final player in [...homeRoster, ...awayRoster])
-      if (result.minutesPlayed.containsKey(player))
+      if (minutesPlayedById.containsKey(player.id))
         PlayerBoxScore(
           player: player,
-          minutesPlayed: result.minutesPlayed[player] ?? 0,
-          points: points[player] ?? 0,
-          fieldGoalsMade: fieldGoalsMade[player] ?? 0,
-          fieldGoalAttempts: fieldGoalAttempts[player] ?? 0,
-          threePointersMade: threePointersMade[player] ?? 0,
-          threePointAttempts: threePointAttempts[player] ?? 0,
-          freeThrowsMade: freeThrowsMade[player] ?? 0,
-          freeThrowAttempts: freeThrowAttempts[player] ?? 0,
-          offensiveRebounds: offensiveRebounds[player] ?? 0,
-          defensiveRebounds: defensiveRebounds[player] ?? 0,
-          assists: assists[player] ?? 0,
-          steals: steals[player] ?? 0,
-          blocks: blocks[player] ?? 0,
-          turnovers: turnovers[player] ?? 0,
-          personalFouls: result.personalFouls[player] ?? 0,
+          minutesPlayed: minutesPlayedById[player.id] ?? 0,
+          points: points[player.id] ?? 0,
+          fieldGoalsMade: fieldGoalsMade[player.id] ?? 0,
+          fieldGoalAttempts: fieldGoalAttempts[player.id] ?? 0,
+          threePointersMade: threePointersMade[player.id] ?? 0,
+          threePointAttempts: threePointAttempts[player.id] ?? 0,
+          freeThrowsMade: freeThrowsMade[player.id] ?? 0,
+          freeThrowAttempts: freeThrowAttempts[player.id] ?? 0,
+          offensiveRebounds: offensiveRebounds[player.id] ?? 0,
+          defensiveRebounds: defensiveRebounds[player.id] ?? 0,
+          assists: assists[player.id] ?? 0,
+          steals: steals[player.id] ?? 0,
+          blocks: blocks[player.id] ?? 0,
+          turnovers: turnovers[player.id] ?? 0,
+          personalFouls: personalFoulsById[player.id] ?? 0,
         ),
   ];
 }
