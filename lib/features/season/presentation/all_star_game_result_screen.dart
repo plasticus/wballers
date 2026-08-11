@@ -38,6 +38,7 @@ class AllStarGameResultScreen extends StatelessWidget {
       for (final roster in rostersByAbbreviation(franchise).values)
         for (final player in roster) player.id: player,
     };
+    final teamAbbreviations = teamAbbreviationByPlayerId(franchise);
     final ownIds = {for (final m in franchise.roster) m.player.id};
     final honoreeIds = {
       ...squads[Conference.atlantic]!,
@@ -86,8 +87,9 @@ class AllStarGameResultScreen extends StatelessWidget {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
-                      '${playersById[mvpId]?.name ?? 'Former Player'} is the '
-                      'All-Star Game MVP'
+                      '${playersById[mvpId]?.name ?? 'Former Player'}'
+                      '${teamAbbreviations[mvpId] == null ? '' : ' (${teamAbbreviations[mvpId]})'} '
+                      'is the All-Star Game MVP'
                       '${ownIds.contains(mvpId) ? ' -- your player!' : ''}',
                       style: theme.textTheme.titleMedium,
                     ),
@@ -103,6 +105,7 @@ class AllStarGameResultScreen extends StatelessWidget {
                   'All-Stars',
               lines: linesByConference[firstConference]!,
               playersById: playersById,
+              teamAbbreviations: teamAbbreviations,
               ownIds: ownIds,
               mvpId: mvpId,
             ),
@@ -114,6 +117,7 @@ class AllStarGameResultScreen extends StatelessWidget {
                   'All-Stars',
               lines: linesByConference[secondConference]!,
               playersById: playersById,
+              teamAbbreviations: teamAbbreviations,
               ownIds: ownIds,
               mvpId: mvpId,
             ),
@@ -203,6 +207,7 @@ class _SquadSection extends StatelessWidget {
     required this.title,
     required this.lines,
     required this.playersById,
+    required this.teamAbbreviations,
     required this.ownIds,
     required this.mvpId,
   });
@@ -211,6 +216,7 @@ class _SquadSection extends StatelessWidget {
   final String title;
   final List<MapEntry<String, PlayedGameStatLine>> lines;
   final Map<String, Player> playersById;
+  final Map<String, String> teamAbbreviations;
   final Set<String> ownIds;
   final String mvpId;
 
@@ -230,6 +236,7 @@ class _SquadSection extends StatelessWidget {
                   franchise: franchise,
                   playerId: lines[i].key,
                   player: playersById[lines[i].key],
+                  teamAbbreviation: teamAbbreviations[lines[i].key],
                   line: lines[i].value,
                   isOwn: ownIds.contains(lines[i].key),
                   isMvp: lines[i].key == mvpId,
@@ -249,6 +256,7 @@ class _BoxScoreRow extends StatelessWidget {
     required this.franchise,
     required this.playerId,
     required this.player,
+    required this.teamAbbreviation,
     required this.line,
     required this.isOwn,
     required this.isMvp,
@@ -257,6 +265,11 @@ class _BoxScoreRow extends StatelessWidget {
   final Franchise franchise;
   final String playerId;
   final Player? player;
+
+  /// The 3-letter team this player actually plays for -- shown after
+  /// their name (2026-08-11, a direct GM ask) since All-Star squads mix
+  /// players from every team in the conference.
+  final String? teamAbbreviation;
   final PlayedGameStatLine line;
   final bool isOwn;
   final bool isMvp;
@@ -268,6 +281,7 @@ class _BoxScoreRow extends StatelessWidget {
     // was on a squad at the moment the game resolved -- but a label beats
     // a crash, same fallback every other id-lookup in this codebase uses.
     final name = player?.name ?? 'Former Player';
+    final label = teamAbbreviation == null ? name : '$name ($teamAbbreviation)';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +301,7 @@ class _BoxScoreRow extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      name,
+                      label,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: isOwn ? FontWeight.bold : FontWeight.normal,

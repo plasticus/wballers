@@ -5,7 +5,6 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
-import 'package:womensbballmgr/features/league/domain/ai_team_roster.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
@@ -671,10 +670,9 @@ void main() {
         simulationSeed: 1,
         replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
       );
-      final targetTeam = baseLeague.aiTeams.first.team;
       final league = League(
         aiTeams: [
-          AiTeamRoster(team: targetTeam, roster: controlledRoster),
+          baseLeague.aiTeams.first.copyWithRoster(controlledRoster),
           ...baseLeague.aiTeams.skip(1),
         ],
       );

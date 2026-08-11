@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/core/widgets/app_card.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
@@ -132,6 +133,43 @@ void main() {
     },
   );
 
+  testWidgets(
+    'tapping an MVP Race row opens that player\'s detail page, own roster '
+    'or not (2026-08-11, TODO.md: "click on any player, from any team")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _franchiseWithRegularSeasonGames();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: StatsScreen())),
+        ),
+      );
+      await tester.pump();
+
+      // `AppCard` is only ever used by a `_LeaderSection` on this screen --
+      // the first one is the MVP Race section, regardless of which of it
+      // and the other 2 tabs' content `TabBarView` has already built.
+      final mvpCard = find.byType(AppCard).first;
+      final firstRow = find
+          .descendant(of: mvpCard, matching: find.byType(InkWell))
+          .first;
+      await tester.tap(firstRow);
+      await tester.pumpAndSettle();
+
+      // Landed on PlayerDetailScreen -- same "check the destination's own
+      // content" pattern `team_roster_screen_test.dart`'s equivalent test
+      // uses, rather than asserting the Stats screen's own text is gone.
+      expect(find.text('This Season'), findsOneWidget);
+      expect(find.text('Ratings'), findsOneWidget);
+    },
+  );
+
   testWidgets('Teams tab shows every league team\'s stat line', (tester) async {
     tester.view.physicalSize = const Size(800, 3000);
     tester.view.devicePixelRatio = 1.0;
@@ -242,4 +280,38 @@ void main() {
       expect(find.text('${otherTeam.emoji} ${otherTeam.name}'), findsWidgets);
     },
   );
+
+  testWidgets('tapping a Roster tab row opens that player\'s detail page '
+      '(2026-08-11, TODO.md: "click on any player, from any team")', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = _franchiseWithRegularSeasonGames();
+    final repository = await _seededRepository(franchise);
+    final targetName = franchise.roster.first.player.name;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: Scaffold(body: StatsScreen())),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Roster'));
+    await tester.pumpAndSettle();
+
+    final row = find.ancestor(
+      of: find.textContaining(targetName),
+      matching: find.byType(InkWell),
+    );
+    await tester.tap(row.first);
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, targetName), findsOneWidget);
+    expect(find.text('This Season'), findsOneWidget);
+  });
 }

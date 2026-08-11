@@ -4,7 +4,6 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
-import 'package:womensbballmgr/features/league/domain/ai_team_roster.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
@@ -39,13 +38,10 @@ League _leagueWithRival(League league, Player player) {
   final first = league.aiTeams.first;
   return League(
     aiTeams: [
-      AiTeamRoster(
-        team: first.team,
-        roster: [
-          ...first.roster,
-          RosterMembership(player: player, status: RosterStatus.active),
-        ],
-      ),
+      first.copyWithRoster([
+        ...first.roster,
+        RosterMembership(player: player, status: RosterStatus.active),
+      ]),
       ...league.aiTeams.skip(1),
     ],
   );
@@ -139,14 +135,19 @@ void main() {
         find.text('Your player won the 3-Point Shootout!'),
         findsOneWidget,
       );
-      expect(find.text(ownPlayer.name), findsWidgets);
-      expect(find.text('Rival One'), findsWidgets);
+      // Each name is followed by the player's own team abbreviation
+      // (2026-08-11, a direct GM ask) -- so these look for the whole
+      // "Name (ABB)" label, not a bare name.
+      final ownLabel =
+          '${ownPlayer.name} (${kLeagueTeamPool.first.abbreviation})';
+      final rivalLabel =
+          'Rival One (${franchise.league.aiTeams.first.team.abbreviation})';
+      expect(find.text(ownLabel), findsWidgets);
+      expect(find.text(rivalLabel), findsWidgets);
       // Highest score sorts first within an event.
-      final shootoutWinnerY = tester
-          .getTopLeft(find.text(ownPlayer.name).first)
-          .dy;
+      final shootoutWinnerY = tester.getTopLeft(find.text(ownLabel).first).dy;
       final shootoutRunnerUpY = tester
-          .getTopLeft(find.text('Rival One').first)
+          .getTopLeft(find.text(rivalLabel).first)
           .dy;
       expect(shootoutWinnerY, lessThan(shootoutRunnerUpY));
     },

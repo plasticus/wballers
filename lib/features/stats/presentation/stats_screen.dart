@@ -9,6 +9,7 @@ import '../../franchise/domain/franchise.dart';
 import '../../franchise/onboarding/onboarding_screen.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
+import '../../player/presentation/player_detail_screen.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/league_leaders.dart';
 import '../../season/domain/season_progress.dart';
@@ -30,11 +31,11 @@ typedef _Entry = ({Player player, Team team});
 /// own club). Read-only, like every other stats-adjacent screen in this
 /// app -- nothing here advances or edits anything.
 ///
-/// Deliberately doesn't link a leaderboard row into `PlayerDetailScreen`
-/// the way the Team tab's roster rows do -- that screen only knows how to
-/// look a player up on the GM's own `Franchise.roster`, not an AI team's,
-/// and most leaders here will be AI players. A real "any player's detail
-/// page" screen is future work, not a gap papered over here.
+/// Every player row across all 3 tabs opens `PlayerDetailScreen` on tap
+/// (2026-08-11, TODO.md: a direct GM ask -- "click on any player, from
+/// any team"), own roster or not -- that screen learned to look a player
+/// up anywhere in the league the same day (`_resolvePlayer`, its own doc
+/// comment), which is what unblocked this.
 class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
 
@@ -126,7 +127,11 @@ class _StatsViewState extends State<_StatsView>
           child: TabBarView(
             controller: _tabController,
             children: [
-              _LeadersTab(playerLookup: playerLookup, leaders: leaders),
+              _LeadersTab(
+                franchise: widget.franchise,
+                playerLookup: playerLookup,
+                leaders: leaders,
+              ),
               _TeamsTab(franchise: widget.franchise),
               _RosterTab(franchise: widget.franchise),
             ],
@@ -189,8 +194,13 @@ final _categories = <_LeaderCategory>[
 ];
 
 class _LeadersTab extends StatelessWidget {
-  const _LeadersTab({required this.playerLookup, required this.leaders});
+  const _LeadersTab({
+    required this.franchise,
+    required this.playerLookup,
+    required this.leaders,
+  });
 
+  final Franchise franchise;
   final Map<String, _Entry> playerLookup;
   final Map<String, PlayerSeasonTotals> leaders;
 
@@ -221,6 +231,7 @@ class _LeadersTab extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       children: [
         _LeaderSection(
+          franchise: franchise,
           title: 'MVP Race',
           entries: mvpRanking.take(5).toList(),
           playerLookup: playerLookup,
@@ -229,6 +240,7 @@ class _LeadersTab extends StatelessWidget {
         for (final category in _categories) ...[
           const SizedBox(height: AppSpacing.lg),
           _LeaderSection(
+            franchise: franchise,
             title: category.label,
             entries: _topFor(category),
             playerLookup: playerLookup,
@@ -254,12 +266,14 @@ class _LeadersTab extends StatelessWidget {
 
 class _LeaderSection extends StatelessWidget {
   const _LeaderSection({
+    required this.franchise,
     required this.title,
     required this.entries,
     required this.playerLookup,
     required this.valueFor,
   });
 
+  final Franchise franchise;
   final String title;
   final List<PlayerSeasonTotals> entries;
   final Map<String, _Entry> playerLookup;
@@ -281,6 +295,7 @@ class _LeaderSection extends StatelessWidget {
               children: [
                 for (var i = 0; i < entries.length; i++) ...[
                   _LeaderRow(
+                    franchise: franchise,
                     rank: i + 1,
                     totals: entries[i],
                     entry: playerLookup[entries[i].playerId],
@@ -299,12 +314,14 @@ class _LeaderSection extends StatelessWidget {
 
 class _LeaderRow extends StatelessWidget {
   const _LeaderRow({
+    required this.franchise,
     required this.rank,
     required this.totals,
     required this.entry,
     required this.value,
   });
 
+  final Franchise franchise;
   final int rank;
   final PlayerSeasonTotals totals;
   final _Entry? entry;
@@ -325,7 +342,7 @@ class _LeaderRow extends StatelessWidget {
         ? '${entry.team.emoji} ${entry.team.name}'
         : '';
 
-    return Row(
+    final row = Row(
       children: [
         SizedBox(
           width: 24,
@@ -352,6 +369,21 @@ class _LeaderRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+    // Unknown-player rows (shouldn't happen, `entry`'s own doc comment)
+    // have no id worth navigating to -- left untappable rather than
+    // opening a "Player Not Found" screen.
+    if (entry == null) return row;
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlayerDetailScreen(
+            franchise: franchise,
+            playerId: entry.player.id,
+          ),
+        ),
+      ),
+      child: row,
     );
   }
 }
@@ -654,6 +686,7 @@ class _RosterTabState extends State<_RosterTab> {
                     children: [
                       for (var i = 0; i < sortedRoster.length; i++) ...[
                         _RosterStatsRow(
+                          franchise: widget.franchise,
                           player: sortedRoster[i],
                           totals: leaders[sortedRoster[i].id],
                         ),
@@ -670,8 +703,13 @@ class _RosterTabState extends State<_RosterTab> {
 }
 
 class _RosterStatsRow extends StatelessWidget {
-  const _RosterStatsRow({required this.player, required this.totals});
+  const _RosterStatsRow({
+    required this.franchise,
+    required this.player,
+    required this.totals,
+  });
 
+  final Franchise franchise;
   final Player player;
   final PlayerSeasonTotals? totals;
 
@@ -683,25 +721,33 @@ class _RosterStatsRow extends StatelessWidget {
         : '';
     final totals = this.totals;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            '${player.primaryPosition.abbreviation} $jersey${player.name}',
-            style: theme.textTheme.bodyLarge,
-          ),
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              PlayerDetailScreen(franchise: franchise, playerId: player.id),
         ),
-        if (totals == null || totals.gamesPlayed == 0)
-          Text('No games yet', style: theme.textTheme.bodySmall)
-        else
-          Text(
-            '${_oneDecimal(totals.pointsPerGame)} PPG · '
-            '${_oneDecimal(totals.reboundsPerGame)} RPG · '
-            '${_oneDecimal(totals.assistsPerGame)} APG',
-            style: theme.textTheme.bodySmall,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              '${player.primaryPosition.abbreviation} $jersey${player.name}',
+              style: theme.textTheme.bodyLarge,
+            ),
           ),
-      ],
+          if (totals == null || totals.gamesPlayed == 0)
+            Text('No games yet', style: theme.textTheme.bodySmall)
+          else
+            Text(
+              '${_oneDecimal(totals.pointsPerGame)} PPG · '
+              '${_oneDecimal(totals.reboundsPerGame)} RPG · '
+              '${_oneDecimal(totals.assistsPerGame)} APG',
+              style: theme.textTheme.bodySmall,
+            ),
+        ],
+      ),
     );
   }
 }

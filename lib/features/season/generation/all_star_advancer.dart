@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import '../../franchise/domain/franchise.dart';
-import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
 import '../../league/domain/team.dart';
 import '../../match/engine/match_engine.dart';
@@ -330,19 +329,16 @@ Franchise _grantAllStarMvp(
       aiTeams: [
         for (final aiTeam in franchise.league.aiTeams)
           if (aiTeam.roster.any((m) => m.player.id == mvpPlayerId))
-            AiTeamRoster(
-              team: aiTeam.team,
-              roster: [
-                for (final membership in aiTeam.roster)
-                  if (membership.player.id == mvpPlayerId)
-                    RosterMembership(
-                      player: apply(membership.player),
-                      status: membership.status,
-                    )
-                  else
-                    membership,
-              ],
-            )
+            aiTeam.copyWithRoster([
+              for (final membership in aiTeam.roster)
+                if (membership.player.id == mvpPlayerId)
+                  RosterMembership(
+                    player: apply(membership.player),
+                    status: membership.status,
+                  )
+                else
+                  membership,
+            ])
           else
             aiTeam,
       ],

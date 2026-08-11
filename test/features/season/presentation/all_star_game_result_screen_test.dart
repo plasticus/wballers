@@ -4,7 +4,6 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
-import 'package:womensbballmgr/features/league/domain/ai_team_roster.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
@@ -35,13 +34,10 @@ League _leagueWithPlayer(League league, Player player) {
   final first = league.aiTeams.first;
   return League(
     aiTeams: [
-      AiTeamRoster(
-        team: first.team,
-        roster: [
-          ...first.roster,
-          RosterMembership(player: player, status: RosterStatus.active),
-        ],
-      ),
+      first.copyWithRoster([
+        ...first.roster,
+        RosterMembership(player: player, status: RosterStatus.active),
+      ]),
       ...league.aiTeams.skip(1),
     ],
   );
@@ -157,12 +153,21 @@ void main() {
       expect(find.text('All-Star Game'), findsOneWidget);
       expect(find.text('150'), findsOneWidget);
       expect(find.text('140'), findsOneWidget);
+      // Every player mention is followed by the team they actually play
+      // for (2026-08-11, a direct GM ask) -- own star is on the GM's own
+      // team, the rival is on the first AI team.
+      final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+      final rivalAbbreviation =
+          franchise.league.aiTeams.first.team.abbreviation;
       expect(
-        find.text('Own Star is the All-Star Game MVP -- your player!'),
+        find.text(
+          'Own Star ($ownAbbreviation) is the All-Star Game MVP -- your '
+          'player!',
+        ),
         findsOneWidget,
       );
-      expect(find.text('Own Star'), findsWidgets);
-      expect(find.text('Rival One'), findsWidgets);
+      expect(find.text('Own Star ($ownAbbreviation)'), findsWidgets);
+      expect(find.text('Rival One ($rivalAbbreviation)'), findsWidgets);
     },
   );
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
+import '../../coach/generation/coach_free_agency_advancer.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../roster/domain/roster_legality.dart';
@@ -466,8 +467,15 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       Random(agingAdvance.franchise.seasonSeed + kAiTeamTrainingSeedOffset),
       agingAdvance.franchise,
     );
+    final withAiTraining = agingAdvance.franchise.copyWithLeague(
+      aiTrainingAdvance.league,
+    );
+    final coachFreeAgencyAdvance = resolveCoachFreeAgency(
+      Random(withAiTraining.seasonSeed + kCoachFreeAgencySeedOffset),
+      withAiTraining,
+    );
     await _persist(
-      agingAdvance.franchise.copyWithLeague(aiTrainingAdvance.league),
+      withAiTraining.copyWithLeague(coachFreeAgencyAdvance.league),
     );
     return advance.gamesPlayed;
   }

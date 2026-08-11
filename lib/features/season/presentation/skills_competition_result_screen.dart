@@ -28,6 +28,7 @@ class SkillsCompetitionResultScreen extends StatelessWidget {
       for (final roster in rostersByAbbreviation(franchise).values)
         for (final player in roster) player.id: player,
     };
+    final teamAbbreviations = teamAbbreviationByPlayerId(franchise);
     final ownIds = {for (final m in franchise.roster) m.player.id};
     final ownEventWins = [
       for (final event in result.events)
@@ -65,6 +66,7 @@ class SkillsCompetitionResultScreen extends StatelessWidget {
               _EventCard(
                 result: result.events[i],
                 playersById: playersById,
+                teamAbbreviations: teamAbbreviations,
                 ownIds: ownIds,
               ),
               if (i != result.events.length - 1)
@@ -81,11 +83,13 @@ class _EventCard extends StatelessWidget {
   const _EventCard({
     required this.result,
     required this.playersById,
+    required this.teamAbbreviations,
     required this.ownIds,
   });
 
   final SkillsEventResult result;
   final Map<String, Player> playersById;
+  final Map<String, String> teamAbbreviations;
   final Set<String> ownIds;
 
   @override
@@ -102,6 +106,7 @@ class _EventCard extends StatelessWidget {
               rank: i + 1,
               standing: result.standings[i],
               player: playersById[result.standings[i].playerId],
+              teamAbbreviation: teamAbbreviations[result.standings[i].playerId],
               isOwn: ownIds.contains(result.standings[i].playerId),
             ),
             if (i != result.standings.length - 1)
@@ -118,12 +123,19 @@ class _StandingRow extends StatelessWidget {
     required this.rank,
     required this.standing,
     required this.player,
+    required this.teamAbbreviation,
     required this.isOwn,
   });
 
   final int rank;
   final SkillsEventStanding standing;
   final Player? player;
+
+  /// The 3-letter team this player actually plays for -- shown after
+  /// their name (2026-08-11, a direct GM ask) since All-Star honorees mix
+  /// players from every team in the conference, and the name alone
+  /// doesn't say who they normally play for.
+  final String? teamAbbreviation;
   final bool isOwn;
 
   @override
@@ -133,7 +145,8 @@ class _StandingRow extends StatelessWidget {
     // this event's own honoree pool, all still on their roster at the
     // moment this resolved) but a label beats a crash, same posture every
     // other id-lookup fallback in this codebase already takes.
-    final label = player?.name ?? 'Former Player';
+    final name = player?.name ?? 'Former Player';
+    final label = teamAbbreviation == null ? name : '$name ($teamAbbreviation)';
     return Row(
       children: [
         SizedBox(

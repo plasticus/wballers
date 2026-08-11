@@ -415,7 +415,7 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
       }
       roster = newRoster;
     }
-    newAiTeams.add(AiTeamRoster(team: aiTeam.team, roster: roster));
+    newAiTeams.add(aiTeam.copyWithRoster(roster));
   }
 
   return AiTeamTrainingAdvance(league: League(aiTeams: newAiTeams));

@@ -27,6 +27,20 @@ List<Team> allLeagueTeams(Franchise franchise) {
   ];
 }
 
+/// Every active player's id mapped to the 3-letter abbreviation of the
+/// team they actually play for -- built off the same [rostersByAbbreviation]
+/// map, just inverted. What a report screen showing players from more than
+/// one team at once (the All-Star Game and Skills Competition reports,
+/// 2026-08-11 -- "in all the all-star reports, it needs to mention their
+/// team after their name") needs to label who plays for whom, since a bare
+/// name alone doesn't say it once players are mixed across teams.
+Map<String, String> teamAbbreviationByPlayerId(Franchise franchise) {
+  return {
+    for (final entry in rostersByAbbreviation(franchise).entries)
+      for (final player in entry.value) player.id: entry.key,
+  };
+}
+
 /// [franchise]'s own [Franchise.team] if [abbreviation] matches it,
 /// otherwise whichever of [Franchise.league]'s 19 AI teams matches --
 /// every abbreviation a [ScheduledGame] can reference is one or the

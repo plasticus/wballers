@@ -5,6 +5,7 @@ import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../league/domain/team.dart';
 import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../season/domain/played_game_stat_line.dart';
@@ -16,6 +17,41 @@ import '../domain/player_ratings.dart';
 import 'player_card_widgets.dart';
 import 'trait_chip.dart';
 
+/// Looks [playerId] up anywhere in [franchise]'s league -- the GM's own
+/// roster first, then every AI team's -- rather than only the GM's own
+/// roster the way this screen originally worked. (2026-08-11, TODO.md: a
+/// direct GM ask to tap any player on the Stats page, not just the GM's
+/// own, and land here.) Returns `null` on an id from outside this
+/// playthrough's league entirely, which shouldn't happen but a "not
+/// found" screen beats a crash, same posture every other id-lookup
+/// fallback in this codebase already takes.
+({Player player, Team team, bool isOwnRoster})? _resolvePlayer(
+  Franchise franchise,
+  String playerId,
+) {
+  for (final membership in franchise.roster) {
+    if (membership.player.id == playerId) {
+      return (
+        player: membership.player,
+        team: franchise.team,
+        isOwnRoster: true,
+      );
+    }
+  }
+  for (final aiTeam in franchise.league.aiTeams) {
+    for (final membership in aiTeam.roster) {
+      if (membership.player.id == playerId) {
+        return (
+          player: membership.player,
+          team: aiTeam.team,
+          isOwnRoster: false,
+        );
+      }
+    }
+  }
+  return null;
+}
+
 /// The hero portrait's size on this screen -- an integer multiple of the
 /// 32x32 base sprite (`portraits.md`'s own render-size rule) well past the
 /// 64px every list row uses elsewhere, since this is the one screen a GM
@@ -26,11 +62,11 @@ const _kHeroPortraitSize = 128.0;
 
 /// One player's full profile: ratings, traits, this season's stats, and
 /// awards -- the screen `0B_Planned.md` pulled forward as an early Phase 2
-/// prerequisite (spec, 2026-08-05), reachable from a roster row. Prior-
-/// seasons history is spec'd too but has nothing to show yet -- there's no
-/// multi-season concept on `Franchise` at all (no season/year field, no
-/// "start next season" flow), so that section is an honest placeholder
-/// rather than missing silently.
+/// prerequisite (spec, 2026-08-05), reachable from a roster row -- and,
+/// since 2026-08-11, from any player mention on the Stats page too, own
+/// roster or not (`_resolvePlayer`'s own doc comment). Drop and portrait
+/// editing only ever apply to the GM's own roster -- both are hidden for
+/// anyone else's player, via [_resolvePlayer]'s `isOwnRoster`.
 ///
 /// A `ConsumerWidget` (not plain `StatelessWidget`) since the Drop action
 /// (2026-08-09, a direct GM ask -- "I need a way to drop a player, so I
@@ -46,12 +82,11 @@ class PlayerDetailScreen extends ConsumerWidget {
   final Franchise franchise;
   final String playerId;
 
-  Future<void> _confirmDrop(BuildContext context, WidgetRef ref) async {
-    final membership = franchise.roster.firstWhere(
-      (m) => m.player.id == playerId,
-    );
-    final player = membership.player;
-
+  Future<void> _confirmDrop(
+    BuildContext context,
+    WidgetRef ref,
+    Player player,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -93,27 +128,39 @@ class PlayerDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final membership = franchise.roster.firstWhere(
-      (m) => m.player.id == playerId,
-    );
-    final player = membership.player;
+    final resolved = _resolvePlayer(franchise, playerId);
+    if (resolved == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Player Not Found')),
+        body: const Center(child: Text('This player could not be found.')),
+      );
+    }
+    final player = resolved.player;
+    final team = resolved.team;
+    final isOwnRoster = resolved.isOwnRoster;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(player.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_remove_outlined),
-            tooltip: 'Drop from Roster',
-            onPressed: () => _confirmDrop(context, ref),
-          ),
+          if (isOwnRoster)
+            IconButton(
+              icon: const Icon(Icons.person_remove_outlined),
+              tooltip: 'Drop from Roster',
+              onPressed: () => _confirmDrop(context, ref, player),
+            ),
         ],
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            _HeaderCard(franchise: franchise, player: player),
+            _HeaderCard(
+              franchise: franchise,
+              player: player,
+              team: team,
+              isOwnRoster: isOwnRoster,
+            ),
             const SizedBox(height: AppSpacing.lg),
             if (player.traits.isNotEmpty) ...[
               Text('Traits', style: Theme.of(context).textTheme.titleLarge),
@@ -168,15 +215,38 @@ class PlayerDetailScreen extends ConsumerWidget {
 /// old compact header had room for), the same mistake at a *bigger*
 /// portrait size would be worse, not better.
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.franchise, required this.player});
+  const _HeaderCard({
+    required this.franchise,
+    required this.player,
+    required this.team,
+    required this.isOwnRoster,
+  });
 
   final Franchise franchise;
   final Player player;
 
+  /// The team [player] actually plays for -- [franchise.team] for the
+  /// GM's own roster, or whichever AI team they're really on otherwise
+  /// (`_resolvePlayer`'s doc comment). Drives the portrait's accent/jersey
+  /// color so an AI player's card reads as *their* team, not the GM's.
+  final Team team;
+
+  /// Portrait editing is a GM privilege over their own players only --
+  /// tapping an AI player's portrait here does nothing (2026-08-11, the
+  /// "any player, any team" Stats-page lookup this screen now supports).
+  final bool isOwnRoster;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accentColor = franchise.team.colors.primary;
+    final accentColor = team.colors.primary;
+    final portrait = PhotoWithJerseyBadge(
+      franchise: franchise,
+      player: player,
+      accentColor: accentColor,
+      jersey: parseHexColor(team.colors.primaryHex),
+      size: _kHeroPortraitSize,
+    );
 
     return AppCard(
       child: Column(
@@ -185,25 +255,21 @@ class _HeaderCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              InkWell(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PortraitEditorScreen(
-                        franchise: franchise,
-                        playerId: player.id,
-                      ),
-                    ),
-                  );
-                },
-                child: PhotoWithJerseyBadge(
-                  franchise: franchise,
-                  player: player,
-                  accentColor: accentColor,
-                  jersey: parseHexColor(franchise.team.colors.primaryHex),
-                  size: _kHeroPortraitSize,
-                ),
-              ),
+              isOwnRoster
+                  ? InkWell(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PortraitEditorScreen(
+                              franchise: franchise,
+                              playerId: player.id,
+                            ),
+                          ),
+                        );
+                      },
+                      child: portrait,
+                    )
+                  : portrait,
               const SizedBox(width: AppSpacing.lg),
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -227,6 +293,16 @@ class _HeaderCard extends StatelessWidget {
                 : '${player.name} "${player.nickname}"',
             style: theme.textTheme.headlineSmall,
           ),
+          // Only shown for someone else's player -- a GM never needs to be
+          // told which team their own roster plays for, but every AI
+          // player reached from the Stats page does (2026-08-11).
+          if (!isOwnRoster)
+            Text(
+              '${team.name} (${team.abbreviation})',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           Text.rich(
             TextSpan(
               style: theme.textTheme.bodyMedium,
