@@ -75,13 +75,16 @@ const _kSpecificFocusShare = 0.7; // how much of a specific-rating focus's
 // delta goes to that one field, vs. trickling to the other 11.
 
 /// Seed offset for [runTraining]'s [Random] stream, combined with
-/// [Franchise.simulationSeed] and the week being resolved (e.g.
-/// `Random(simulationSeed + kTrainingAdvanceSeedOffset + week)`) --
+/// [Franchise.seasonSeed] and the week being resolved (e.g.
+/// `Random(franchise.seasonSeed + kTrainingAdvanceSeedOffset + week)`) --
 /// same "reseed per resolution unit, don't carry a stream forward"
 /// pattern as `kSeasonAdvanceSeedOffset`/`kPostseasonAdvanceSeedOffset`,
 /// so a given week's training result is reproducible across a
-/// save/reload. Distinct from `kTrainingCoachSeedOffset`, which only
-/// seeds one-time coach generation at franchise creation.
+/// save/reload, and [Franchise.seasonSeed] rather than
+/// [Franchise.simulationSeed] directly so a second season's week 1
+/// doesn't reseed identically to the first's. Distinct from
+/// `kTrainingCoachSeedOffset`, which only seeds one-time coach generation
+/// at franchise creation.
 const kTrainingAdvanceSeedOffset = 8;
 
 /// Seed offset for [resolveSeasonEndAging]'s [Random] stream -- offset 9

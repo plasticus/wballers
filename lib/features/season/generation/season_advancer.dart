@@ -14,7 +14,9 @@ import 'continental_cup_generator.dart';
 /// correlating with the coach (0), starting roster (1), league draw (2),
 /// league AI rosters (3), or season schedule (4) streams, same pattern as
 /// those. Callers should combine this with [SeasonProgress.nextGameDayIndex]
-/// (e.g. `Random(simulationSeed + kSeasonAdvanceSeedOffset + nextGameDayIndex)`)
+/// (e.g. `Random(franchise.seasonSeed + kSeasonAdvanceSeedOffset + nextGameDayIndex)`
+/// -- [Franchise.seasonSeed], not [Franchise.simulationSeed] directly, so a
+/// second season's game day 0 doesn't reseed identically to the first's)
 /// rather than reusing one long-lived [Random] across app sessions --
 /// there's no way to persist a [Random]'s internal state between saves, so
 /// keying off the already-persisted game-day index is what makes each

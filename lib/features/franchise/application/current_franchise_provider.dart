@@ -296,7 +296,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// it's here so nothing else that might call this directly could
   /// accidentally bypass the gate.
   ///
-  /// The [Random] stream is reseeded from [Franchise.simulationSeed] plus
+  /// The [Random] stream is reseeded from [Franchise.seasonSeed] plus
   /// the game day index being advanced, not carried forward across calls
   /// -- see [kSeasonAdvanceSeedOffset]'s doc comment for why that's what
   /// makes a given game day's result reproducible across a save/reload.
@@ -312,7 +312,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
     final advance = advanceToNextGameDay(
       Random(
-        franchise.simulationSeed +
+        franchise.seasonSeed +
             kSeasonAdvanceSeedOffset +
             franchise.seasonProgress.nextGameDayIndex,
       ),
@@ -356,7 +356,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
     final result = resolveSkillsCompetitionDay(
       Random(
-        franchise.simulationSeed +
+        franchise.seasonSeed +
             kSeasonAdvanceSeedOffset +
             franchise.seasonProgress.nextGameDayIndex,
       ),
@@ -397,7 +397,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     }
 
     final random = Random(
-      franchise.simulationSeed +
+      franchise.seasonSeed +
           kSeasonAdvanceSeedOffset +
           franchise.seasonProgress.nextGameDayIndex,
     );
@@ -447,7 +447,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     }
 
     final advance = simulatePostseason(
-      Random(franchise.simulationSeed + kPostseasonAdvanceSeedOffset),
+      Random(franchise.seasonSeed + kPostseasonAdvanceSeedOffset),
       franchise.seasonProgress,
       leagueTeams: allLeagueTeams(franchise),
       rostersByAbbreviation: rostersByAbbreviation(franchise),
@@ -459,11 +459,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       franchise.copyWithSeasonProgress(advance.progress),
     );
     final agingAdvance = resolveSeasonEndAging(
-      Random(withTraining.simulationSeed + kSeasonEndAgingSeedOffset),
+      Random(withTraining.seasonSeed + kSeasonEndAgingSeedOffset),
       withTraining,
     );
     final aiTrainingAdvance = resolveAiTeamSeasonTraining(
-      Random(agingAdvance.franchise.simulationSeed + kAiTeamTrainingSeedOffset),
+      Random(agingAdvance.franchise.seasonSeed + kAiTeamTrainingSeedOffset),
       agingAdvance.franchise,
     );
     await _persist(
@@ -500,7 +500,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// Idempotent per week for the same reason [runTraining] is: calling
   /// again before another week completes just returns `null`.
   ///
-  /// The [Random] stream is reseeded from [Franchise.simulationSeed] plus
+  /// The [Random] stream is reseeded from [Franchise.seasonSeed] plus
   /// [Franchise.nextTrainingWeek], not carried forward across calls --
   /// see [kTrainingAdvanceSeedOffset]'s doc comment for why that's what
   /// makes a given week's training result reproducible across a
@@ -511,7 +511,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
     final advance = runTraining(
       Random(
-        franchise.simulationSeed +
+        franchise.seasonSeed +
             kTrainingAdvanceSeedOffset +
             franchise.nextTrainingWeek,
       ),
@@ -552,7 +552,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     while (true) {
       final advance = runTraining(
         Random(
-          current.simulationSeed +
+          current.seasonSeed +
               kTrainingAdvanceSeedOffset +
               current.nextTrainingWeek,
         ),

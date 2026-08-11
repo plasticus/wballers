@@ -16,25 +16,35 @@ feature instead of a punch list of small ones.
 These have to exist first — nearly everything else on this list either reads
 a season number or reuses a seed offset that doesn't account for one yet.
 
-- [ ] **A real season counter on `Franchise`.** There is no season/year field
-      today at all — `resolveSeasonEndAging`'s own doc comment says so
-      directly: "there's no multi-season flow yet... 'the off-season' is, for
-      now, just that one moment a season wraps up, not an actual calendar
-      phase." Everything below assumes this exists.
-- [ ] **Fold the season number into every generation seed.** Every generator
-      (`generateSeasonSchedule`, `generateDraftOrder`, the free-agent pool,
-      AI-team training, season-end aging, ...) seeds its `Random` off
-      `franchise.simulationSeed + someFixedOffsetConstant` — a flat constant,
-      the same one every time. Left as-is, Season 2's schedule, draft class,
-      and free-agent pool would generate *identically* to Season 1's, just
-      re-rolled from the same starting point. Needs the season number folded
-      into every one of these seeds (`simulationSeed + offset + season * N`,
-      or similar) before a second season would look like a second season at
-      all.
-- [ ] **A real "season transition" entry point.** `simulatePostseasonAndPersist`
-      already resolves the postseason, veteran aging, and AI-team training
-      the moment a season completes — but nothing currently follows that with
-      "and now start the next one." Something has to own that hand-off.
+- [x] **A real season counter on `Franchise`.** Done 2026-08-10 --
+      `Franchise.season`, a zero-based counter (same convention
+      `PlayerAchievementRecord.season` already used), persisted and
+      defaulting to 0 for every existing save.
+- [x] **Fold the season number into every generation seed.** Done 2026-08-10
+      -- new `Franchise.seasonSeed` getter (`simulationSeed + season *
+      kSeasonSeedSpan`) replaces `simulationSeed` at every seed derivation
+      that fires once *per season or more* (game-day/postseason/training
+      advancement, season-end aging, AI-team training, the schedule itself,
+      the draft-order preview). Once-ever franchise-creation generators
+      (coach, starting roster, league draw + AI rosters, training coaches)
+      deliberately still use plain `simulationSeed` -- they never run again
+      regardless of season, and `league_screen.dart`'s own re-derivation of
+      the original draw specifically needs to *not* shift. `kSeasonSeedSpan`
+      = 10,000, comfortably wider than any offset's own internal variation.
+      The free-agent pool's seed offset is unchanged for now -- it has no
+      second call site to fold a season into yet; that's "Player pool
+      refresh"'s job below.
+- [x] **A real "season transition" entry point.** Done 2026-08-10 --
+      `beginNextSeason` (`season_transition_advancer.dart`): increments
+      `season`, generates a fresh schedule off the new `seasonSeed`, and
+      resets `SeasonProgress`/training history/Skills Competition history
+      for the new season. Deliberately **Foundation-scoped only** -- no
+      aging, no retirement, no roster-legality gate, no free-agent refresh,
+      no real draft, no ceremony, and (on purpose) no Dashboard button
+      calling it yet. Wiring a real button before the stages below exist
+      would let a GM start a new season with an illegal, unaged, stale
+      roster -- worse than not offering it at all. See the function's own
+      doc comment for the full list of what's deliberately still missing.
 
 ## Aging & roster churn
 

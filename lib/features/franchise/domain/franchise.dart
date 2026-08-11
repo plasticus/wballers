@@ -28,6 +28,15 @@ import '../../training/domain/training_report.dart';
 /// team. [league] is those 19 AI teams' real generated rosters
 /// (`generateLeague`) -- a real league runtime, not just identities.
 ///
+/// Each season gets its own slice of the seed space, [kSeasonSeedSpan]
+/// wide -- see [Franchise.seasonSeed]. 10,000 is comfortably larger than
+/// any single generator's own internal variation ever gets within one
+/// season (a game-day index maxes out in the 40s, a training week in the
+/// 20s, seed-offset constants themselves stay in the teens), so no two
+/// seasons' seeds can ever collide regardless of how many more per-season
+/// generators/offsets get added later.
+const kSeasonSeedSpan = 10000;
+
 /// Roster legality isn't enforced here — see `evaluateFranchiseLegality`.
 /// There's no separate starting-lineup concept anymore: the top 5 players
 /// in `roster`'s own active-roster order (the same order Bench Order
@@ -51,12 +60,14 @@ class Franchise {
     required this.trainingCoaches,
     required this.trainingPlan,
     required this.nextTrainingWeek,
+    this.season = 0,
     this.trainingReports = const [],
     this.seasonEndAgingResults = const [],
     this.skillsCompetitionResults = const [],
     this.freeAgents = const [],
     this.readMailIds = const {},
-  }) : assert(
+  }) : assert(season >= 0, 'season must not be negative'),
+       assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
          'replacedTeamAbbreviation must be one of the league team pool, '
          'in the same conference as team',
@@ -82,8 +93,33 @@ class Franchise {
 
   /// Seeds every deterministic random source this franchise's simulation
   /// uses — same seed plus same saved state must reproduce the same
-  /// results.
+  /// results. Combine with [season] via [seasonSeed] for anything that
+  /// resolves once per season (or more) rather than once ever at
+  /// franchise creation -- see that getter's own doc comment.
   final int simulationSeed;
+
+  /// A zero-based counter -- 0 for a franchise's first season, same
+  /// "zero-based" convention `PlayerAchievementRecord.season` already
+  /// uses. Everything that resolves once per season (game-day/postseason/
+  /// training advancement, season-end aging, AI-team training, the
+  /// schedule itself) needs this folded into its own seed
+  /// ([seasonSeed]) so a second season doesn't just silently replay the
+  /// first's random rolls (`0D_Season_2_Roadmap.md`'s Foundation item 2).
+  /// [beginNextSeason] (`season_transition_advancer.dart`) is the only
+  /// place this ever increments.
+  final int season;
+
+  /// [simulationSeed], shifted into this season's own [kSeasonSeedSpan]-wide
+  /// slice of the seed space -- what every *per-season* generator should
+  /// seed off (`Random(franchise.seasonSeed + kSomeOffset + ...)`), instead
+  /// of [simulationSeed] directly. Generators that only ever run once, at
+  /// franchise creation (the coach, the starting roster, the league draw
+  /// and its AI rosters, the 3 training coaches) stay on plain
+  /// [simulationSeed] -- they never run again regardless of [season], and
+  /// `league_screen.dart`'s own re-derivation of the original league draw
+  /// specifically depends on reproducing that exact original roll, not a
+  /// season-shifted one.
+  int get seasonSeed => simulationSeed + season * kSeasonSeedSpan;
 
   /// The `kLeagueTeamPool` abbreviation this franchise replaced.
   /// Bookkeeping only for now -- see the class doc comment.
@@ -187,6 +223,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -211,6 +248,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -235,6 +273,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -259,6 +298,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: newTrainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -293,6 +333,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: newNextTrainingWeek,
+      season: season,
       trainingReports: [...trainingReports, newReport],
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -325,6 +366,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: newResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -350,6 +392,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: [...skillsCompetitionResults, newResult],
@@ -376,6 +419,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -407,6 +451,7 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
@@ -432,11 +477,59 @@ class Franchise {
       trainingCoaches: trainingCoaches,
       trainingPlan: trainingPlan,
       nextTrainingWeek: nextTrainingWeek,
+      season: season,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: newReadMailIds,
+    );
+  }
+
+  /// Returns a copy reflecting a full season transition -- [newSeason]
+  /// replaces [season] (always `season + 1`; `beginNextSeason`,
+  /// `season_transition_advancer.dart`, is the only caller, and asserts
+  /// that itself), [newSeasonProgress] is the freshly generated schedule
+  /// with nothing played yet, and [roster]/[league] are deliberately
+  /// **not** touched here -- aging, retirement, and roster-legality
+  /// enforcement are separate, not-yet-built stages
+  /// (`0D_Season_2_Roadmap.md`'s "Aging & churn"), so this Foundation-only
+  /// version of the transition carries every player over completely
+  /// unchanged.
+  ///
+  /// [trainingReports]/[seasonEndAgingResults]/[skillsCompetitionResults]
+  /// all reset to empty and [nextTrainingWeek] resets to 1 -- a direct GM
+  /// answer on exactly this (`season2roadmap.md` answer 3): "Off-season,
+  /// both [mail and training reports] get cleared... end-of-season
+  /// reports and season awards stay visible forever" -- the "stay visible
+  /// forever" half isn't built yet either (there's no historical archive
+  /// to move last season's recap into), but at minimum a new season must
+  /// not start with last season's reports still sitting in Mail.
+  /// [readMailIds] is left alone -- harmless stale ids, nothing left to
+  /// match against once their source data is gone.
+  Franchise copyWithNewSeason({
+    required int newSeason,
+    required SeasonProgress newSeasonProgress,
+  }) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: newSeasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: 1,
+      season: newSeason,
+      trainingReports: const [],
+      seasonEndAgingResults: const [],
+      skillsCompetitionResults: const [],
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
     );
   }
 }

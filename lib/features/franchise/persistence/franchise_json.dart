@@ -20,6 +20,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         .map((membership) => rosterMembershipToJson(membership))
         .toList(),
     'simulationSeed': franchise.simulationSeed,
+    'season': franchise.season,
     'replacedTeamAbbreviation': franchise.replacedTeamAbbreviation,
     'league': leagueToJson(franchise.league),
     'seasonProgress': seasonProgressToJson(franchise.seasonProgress),
@@ -52,6 +53,7 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
         .map((value) => rosterMembershipFromJson(value as Map<String, dynamic>))
         .toList(),
     simulationSeed: json['simulationSeed'] as int,
+    season: json['season'] as int,
     replacedTeamAbbreviation: json['replacedTeamAbbreviation'] as String,
     league: leagueFromJson(json['league'] as Map<String, dynamic>),
     seasonProgress: seasonProgressFromJson(

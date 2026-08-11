@@ -92,7 +92,7 @@ class SeasonRecapScreen extends StatelessWidget {
     // standings table that wouldn't.
     final draftPosition = standings.length > kPostseasonTeamCount
         ? generateDraftOrder(
-                Random(franchise.simulationSeed + kDraftOrderSeedOffset),
+                Random(franchise.seasonSeed + kDraftOrderSeedOffset),
                 standings,
               ).indexOf(franchise.team.abbreviation) +
               1

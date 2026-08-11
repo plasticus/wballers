@@ -52,6 +52,10 @@ Franchise _sampleFranchise() {
     ),
     roster: roster,
     simulationSeed: 42,
+    // Non-zero and distinct from simulationSeed, so the round-trip test
+    // below can't pass by accident (e.g. season silently defaulting back
+    // to 0 would still coincidentally "match" if this were left at 0).
+    season: 5,
     // Not kLeagueTeamPool.first (BOS) -- BOS isn't actually drawn for this
     // seed, and generateLeague/testLeague asserts the replaced team is one
     // of the 20 that are (see the note on createExpansionFranchise).
@@ -77,6 +81,7 @@ void main() {
     expect(restored.id, original.id);
     expect(restored.gmName, original.gmName);
     expect(restored.simulationSeed, original.simulationSeed);
+    expect(restored.season, original.season);
     expect(
       restored.replacedTeamAbbreviation,
       original.replacedTeamAbbreviation,
