@@ -19,6 +19,7 @@ import '../../season/domain/skills_competition.dart';
 import '../../season/generation/all_star_advancer.dart';
 import '../../season/generation/postseason_advancer.dart';
 import '../../season/generation/season_advancer.dart';
+import '../../season/generation/season_tenure_advancer.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
@@ -474,9 +475,20 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       Random(withAiTraining.seasonSeed + kCoachFreeAgencySeedOffset),
       withAiTraining,
     );
-    await _persist(
-      withAiTraining.copyWithLeague(coachFreeAgencyAdvance.league),
+    final withCoachFreeAgency = withAiTraining.copyWithLeague(
+      coachFreeAgencyAdvance.league,
     );
+    final aiAgingAdvance = resolveAiTeamSeasonEndAging(
+      Random(withCoachFreeAgency.seasonSeed + kAiTeamSeasonEndAgingSeedOffset),
+      withCoachFreeAgency,
+    );
+    final withAiAging = withCoachFreeAgency.copyWithLeague(
+      aiAgingAdvance.league,
+    );
+    // Tenure (age/yearsOfService) increments last, deliberately -- every
+    // pass above computes its result against the age a player played this
+    // season *at* (`advancePlayerTenure`'s own doc comment).
+    await _persist(advancePlayerTenure(withAiAging));
     return advance.gamesPlayed;
   }
 

@@ -888,4 +888,124 @@ void main() {
       expect(perWeekTotal, greaterThan(megaWeekTotal));
     });
   });
+
+  group('resolveAiTeamSeasonEndAging (2026-08-11, 0D_Season_2_Roadmap.md: '
+      'Aging & roster churn -- AI veterans decline too, not just the GM\'s '
+      'own)', () {
+    /// Same "one controlled AI team, the other 18 straight from
+    /// [testLeague]" shape as [franchiseWithAiTeam] above -- no played
+    /// games needed here, since [resolveAiTeamSeasonEndAging] (like
+    /// [resolveSeasonEndAging]) is minutes-gate-free.
+    Franchise franchiseWithAiRoster(List<RosterMembership> roster) {
+      final baseLeague = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      );
+      final league = League(
+        aiTeams: [
+          baseLeague.aiTeams.first.copyWithRoster(roster),
+          ...baseLeague.aiTeams.skip(1),
+        ],
+      );
+      return Franchise(
+        id: 'test-franchise',
+        gmName: 'Test GM',
+        team: kLeagueTeamPool[1],
+        coach: const Coach(
+          name: 'Head Coach',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: const [],
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: league,
+        seasonProgress: SeasonProgress(
+          schedule: const SeasonSchedule(games: []),
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+        trainingCoaches: const [
+          TrainingCoach(name: 'Coach A'),
+          TrainingCoach(name: 'Coach B'),
+          TrainingCoach(name: 'Coach C'),
+        ],
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 1,
+      );
+    }
+
+    test('an old AI veteran declines via the one-time lump, even with '
+        'zero minutes', () {
+      final player = _player(id: 'ai1', age: 34, overall: 70, potential: 70);
+      final franchise = franchiseWithAiRoster([
+        RosterMembership(player: player, status: RosterStatus.active),
+      ]);
+
+      Player declined() => resolveAiTeamSeasonEndAging(
+        Random(1),
+        franchise,
+      ).league.aiTeams.first.roster.single.player;
+
+      var result = declined();
+      for (var seed = 2; result.ratings.overall >= 70 && seed <= 20; seed++) {
+        result = resolveAiTeamSeasonEndAging(
+          Random(seed),
+          franchise,
+        ).league.aiTeams.first.roster.single.player;
+      }
+
+      expect(result.ratings.overall, lessThan(70));
+    });
+
+    test('a growing or plateaued AI player gets nothing', () {
+      final young = _player(id: 'ai1', age: 22, overall: 45, potential: 90);
+      final franchise = franchiseWithAiRoster([
+        RosterMembership(player: young, status: RosterStatus.active),
+      ]);
+
+      final advance = resolveAiTeamSeasonEndAging(Random(1), franchise);
+
+      expect(
+        advance.league.aiTeams.first.roster.single.player.ratings.overall,
+        45,
+      );
+    });
+
+    test('reserve/inactive AI players never change', () {
+      final player = _player(id: 'ai1', age: 34, overall: 70, potential: 70);
+      final franchise = franchiseWithAiRoster([
+        RosterMembership(player: player, status: RosterStatus.reserveInactive),
+      ]);
+
+      final advance = resolveAiTeamSeasonEndAging(Random(1), franchise);
+
+      expect(
+        advance.league.aiTeams.first.roster.single.player.ratings.overall,
+        70,
+      );
+    });
+
+    test('every other AI team is untouched -- same 19 teams, same order, '
+        'same players', () {
+      final player = _player(id: 'ai1', age: 34, overall: 70, potential: 70);
+      final franchise = franchiseWithAiRoster([
+        RosterMembership(player: player, status: RosterStatus.active),
+      ]);
+
+      final advance = resolveAiTeamSeasonEndAging(Random(1), franchise);
+
+      expect(advance.league.aiTeams, hasLength(19));
+      for (var i = 1; i < franchise.league.aiTeams.length; i++) {
+        expect(
+          advance.league.aiTeams[i].team.abbreviation,
+          franchise.league.aiTeams[i].team.abbreviation,
+        );
+        expect(
+          advance.league.aiTeams[i].roster.map((m) => m.player.id),
+          franchise.league.aiTeams[i].roster.map((m) => m.player.id),
+        );
+      }
+    });
+  });
 }

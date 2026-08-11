@@ -48,18 +48,21 @@ a season number or reuses a seed offset that doesn't account for one yet.
 
 ## Aging & roster churn
 
-- [ ] **Player age increments.** Confirmed by search: nothing anywhere
-      increments `Player.age`. Every player is frozen at whatever age they
-      were generated at, forever.
-- [ ] **`yearsOfService` increments.** Same gap, separate field — nothing
-      increments it either, so "Rookie" would never stop being true for a
-      player who's actually completed a season.
-- [ ] **AI roster aging/decline.** `resolveSeasonEndAging` (the veteran
-      decline lump) only ever runs against `franchise.roster` — the GM's own
-      team. The 19 AI teams get `resolveAiTeamSeasonTraining`'s growth (this
-      session's work) but never decline. AI veterans currently only ever get
-      better, never worse. Needs the same treatment AI training just got:
-      replay the real decline pass across every AI roster too.
+- [x] **Player age increments.** Done 2026-08-11 -- `Player.copyWithSeasonAdvanced`
+      increments both `age` and `yearsOfService` by one; applied league-wide
+      (GM's own roster + all 19 AI rosters, every `RosterStatus`) by
+      `season_tenure_advancer.dart`'s `advancePlayerTenure`, called from
+      `simulatePostseasonAndPersist` last of all the season-end resolutions
+      -- everything else computes its result against the age a player
+      played the season *at*, so incrementing first would shift every one
+      of those onto the wrong age band a year early.
+- [x] **`yearsOfService` increments.** Done 2026-08-11, same change as above
+      -- both fields always move together at a season boundary.
+- [x] **AI roster aging/decline.** Done 2026-08-11 -- `resolveAiTeamSeasonEndAging`
+      (`training_advancer.dart`) mirrors `resolveSeasonEndAging`'s exact
+      per-player decline math (`_declinedPlayer`, factored out so both
+      share it) across every AI roster, same call site and idempotency
+      guard as the GM's own pass and `resolveAiTeamSeasonTraining`.
 - [ ] **Retirement.** No concept exists at all — nothing removes a player
       from the league for any reason. Without it, every roster (AI and the
       GM's own) only ever accumulates players season over season, with no

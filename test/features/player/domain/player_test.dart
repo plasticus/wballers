@@ -380,6 +380,32 @@ void main() {
     expect(updated.traits, player.traits);
   });
 
+  test('copyWithSeasonAdvanced increments age and yearsOfService by one, '
+      'leaving everything else untouched (2026-08-11, '
+      '0D_Season_2_Roadmap.md: Aging & roster churn)', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+    );
+
+    final advanced = player.copyWithSeasonAdvanced();
+
+    expect(advanced.age, 25);
+    expect(advanced.yearsOfService, 3);
+    expect(advanced.ratings, player.ratings);
+    expect(advanced.name, player.name);
+    expect(advanced.id, player.id);
+  });
+
   test('formatHeightInches formats feet and inches', () {
     expect(formatHeightInches(74), "6'2\"");
     expect(formatHeightInches(72), "6'0\"");

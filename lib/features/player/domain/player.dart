@@ -326,4 +326,36 @@ class Player {
       college: college,
     );
   }
+
+  /// Returns a copy with [age] and [yearsOfService] both incremented by
+  /// one -- what a season boundary does to every player in the league,
+  /// GM's own roster and every AI team alike (`0D_Season_2_Roadmap.md`'s
+  /// Aging & roster churn stage, 2026-08-11: confirmed by search that
+  /// nothing anywhere incremented either field before this). Ratings are
+  /// untouched here -- growth/decline is a separate concern
+  /// (`features/training/generation/training_advancer.dart`), computed
+  /// against the age a player played the season *at*, not the age
+  /// they're about to turn; callers apply that first, then this.
+  Player copyWithSeasonAdvanced() {
+    return Player(
+      id: id,
+      name: name,
+      age: age + 1,
+      yearsOfService: yearsOfService + 1,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: ratings,
+      heightInches: heightInches,
+      archetype: archetype,
+      traits: traits,
+      appearance: appearance,
+      achievements: achievements,
+      nickname: nickname,
+      jerseyNumber: jerseyNumber,
+      college: college,
+    );
+  }
 }

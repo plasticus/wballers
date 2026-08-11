@@ -100,6 +100,14 @@ const kSeasonEndAgingSeedOffset = 9;
 /// `kDraftOrderSeedOffset` (13).
 const kAiTeamTrainingSeedOffset = 14;
 
+/// Seed offset for [resolveAiTeamSeasonEndAging]'s [Random] stream -- a
+/// separate stream from [kSeasonEndAgingSeedOffset] (the GM's own roster)
+/// entirely, not just a different offset on the same one, so a save's own
+/// veteran-decline rolls can never shift because of what the AI-team pass
+/// happened to roll. Next free number after
+/// `coach_free_agency_advancer.dart`'s `kCoachFreeAgencySeedOffset` (16).
+const kAiTeamSeasonEndAgingSeedOffset = 17;
+
 /// What one weekly training cycle produced: the updated [Franchise]
 /// (roster with new ratings, `nextTrainingWeek` advanced, the new report
 /// appended to history) and the [TrainingReport] itself, for a caller
@@ -231,6 +239,41 @@ class SeasonEndAgingAdvance {
   final List<PlayerGrowthResult> results;
 }
 
+/// Computes this off-season's decline lump for one [player] -- the shared
+/// core [resolveSeasonEndAging] (the GM's own roster) and
+/// [resolveAiTeamSeasonEndAging] (every AI roster) both apply. Returns
+/// [player] unchanged (and an empty delta map) when nothing applies --
+/// growing/plateaued players ([_ageCurveFactor] `>= 0`, this is
+/// specifically the veteran-decay half of the yearly budget, not a
+/// second growth pass) or every rolled delta happens to round to zero.
+(Player, Map<PlayerRatingField, int>) _declinedPlayer(
+  Random random,
+  Player player,
+) {
+  final ageFactor = _ageCurveFactor(player.age);
+  if (ageFactor >= 0) return (player, const {});
+
+  var totalDelta = ageFactor * _kOffSeasonDeclineScale;
+  if (player.traits.contains(Trait.gymRat)) {
+    totalDelta *= _kGymRatDeclineSoftening;
+  }
+
+  final perField = _distributeAcrossFields(totalDelta, null);
+  final newFieldValues = <PlayerRatingField, int>{};
+  for (final field in PlayerRatingField.values) {
+    final raw = perField[field] ?? 0.0;
+    if (raw == 0.0) continue;
+    final delta = _roundStochastic(random, raw);
+    if (delta == 0) continue;
+    final current = player.ratings.valueOf(field);
+    final clamped = (current + delta).clamp(kMinRating, kMaxRating);
+    if (clamped != current) newFieldValues[field] = clamped;
+  }
+
+  if (newFieldValues.isEmpty) return (player, const {});
+  return _applyFieldValues(player, newFieldValues);
+}
+
 /// Applies a one-time "off-season" decline lump to every aging veteran on
 /// [franchise]'s roster -- the other half of `_kDeclineScale`'s softened
 /// in-season weekly decay (TODO.md item 1: "smaller week-to-week veteran
@@ -245,13 +288,11 @@ class SeasonEndAgingAdvance {
 /// through.
 ///
 /// Same scope as [runTraining]: [RosterStatus.reserveInactive] players
-/// are skipped entirely, and only [_ageCurveFactor] matters -- no
-/// gap-to-potential, minutes, or coach-quality inputs, since those are
-/// growth-side concepts that don't apply here, same reasoning
-/// [_totalWeeklyDelta]'s own doc comment gives for why weekly decline
-/// itself is minutes-gate-free. Growing/plateaued players
-/// ([_ageCurveFactor] `>= 0`) get nothing here -- this is specifically
-/// the veteran-decay half of the yearly budget, not a second growth pass.
+/// are skipped entirely -- no gap-to-potential, minutes, or coach-quality
+/// inputs, since those are growth-side concepts that don't apply here,
+/// same reasoning [_totalWeeklyDelta]'s own doc comment gives for why
+/// weekly decline itself is minutes-gate-free. The actual per-player math
+/// is [_declinedPlayer]'s.
 SeasonEndAgingAdvance resolveSeasonEndAging(
   Random random,
   Franchise franchise,
@@ -266,48 +307,23 @@ SeasonEndAgingAdvance resolveSeasonEndAging(
     }
 
     final player = membership.player;
-    final ageFactor = _ageCurveFactor(player.age);
-    if (ageFactor >= 0) {
+    final (newPlayer, actualDeltas) = _declinedPlayer(random, player);
+    if (actualDeltas.isEmpty) {
       newRoster.add(membership);
       continue;
     }
 
-    var totalDelta = ageFactor * _kOffSeasonDeclineScale;
-    if (player.traits.contains(Trait.gymRat)) {
-      totalDelta *= _kGymRatDeclineSoftening;
-    }
-
-    final perField = _distributeAcrossFields(totalDelta, null);
-    final newFieldValues = <PlayerRatingField, int>{};
-    for (final field in PlayerRatingField.values) {
-      final raw = perField[field] ?? 0.0;
-      if (raw == 0.0) continue;
-      final delta = _roundStochastic(random, raw);
-      if (delta == 0) continue;
-      final current = player.ratings.valueOf(field);
-      final clamped = (current + delta).clamp(kMinRating, kMaxRating);
-      if (clamped != current) newFieldValues[field] = clamped;
-    }
-
-    if (newFieldValues.isEmpty) {
-      newRoster.add(membership);
-      continue;
-    }
-
-    final (newPlayer, actualDeltas) = _applyFieldValues(player, newFieldValues);
     newRoster.add(
       RosterMembership(player: newPlayer, status: membership.status),
     );
-    if (actualDeltas.isNotEmpty) {
-      results.add(
-        PlayerGrowthResult(
-          playerId: player.id,
-          fieldDeltas: actualDeltas,
-          overallBefore: player.ratings.overall,
-          overallAfter: newPlayer.ratings.overall,
-        ),
-      );
-    }
+    results.add(
+      PlayerGrowthResult(
+        playerId: player.id,
+        fieldDeltas: actualDeltas,
+        overallBefore: player.ratings.overall,
+        overallAfter: newPlayer.ratings.overall,
+      ),
+    );
   }
 
   return SeasonEndAgingAdvance(
@@ -419,6 +435,54 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
   }
 
   return AiTeamTrainingAdvance(league: League(aiTeams: newAiTeams));
+}
+
+/// The updated [League] a full season's worth of AI-team off-season
+/// decline produces -- see [resolveAiTeamSeasonEndAging]. No per-player
+/// [PlayerGrowthResult] list, same reasoning [AiTeamTrainingAdvance]'s
+/// own doc comment gives -- nothing surfaces this to the GM.
+class AiTeamAgingAdvance {
+  const AiTeamAgingAdvance({required this.league});
+
+  final League league;
+}
+
+/// Applies [resolveSeasonEndAging]'s same one-time off-season decline
+/// lump to every AI team's roster, not just the GM's own --
+/// `0D_Season_2_Roadmap.md`'s Aging & roster churn stage (2026-08-11):
+/// AI veterans got `resolveAiTeamSeasonTraining`'s growth already but
+/// never this decline half, so an AI roster's older players could only
+/// ever get better, never worse. Meant to be called exactly once per
+/// season, alongside every other season-end resolution -- same call site
+/// (`current_franchise_provider.dart`'s `simulatePostseasonAndPersist`),
+/// same idempotency guard. [_declinedPlayer] is the shared per-player
+/// math; [RosterStatus.reserveInactive] players are skipped, same scope
+/// as [resolveSeasonEndAging].
+AiTeamAgingAdvance resolveAiTeamSeasonEndAging(
+  Random random,
+  Franchise franchise,
+) {
+  final newAiTeams = <AiTeamRoster>[];
+  for (final aiTeam in franchise.league.aiTeams) {
+    final newRoster = <RosterMembership>[];
+    for (final membership in aiTeam.roster) {
+      if (membership.status == RosterStatus.reserveInactive) {
+        newRoster.add(membership);
+        continue;
+      }
+      final (newPlayer, actualDeltas) = _declinedPlayer(
+        random,
+        membership.player,
+      );
+      newRoster.add(
+        actualDeltas.isEmpty
+            ? membership
+            : RosterMembership(player: newPlayer, status: membership.status),
+      );
+    }
+    newAiTeams.add(aiTeam.copyWithRoster(newRoster));
+  }
+  return AiTeamAgingAdvance(league: League(aiTeams: newAiTeams));
 }
 
 /// Sums [PlayedGame.minutesByPlayerId] across every game in
