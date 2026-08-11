@@ -13,24 +13,27 @@ import 'league_test_helpers.dart';
 import 'season_test_helpers.dart';
 import 'training_test_helpers.dart';
 
-/// [firstPlayerHasAchievement] grants the roster's first player a League
-/// MVP record -- used to test the special-hair-color unlock gate, which
-/// otherwise never has anything to react to since nothing in the running
-/// app can grant an achievement yet.
-Franchise franchiseForPortraitTests({bool firstPlayerHasAchievement = false}) {
+/// [firstPlayerAchievementCount] grants the roster's first player that
+/// many League MVP records -- used to test the special-hair-color unlock
+/// gate (2026-08-10: unlocked on the *second* achievement, not the
+/// first -- `SeasonAwardsAnswers.md` answer 4), which otherwise never has
+/// anything to react to in a plain widget test since granting one for
+/// real needs a whole All-Star Game to resolve.
+Franchise franchiseForPortraitTests({int firstPlayerAchievementCount = 0}) {
   var roster = generateStartingRoster(1);
-  if (firstPlayerHasAchievement) {
+  if (firstPlayerAchievementCount > 0) {
     final first = roster.first;
-    roster = [
-      RosterMembership(
-        player: first.player.copyWithAchievement(
-          const PlayerAchievementRecord(
-            achievement: Achievement.leagueMvp,
-            season: 0,
-          ),
+    var player = first.player;
+    for (var i = 0; i < firstPlayerAchievementCount; i++) {
+      player = player.copyWithAchievement(
+        const PlayerAchievementRecord(
+          achievement: Achievement.leagueMvp,
+          season: 0,
         ),
-        status: first.status,
-      ),
+      );
+    }
+    roster = [
+      RosterMembership(player: player, status: first.status),
       ...roster.skip(1),
     ];
   }

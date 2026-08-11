@@ -25,14 +25,17 @@ import '../season/domain/game_result.dart';
 import '../season/domain/scheduled_game.dart';
 import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
+import '../season/generation/all_star_generator.dart';
 import '../season/generation/continental_cup_generator.dart'
     show continentalCupEliminationRound;
 import '../season/generation/postseason_generator.dart' show seasonChampion;
 import '../season/generation/season_schedule_generator.dart'
     show kPreseasonWeek, weekLabel;
+import '../season/presentation/all_star_game_result_screen.dart';
 import '../season/presentation/game_result_screen.dart';
 import '../season/presentation/match_preview_screen.dart';
 import '../season/presentation/season_recap_screen.dart';
+import '../season/presentation/skills_competition_result_screen.dart';
 import '../settings/presentation/settings_screen.dart';
 import '../stats/presentation/stats_screen.dart';
 import '../training/domain/training_report.dart';
@@ -785,6 +788,23 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
   /// before -- there's nothing of the GM's own to preview.
   void _advanceOrPreview() {
     final franchise = widget.franchise;
+    final types = nextGameDayTypes(franchise.seasonProgress);
+    // Neither All-Star day is a normal team-vs-team game -- `nextOwnGame`
+    // would always read as a bye for the GM here regardless of whether
+    // they actually have an All-Star, since neither placeholder squad
+    // abbreviation ever matches a real team's (2026-08-10, TODO.md items
+    // 5/6). Routed to its own dedicated advance method + result screen
+    // instead of falling through to the generic path below, which would
+    // otherwise just silently skip the day (`season_advancer.dart`'s
+    // `_simulatable`).
+    if (types.contains(GameType.skillsCompetition)) {
+      _advanceSkillsCompetition();
+      return;
+    }
+    if (types.contains(GameType.allStarGame)) {
+      _advanceAllStarGame();
+      return;
+    }
     final ownGame = nextOwnGame(
       franchise.seasonProgress,
       franchise.team.abbreviation,
@@ -796,6 +816,52 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MatchPreviewScreen(franchise: franchise, game: ownGame),
+      ),
+    );
+  }
+
+  Future<void> _advanceSkillsCompetition() async {
+    setState(() => _isAdvancing = true);
+    final result = await ref
+        .read(currentFranchiseProvider.notifier)
+        .advanceSkillsCompetitionDay();
+    if (!mounted) return;
+    setState(() => _isAdvancing = false);
+    if (result == null) return;
+
+    final updatedFranchise = ref.read(currentFranchiseProvider).value;
+    if (updatedFranchise == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SkillsCompetitionResultScreen(
+          franchise: updatedFranchise,
+          result: result,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _advanceAllStarGame() async {
+    setState(() => _isAdvancing = true);
+    final advance = await ref
+        .read(currentFranchiseProvider.notifier)
+        .advanceAllStarGameDay();
+    if (!mounted) return;
+    setState(() => _isAdvancing = false);
+    if (advance == null) return;
+
+    final updatedFranchise = ref.read(currentFranchiseProvider).value;
+    if (updatedFranchise == null) return;
+    final skillsResult = updatedFranchise.skillsCompetitionResults.firstWhere(
+      (r) => r.week == kAllStarWeek,
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AllStarGameResultScreen(
+          franchise: updatedFranchise,
+          playedGame: advance.playedGame,
+          squads: skillsResult.squads,
+        ),
       ),
     );
   }

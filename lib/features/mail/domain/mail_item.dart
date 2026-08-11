@@ -1,3 +1,6 @@
+import '../../league/domain/team.dart';
+import '../../season/domain/played_game.dart';
+import '../../season/domain/skills_competition.dart';
 import '../../training/domain/training_report.dart';
 
 /// One item in the GM's Mail inbox -- replaces the old, purely-passive
@@ -68,3 +71,38 @@ class TrainingReportMailItem extends MailItem {
 /// what a given week's report is actually called in
 /// `Franchise.readMailIds`.
 String trainingReportMailId(int week) => 'training_report_$week';
+
+/// A [SkillsCompetitionResult], wrapped the same way [TrainingReportMailItem]
+/// wraps a [TrainingReport] -- both events' "post-game report" ask
+/// (2026-08-10, TODO.md items 5/6) needed a way to stay reachable after
+/// the moment they first resolve, and Mail is where every other
+/// once-a-week or once-a-season report already lives.
+class SkillsCompetitionMailItem extends MailItem {
+  const SkillsCompetitionMailItem(this.result);
+
+  final SkillsCompetitionResult result;
+
+  @override
+  String get id => 'skills_competition_${result.week}';
+
+  @override
+  String get subject => 'Skills Competition Results';
+}
+
+/// The All-Star Game's [PlayedGame], plus the squad selection
+/// [AllStarGameResultScreen] needs to group its box score by conference
+/// -- `mailboxFor` builds this fresh from [Franchise.seasonProgress]'s
+/// own played-game history and [Franchise.skillsCompetitionResults],
+/// same "never persisted itself" posture every [MailItem] already has.
+class AllStarGameMailItem extends MailItem {
+  const AllStarGameMailItem({required this.playedGame, required this.squads});
+
+  final PlayedGame playedGame;
+  final Map<Conference, List<String>> squads;
+
+  @override
+  String get id => 'all_star_game_${playedGame.game.week}';
+
+  @override
+  String get subject => 'All-Star Game Recap';
+}

@@ -8,30 +8,24 @@ import '../../../support/in_memory_save_repository.dart';
 import '../../../support/portrait_test_helpers.dart';
 
 void main() {
-  testWidgets(
-    'the special hair color picker appears once the player has an achievement',
-    (tester) async {
-      final franchise = franchiseForPortraitTests(
-        firstPlayerHasAchievement: true,
-      );
-      final targetId = franchise.roster.first.player.id;
+  testWidgets('the special hair color picker appears once the player has 2 '
+      'achievements (2026-08-10: unlocked on the second award, not the '
+      'first)', (tester) async {
+    final franchise = franchiseForPortraitTests(firstPlayerAchievementCount: 2);
+    final targetId = franchise.roster.first.player.id;
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
-          ],
-          child: MaterialApp(
-            home: PortraitEditorScreen(
-              franchise: franchise,
-              playerId: targetId,
-            ),
-          ),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+        child: MaterialApp(
+          home: PortraitEditorScreen(franchise: franchise, playerId: targetId),
         ),
-      );
-      await letPortraitAsyncWorkFinish(tester);
+      ),
+    );
+    await letPortraitAsyncWorkFinish(tester);
 
-      expect(find.text('Special hair color (unlocked)'), findsOneWidget);
-    },
-  );
+    expect(find.text('Special hair color (unlocked)'), findsOneWidget);
+  });
 }

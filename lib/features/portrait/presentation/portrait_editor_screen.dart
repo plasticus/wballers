@@ -105,11 +105,17 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
         .player;
   }
 
-  /// Special/neon hair colors are unlock-only (`portraits.md`) -- gated on
-  /// having earned at least one achievement, the only unlock mechanism that
-  /// currently exists.
+  /// Special/neon hair colors are unlock-only (`portraits.md`) -- revised
+  /// 2026-08-10 (`SeasonAwardsAnswers.md` answer 4, a direct GM rule) from
+  /// "any achievement unlocks the palette" to "the *second* achievement,
+  /// any award, unlocks it *and* auto-assigns one" -- see
+  /// `all_star_advancer.dart`'s `_maybeGrantNeonHairColor` for where that
+  /// auto-assignment actually happens. This getter only gates whether the
+  /// GM can *choose* a neon color by hand in this editor; a player who
+  /// already had one auto-assigned can always keep using it regardless of
+  /// what this returns.
   bool get _specialColorsUnlocked =>
-      _targetPlayer != null && _targetPlayer!.achievements.isNotEmpty;
+      _targetPlayer != null && _targetPlayer!.achievements.length >= 2;
 
   @override
   void initState() {

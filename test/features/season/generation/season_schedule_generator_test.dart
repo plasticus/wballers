@@ -5,6 +5,8 @@ import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
+import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/season/generation/all_star_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
 
 List<Team> _leagueTeams() {
@@ -195,5 +197,37 @@ void main() {
       schedule.games.where((g) => g.type == GameType.continentalCup),
       hasLength(10),
     );
+  });
+
+  test('the All-Star week has exactly 2 entries, and the Skills Competition '
+      'resolves before the Game (2026-08-10, TODO.md items 5/6)', () {
+    final teams = _leagueTeams();
+    final schedule = generateSeasonSchedule(teams, Random(5));
+
+    final allStarGames = schedule.games
+        .where((g) => g.week == kAllStarWeek)
+        .toList();
+    expect(allStarGames, hasLength(2));
+    expect(allStarGames.map((g) => g.type).toSet(), {
+      GameType.skillsCompetition,
+      GameType.allStarGame,
+    });
+
+    // Regardless of which literal GameDay each uses, the Skills
+    // Competition must sort ahead of the Game in gameDaysInOrder --
+    // see `all_star_generator.dart`'s own doc comment on why this
+    // isn't simply "Thursday, then Sunday."
+    final order = gameDaysInOrder(
+      schedule,
+    ).where((d) => d.$1 == kAllStarWeek).toList();
+    expect(order, hasLength(2));
+    final skillsDay = allStarGames
+        .firstWhere((g) => g.type == GameType.skillsCompetition)
+        .day;
+    final gameDay = allStarGames
+        .firstWhere((g) => g.type == GameType.allStarGame)
+        .day;
+    expect(order.first.$2, skillsDay);
+    expect(order.last.$2, gameDay);
   });
 }

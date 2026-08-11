@@ -8,6 +8,8 @@ import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../franchise/onboarding/onboarding_screen.dart';
 import '../../market/presentation/player_market_screen.dart';
+import '../../season/presentation/all_star_game_result_screen.dart';
+import '../../season/presentation/skills_competition_result_screen.dart';
 import '../../training/presentation/training_report_screen.dart';
 import '../application/mailbox.dart';
 import '../domain/mail_item.dart';
@@ -108,6 +110,17 @@ class _MailRow extends ConsumerWidget {
             : '${item0.report.results.length} player'
                   '${item0.report.results.length == 1 ? '' : 's'} changed.',
       ),
+      SkillsCompetitionMailItem() => (
+        'League Office',
+        Icons.stars_outlined,
+        'Results are in for the 3-Point Shootout, H-O-R-S-E, and the '
+            'Defensive Skills Challenge.',
+      ),
+      AllStarGameMailItem() => (
+        'League Office',
+        Icons.emoji_events_outlined,
+        'Final: ${item0.playedGame.homeScore}-${item0.playedGame.awayScore}.',
+      ),
     };
 
     return AppCard(
@@ -127,6 +140,15 @@ class _MailRow extends ConsumerWidget {
                 TrainingReportMailItem() => TrainingReportScreen(
                   franchise: franchise,
                   report: item0.report,
+                ),
+                SkillsCompetitionMailItem() => SkillsCompetitionResultScreen(
+                  franchise: franchise,
+                  result: item0.result,
+                ),
+                AllStarGameMailItem() => AllStarGameResultScreen(
+                  franchise: franchise,
+                  playedGame: item0.playedGame,
+                  squads: item0.squads,
                 ),
               },
             ),

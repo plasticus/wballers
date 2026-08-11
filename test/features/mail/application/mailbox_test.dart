@@ -4,6 +4,10 @@ import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/mail/application/mailbox.dart';
 import 'package:womensbballmgr/features/mail/domain/mail_item.dart';
+import 'package:womensbballmgr/features/season/domain/played_game.dart';
+import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
+import 'package:womensbballmgr/features/season/domain/skills_competition.dart';
+import 'package:womensbballmgr/features/season/generation/all_star_generator.dart';
 import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
 import '../../../support/franchise_test_helpers.dart';
@@ -73,6 +77,76 @@ void main() {
       );
       final reportItems = items.whereType<TrainingReportMailItem>().toList();
       expect(reportItems.map((i) => i.report.week), [3, 2, 1]);
+    });
+  });
+
+  group('All-Star week mail (2026-08-10, TODO.md items 5/6)', () {
+    test('includes a SkillsCompetitionMailItem once the day resolves', () {
+      final franchise = _franchise().copyWithSkillsCompetitionResult(
+        SkillsCompetitionResult(
+          week: kAllStarWeek,
+          squads: {
+            Conference.atlantic: List.generate(10, (i) => 'atl-$i'),
+            Conference.pacific: List.generate(10, (i) => 'pac-$i'),
+          },
+          events: [
+            for (final event in SkillsEvent.values)
+              SkillsEventResult(
+                event: event,
+                standings: const [
+                  SkillsEventStanding(playerId: 'atl-0', score: 90),
+                  SkillsEventStanding(playerId: 'pac-0', score: 80),
+                ],
+              ),
+          ],
+        ),
+      );
+
+      final items = mailboxFor(franchise);
+
+      expect(items.whereType<SkillsCompetitionMailItem>(), hasLength(1));
+    });
+
+    test('includes an AllStarGameMailItem once the game has been played', () {
+      final base = _franchise();
+      final playedGame = PlayedGame(
+        game: const ScheduledGame(
+          week: kAllStarWeek,
+          day: kAllStarGameDay,
+          homeTeamAbbreviation: kAtlanticAllStarsAbbreviation,
+          awayTeamAbbreviation: kPacificAllStarsAbbreviation,
+          type: GameType.allStarGame,
+        ),
+        homeScore: 120,
+        awayScore: 110,
+      );
+      final franchise = base
+          .copyWithSkillsCompetitionResult(
+            SkillsCompetitionResult(
+              week: kAllStarWeek,
+              squads: {
+                Conference.atlantic: List.generate(10, (i) => 'atl-$i'),
+                Conference.pacific: List.generate(10, (i) => 'pac-$i'),
+              },
+              events: [
+                for (final event in SkillsEvent.values)
+                  SkillsEventResult(
+                    event: event,
+                    standings: const [
+                      SkillsEventStanding(playerId: 'atl-0', score: 90),
+                      SkillsEventStanding(playerId: 'pac-0', score: 80),
+                    ],
+                  ),
+              ],
+            ),
+          )
+          .copyWithSeasonProgress(
+            base.seasonProgress.copyWithGameDayPlayed([playedGame]),
+          );
+
+      final items = mailboxFor(franchise);
+
+      expect(items.whereType<AllStarGameMailItem>(), hasLength(1));
     });
   });
 

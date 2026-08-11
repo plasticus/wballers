@@ -11,6 +11,12 @@ enum Achievement {
   scoringLeader,
   defensiveMvp,
   mostDefensiveDisruptions,
+
+  /// The first [Achievement] actually wired to a real resolver
+  /// (2026-08-10, `all_star_advancer.dart`'s `resolveAllStarGame`) --
+  /// every other value above is still catalog-only, waiting on a full
+  /// season's stats to determine a winner (see the class doc comment).
+  allStarMvp,
 }
 
 extension AchievementLabel on Achievement {
@@ -19,6 +25,7 @@ extension AchievementLabel on Achievement {
     Achievement.scoringLeader => 'Scoring Leader',
     Achievement.defensiveMvp => 'Defensive MVP',
     Achievement.mostDefensiveDisruptions => 'Most Defensive Disruptions',
+    Achievement.allStarMvp => 'All-Star Game MVP',
   };
 }
 

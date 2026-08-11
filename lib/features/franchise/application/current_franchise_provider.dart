@@ -12,6 +12,10 @@ import '../../roster/domain/roster_status.dart';
 import '../../roster/generation/jersey_number_assignment.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/game_result.dart';
+import '../../season/domain/scheduled_game.dart';
+import '../../season/domain/season_progress.dart';
+import '../../season/domain/skills_competition.dart';
+import '../../season/generation/all_star_advancer.dart';
 import '../../season/generation/postseason_advancer.dart';
 import '../../season/generation/season_advancer.dart';
 import '../../training/domain/training_plan.dart';
@@ -322,6 +326,97 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     );
     await _persist(withTraining);
     return advance.gamesPlayed;
+  }
+
+  /// Advances through the All-Star break's Skills Competition day
+  /// (2026-08-10, TODO.md item 6) -- the generic [advanceGameDay] can't
+  /// resolve this day at all (`season_advancer.dart`'s `_simulatable`
+  /// always skips it; there's no real match to simulate), so this is a
+  /// dedicated path a caller uses instead, once
+  /// `nextGameDayTypes(franchise.seasonProgress)` shows
+  /// [GameType.skillsCompetition] is up next. Selects both conferences'
+  /// All-Star squads and runs all 3 events in one call
+  /// (`resolveSkillsCompetitionDay`), persists the result, and manually
+  /// advances [SeasonProgress.nextGameDayIndex] the same way
+  /// [SeasonProgress.copyWithGameDayPlayed] always does -- with an empty
+  /// [PlayedGame] list, since this day never produces one.
+  ///
+  /// Returns `null` if there's no current franchise, or if the next game
+  /// day isn't actually the Skills Competition -- same "shouldn't happen
+  /// from a real GM flow, guards against a caller bypassing the check
+  /// anyway" posture [advanceGameDay]'s own active-roster guard has.
+  Future<SkillsCompetitionResult?> advanceSkillsCompetitionDay() async {
+    final franchise = await future;
+    if (franchise == null) return null;
+    if (!nextGameDayTypes(
+      franchise.seasonProgress,
+    ).contains(GameType.skillsCompetition)) {
+      return null;
+    }
+
+    final result = resolveSkillsCompetitionDay(
+      Random(
+        franchise.simulationSeed +
+            kSeasonAdvanceSeedOffset +
+            franchise.seasonProgress.nextGameDayIndex,
+      ),
+      franchise,
+    );
+
+    final advancedProgress = franchise.seasonProgress.copyWithGameDayPlayed(
+      const [],
+    );
+    await _persist(
+      franchise
+          .copyWithSeasonProgress(advancedProgress)
+          .copyWithSkillsCompetitionResult(result),
+    );
+    return result;
+  }
+
+  /// Advances through the All-Star break's Game day (2026-08-10,
+  /// TODO.md item 5) -- same "the generic path can't handle this day"
+  /// reasoning as [advanceSkillsCompetitionDay], but this one *does*
+  /// simulate a real match (`resolveAllStarGame` builds both conference
+  /// squads and calls the same match engine every other game uses), so it
+  /// goes through [advanceToNextGameDay] after all, just with those 2
+  /// synthetic squads injected into its roster map -- [_catchUpTraining]
+  /// runs afterward too, same as [advanceGameDay], so the week's training
+  /// resolves on schedule regardless of it being an All-Star week.
+  ///
+  /// Returns `null` under the same conditions
+  /// [advanceSkillsCompetitionDay] does, substituting
+  /// [GameType.allStarGame] for the type check.
+  Future<AllStarGameAdvance?> advanceAllStarGameDay() async {
+    final franchise = await future;
+    if (franchise == null) return null;
+    if (!nextGameDayTypes(
+      franchise.seasonProgress,
+    ).contains(GameType.allStarGame)) {
+      return null;
+    }
+
+    final random = Random(
+      franchise.simulationSeed +
+          kSeasonAdvanceSeedOffset +
+          franchise.seasonProgress.nextGameDayIndex,
+    );
+    final gameAdvance = resolveAllStarGame(random, franchise);
+
+    // resolveAllStarGame already ran the match itself (it needs the 2
+    // synthetic squads `advanceToNextGameDay` doesn't know how to build)
+    // -- calling it again here would double-simulate. Persisting its
+    // already-computed PlayedGame just folds the one game it produced
+    // into SeasonProgress the same way every other game day does, so
+    // `gameDaysInOrder`/`isComplete` bookkeeping stays correct.
+    final advancedProgress = franchise.seasonProgress.copyWithGameDayPlayed([
+      gameAdvance.playedGame,
+    ]);
+    final withTraining = _catchUpTraining(
+      gameAdvance.franchise.copyWithSeasonProgress(advancedProgress),
+    );
+    await _persist(withTraining);
+    return gameAdvance;
   }
 
   /// Runs the entire postseason bracket (First Round -> Semifinals ->

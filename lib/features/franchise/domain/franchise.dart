@@ -5,6 +5,7 @@ import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../season/domain/season_progress.dart';
+import '../../season/domain/skills_competition.dart';
 import '../../training/domain/training_coach.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
@@ -52,6 +53,7 @@ class Franchise {
     required this.nextTrainingWeek,
     this.trainingReports = const [],
     this.seasonEndAgingResults = const [],
+    this.skillsCompetitionResults = const [],
     this.freeAgents = const [],
     this.readMailIds = const {},
   }) : assert(
@@ -138,6 +140,16 @@ class Franchise {
   /// already guards against in practice).
   final List<PlayerGrowthResult> seasonEndAgingResults;
 
+  /// The All-Star break's Skills Competition, once it's resolved
+  /// (2026-08-10, TODO.md item 6) -- also the one persisted record of
+  /// which players made each conference's All-Star squad that season
+  /// (`SkillsCompetitionResult.squads`), which `resolveAllStarGame`
+  /// (`all_star_advancer.dart`) reads back rather than re-deriving. A
+  /// list for the same forward-looking reason [trainingReports] is --
+  /// only ever one entry right now (there's no multi-season flow yet),
+  /// but the shape doesn't assume that.
+  final List<SkillsCompetitionResult> skillsCompetitionResults;
+
   /// Unrostered players available to sign -- real, persisted game state
   /// (not to be confused with the Player Market screen's still-preview-only
   /// Trade Block/Draft tabs). Generated once at franchise creation
@@ -177,6 +189,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -200,6 +213,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -223,6 +237,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -246,6 +261,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -279,6 +295,7 @@ class Franchise {
       nextTrainingWeek: newNextTrainingWeek,
       trainingReports: [...trainingReports, newReport],
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -310,6 +327,32 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: newResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+    );
+  }
+
+  /// Returns a copy with [newResult] appended to [skillsCompetitionResults]
+  /// -- `all_star_advancer.dart`'s `resolveSkillsCompetitionDay` is the
+  /// only producer.
+  Franchise copyWithSkillsCompetitionResult(SkillsCompetitionResult newResult) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: [...skillsCompetitionResults, newResult],
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -335,6 +378,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
     );
@@ -365,6 +409,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
     );
@@ -389,6 +434,7 @@ class Franchise {
       nextTrainingWeek: nextTrainingWeek,
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: newReadMailIds,
     );

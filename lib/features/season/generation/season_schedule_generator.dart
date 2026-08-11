@@ -4,6 +4,7 @@ import '../../league/domain/team.dart';
 import '../domain/game_day.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_schedule.dart';
+import 'all_star_generator.dart';
 
 /// Seed offset for schedule generation -- keeps this random stream from
 /// correlating with the coach (0), starting roster (1), league draw (2),
@@ -66,6 +67,11 @@ const kContinentalCupGameDay = GameDay.thursday;
 /// - **Continental Cup Round 1** (week [kContinentalCupRound1Week]): all
 ///   20 teams randomly seeded into 10 games. Rounds 2-5 depend on results
 ///   that don't exist yet -- see the note on [SeasonSchedule].
+/// - **All-Star week** (week [kAllStarWeek], `all_star_generator.dart`):
+///   2 placeholder entries -- the Skills Competition and the All-Star
+///   Game -- so both surface in `gameDaysInOrder` like any other game
+///   day. Neither is scheduled or resolved like a normal team game; see
+///   that file's own doc comments.
 ///
 /// Note: Continental Cup Round 1 lands inside the regular season's week
 /// range (week 4) and every team plays exactly one Round 1 game there --
@@ -101,6 +107,7 @@ SeasonSchedule generateSeasonSchedule(List<Team> leagueTeams, Random random) {
       ..._generatePreseason(atlantic, pacific, random),
       ..._assignRegularSeasonWeeks(regularSeasonPairs, leagueTeams, random),
       ..._generateContinentalCupRound1(leagueTeams, random),
+      ...generateAllStarWeekGames(),
     ],
   );
 }

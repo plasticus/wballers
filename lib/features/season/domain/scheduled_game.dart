@@ -3,7 +3,24 @@ import 'game_day.dart';
 /// Which part of the season calendar a game belongs to
 /// (`0B_Planned.md`'s season calendar table). Only [regularSeason] games
 /// count toward standings.
-enum GameType { preseason, regularSeason, continentalCup, postseason }
+///
+/// [allStarGame] and [skillsCompetition] (2026-08-10, TODO.md items 5/6)
+/// share the same "not a real team's own game" shape as the others --
+/// neither counts toward standings, and [allStarGame]'s box score is
+/// deliberately excluded from `computeLeagueLeaders` too (the same
+/// `type != GameType.regularSeason` filter that already excludes
+/// preseason/Cup games). [skillsCompetition] never produces a
+/// [ScheduledGame] worth simulating through the match engine at all --
+/// see `all_star_generator.dart`'s own doc comment on why it still gets a
+/// placeholder entry here.
+enum GameType {
+  preseason,
+  regularSeason,
+  continentalCup,
+  postseason,
+  allStarGame,
+  skillsCompetition,
+}
 
 /// One game on the calendar: two teams (by `Team.abbreviation`), a week
 /// number (1-24, `0B_Planned.md`'s season calendar), a [GameDay] within
@@ -85,6 +102,8 @@ extension GameTypeLabel on ScheduledGame {
       'Continental Cup ${continentalCupRoundName(continentalCupRound!)}',
     GameType.postseason =>
       'Postseason ${postseasonRoundName(postseasonRound!)}',
+    GameType.allStarGame => 'All-Star Game',
+    GameType.skillsCompetition => 'Skills Competition',
   };
 
   /// Only [GameType.regularSeason] games count toward `computeStandings`

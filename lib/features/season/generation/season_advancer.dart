@@ -63,7 +63,12 @@ class GameDayAdvance {
 /// function itself does differently.
 ///
 /// [rostersByAbbreviation] must have a full 12-player roster for every
-/// team referenced by a game on the advancing game day.
+/// team referenced by a game on the advancing game day -- with one
+/// exception: the All-Star week's 2 placeholder game days
+/// (`all_star_generator.dart`) are silently skipped rather than crashing
+/// if their synthetic rosters aren't present, so this still works for any
+/// caller that doesn't know about the All-Star break at all. See
+/// [_simulatable]'s own doc comment.
 ///
 /// [ownTeamAbbreviation], when given, marks whose roster order is a real,
 /// GM-set bench order rather than arbitrary generation order -- that
@@ -102,12 +107,13 @@ GameDayAdvance advanceToNextGameDay(
 
   final results = [
     for (final game in todaysGames)
-      _simulateOneGame(
-        random,
-        game,
-        rostersByAbbreviation,
-        ownTeamAbbreviation,
-      ),
+      if (_simulatable(game, rostersByAbbreviation))
+        _simulateOneGame(
+          random,
+          game,
+          rostersByAbbreviation,
+          ownTeamAbbreviation,
+        ),
   ];
 
   final newlyPlayed = [
@@ -127,6 +133,33 @@ GameDayAdvance advanceToNextGameDay(
     ),
     gamesPlayed: results,
   );
+}
+
+/// [GameType.skillsCompetition] never goes through the match engine at
+/// all (it isn't a team-vs-team game -- `all_star_generator.dart`'s own
+/// doc comment on why it still gets a placeholder [ScheduledGame]) --
+/// always skipped here, resolved separately by
+/// `all_star_advancer.dart`'s `resolveSkillsCompetitionDay`, called
+/// alongside this function rather than from inside it (that function
+/// needs conference/position data this one was never given).
+///
+/// [GameType.allStarGame] *can* go through the match engine -- two real
+/// rosters, same as any other game -- but only once a caller has actually
+/// built and injected the 2 synthetic conference squads into
+/// [rostersByAbbreviation] (`resolveAllStarGame`'s job, not this
+/// function's). Skipped gracefully rather than crashing on a missing-key
+/// lookup when they haven't been -- every existing "play out a whole
+/// season" test helper predates the All-Star break and has no reason to
+/// know about it; this keeps the schedule's one new week from being a
+/// breaking change for any of them, at the cost of a caller that *wants*
+/// a real All-Star Game needing to inject those rosters itself.
+bool _simulatable(
+  ScheduledGame game,
+  Map<String, List<Player>> rostersByAbbreviation,
+) {
+  if (game.type == GameType.skillsCompetition) return false;
+  return rostersByAbbreviation.containsKey(game.homeTeamAbbreviation) &&
+      rostersByAbbreviation.containsKey(game.awayTeamAbbreviation);
 }
 
 GameResult _simulateOneGame(

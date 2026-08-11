@@ -2,6 +2,7 @@ import '../../franchise/domain/franchise.dart';
 import '../../player/domain/position.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../season/domain/scheduled_game.dart';
 import '../domain/mail_item.dart';
 
 /// Stable id for the "sign a free agent" system message -- a fresh
@@ -53,6 +54,16 @@ List<MailItem> mailboxFor(Franchise franchise) {
       ),
     for (final report in franchise.trainingReports)
       TrainingReportMailItem(report),
+    for (final result in franchise.skillsCompetitionResults)
+      SkillsCompetitionMailItem(result),
+    for (final played in franchise.seasonProgress.playedGames)
+      if (played.game.type == GameType.allStarGame)
+        AllStarGameMailItem(
+          playedGame: played,
+          squads: franchise.skillsCompetitionResults
+              .firstWhere((r) => r.week == played.game.week)
+              .squads,
+        ),
   ];
 
   items.sort((a, b) {

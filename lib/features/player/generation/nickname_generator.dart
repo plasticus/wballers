@@ -31,6 +31,12 @@ const Map<Achievement, List<String>> kNicknamePools = {
     'The Disruptor',
     'Live Wire',
   ],
+  Achievement.allStarMvp: [
+    'Weekend Star',
+    'Center Stage',
+    'Showtime',
+    'The Headliner',
+  ],
 };
 
 /// Picks a random candidate nickname for [achievement]. Deterministic for

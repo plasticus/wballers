@@ -1,0 +1,232 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/league/domain/ai_team_roster.dart';
+import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/league/domain/league.dart';
+import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
+import 'package:womensbballmgr/features/season/domain/skills_competition.dart';
+import 'package:womensbballmgr/features/season/presentation/skills_competition_result_screen.dart';
+import 'package:womensbballmgr/features/training/domain/training_plan.dart';
+
+import '../../roster/domain/roster_test_helpers.dart';
+import '../../../support/league_test_helpers.dart';
+import '../../../support/season_test_helpers.dart';
+import '../../../support/training_test_helpers.dart';
+
+/// Pads [ids] out to exactly 10 with placeholder ids -- `SkillsCompetitionResult`
+/// asserts exactly 10 honorees per conference, but these tests only care
+/// about the handful of ids that actually appear in an event's standings.
+List<String> _squadOf(String label, List<String> ids) => [
+  ...ids,
+  for (var i = ids.length; i < 10; i++) '$label-filler-$i',
+];
+
+/// Adds [player] to the first AI team's roster -- needed for `find.text`
+/// to resolve a real name for a "rival" fixture, since the screen only
+/// looks players up via `rostersByAbbreviation` (every active roster in
+/// the league). Deliberately *not* the GM's own roster -- these tests
+/// need a player who resolves to a real name but does *not* count as
+/// "own" for the win-banner check.
+League _leagueWithRival(League league, Player player) {
+  final first = league.aiTeams.first;
+  return League(
+    aiTeams: [
+      AiTeamRoster(
+        team: first.team,
+        roster: [
+          ...first.roster,
+          RosterMembership(player: player, status: RosterStatus.active),
+        ],
+      ),
+      ...league.aiTeams.skip(1),
+    ],
+  );
+}
+
+void main() {
+  testWidgets(
+    'shows all 3 events, standings sorted best-first, and calls out an '
+    'own-roster win (2026-08-10, TODO.md item 6)',
+    (tester) async {
+      final rival = playerWithOverall(80, id: 'rival-1', name: 'Rival One');
+      final roster = generateStartingRoster(1);
+      final ownPlayer = roster.first.player;
+
+      final franchise = Franchise(
+        id: 'franchise-1',
+        gmName: 'Taylor Reed',
+        team: kLeagueTeamPool.first,
+        coach: const Coach(
+          name: 'Jordan Ellis',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: roster,
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: _leagueWithRival(
+          testLeague(
+            simulationSeed: 1,
+            replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+          ),
+          rival,
+        ),
+        seasonProgress: testSeasonProgress(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+          ownTeam: kLeagueTeamPool.first,
+        ),
+        trainingCoaches: testTrainingCoaches(),
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 1,
+      );
+
+      final result = SkillsCompetitionResult(
+        week: 19,
+        squads: {
+          Conference.atlantic: _squadOf('atl', [ownPlayer.id, rival.id]),
+          Conference.pacific: _squadOf('pac', const []),
+        },
+        events: [
+          SkillsEventResult(
+            event: SkillsEvent.threePointShootout,
+            standings: [
+              SkillsEventStanding(playerId: ownPlayer.id, score: 90),
+              SkillsEventStanding(playerId: rival.id, score: 70),
+            ],
+          ),
+          SkillsEventResult(
+            event: SkillsEvent.horse,
+            standings: [
+              SkillsEventStanding(playerId: rival.id, score: 85),
+              SkillsEventStanding(playerId: ownPlayer.id, score: 60),
+            ],
+          ),
+          SkillsEventResult(
+            event: SkillsEvent.defensiveSkillsChallenge,
+            standings: [
+              SkillsEventStanding(playerId: rival.id, score: 95),
+              SkillsEventStanding(playerId: ownPlayer.id, score: 50),
+            ],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SkillsCompetitionResultScreen(
+            franchise: franchise,
+            result: result,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Skills Competition'), findsOneWidget);
+      expect(find.text('3-Point Shootout'), findsOneWidget);
+      expect(find.text('H-O-R-S-E'), findsOneWidget);
+      expect(find.text('Defensive Skills Challenge'), findsOneWidget);
+      // The GM's own player won the shootout -- called out at the top.
+      expect(
+        find.text('Your player won the 3-Point Shootout!'),
+        findsOneWidget,
+      );
+      expect(find.text(ownPlayer.name), findsWidgets);
+      expect(find.text('Rival One'), findsWidgets);
+      // Highest score sorts first within an event.
+      final shootoutWinnerY = tester
+          .getTopLeft(find.text(ownPlayer.name).first)
+          .dy;
+      final shootoutRunnerUpY = tester
+          .getTopLeft(find.text('Rival One').first)
+          .dy;
+      expect(shootoutWinnerY, lessThan(shootoutRunnerUpY));
+    },
+  );
+
+  testWidgets('no own-win banner when the GM has no honorees in the field', (
+    tester,
+  ) async {
+    final roster = generateStartingRoster(1);
+    final a = playerWithOverall(80, id: 'a', name: 'Player A');
+    final b = playerWithOverall(75, id: 'b', name: 'Player B');
+
+    final franchise = Franchise(
+      id: 'franchise-1',
+      gmName: 'Taylor Reed',
+      team: kLeagueTeamPool.first,
+      coach: const Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      ),
+      roster: roster,
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      league: testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ownTeam: kLeagueTeamPool.first,
+      ),
+      trainingCoaches: testTrainingCoaches(),
+      trainingPlan: TrainingPlan.initial(),
+      nextTrainingWeek: 1,
+    );
+
+    final result = SkillsCompetitionResult(
+      week: 19,
+      squads: {
+        Conference.atlantic: _squadOf('atl', [a.id, b.id]),
+        Conference.pacific: _squadOf('pac', const []),
+      },
+      events: [
+        SkillsEventResult(
+          event: SkillsEvent.threePointShootout,
+          standings: [
+            SkillsEventStanding(playerId: a.id, score: 90),
+            SkillsEventStanding(playerId: b.id, score: 70),
+          ],
+        ),
+        SkillsEventResult(
+          event: SkillsEvent.horse,
+          standings: [
+            SkillsEventStanding(playerId: a.id, score: 90),
+            SkillsEventStanding(playerId: b.id, score: 70),
+          ],
+        ),
+        SkillsEventResult(
+          event: SkillsEvent.defensiveSkillsChallenge,
+          standings: [
+            SkillsEventStanding(playerId: a.id, score: 90),
+            SkillsEventStanding(playerId: b.id, score: 70),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SkillsCompetitionResultScreen(
+          franchise: franchise,
+          result: result,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Your player'), findsNothing);
+    expect(find.textContaining('Your players'), findsNothing);
+  });
+}
