@@ -24,6 +24,7 @@ import '../../season/generation/postseason_advancer.dart';
 import '../../season/generation/postseason_generator.dart' show seasonChampion;
 import '../../season/generation/retirement_advancer.dart';
 import '../../season/generation/season_advancer.dart';
+import '../../season/generation/season_awards_advancer.dart';
 import '../../season/generation/season_tenure_advancer.dart';
 import '../../season/generation/season_transition_advancer.dart';
 import '../../training/domain/training_plan.dart';
@@ -501,12 +502,15 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// This is also the one moment the whole season is unambiguously over,
   /// which is why it's the single call site for [resolveSeasonEndAging]
   /// (TODO.md item 1's other half, see that function's own doc comment
-  /// for why) and [resolveAiTeamSeasonTraining] (TODO.md item 8 -- every
+  /// for why), [resolveAiTeamSeasonTraining] (TODO.md item 8 -- every
   /// AI roster's whole season of training resolves right here too, in
-  /// one lump, per the GM's own design call) -- both gated behind the
+  /// one lump, per the GM's own design call), and [resolveSeasonAwards]
+  /// (`0D_Season_2_Roadmap.md`'s Presentation stage -- League MVP,
+  /// Scoring Leader, Defensive MVP, Sixth Man, Most Improved Player, and
+  /// Rookie of the Year all resolve here too) -- all gated behind the
   /// exact same `advance.gamesPlayed.isEmpty` idempotency check as
-  /// everything else in this method, so neither can ever apply twice to
-  /// one season.
+  /// everything else in this method, so none of them can ever apply
+  /// twice to one season.
   Future<List<GameResult>?> simulatePostseasonAndPersist() async {
     final franchise = await future;
     if (franchise == null || !franchise.seasonProgress.isComplete) {
@@ -550,9 +554,20 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withAiAging = withCoachFreeAgency.copyWithLeague(
       aiAgingAdvance.league,
     );
-    final aiRetirementAdvance = resolveAiTeamRetirements(
-      Random(withAiAging.seasonSeed + kAiTeamRetirementSeedOffset),
+    // Awards read this season's *final* stats (every training/aging pass
+    // above has already run) but must resolve before anyone's removed
+    // from a roster or has yearsOfService/age incremented -- Rookie of
+    // the Year needs yearsOfService as it stood *during* the season just
+    // played, and a retiring veteran should still be able to win an
+    // award for the season they actually played.
+    final awardsAdvance = resolveSeasonAwards(
+      Random(withAiAging.seasonSeed + kSeasonAwardsSeedOffset),
       withAiAging,
+    );
+    final withAwards = awardsAdvance.franchise;
+    final aiRetirementAdvance = resolveAiTeamRetirements(
+      Random(withAwards.seasonSeed + kAiTeamRetirementSeedOffset),
+      withAwards,
     );
     final withAiRetirement = withAiAging.copyWithLeague(
       aiRetirementAdvance.league,

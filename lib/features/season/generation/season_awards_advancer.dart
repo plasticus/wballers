@@ -7,6 +7,13 @@ import '../application/franchise_rosters.dart';
 import '../domain/league_leaders.dart';
 import 'achievement_grant.dart';
 
+/// Seed offset for [resolveSeasonAwards]'s achievement-grant rolls (the
+/// neon-hair-color pick, `achievement_grant.dart`'s `applyAchievementGrant`
+/// -- winner *selection* itself is fully deterministic off real box-score
+/// stats, no randomness involved). Next free number after
+/// `draft_advancer.dart`'s `kDraftFinalizeSeedOffset` (21).
+const kSeasonAwardsSeedOffset = 22;
+
 /// The result of one season's awards resolution: the updated [franchise]
 /// (every winner's [Player.achievements]/[Player.nickname]/portrait
 /// already reflect their award, via [applyAchievementGrant]) and

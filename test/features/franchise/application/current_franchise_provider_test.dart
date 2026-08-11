@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
@@ -1460,6 +1461,65 @@ void main() {
           franchise.league.aiTeams[i].roster.map((m) => m.player.id),
         );
       }
+    });
+
+    test('also resolves this season\'s real awards once the postseason '
+        'wraps (2026-08-11, 0D_Season_2_Roadmap.md: Presentation)', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      var progress = franchise.seasonProgress;
+      var guard = 0;
+      while (!progress.isComplete && guard < 60) {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        progress = container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress;
+        guard++;
+      }
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      // A real, full season across 20 teams should crown a League MVP at
+      // minimum -- confirms the pass actually ran as part of the real
+      // pipeline, not just in isolation (season_awards_advancer_test.dart
+      // already covers the award logic itself in detail).
+      final everyPlayer = [
+        ...updated.roster.map((m) => m.player),
+        for (final aiTeam in updated.league.aiTeams)
+          ...aiTeam.roster.map((m) => m.player),
+      ];
+      expect(
+        everyPlayer.any(
+          (p) =>
+              p.achievements.any((a) => a.achievement == Achievement.leagueMvp),
+        ),
+        isTrue,
+      );
     });
   });
 
