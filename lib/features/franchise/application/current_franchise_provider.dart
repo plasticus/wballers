@@ -19,6 +19,7 @@ import '../../season/domain/season_progress.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../season/generation/all_star_advancer.dart';
 import '../../season/generation/postseason_advancer.dart';
+import '../../season/generation/retirement_advancer.dart';
 import '../../season/generation/season_advancer.dart';
 import '../../season/generation/season_tenure_advancer.dart';
 import '../../training/domain/training_plan.dart';
@@ -486,9 +487,17 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withAiAging = withCoachFreeAgency.copyWithLeague(
       aiAgingAdvance.league,
     );
-    // Legality enforcement reads *this* season's final star tiers -- must
-    // run after training/aging have actually moved anyone, not before.
-    final withLegality = enforceAiRosterLegality(withAiAging).franchise;
+    final aiRetirementAdvance = resolveAiTeamRetirements(
+      Random(withAiAging.seasonSeed + kAiTeamRetirementSeedOffset),
+      withAiAging,
+    );
+    final withAiRetirement = withAiAging.copyWithLeague(
+      aiRetirementAdvance.league,
+    );
+    // Legality enforcement runs after retirement, so it sees who's
+    // actually still on the roster -- and reads *this* season's final
+    // star tiers, so it has to run after training/aging too.
+    final withLegality = enforceAiRosterLegality(withAiRetirement).franchise;
     // Tenure (age/yearsOfService) increments last, deliberately -- every
     // pass above computes its result against the age a player played this
     // season *at* (`advancePlayerTenure`'s own doc comment).

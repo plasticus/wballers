@@ -61,6 +61,7 @@ class Player {
     this.nickname,
     this.jerseyNumber,
     this.college,
+    this.peakOverall,
   }) : assert(age > 0, 'age must be positive'),
        assert(
          jerseyNumber == null || (jerseyNumber >= 0 && jerseyNumber <= 99),
@@ -164,6 +165,34 @@ class Player {
   /// international, the country they're from."
   final College? college;
 
+  /// The highest [PlayerRatings.overall] ever recorded for this player,
+  /// as of the last season boundary -- `null` for a player who's never
+  /// been through one yet (a freshly generated player, or -- for every
+  /// player who existed before this field did -- simply "not tracked
+  /// yet," not "never had a peak"). Use [effectivePeakOverall], not this
+  /// field directly, for anything that actually needs the peak: it folds
+  /// in that same-current-overall-if-untracked-yet default so a legacy
+  /// save's first post-upgrade season can't read as a false 10+ point
+  /// decline. `0D_Season_2_Roadmap.md`'s Aging & roster churn stage
+  /// (2026-08-11) -- the GM's own retirement rule needs "declined 10+
+  /// from peak" as one of several triggers
+  /// (`season/generation/retirement_advancer.dart`). Refreshed once a
+  /// season, alongside [copyWithSeasonAdvanced]'s age/experience
+  /// increment.
+  final int? peakOverall;
+
+  /// [peakOverall], or [PlayerRatings.overall] itself when nothing's been
+  /// recorded yet -- see [peakOverall]'s own doc comment for why that's
+  /// the safe default rather than treating an untracked player as having
+  /// no peak at all. Never less than the current overall: a player who's
+  /// grown past their last recorded peak has, by definition, set a new
+  /// one.
+  int get effectivePeakOverall {
+    final recorded = peakOverall;
+    if (recorded == null || recorded < ratings.overall) return ratings.overall;
+    return recorded;
+  }
+
   /// The surname off of [name] ("Danielle Tran" -> "Tran") -- every
   /// generated name is "First Last" (`player_generator.dart`'s
   /// `kFirstNames`/`kLastNames` pools, no multi-word entries in either),
@@ -194,6 +223,7 @@ class Player {
       nickname: nickname,
       jerseyNumber: jerseyNumber,
       college: college,
+      peakOverall: peakOverall,
     );
   }
 
@@ -220,6 +250,7 @@ class Player {
       nickname: nickname,
       jerseyNumber: jerseyNumber,
       college: college,
+      peakOverall: peakOverall,
     );
   }
 
@@ -244,6 +275,7 @@ class Player {
       nickname: newNickname,
       jerseyNumber: jerseyNumber,
       college: college,
+      peakOverall: peakOverall,
     );
   }
 
@@ -268,6 +300,7 @@ class Player {
       nickname: nickname,
       jerseyNumber: jerseyNumber,
       college: college,
+      peakOverall: peakOverall,
     );
   }
 
@@ -299,6 +332,7 @@ class Player {
       nickname: nickname,
       jerseyNumber: newJerseyNumber,
       college: college,
+      peakOverall: peakOverall,
     );
   }
 
@@ -324,18 +358,24 @@ class Player {
       nickname: nickname,
       jerseyNumber: jerseyNumber,
       college: college,
+      peakOverall: peakOverall,
     );
   }
 
   /// Returns a copy with [age] and [yearsOfService] both incremented by
-  /// one -- what a season boundary does to every player in the league,
-  /// GM's own roster and every AI team alike (`0D_Season_2_Roadmap.md`'s
-  /// Aging & roster churn stage, 2026-08-11: confirmed by search that
-  /// nothing anywhere incremented either field before this). Ratings are
-  /// untouched here -- growth/decline is a separate concern
+  /// one, and [peakOverall] refreshed to [effectivePeakOverall] -- what a
+  /// season boundary does to every player in the league, GM's own roster
+  /// and every AI team alike (`0D_Season_2_Roadmap.md`'s Aging & roster
+  /// churn stage, 2026-08-11: confirmed by search that nothing anywhere
+  /// incremented age/experience before this, and [peakOverall] is brand
+  /// new). Current [ratings] are otherwise untouched here -- growth/
+  /// decline is a separate concern
   /// (`features/training/generation/training_advancer.dart`), computed
   /// against the age a player played the season *at*, not the age
-  /// they're about to turn; callers apply that first, then this.
+  /// they're about to turn; callers apply that first, then this. Order
+  /// between that and the peak refresh doesn't matter, though: [
+  /// effectivePeakOverall] already folds in the current value via `max`,
+  /// so persisting it here can only ratchet [peakOverall] up, never down.
   Player copyWithSeasonAdvanced() {
     return Player(
       id: id,
@@ -356,6 +396,7 @@ class Player {
       nickname: nickname,
       jerseyNumber: jerseyNumber,
       college: college,
+      peakOverall: effectivePeakOverall,
     );
   }
 }

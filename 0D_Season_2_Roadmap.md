@@ -63,18 +63,28 @@ a season number or reuses a seed offset that doesn't account for one yet.
       per-player decline math (`_declinedPlayer`, factored out so both
       share it) across every AI roster, same call site and idempotency
       guard as the GM's own pass and `resolveAiTeamSeasonTraining`.
-- [ ] **Retirement.** No concept exists at all — nothing removes a player
-      from the league for any reason. Without it, every roster (AI and the
-      GM's own) only ever accumulates players season over season, with no
-      natural attrition. GM's rule (2026-08-11, multiple triggers, not one):
+- [ ] **Retirement (partially done -- AI side only, see below).** GM's rule
+      (2026-08-11, multiple triggers, not one):
       an unsigned free agent for a full season retires; losing 10+ overall
       from peak retires; hitting age 38 means a player wants to retire; age
       34+ plus winning a championship means a player considers it; for the
       GM's own roster, the coach can attempt to convince a retirement-
-      eligible player to play one more year (a skill check). Still open:
-      the exact probability/skill-check numbers, and the full-season-
-      unsigned-FA trigger needs the free-agent-pool-refresh machinery
-      the next stage builds before it's even measurable. In progress.
+      eligible player to play one more year (a skill check).
+      **AI-side done 2026-08-11**: new `Player.peakOverall`/`effectivePeakOverall`
+      (refreshed every season alongside the age/experience increment) plus
+      `retirement_advancer.dart`'s `resolveAiTeamRetirements` -- the
+      mandatory-age and peak-decline triggers apply outright, the
+      championship trigger rolls (`kChampionshipRetirementChance`, a
+      documented first-pass number). Wired into `simulatePostseasonAndPersist`
+      before the roster-legality gate (so it sees who's actually left) and
+      after training/aging (so it reads the season's *final* numbers).
+      **Still open**: the full-season-unsigned-FA trigger needs free-agent
+      tenure tracking the next stage (Player Pool Refresh) builds, so it's
+      left out rather than half-built on missing data; and the GM's own
+      roster isn't touched at all yet -- the stated rule needs a real
+      persuasion mail/UI flow (a coach skill check the GM can trigger),
+      not silent auto-retirement, and that's a genuinely separate,
+      UI-sized piece of work still to build.
 - [x] **Roster legality enforcement at the season boundary.** Done
       2026-08-11 -- `roster_legality_advancer.dart`'s `enforceAiRosterLegality`
       waives the lowest-overall excess player(s) off any AI roster that

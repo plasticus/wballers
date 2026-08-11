@@ -85,6 +85,7 @@ Map<String, dynamic> playerToJson(Player player) {
     // for everything else about a college, so a full nested object here
     // would just be denormalized data to keep in sync.
     'college': player.college?.abbreviation,
+    'peakOverall': player.peakOverall,
   };
 }
 
@@ -137,5 +138,10 @@ Player playerFromJson(Map<String, dynamic> json) {
         : kColleges.firstWhere(
             (college) => college.abbreviation == json['college'] as String,
           ),
+    // Absent (a save from before this field existed) and an explicit
+    // `null` (a player who's never been through a season boundary yet)
+    // both mean the same thing -- see [Player.peakOverall]'s own doc
+    // comment.
+    peakOverall: json['peakOverall'] as int?,
   );
 }

@@ -72,6 +72,22 @@ void main() {
     expect(player.college, isNull);
   });
 
+  test('a legacy save (predating peakOverall) falls back to null, reading as '
+      'the current overall via effectivePeakOverall', () {
+    final player = playerFromJson(_legacyPlayerJson());
+
+    expect(player.peakOverall, isNull);
+    expect(player.effectivePeakOverall, player.ratings.overall);
+  });
+
+  test('playerToJson/playerFromJson round-trips peakOverall', () {
+    final player = playerFromJson(_legacyPlayerJson()).copyWithSeasonAdvanced();
+
+    final roundTripped = playerFromJson(playerToJson(player));
+
+    expect(roundTripped.peakOverall, player.peakOverall);
+  });
+
   test('playerToJson/playerFromJson round-trips a college by abbreviation', () {
     final player = playerFromJson(_legacyPlayerJson());
     final withCollege = Player(

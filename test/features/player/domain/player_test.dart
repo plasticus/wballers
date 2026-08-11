@@ -406,6 +406,101 @@ void main() {
     expect(advanced.id, player.id);
   });
 
+  test('effectivePeakOverall defaults to the current overall when nothing '
+      'has been recorded yet (2026-08-11, retirement rule support)', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: '',
+      ratings: _ratings, // overall == 50
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+    );
+
+    expect(player.peakOverall, isNull);
+    expect(player.effectivePeakOverall, 50);
+  });
+
+  test('effectivePeakOverall never reads below the current overall, even if '
+      'a stale recorded peak somehow undercounts it', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: '',
+      ratings: _ratings, // overall == 50
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+      peakOverall: 40,
+    );
+
+    expect(player.effectivePeakOverall, 50);
+  });
+
+  test('effectivePeakOverall keeps a higher recorded peak once the current '
+      'overall has declined below it', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 34,
+      yearsOfService: 12,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: '',
+      ratings: _ratings, // overall == 50
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+      peakOverall: 85,
+    );
+
+    expect(player.effectivePeakOverall, 85);
+  });
+
+  test('copyWithSeasonAdvanced ratchets peakOverall up to the current '
+      'overall, and never down', () {
+    final grew = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 21,
+      yearsOfService: 0,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: '',
+      ratings: _ratings, // overall == 50
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+      peakOverall: 45, // grew past their old recorded peak
+    );
+    final declined = Player(
+      id: 'p2',
+      name: 'Alex Vet',
+      age: 34,
+      yearsOfService: 12,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: '',
+      ratings: _ratings, // overall == 50
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+      peakOverall: 85, // declined below their old recorded peak
+    );
+
+    expect(grew.copyWithSeasonAdvanced().peakOverall, 50);
+    expect(declined.copyWithSeasonAdvanced().peakOverall, 85);
+  });
+
   test('formatHeightInches formats feet and inches', () {
     expect(formatHeightInches(74), "6'2\"");
     expect(formatHeightInches(72), "6'0\"");
