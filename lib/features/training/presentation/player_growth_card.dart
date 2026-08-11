@@ -13,6 +13,20 @@ import '../domain/training_report.dart';
 int totalPlayerGrowthDelta(PlayerGrowthResult result) =>
     result.fieldDeltas.values.fold(0, (a, b) => a + b);
 
+/// [result]'s field deltas, largest growth first (ties keep the
+/// original -- insertion -- order, same as `PlayerRatingField.values`'
+/// own declared order, since `List.sort` is stable). A GM ask for the
+/// Season To Date Report (2026-08-10, TODO.md item 5: "Agility +7,
+/// Passing +5, Disruption +3, in that order") -- applied to every
+/// [PlayerGrowthCard] rather than just that one screen, since a biggest-
+/// mover-first chip row is a strict improvement everywhere this card is
+/// used, not a special case.
+List<MapEntry<PlayerRatingField, int>> _sortedFieldDeltas(
+  PlayerGrowthResult result,
+) =>
+    result.fieldDeltas.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
 /// One player's growth/decline card -- name, a headline total (icon +
 /// explicit sign, not color alone, per `ARCHITECTURE.md`'s accessibility
 /// rule), and a row of per-field delta chips underneath. Originally
@@ -70,7 +84,7 @@ class PlayerGrowthCard extends StatelessWidget {
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              for (final entry in result.fieldDeltas.entries)
+              for (final entry in _sortedFieldDeltas(result))
                 _FieldDeltaChip(field: entry.key, delta: entry.value),
             ],
           ),

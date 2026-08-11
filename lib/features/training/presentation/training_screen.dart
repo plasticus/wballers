@@ -12,6 +12,7 @@ import '../domain/training_coach.dart';
 import '../domain/training_focus.dart';
 import '../domain/training_plan.dart';
 import 'coach_picker_lab_screen.dart';
+import 'season_to_date_report_screen.dart';
 
 /// The GM's training instructions: a team-wide default direction, plus
 /// up to 3 individual training coaches who can each point a different
@@ -92,6 +93,8 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _SeasonToDateReportCard(franchise: widget.franchise),
+              const SizedBox(height: AppSpacing.xl),
               Text('Team Focus', style: theme.textTheme.titleLarge),
               const SizedBox(height: AppSpacing.xs),
               Text(
@@ -368,6 +371,54 @@ class _CoachAssignmentCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A quick link to the live, always-current [SeasonToDateReportScreen]
+/// (2026-08-10, TODO.md item 5) -- sits at the very top of the Training
+/// page since "how's everyone doing so far this season" is something a
+/// GM would want to check on the way in, not something buried below the
+/// team-focus/coach-assignment controls.
+class _SeasonToDateReportCard extends StatelessWidget {
+  const _SeasonToDateReportCard({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Season To Date', style: theme.textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Every roster player\'s growth so far this season, '
+                  'most improved first.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          FilledButton.tonal(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SeasonToDateReportScreen(franchise: franchise),
+                ),
+              );
+            },
+            child: const Text('View Report'),
+          ),
+        ],
       ),
     );
   }

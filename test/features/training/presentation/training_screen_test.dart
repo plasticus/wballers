@@ -122,6 +122,30 @@ void main() {
     expect(find.text('1. Current Format (for reference)'), findsOneWidget);
   });
 
+  testWidgets('the Season To Date card\'s View Report button opens '
+      'SeasonToDateReportScreen (2026-08-10, TODO.md item 5)', (tester) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: TrainingScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Season To Date'), findsOneWidget);
+    await tester.tap(find.text('View Report'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Season To Date Report'), findsOneWidget);
+    expect(
+      find.text('No training has resolved yet this season.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('changing the team focus and saving persists it', (tester) async {
     // The Save button needs to be on-screen for tap() to hit test it --
     // the default test surface is too short for this screen's 3 coach
@@ -179,6 +203,14 @@ void main() {
   testWidgets(
     'assigning a coach to a player reveals the broad/specific focus picker',
     (tester) async {
+      // The first coach's "Unassigned" field needs to be on-screen for
+      // tap() to hit test it -- the default test surface is too short
+      // now that the Season To Date card sits above the team focus
+      // section (2026-08-10, TODO.md item 5).
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       final franchise = _franchiseWith();
       final repository = await _seededRepository(franchise);
       final firstPlayerLabel = _playerLabel(franchise.roster.first.player);
