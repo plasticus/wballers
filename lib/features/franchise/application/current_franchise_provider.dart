@@ -11,6 +11,7 @@ import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../roster/generation/jersey_number_assignment.dart';
+import '../../roster/generation/roster_legality_advancer.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/game_result.dart';
 import '../../season/domain/scheduled_game.dart';
@@ -485,10 +486,13 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withAiAging = withCoachFreeAgency.copyWithLeague(
       aiAgingAdvance.league,
     );
+    // Legality enforcement reads *this* season's final star tiers -- must
+    // run after training/aging have actually moved anyone, not before.
+    final withLegality = enforceAiRosterLegality(withAiAging).franchise;
     // Tenure (age/yearsOfService) increments last, deliberately -- every
     // pass above computes its result against the age a player played this
     // season *at* (`advancePlayerTenure`'s own doc comment).
-    await _persist(advancePlayerTenure(withAiAging));
+    await _persist(advancePlayerTenure(withLegality));
     return advance.gamesPlayed;
   }
 

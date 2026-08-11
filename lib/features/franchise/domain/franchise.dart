@@ -460,6 +460,35 @@ class Franchise {
     );
   }
 
+  /// Returns a copy with [newFreeAgents] replacing [freeAgents] -- unlike
+  /// [copyWithRosterAndFreeAgents], [roster] itself is untouched here.
+  /// What a player joining the pool from somewhere *other* than the GM's
+  /// own roster uses -- an AI team waiving a roster-legality excess
+  /// (`roster_legality_advancer.dart`'s `enforceAiRosterLegality`, the
+  /// only caller so far) never touches [Franchise.roster] at all.
+  Franchise copyWithFreeAgents(List<Player> newFreeAgents) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: newFreeAgents,
+      readMailIds: readMailIds,
+    );
+  }
+
   /// Returns a copy with [newReadMailIds] replacing [readMailIds] --
   /// `current_franchise_provider.dart`'s `markMailRead` is the only
   /// caller.

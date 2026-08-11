@@ -66,15 +66,25 @@ a season number or reuses a seed offset that doesn't account for one yet.
 - [ ] **Retirement.** No concept exists at all — nothing removes a player
       from the league for any reason. Without it, every roster (AI and the
       GM's own) only ever accumulates players season over season, with no
-      natural attrition. See the open question below on what rule should
-      drive it.
-- [ ] **Roster legality enforcement at the season boundary.** `star_system.md`
-      calls for exactly this ("The Off-Season Reconciliation: Rosters must be
-      legal before free agency and the draft"), but `roster_legality.dart`
-      today is advisory-only — `RosterLegality` exposes raw counts for a
-      screen to display a warning with, nothing actually blocks an illegal
-      roster from carrying over. Needs a real gate at the transition point,
-      not just a display warning.
+      natural attrition. GM's rule (2026-08-11, multiple triggers, not one):
+      an unsigned free agent for a full season retires; losing 10+ overall
+      from peak retires; hitting age 38 means a player wants to retire; age
+      34+ plus winning a championship means a player considers it; for the
+      GM's own roster, the coach can attempt to convince a retirement-
+      eligible player to play one more year (a skill check). Still open:
+      the exact probability/skill-check numbers, and the full-season-
+      unsigned-FA trigger needs the free-agent-pool-refresh machinery
+      the next stage builds before it's even measurable. In progress.
+- [x] **Roster legality enforcement at the season boundary.** Done
+      2026-08-11 -- `roster_legality_advancer.dart`'s `enforceAiRosterLegality`
+      waives the lowest-overall excess player(s) off any AI roster that
+      breaches the star-tier caps after that season's training/aging,
+      straight into `Franchise.freeAgents` (a direct GM call: "the only
+      real free-agent pool that exists today"). Deliberately AI-only --
+      the GM's own roster stays advisory-only, since auto-waiving the GM's
+      own player without a say is a bigger, separate feature (the fuller
+      Assistant-GM-mail/grace-period/AI-trade-offer flow `star_system.md`
+      already describes but which isn't built).
 
 ## Player pool refresh
 
