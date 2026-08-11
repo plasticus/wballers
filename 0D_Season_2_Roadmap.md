@@ -149,17 +149,32 @@ a season number or reuses a seed offset that doesn't account for one yet.
 
 ## Presentation
 
+- [x] **Real, computed season-end awards.** Done 2026-08-11 -- new
+      `season/generation/season_awards_advancer.dart`'s `resolveSeasonAwards`,
+      wired into `simulatePostseasonAndPersist` right alongside every
+      other season-end resolution. League MVP, Scoring Leader, Defensive
+      MVP (`SeasonAwardsAnswers.md` #1 folded "Most Defensive
+      Disruptions" into this one), Sixth Man of the Year, Most Improved
+      Player (a new `Franchise.seasonStartOverallByPlayerId` snapshot,
+      captured by `beginNextSeason`), and Rookie of the Year all resolve
+      for real now, league-wide -- not just `Achievement.allStarMvp`,
+      the only one wired before this. Includes the Most Improved
+      Player / Rookie of the Year overlap rule (`SeasonAwardsAnswers.md`
+      #6: a player who'd win both keeps Rookie of the Year). Every
+      winner's nickname and (on their 2nd career achievement) neon-hair
+      unlock apply automatically, via a newly-shared
+      `achievement_grant.dart` helper (factored out of
+      `all_star_advancer.dart`, which used to have this logic to itself).
 - [ ] **A real end-of-season ceremony.** Still a deliberate placeholder --
-      award winners, nicknames earned, neon hair unlocked, all presented
-      together in one batch moment, once awards exist (see the separate
-      Awards Catalog design doc). **Partially superseded 2026-08-11**: the
+      the awards above resolve silently in the background; nothing yet
+      presents champion + awards + nicknames/hair unlocked together as
+      one moment (see the separate Awards Catalog design doc). The
       season-transition flow this item was waiting on now exists for
-      real (see "The draft, for real" above) -- `SeasonRecapScreen`'s
+      real too (see "The draft, for real" above) -- `SeasonRecapScreen`'s
       "Begin Next Season" button already calls it, deliberately without
-      any ceremony trapping around it yet. This item is now specifically
-      about the presentation layer alone: replacing that plain button
-      with the real ceremony once awards exist, not building the
-      transition itself again.
+      any ceremony wrapped around it yet. What's left here is purely the
+      presentation layer: a real screen showing what already happened,
+      not building any of the underlying systems.
 - [x] **The "Begin Season 2" button itself.** Done 2026-08-11, in minimal
       form -- `SeasonRecapScreen`'s "Begin Next Season" button, reachable
       the instant the postseason ends (not gated behind the ceremony
@@ -206,10 +221,11 @@ a season number or reuses a seed offset that doesn't account for one yet.
    legality gate.
 3. ~~Player pool refresh~~ — done. Free agents, a real new draft class.
 4. ~~The real draft flow, GM and AI both~~ — done.
-5. Ceremony, awards, and the *polished* "Begin Season 2" button — still
-   open. The plain, functional version of the button already shipped
-   alongside stage 4 (see "Presentation" above); what's left here is
-   specifically the ceremony wrapped around it.
+5. Ceremony and the *polished* "Begin Season 2" button — the only piece
+   left. Awards themselves are real and computed now (see "Presentation"
+   above), and the plain, functional version of the button already
+   shipped alongside stage 4; what's left is purely the presentation
+   layer -- a real screen showing what already happened.
 
 Roughly in dependency order — each stage's items either read data the
 previous stage produces, or would be actively wrong to ship without it (a
