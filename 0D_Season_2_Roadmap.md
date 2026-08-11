@@ -105,8 +105,11 @@ a season number or reuses a seed offset that doesn't account for one yet.
       at franchise creation, and never regenerated — `player_market_screen.dart`
       's own doc comment confirms Free Agents is the one real (signable) tab
       on that screen, but the pool behind it is static for the life of the
-      save. A season transition needs a fresh pool: retirees and any
-      roster-legality cuts feeding back in, plus a newly-generated batch.
+      save. A season transition needs a fresh pool: any roster-legality
+      cuts (already feeding in for real, as of the Aging & roster churn
+      stage) plus a newly-generated batch. **Not** retirees — a retired
+      player leaves the league entirely, confirmed during that same stage,
+      never back into free agency.
 - [ ] **A new draft class each season.** `draft_generator.dart`'s prospect
       generation is already proven out — it's what powers both the Market
       screen's Draft tab preview and Season Recap's projected pick — but
@@ -145,20 +148,22 @@ a season number or reuses a seed offset that doesn't account for one yet.
 
 ## Open questions for GM review
 
-1. **Contracts/salary cap** — `star_system.md` deliberately replaces a
-   salary cap with the star-tier system. Worth confirming Season 2 doesn't
-   secretly need a contracts system too (multi-year deals, cap sheets), or
-   whether roster-legality enforcement alone is the entire off-season gate,
-   with no money involved at all.
+1. ~~**Contracts/salary cap**~~ — answered, again, definitively, 2026-08-11:
+   **no contracts/money system, not in this game, not planned.** The
+   star-tier system *is* the GM's intentional simplified substitute for a
+   salary cap, full stop -- roster-legality enforcement alone is the
+   entire off-season gate, no money involved at all. Not revisiting this
+   one again unless the GM brings it up first.
 2. ~~**Retirement rule**~~ — answered 2026-08-11, see Aging & roster churn
    above: multiple triggers (mandatory age, peak decline, a championship-
    team roll, plus a not-yet-buildable full-season-unsigned-FA trigger),
    not a single cutoff.
-3. **Does anything else quietly assume "one season only"?** `trainingReports`
-   and Mail history both just append forever today — worth an audit for
-   whether either needs a per-season reset/archive once seasons actually
-   repeat, or whether unbounded growth across a multi-season save is fine to
-   just leave as-is.
+3. ~~**Does anything else quietly assume "one season only"?**~~ — checked
+   2026-08-11: no action needed. `Franchise.copyWithNewSeason` (Foundation
+   stage) already resets `trainingReports`/`skillsCompetitionResults` each
+   season, and Mail derives its feed live from those lists rather than
+   storing itself, so old mail naturally disappears with the season already.
+   `readMailIds` grows by a few dozen entries a season, inconsequential.
 4. ~~**Free agent pool composition**~~ — answered 2026-08-11 for the
    roster-legality-waive half: yes, into `Franchise.freeAgents` (see Aging
    & roster churn above). Still genuinely open for the *next* stage's own
