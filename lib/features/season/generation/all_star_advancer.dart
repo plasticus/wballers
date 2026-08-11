@@ -1,20 +1,17 @@
 import 'dart:math';
 
 import '../../franchise/domain/franchise.dart';
-import '../../league/domain/league.dart';
 import '../../league/domain/team.dart';
 import '../../match/engine/match_engine.dart';
 import '../../player/domain/achievement.dart';
 import '../../player/domain/player.dart';
-import '../../player/generation/nickname_generator.dart';
-import '../../portrait/rendering/portrait_colors.dart';
-import '../../roster/domain/roster_membership.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/game_result.dart';
 import '../domain/league_leaders.dart';
 import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/skills_competition.dart';
+import 'achievement_grant.dart';
 import 'all_star_generator.dart';
 
 /// How many of the 20 honorees compete in each [SkillsEvent] -- a real
@@ -271,77 +268,19 @@ String allStarGameMvp(
   return bestId;
 }
 
-/// Grants [mvpPlayerId] a real [Achievement.allStarMvp] record, applies
-/// the game's suggested nickname (auto-applied for every winner, AI or
-/// the GM's own -- there's no nickname-review UI yet to hold it for GM
-/// approval the way `grantAchievement`'s own doc comment describes as the
-/// eventual split), and -- if this is that player's *second* achievement
-/// ever, any award -- auto-assigns a random neon hair color too (a direct
-/// GM rule, `SeasonAwardsAnswers.md` answer 4, superseding the portrait
-/// editor's old "unlocked on the first achievement" gate; see
-/// `portrait_editor_screen.dart`'s `_specialColorsUnlocked`). Finds the
-/// player wherever they actually play -- the GM's own roster or any of
-/// the 19 AI teams -- since an All-Star can be either.
+/// Grants [mvpPlayerId] a real [Achievement.allStarMvp] record via the
+/// shared [applyAchievementGrant] -- see that function's own doc comment
+/// for the nickname/neon-hair-unlock side effects it applies.
 Franchise _grantAllStarMvp(
   Random random,
   Franchise franchise,
   String mvpPlayerId,
 ) {
-  final grant = grantAchievement(
+  return applyAchievementGrant(
     random,
+    franchise,
+    playerId: mvpPlayerId,
     achievement: Achievement.allStarMvp,
-    // No multi-season flow yet (`0D_Season_2_Roadmap.md`) -- season 0 is
-    // the only value that's ever meant anything so far, same posture
-    // `PlayerAchievementRecord`'s own doc comment already documents.
-    season: 0,
-  );
-
-  Player apply(Player player) {
-    var updated = player
-        .copyWithAchievement(grant.record)
-        .copyWithNickname(grant.suggestedNickname);
-    final appearance = updated.appearance;
-    if (updated.achievements.length >= 2 && appearance != null) {
-      final neonKeys = kNeonHairColors.keys.toList();
-      final color = neonKeys[random.nextInt(neonKeys.length)];
-      updated = updated.copyWithAppearance(
-        appearance.copyWith(topHairColor: color),
-      );
-    }
-    return updated;
-  }
-
-  if (franchise.roster.any((m) => m.player.id == mvpPlayerId)) {
-    return franchise.copyWithRoster([
-      for (final membership in franchise.roster)
-        if (membership.player.id == mvpPlayerId)
-          RosterMembership(
-            player: apply(membership.player),
-            status: membership.status,
-          )
-        else
-          membership,
-    ]);
-  }
-
-  return franchise.copyWithLeague(
-    League(
-      aiTeams: [
-        for (final aiTeam in franchise.league.aiTeams)
-          if (aiTeam.roster.any((m) => m.player.id == mvpPlayerId))
-            aiTeam.copyWithRoster([
-              for (final membership in aiTeam.roster)
-                if (membership.player.id == mvpPlayerId)
-                  RosterMembership(
-                    player: apply(membership.player),
-                    status: membership.status,
-                  )
-                else
-                  membership,
-            ])
-          else
-            aiTeam,
-      ],
-    ),
+    season: franchise.season,
   );
 }
