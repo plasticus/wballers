@@ -18,10 +18,6 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 
 4. **League team pool's City/State/Team Name data is still a mess** — the 40-team league pool's city/state/name combinations need real cleanup. GM is going to acquire better data for this before it can be fixed properly. Not started.
 
-## Awards
-
-5. **End-of-season awards need a real design pass** — no list exists yet of what awards this game actually gives out (MVP, Most Improved, etc.). Wants a full brainstormed catalog (everything from MVP down) written up as an HTML doc, matching this project's established HTML-artifact convention for open design questions, before any of it gets built.
-
 ## Roadmap
 
-6. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.
+5. **A real path to Season 2** — the GM wants an explicit checklist of everything that has to exist before a "Begin Season 2" button could work at all (multi-season `Franchise` concept, aging the whole league forward including AI rosters, the draft actually wiring into a real flow, an end-of-season ceremony, etc.) -- see the chat answer this was first raised in for a first-pass list; needs to become a real tracked plan, not just a conversational answer.
