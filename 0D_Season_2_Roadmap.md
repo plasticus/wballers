@@ -171,10 +171,10 @@ a season number or reuses a seed offset that doesn't account for one yet.
    retirees (no -- retirement removes a player from the league entirely,
    not into free agency) and what a purely-fresh-generated batch alongside
    the waived players should look like.
-5. **How many rounds/picks feel right for a real draft?** `kDraftRounds = 3`
-   already exists in `draft_generator.dart` (real WNBA draft length) — worth
-   confirming that's still the right number once picks actually matter, not
-   just when they're flavor text.
+5. ~~**How many rounds/picks feel right for a real draft?**~~ — answered
+   2026-08-11: **3 rounds**, confirming `kDraftRounds` (`draft_generator.dart`)
+   as-is, real WNBA length. No code change needed — already the right
+   number.
 
 ## Suggested build order
 
