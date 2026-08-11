@@ -17,3 +17,11 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 ## Blocked / waiting on the GM
 
 4. **League team pool's City/State/Team Name data is still a mess** — the 40-team league pool's city/state/name combinations need real cleanup. GM is going to acquire better data for this before it can be fixed properly. Not started.
+
+## Awards & All-Star (see SeasonAwardsAnswers.md)
+
+5. **All-Star Game** — Pacific vs. Atlantic, top 2 players at each position per conference (10 a side, 20 players total), picked ~¾ through the season. Full league week off (no regular games), sim the game, name a Game MVP.
+
+6. **Skills Competition** — same All-Star break as item 5. Three events: 3-Point Shootout, HORSE, and a Defensive Skills Challenge (timed closeout/deflection drill, scored off Steals + Blocks — the same Disruption composite as Defensive Player of the Year — with variance). Balances the two offense-only events with one defensive one. No dunk contest.
+
+7. **Coach free agency in the off-season** — Coach of the Year needs every AI team to have a real generated coach first. Pair with an off-season sim where the bottom ~5 teams by record fire their coach (newly hired coaches get a 2-season grace period), plus the actual hiring flow for the resulting vacancies.
