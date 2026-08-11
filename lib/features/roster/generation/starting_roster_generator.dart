@@ -90,6 +90,12 @@ List<RosterMembership> generateStartingRoster(
   final random = Random(seed);
   final positions = List.of(kElevenPlayerPositionPlan)..shuffle(random);
 
+  // Every surname already placed on this roster so far -- threaded into
+  // each [generatePlayer] call below so it rerolls away from a repeat
+  // (2026-08-11, TODO.md: "no duplicate surnames allowed on a single
+  // team").
+  final usedSurnames = <String>{};
+
   RosterMembership build(
     int index, {
     required int qualityCenter,
@@ -99,20 +105,20 @@ List<RosterMembership> generateStartingRoster(
     int? potentialOverride,
     int potentialOverrideSpread = 3,
   }) {
-    return RosterMembership(
-      player: generatePlayer(
-        random,
-        primaryPosition: positions[index],
-        qualityCenter: qualityCenter,
-        qualitySpread: qualitySpread,
-        minAge: minAge,
-        maxAge: maxAge,
-        potentialOverride: potentialOverride,
-        potentialOverrideSpread: potentialOverrideSpread,
-        portraitWeights: portraitWeights,
-      ),
-      status: RosterStatus.active,
+    final player = generatePlayer(
+      random,
+      primaryPosition: positions[index],
+      qualityCenter: qualityCenter,
+      qualitySpread: qualitySpread,
+      minAge: minAge,
+      maxAge: maxAge,
+      potentialOverride: potentialOverride,
+      potentialOverrideSpread: potentialOverrideSpread,
+      portraitWeights: portraitWeights,
+      excludeSurnames: usedSurnames,
     );
+    usedSurnames.add(player.name.split(' ').skip(1).join(' '));
+    return RosterMembership(player: player, status: RosterStatus.active);
   }
 
   final roster = <RosterMembership>[

@@ -6,6 +6,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/player.dart';
+import '../../player/presentation/player_card_widgets.dart';
 import '../../roster/domain/roster_status.dart';
 import '../domain/player_rating_field.dart';
 import '../domain/training_coach.dart';
@@ -48,16 +49,15 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
   /// The roster players eligible to be assigned to a coach at all --
   /// mirrors [runTraining]'s own skip of `RosterStatus.reserveInactive`,
   /// so the picker never offers an assignment that would silently do
-  /// nothing. Carries enough to render `_playerLabel`'s "PG · 67 OVR ·
-  /// 99 POT · 24y · Silva" in the picker -- a bare name gave the GM no
-  /// way to tell a promising 21-year-old from a declining vet without
-  /// leaving this screen, which mattered most exactly where it's used:
-  /// putting high-potential players in these 3 individually-coached
-  /// slots is the whole point.
-  List<({String id, String label})> get _eligiblePlayers => [
+  /// nothing. Carries the real [Player], not just a formatted label --
+  /// `_CoachAssignmentCard`'s picker renders OVR/POT/AGE as colored chips
+  /// (Coach Picker Lab's #3 "Stat Chips", the GM's pick) rather than a
+  /// plain text line, so it needs the raw numbers, not a pre-built
+  /// string.
+  List<({String id, Player player})> get _eligiblePlayers => [
     for (final membership in widget.franchise.roster)
       if (membership.status != RosterStatus.reserveInactive)
-        (id: membership.player.id, label: _playerLabel(membership.player)),
+        (id: membership.player.id, player: membership.player),
   ];
 
   String _playerName(String id) {
@@ -126,7 +126,9 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
               const SizedBox(height: AppSpacing.sm),
               // Dev-facing comparison tool, not a real setting -- see
               // coach_picker_lab_screen.dart's own doc comment
-              // (2026-08-10, TODO.md item 5).
+              // (2026-08-10, TODO.md item 5). #3 "Stat Chips" landed as
+              // the real picker below on 2026-08-11; kept around as a
+              // reference/comparison tool the same way the Card Lab is.
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
@@ -258,7 +260,7 @@ class _CoachAssignmentCard extends StatelessWidget {
 
   final TrainingCoach coach;
   final _CoachAssignment assignment;
-  final List<({String id, String label})> eligiblePlayers;
+  final List<({String id, Player player})> eligiblePlayers;
 
   /// Player ids already claimed by one of the *other* two coach slots --
   /// excluded from this card's player picker so the GM can't double-assign
@@ -312,16 +314,29 @@ class _CoachAssignmentCard extends StatelessWidget {
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
+              // "Stat Chips" (Coach Picker Lab #3, `coach_picker_lab_screen
+              // .dart`) landed for real 2026-08-11 -- the GM's favorite of
+              // the 5 comparisons, plus 2 direct asks on top: an AGE chip
+              // alongside OVR/POT, and the collapsed/selected field
+              // showing all 3 as bare numbers rather than just one
+              // OVR-only pill.
+              selectedItemBuilder: (context) => [
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Unassigned'),
+                ),
+                for (final player in selectable)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _CoachPickerSelectedItem(player: player.player),
+                  ),
+              ],
               items: [
                 const DropdownMenuItem(value: null, child: Text('Unassigned')),
                 for (final player in selectable)
                   DropdownMenuItem(
                     value: player.id,
-                    child: Text(
-                      player.label,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
+                    child: _CoachPickerMenuItem(player: player.player),
                   ),
               ],
               onChanged: (playerId) =>
@@ -372,6 +387,95 @@ class _CoachAssignmentCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The open dropdown-menu-item row for one player: `${position} ${jersey}
+/// ${lastName}` followed by labelled OVR/POT/AGE chips (`StatChip`,
+/// `player_card_widgets.dart`) -- Coach Picker Lab #3, plus the AGE chip
+/// the GM added on top of the lab version.
+class _CoachPickerMenuItem extends StatelessWidget {
+  const _CoachPickerMenuItem({required this.player});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final jersey = player.jerseyNumber != null
+        ? '#${player.jerseyNumber} '
+        : '';
+    final lastName = player.name.split(' ').skip(1).join(' ');
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            '${player.primaryPosition.abbreviation} $jersey$lastName',
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        StatChip(
+          label: 'OVR',
+          value: player.ratings.overall,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        StatChip(
+          label: 'POT',
+          value: player.ratings.potential,
+          color: theme.colorScheme.tertiary,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        StatChip(
+          label: 'AGE',
+          value: player.age,
+          color: theme.colorScheme.secondary,
+        ),
+      ],
+    );
+  }
+}
+
+/// The closed/collapsed field once a player is selected: last name plus
+/// the same 3 chips as bare numbers, no unit labels -- a direct GM ask
+/// on top of adopting Coach Picker Lab #3 ("have all three chips just as
+/// numbers when a player is selected").
+class _CoachPickerSelectedItem extends StatelessWidget {
+  const _CoachPickerSelectedItem({required this.player});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final lastName = player.name.split(' ').skip(1).join(' ');
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(child: Text(lastName, overflow: TextOverflow.ellipsis)),
+        const SizedBox(width: AppSpacing.sm),
+        StatChip(
+          label: '',
+          value: player.ratings.overall,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        StatChip(
+          label: '',
+          value: player.ratings.potential,
+          color: theme.colorScheme.tertiary,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        StatChip(
+          label: '',
+          value: player.age,
+          color: theme.colorScheme.secondary,
+        ),
+      ],
     );
   }
 }
@@ -464,24 +568,4 @@ class _HowTrainingWorksCard extends StatelessWidget {
       ),
     );
   }
-}
-
-/// "PG #49 67 OVR · 99 POT · 24y · Richardson" -- position,
-/// jersey number (when assigned), overall, potential, age, and last name
-/// only, in that specific priority order (2026-08-10, a direct GM ask):
-/// with `overflow: TextOverflow.ellipsis` truncating from the *end* of
-/// the string, whatever's listed last is what disappears first when a
-/// row runs out of room -- name is deliberately least important of the
-/// bunch and goes last, since a long surname (the GM's own examples:
-/// "Richardson," "Henderson") was pushing POT off-screen entirely under
-/// the old name-first ordering. First name dropped entirely (2026-08-07,
-/// a direct GM ask -- "too much information"); last name alone is who a
-/// GM actually calls a player by. Age uses "24y" rather than "Age 24" to
-/// stay compact.
-String _playerLabel(Player player) {
-  final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
-  final lastName = player.name.split(' ').skip(1).join(' ');
-  return '${player.primaryPosition.abbreviation} $jersey· '
-      '${player.ratings.overall} OVR · ${player.ratings.potential} POT '
-      '· ${player.age}y · $lastName';
 }

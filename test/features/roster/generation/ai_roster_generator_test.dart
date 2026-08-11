@@ -21,6 +21,19 @@ void main() {
     expect(coveredPositions, Position.values.toSet());
   });
 
+  test('never puts 2 players with the same surname on the same team '
+      '(2026-08-11, TODO.md: no duplicate surnames on a single team)', () {
+    for (var seed = 1; seed <= 50; seed++) {
+      final roster = generateAiRoster(Random(seed));
+      final surnames = roster.map((m) => m.player.lastName).toList();
+      expect(
+        surnames.toSet(),
+        hasLength(surnames.length),
+        reason: 'seed $seed produced a duplicate surname: $surnames',
+      );
+    }
+  });
+
   test('the same seed produces an identical roster', () {
     final a = generateAiRoster(Random(7));
     final b = generateAiRoster(Random(7));

@@ -193,6 +193,40 @@ void main() {
     }
   });
 
+  test('excludeSurnames rerolls away from every name already taken '
+      '(2026-08-11, TODO.md: no duplicate surnames on a single team)', () {
+    final random = Random(321);
+    final usedSurnames = <String>{};
+    for (var i = 0; i < 20; i++) {
+      final player = generatePlayer(
+        random,
+        primaryPosition: Position.pointGuard,
+        countryOverride: Country.nigeria,
+        excludeSurnames: usedSurnames,
+      );
+      expect(usedSurnames, isNot(contains(player.lastName)));
+      usedSurnames.add(player.lastName);
+    }
+  });
+
+  test('excludeSurnames terminates instead of hanging even when it covers the '
+      'entire per-country surname pool', () {
+    final random = Random(7);
+    final wholePool = Set<String>.of(kSurnamesByCountry[Country.nigeria]!);
+
+    final player = generatePlayer(
+      random,
+      primaryPosition: Position.pointGuard,
+      countryOverride: Country.nigeria,
+      excludeSurnames: wholePool,
+    );
+
+    // Every real name is taken -- the last reroll's collision is
+    // accepted rather than looping forever, so the result is still
+    // drawn from the real pool, just not a name outside it.
+    expect(wholePool, contains(player.lastName));
+  });
+
   test('a domestic countryOverride produces a player with a college', () {
     final random = Random(4);
     final player = generatePlayer(

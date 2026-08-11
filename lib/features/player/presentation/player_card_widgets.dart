@@ -206,7 +206,11 @@ class PhotoOvrRail extends StatelessWidget {
 
 /// A single OFF/DEF/PHY stat as a small colored pill -- the Card Lab's
 /// #3 "Stat Chips", the GM's other original favorite ("I like the 3
-/// colors on the stats, that'd make it nice to scroll through").
+/// colors on the stats, that'd make it nice to scroll through"). Pass
+/// [label] as `''` for a bare number with no unit text at all -- the
+/// Coach Picker's collapsed/selected picker state uses this (2026-08-11,
+/// TODO.md's Coach Picker Lab item: "have all three chips just as
+/// numbers when a player is selected").
 class StatChip extends StatelessWidget {
   const StatChip({
     required this.label,
@@ -232,7 +236,7 @@ class StatChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        '$label $value',
+        label.isEmpty ? '$value' : '$label $value',
         style: theme.textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.bold,

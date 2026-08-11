@@ -478,6 +478,20 @@ int _generateHeight(Random random, Position position) {
 /// [hometownOverride] skips the random hometown-within-country pick and
 /// uses that literal string directly instead -- independent of
 /// [countryOverride]; a caller can pin either, both, or neither.
+///
+/// [excludeSurnames] rerolls the surname pick away from any name already
+/// in the set -- a direct GM ask (2026-08-11, TODO.md): "still getting
+/// repeat surnames on creation rosters... no duplicate surnames allowed
+/// on a single team." Bounded to at most [surnamePool.length] reroll
+/// attempts (a per-country surname pool, so this can't loop forever);
+/// if every name in a small country's pool is already taken by this
+/// same team, the last reroll's collision is accepted rather than
+/// hanging -- rare, and strictly better than an infinite loop or a
+/// crash over a cosmetic rule. Callers building a single team's roster
+/// (`ai_roster_generator.dart`, `starting_roster_generator.dart`) pass
+/// every surname placed on that team so far; callers with no single-team
+/// concept (the free agent pool, the draft class) leave this empty --
+/// this rule is specifically about one roster, not the whole league.
 Player generatePlayer(
   Random random, {
   required Position primaryPosition,
@@ -491,6 +505,7 @@ Player generatePlayer(
   Country? countryOverride,
   String? hometownOverride,
   PortraitWeights? portraitWeights,
+  Set<String> excludeSurnames = const {},
 }) {
   final archetype = generateArchetype(random, primaryPosition);
   final positionBias = _positionBias[primaryPosition] ?? _zeroDeltas;
@@ -630,7 +645,15 @@ Player generatePlayer(
   final givenNamePool = kGivenNamesByCountry[country]!;
   final surnamePool = kSurnamesByCountry[country]!;
   final firstName = givenNamePool[random.nextInt(givenNamePool.length)];
-  final lastName = surnamePool[random.nextInt(surnamePool.length)];
+  var lastName = surnamePool[random.nextInt(surnamePool.length)];
+  if (excludeSurnames.isNotEmpty) {
+    var attempts = 0;
+    while (excludeSurnames.contains(lastName) &&
+        attempts < surnamePool.length) {
+      lastName = surnamePool[random.nextInt(surnamePool.length)];
+      attempts++;
+    }
+  }
   final hometownPool = kHometownsByCountry[country]!;
   final hometown =
       hometownOverride ?? hometownPool[random.nextInt(hometownPool.length)];

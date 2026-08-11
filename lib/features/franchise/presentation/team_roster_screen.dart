@@ -644,8 +644,10 @@ class _CandidateRow extends StatelessWidget {
 /// after 3 rounds of feedback: jersey badge on the photo, OVR bubble
 /// underneath it (not on the right, which left too little room for the
 /// identity block and forced long names to truncate), and OFF/DEF/PHY as
-/// colored stat chips. The identity line has no `maxLines`/ellipsis --
-/// nothing here ever cuts a name off.
+/// colored stat chips, plus a POT chip (2026-08-11, a direct GM ask --
+/// `StatChipRow`'s `extra` param, same one Player Market's rows already
+/// used). The identity line has no `maxLines`/ellipsis -- nothing here
+/// ever cuts a name off.
 class _PlayerRow extends StatelessWidget {
   const _PlayerRow({
     required this.franchise,
@@ -719,7 +721,16 @@ class _PlayerRow extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  StatChipRow(player: player),
+                  StatChipRow(
+                    player: player,
+                    extra: [
+                      StatChip(
+                        label: 'POT',
+                        value: player.ratings.potential,
+                        color: Colors.purple.shade700,
+                      ),
+                    ],
+                  ),
                   if (player.traits.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Wrap(

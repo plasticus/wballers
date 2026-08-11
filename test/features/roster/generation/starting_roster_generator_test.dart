@@ -21,6 +21,19 @@ void main() {
     }
   });
 
+  test('never puts 2 players with the same surname on the same team '
+      '(2026-08-11, TODO.md: no duplicate surnames on a single team)', () {
+    for (var seed = 1; seed <= 50; seed++) {
+      final roster = generateStartingRoster(seed);
+      final surnames = roster.map((m) => m.player.lastName).toList();
+      expect(
+        surnames.toSet(),
+        hasLength(surnames.length),
+        reason: 'seed $seed produced a duplicate surname: $surnames',
+      );
+    }
+  });
+
   test('has exactly 11 active players -- one short on purpose, to be '
       'filled by signing a free agent', () {
     final roster = generateStartingRoster(1);

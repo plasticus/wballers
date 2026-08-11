@@ -84,6 +84,14 @@ const _labPlayers = [
 /// playthrough would stumble into by accident (reachable via the Training
 /// screen's own "Coach Picker Lab" button, same "not hidden, but not in
 /// the way" posture the Card Lab has).
+///
+/// **#3 "Stat Chips" landed as the real picker (2026-08-11)** -- the GM's
+/// favorite ("I really like #3... that one's my favorite"), rebuilt
+/// against the real roster in `training_screen.dart`'s
+/// `_CoachPickerMenuItem`/`_CoachPickerSelectedItem`, with 2 asks added on
+/// top: an AGE chip alongside OVR/POT, and the closed field showing all 3
+/// as bare numbers. This screen stays as a reference/comparison tool, same
+/// as the Card Lab.
 class CoachPickerLabScreen extends StatelessWidget {
   const CoachPickerLabScreen({super.key});
 

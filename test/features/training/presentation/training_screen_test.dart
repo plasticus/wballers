@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/presentation/player_card_widgets.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
 import 'package:womensbballmgr/features/training/domain/training_coach.dart';
@@ -213,7 +214,9 @@ void main() {
 
       final franchise = _franchiseWith();
       final repository = await _seededRepository(franchise);
-      final firstPlayerLabel = _playerLabel(franchise.roster.first.player);
+      final firstPlayerLabel = _playerMenuItemLabel(
+        franchise.roster.first.player,
+      );
 
       await tester.pumpWidget(
         ProviderScope(
@@ -259,7 +262,7 @@ void main() {
 
     await tester.tap(find.text('Unassigned').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text(_playerLabel(targetPlayer)).last);
+    await tester.tap(find.text(_playerMenuItemLabel(targetPlayer)).last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Save Training Plan'));
@@ -306,7 +309,14 @@ void main() {
     final targetPlayer = franchise.roster
         .firstWhere((m) => m.player.id == targetPlayerId)
         .player;
-    expect(find.text(_playerLabel(targetPlayer)), findsOneWidget);
+    // The closed/collapsed field shows last name plus OVR/POT/AGE as bare
+    // numbers (`_CoachPickerSelectedItem`), not the full open-menu identity
+    // line -- check each piece instead of one combined string.
+    final lastName = targetPlayer.name.split(' ').skip(1).join(' ');
+    expect(find.text(lastName), findsOneWidget);
+    expect(_findBareStatChip(targetPlayer.ratings.overall), findsOneWidget);
+    expect(_findBareStatChip(targetPlayer.ratings.potential), findsOneWidget);
+    expect(_findBareStatChip(targetPlayer.age), findsOneWidget);
     expect(find.text('Specific'), findsOneWidget);
     expect(find.text('Speed'), findsOneWidget);
     // Still 2 idle coaches.
@@ -314,12 +324,22 @@ void main() {
   });
 }
 
-/// Mirrors `training_screen.dart`'s private `_playerLabel` -- can't import
-/// a private function, so this is kept in sync by hand.
-String _playerLabel(Player player) {
+/// Mirrors `training_screen.dart`'s private `_CoachPickerMenuItem` identity
+/// line -- can't import a private widget's exact text, so this is kept in
+/// sync by hand. `'PG #49 Silva'`: position, jersey (when assigned), last
+/// name -- the OVR/POT/AGE numbers are separate `StatChip` widgets now, not
+/// part of this string.
+String _playerMenuItemLabel(Player player) {
   final jersey = player.jerseyNumber != null ? '#${player.jerseyNumber} ' : '';
   final lastName = player.name.split(' ').skip(1).join(' ');
-  return '${player.primaryPosition.abbreviation} $jersey· '
-      '${player.ratings.overall} OVR · ${player.ratings.potential} POT '
-      '· ${player.age}y · $lastName';
+  return '${player.primaryPosition.abbreviation} $jersey$lastName';
+}
+
+/// A `StatChip` rendered with no label (bare number) showing exactly
+/// [value] -- the Coach Picker's collapsed/selected state.
+Finder _findBareStatChip(int value) {
+  return find.byWidgetPredicate(
+    (widget) =>
+        widget is StatChip && widget.label.isEmpty && widget.value == value,
+  );
 }

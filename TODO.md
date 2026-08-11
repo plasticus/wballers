@@ -4,16 +4,13 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 
 ## Stats
 
-1. **Rebounds-per-game leaderboard looks statistically off** — a point guard was ranked #3 league-wide, which should be rare (bigs and SFs should generally dominate that stat). Unconfirmed/one anomalous case so far — flagged to watch, not a confirmed bug yet.
+1. **Tapping any player on the Stats page should open their detail page** — today it's deliberately not wired (`stats_screen.dart`'s own doc comment): `PlayerDetailScreen` only knows how to look a player up on the GM's own `Franchise.roster`, and most Stats-page entries (leaders, team rosters) are AI players. Needs a real "any player, any team" lookup path, not just the GM's own roster.
 
-## Open questions
+## Coaching
 
-2. **Do coach attributes actually do anything yet?** — confirmed 2026-08-10: only Development is wired to anything real (a genuine multiplier on weekly training growth, `training_advancer.dart`). Offense/Defense/Motivation/Management are all display-only on the coach-hiring screen, each blocked on a system that doesn't exist yet (in-game tactics, morale/chemistry, trades). Not worth building piecemeal -- revisit whichever one pairs naturally with whatever system it's blocked on gets built (Motivation could ride along with Coach free agency's morale angle, e.g.).
-
-## Blocked / waiting on the GM
-
-3. **League team pool's City/State/Team Name data is still a mess** — the 40-team league pool's city/state/name combinations need real cleanup. GM is going to acquire better data for this before it can be fixed properly. Not started.
+2. **Wire up the coach stats that still do nothing** — confirmed 2026-08-10: only Development affects anything real (`training_advancer.dart`'s growth multiplier). Offense/Defense are the buildable half: a real match-simulation modifier off the GM's own coach's stats, the same pattern `kHomeAdvantageBonus` already uses for home-court advantage (`possession_engine.dart`) -- a flat rating bump/penalty for the team, not a full Phase 3 tactics system. Motivation and Management are a bigger lift and stay blocked: they're tied to systems that don't exist anywhere in the codebase yet (morale/chemistry, trades), so those two ride along with whichever system lands first, same as the original note said.
 
 ## Awards & All-Star (see SeasonAwardsAnswers.md)
 
-4. **Coach free agency in the off-season** — Coach of the Year needs every AI team to have a real generated coach first. Pair with an off-season sim where the bottom ~5 teams by record fire their coach (newly hired coaches get a 2-season grace period), plus the actual hiring flow for the resulting vacancies.
+3. **Coach free agency in the off-season** — Coach of the Year needs every AI team to have a real generated coach first. Pair with an off-season sim where the bottom ~5 teams by record fire their coach (newly hired coaches get a 2-season grace period), plus the actual hiring flow for the resulting vacancies.
+4. **All-Star reports should name the player's team** — the GM asked for it after playing through All-Star week: every player mention in `skills_competition_result_screen.dart`/`all_star_game_result_screen.dart` (honoree lists, event results, MVP banner) should show the 3-letter team abbreviation after the name, since All-Star squads mix players from every team in the conference and the name alone doesn't say who they normally play for.
