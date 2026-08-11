@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../draft/domain/draft_in_progress.dart';
 import '../../draft/generation/draft_generator.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../portrait/domain/portrait_weights.dart';
@@ -41,6 +42,18 @@ bool seasonIsOver(Franchise franchise) {
 /// This function is specifically the "start of the new season" half, not
 /// the "wrap up the old one" half.
 ///
+/// A real draft order is computed here too, from the *old* season's final
+/// standings ([currentStandings] against [franchise.seasonProgress],
+/// before it's replaced below) -- worst-record-first via the lottery,
+/// same [generateDraftOrder] the preview screens already used, just
+/// seeded off [kRealDraftOrderSeedOffset] instead of the preview-only
+/// [kDraftOrderSeedOffset] so a save's real order can never shift because
+/// some other screen's throwaway preview happened to roll differently.
+/// [Franchise.draftInProgress] is set to a fresh, pick-less
+/// [DraftInProgress] built from that order -- `draft_advancer.dart`'s
+/// `resolveAiPicksUntilOwnTurn`/`makeOwnPick`/`finalizeDraft` are what
+/// actually resolve it from here.
+///
 /// [portraitWeights] is optional and threads straight through to both the
 /// free-agent and draft-class generation, same "omit it, every new face
 /// stays `null`" fallback every other generator in this codebase already
@@ -48,15 +61,10 @@ bool seasonIsOver(Franchise franchise) {
 /// so a future one (the "Begin Season 2" button, Presentation stage) is
 /// expected to pass its own real weights through once it exists.
 ///
-/// Still not done here, each one a separate, not-yet-built roadmap stage:
-/// - No real draft-day flow -- [Franchise.draftClass] is real, persisted
-///   prospects now, but nothing lets a GM (or the 19 AI teams) actually
-///   spend a pick and land one on a roster yet ("The draft, for real").
-/// - No ceremony, no awards granted, no "Begin Season 2" button anywhere
-///   in the UI yet -- this function has no caller at all outside its own
-///   tests right now ("Presentation"). Wiring a real button before that
-///   stage exists would let a GM start a new season with last season's
-///   draft class just sitting there, never actually drafted from.
+/// Still not done here, a separate, not-yet-built roadmap stage: no
+/// ceremony, no awards granted, no "Begin Season 2" button anywhere in
+/// the UI yet -- this function has no caller at all outside its own tests
+/// right now ("Presentation").
 ///
 /// Asserts [seasonIsOver] -- starting a new season before the old one's
 /// postseason has actually resolved would silently discard whatever's
@@ -73,6 +81,14 @@ Franchise beginNextSeason(
 
   final newSeason = franchise.season + 1;
   final newSeasonSeed = franchise.simulationSeed + newSeason * kSeasonSeedSpan;
+  final finalStandings = currentStandings(
+    franchise.seasonProgress,
+    allLeagueTeams(franchise),
+  );
+  final draftOrder = generateDraftOrder(
+    Random(newSeasonSeed + kRealDraftOrderSeedOffset),
+    finalStandings,
+  );
   final newSchedule = generateSeasonSchedule(
     allLeagueTeams(franchise),
     Random(newSeasonSeed + kSeasonScheduleSeedOffset),
@@ -96,5 +112,8 @@ Franchise beginNextSeason(
         ),
       )
       .copyWithFreeAgents([...franchise.freeAgents, ...freshFreeAgents])
-      .copyWithDraftClass(newDraftClass);
+      .copyWithDraftClass(newDraftClass)
+      .copyWithDraftInProgress(
+        DraftInProgress(order: draftOrder, rounds: kDraftRounds),
+      );
 }

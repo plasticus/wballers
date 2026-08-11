@@ -205,6 +205,57 @@ void main() {
     expect(next.draftClass, hasLength(kDefaultDraftClassSize));
   });
 
+  test('sets up a fresh draftInProgress, ordered by the just-finished '
+      'season\'s final standings (2026-08-11, 0D_Season_2_Roadmap.md: The '
+      'draft, for real)', () async {
+    final base = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final playedOut = await _playedOutFranchise(base);
+    expect(playedOut.draftInProgress, isNull);
+
+    final next = beginNextSeason(playedOut);
+
+    expect(next.draftInProgress, isNotNull);
+    expect(next.draftInProgress!.picks, isEmpty);
+    expect(next.draftInProgress!.rounds, kDraftRounds);
+    expect(
+      next.draftInProgress!.order.toSet(),
+      allLeagueTeams(playedOut).map((t) => t.abbreviation).toSet(),
+    );
+  });
+
+  test('draftInProgress order is deterministic for the same played-out '
+      'franchise', () async {
+    final base = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final playedOut = await _playedOutFranchise(base);
+
+    final a = beginNextSeason(playedOut);
+    final b = beginNextSeason(playedOut);
+
+    expect(a.draftInProgress!.order, b.draftInProgress!.order);
+  });
+
   test('asserts when the season isn\'t actually over yet', () async {
     final base = withFullActiveRoster(
       createExpansionFranchise(
