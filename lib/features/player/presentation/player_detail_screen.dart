@@ -214,6 +214,8 @@ class _HeaderCard extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text('OVR', style: theme.textTheme.labelSmall),
+                  const SizedBox(height: 2),
+                  StarTierBadge(player: player),
                 ],
               ),
             ],

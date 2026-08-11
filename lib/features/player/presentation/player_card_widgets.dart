@@ -4,6 +4,7 @@ import '../../../app/app_spacing.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
+import '../../roster/domain/star_tier.dart';
 import '../domain/player.dart';
 
 /// Shared building blocks for showing a player's identity compactly --
@@ -47,6 +48,47 @@ class OvrBubble extends StatelessWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
+    );
+  }
+}
+
+/// [StarTier.of]'s tier as 0-4 filled ★ glyphs -- TODO.md's former "real
+/// star-quality indicator" item, resolved 2026-08-10 once the tier bands
+/// themselves settled (`star_system.md`: 4★ 90+, 3★ 80-89, 2★ 70-79, 1★
+/// 60-69, no stars below 60). Repeated glyphs over a compact "N ⭐": at
+/// most 4 characters, so there's no real length pressure, and a row of
+/// stars reads at a glance the way a single number doesn't. Renders
+/// nothing at all for [StarTier.noStars] rather than an empty row --
+/// most of a roster sits below 60 OVR (only 6 slots per team can be
+/// 3-star-or-better at all), so this is the common case, not an error
+/// state, and remains genuinely space-free row-to-row.
+///
+/// Deliberately never a lone star *icon* anywhere near the identity line
+/// -- `team_roster_screen.dart`'s `_StarterBadge` doc comment already
+/// flagged that exact confusion risk ("a bare star here read as a
+/// quality rating... since this app has a real star-quality concept
+/// elsewhere"); this widget is that concept, finally built, and stays
+/// anchored next to the OVR bubble specifically so the two badges are
+/// never adjacent.
+class StarTierBadge extends StatelessWidget {
+  const StarTierBadge({required this.player, super.key});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    final tier = StarTier.of(player);
+    final count = switch (tier) {
+      StarTier.fourStar => 4,
+      StarTier.threeStar => 3,
+      StarTier.twoStar => 2,
+      StarTier.oneStar => 1,
+      StarTier.noStars => 0,
+    };
+    if (count == 0) return const SizedBox.shrink();
+    return Text(
+      '★' * count,
+      style: const TextStyle(color: Colors.amber, fontSize: 12, height: 1),
     );
   }
 }
@@ -155,6 +197,8 @@ class PhotoOvrRail extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         OvrBubble(overall: player.ratings.overall, color: accentColor),
+        const SizedBox(height: 2),
+        StarTierBadge(player: player),
       ],
     );
   }

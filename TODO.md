@@ -6,18 +6,14 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 
 1. **Rebounds-per-game leaderboard looks statistically off** — a point guard was ranked #3 league-wide, which should be rare (bigs and SFs should generally dominate that stat). Unconfirmed/one anomalous case so far — flagged to watch, not a confirmed bug yet.
 
-## Player cards / roster display
-
-2. **Real star-quality indicator on the roster page** — the tier bands themselves are now fully defined (`star_system.md`, `StarTier`: 4★ 90+, 3★ 80-89, 2★ 70-79, 1★ 60-69, no stars below 60), so the earlier "1-3★ bands need a judgment call" blocker is resolved. Still needs a display-format decision before this can be built: repeated glyphs (⭐⭐⭐⭐) vs. compact "N ⭐", and where it shows (roster row, player detail, or both) -- see `Aug10Questions.md` #19, not yet answered.
-
 ## Open questions
 
-3. **Do coach attributes actually do anything yet?** — need to confirm whether coach stats (Motivation, Offense, etc.) currently have any real gameplay effect, or are still cosmetic/unused.
+2. **Do coach attributes actually do anything yet?** — confirmed 2026-08-10: only Development is wired to anything real (a genuine multiplier on weekly training growth, `training_advancer.dart`). Offense/Defense/Motivation/Management are all display-only on the coach-hiring screen, each blocked on a system that doesn't exist yet (in-game tactics, morale/chemistry, trades). Not worth building piecemeal -- revisit whichever one pairs naturally with whatever system it's blocked on gets built (Motivation could ride along with Coach free agency's morale angle, e.g.).
 
 ## Blocked / waiting on the GM
 
-4. **League team pool's City/State/Team Name data is still a mess** — the 40-team league pool's city/state/name combinations need real cleanup. GM is going to acquire better data for this before it can be fixed properly. Not started.
+3. **League team pool's City/State/Team Name data is still a mess** — the 40-team league pool's city/state/name combinations need real cleanup. GM is going to acquire better data for this before it can be fixed properly. Not started.
 
 ## Awards & All-Star (see SeasonAwardsAnswers.md)
 
-5. **Coach free agency in the off-season** — Coach of the Year needs every AI team to have a real generated coach first. Pair with an off-season sim where the bottom ~5 teams by record fire their coach (newly hired coaches get a 2-season grace period), plus the actual hiring flow for the resulting vacancies.
+4. **Coach free agency in the off-season** — Coach of the Year needs every AI team to have a real generated coach first. Pair with an off-season sim where the bottom ~5 teams by record fire their coach (newly hired coaches get a 2-season grace period), plus the actual hiring flow for the resulting vacancies.
