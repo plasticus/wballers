@@ -31,7 +31,7 @@ void main() {
     }
   });
 
-  test('always includes exactly one five-star player, leaning veteran', () {
+  test('always includes exactly one four-star player, leaning veteran', () {
     // Not a magic seed -- the quarter-star tier (83/5) clearing 90 in a
     // rare favorable archetype+position bias combo is a known, tiny-
     // probability edge case the empirical tuning doesn't fully rule out
@@ -43,19 +43,19 @@ void main() {
     final random = Random(1);
     for (var i = 0; i < 50; i++) {
       final roster = generateAiRoster(random);
-      final fiveStars = roster
-          .where((m) => StarTier.of(m.player) == StarTier.fiveStar)
+      final fourStars = roster
+          .where((m) => StarTier.of(m.player) == StarTier.fourStar)
           .toList();
 
-      expect(fiveStars, hasLength(1));
-      expect(fiveStars.single.player.age, greaterThanOrEqualTo(29));
+      expect(fourStars, hasLength(1));
+      expect(fourStars.single.player.age, greaterThanOrEqualTo(29));
     }
   });
 
-  test('across many rosters, averages close to four four-star-or-better '
+  test('across many rosters, averages close to four three-star-or-better '
       'players, and never breaches the star-tier caps', () {
     final random = Random(99);
-    var totalFourStarAndUp = 0;
+    var totalThreeStarAndUp = 0;
     const sampleSize = 100;
 
     for (var i = 0; i < sampleSize; i++) {
@@ -64,32 +64,43 @@ void main() {
         active: roster.map((m) => m.player).toList(),
       );
 
-      expect(legality.hasLegalFiveStarCount, isTrue);
-      expect(legality.hasLegalFourStarAndUpCount, isTrue);
-      totalFourStarAndUp += legality.fourStarAndUpCount;
+      expect(legality.hasLegalFourStarCount, isTrue);
+      expect(legality.hasLegalThreeStarAndUpCount, isTrue);
+      totalThreeStarAndUp += legality.threeStarAndUpCount;
     }
 
-    expect(totalFourStarAndUp / sampleSize, closeTo(4, 1));
+    // Lower than the pre-2026-08-10 tier shift's expected value of ~4:
+    // the quarter-star tier (center 83, spread 5, plus a -7..+2 team
+    // offset) cleared the old four-star cutoff (78) comfortably but only
+    // straddles the new three-star cutoff (80). Measured empirically with
+    // a throwaway `tool/probe.dart` script (since deleted) against this
+    // exact seed/sample, same "measure the real effect size before
+    // picking a bound" approach as every other statistical test in this
+    // codebase: average 3.51.
+    expect(totalThreeStarAndUp / sampleSize, closeTo(3.5, 0.5));
   });
 
-  test('the young/mid/old age spread applies to the three 4-star slots', () {
-    final random = Random(55);
-    for (var i = 0; i < 30; i++) {
-      final roster = generateAiRoster(random);
-      final fourStars = roster
-          .where((m) => StarTier.of(m.player) == StarTier.fourStar)
-          .toList();
+  test(
+    'the young/mid/old age spread applies to the three near-elite slots',
+    () {
+      final random = Random(55);
+      for (var i = 0; i < 30; i++) {
+        final roster = generateAiRoster(random);
+        final threeStars = roster
+            .where((m) => StarTier.of(m.player) == StarTier.threeStar)
+            .toList();
 
-      // Not every quality-tier player necessarily lands exactly at
-      // four-star (jitter can push one below 78 or above 89) -- but every
-      // one that does must still respect the tier's overall 20-34 age
-      // bound; the young/mid/old bias itself is checked statistically via
-      // the average below.
-      for (final membership in fourStars) {
-        expect(membership.player.age, inInclusiveRange(20, 34));
+        // Not every quality-tier player necessarily lands exactly at
+        // three-star (jitter can push one below 80 or above 89) -- but
+        // every one that does must still respect the tier's overall 20-34
+        // age bound; the young/mid/old bias itself is checked statistically
+        // via the average above.
+        for (final membership in threeStars) {
+          expect(membership.player.age, inInclusiveRange(20, 34));
+        }
       }
-    }
-  });
+    },
+  );
 
   test('team overall spreads ~69-76 across teams (`Aug9bugs.md` #11: a real '
       'per-team quality offset, not just individual-player jitter that '

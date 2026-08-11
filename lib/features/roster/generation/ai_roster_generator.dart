@@ -10,11 +10,11 @@ import 'roster_position_plan.dart';
 import 'trait_distribution.dart';
 
 /// Target composition for a freshly generated AI team (`0B_Planned.md`):
-/// exactly one 5-star player, leaning veteran, plus three 4-star players
-/// with a young/mid/old age spread -- four four-star-or-better total,
-/// comfortably inside `star_system.md`'s caps (<=2 five-star, <=6
-/// four-star-or-better combined). The other eight are role players,
-/// centered well below the four-star threshold so the roster still reads
+/// exactly one 4-star player, leaning veteran, plus three high-quality
+/// players with a young/mid/old age spread -- four 3-star-or-better total,
+/// comfortably inside `star_system.md`'s caps (<=2 four-star, <=6
+/// three-star-or-better combined). The other eight are role players,
+/// centered well below the three-star threshold so the roster still reads
 /// as a real team with a top-heavy shape, not 12 similar bodies.
 /// Tight and close to the ceiling on purpose: `generatePlayer` now also
 /// layers an archetype-specific bias on top of the position bias
@@ -23,7 +23,7 @@ import 'trait_distribution.dart';
 /// exceed 99 just gets capped there (no headroom lost), but one pulled
 /// down by a negative archetype delta has nothing to compensate,
 /// dragging the 12-stat average down. 94/3 let real archetype+position
-/// combinations occasionally land below the 90 five-star cutoff; 97/2
+/// combinations occasionally land below the 90 four-star cutoff; 97/2
 /// verified empirically (500-roster sample) to always clear it.
 const _starQualityCenter = 97;
 const _starQualitySpread = 2;
@@ -33,9 +33,13 @@ const _starMaxAge = 34;
 const _quarterStarQualityCenter = 83;
 const _quarterStarQualitySpread = 5;
 
-/// (minAge, maxAge) for the three 4-star slots, in order: young, mid-career,
-/// veteran -- "a mixed young/mid/old spread" rather than three same-aged
-/// players.
+/// (minAge, maxAge) for the three near-elite slots, in order: young,
+/// mid-career, veteran -- "a mixed young/mid/old spread" rather than three
+/// same-aged players. Named for the old 4-tier system (this was the
+/// "quarter star" -- i.e. second-from-top -- tier); still second-from-top
+/// under the current `StarTier` bands, just not guaranteed to land in any
+/// one specific band the way [_starQualityCenter]'s tier is (see
+/// `ai_roster_generator_test.dart`'s own comment on why).
 const _quarterStarAgeRanges = <(int, int)>[(20, 24), (25, 29), (30, 34)];
 
 const _roleQualityCenter = 65;
@@ -58,11 +62,11 @@ const _roleQualitySpread = 10;
 ///
 /// Deliberately **excludes the star tier**: [_starQualityCenter]'s own doc
 /// comment already explains why 97/2 is a tight, empirically-verified
-/// minimum to *always* clear the 90 five-star cutoff -- an offset this
+/// minimum to *always* clear the 90 four-star cutoff -- an offset this
 /// negative applied there too would eat that safety margin and start
-/// producing AI teams with zero five-star players, breaking a real,
+/// producing AI teams with zero four-star players, breaking a real,
 /// tested invariant (`ai_roster_generator_test.dart`'s "always includes
-/// exactly one five-star player"). Every team keeps its guaranteed
+/// exactly one four-star player"). Every team keeps its guaranteed
 /// franchise player; what varies is the strength of the 11 players around
 /// her.
 const _teamQualityOffsetMin = -7;

@@ -64,7 +64,7 @@ void main() {
           player: playerWithOverall(50, name: 'Active $i'),
           status: RosterStatus.active,
         ),
-      // Even five-star reserves shouldn't push the five-star count up.
+      // Even four-star reserves shouldn't push the four-star count up.
       for (var i = 0; i < 5; i++)
         RosterMembership(
           player: playerWithOverall(95, name: 'Reserve $i'),
@@ -75,10 +75,10 @@ void main() {
     final legality = evaluateFranchiseLegality(_franchiseWithRoster(roster));
 
     expect(legality.isLegal, isTrue);
-    expect(legality.fiveStarCount, 0);
+    expect(legality.fourStarCount, 0);
   });
 
-  test('too many active five-star players makes the franchise illegal', () {
+  test('too many active four-star players makes the franchise illegal', () {
     final roster = [
       for (var i = 0; i < 3; i++)
         RosterMembership(
@@ -95,7 +95,7 @@ void main() {
     final legality = evaluateFranchiseLegality(_franchiseWithRoster(roster));
 
     expect(legality.isLegal, isFalse);
-    expect(legality.hasLegalFiveStarCount, isFalse);
+    expect(legality.hasLegalFourStarCount, isFalse);
   });
 
   test('an ineligible developmental player makes the franchise illegal', () {

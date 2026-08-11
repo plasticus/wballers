@@ -5,82 +5,88 @@ import 'package:womensbballmgr/features/roster/domain/roster_legality.dart';
 import 'roster_test_helpers.dart';
 
 List<Player> _roster({
-  int fiveStar = 0,
   int fourStar = 0,
-  int belowFourStar = 0,
+  int threeStar = 0,
+  int belowThreeStar = 0,
 }) {
   return [
-    for (var i = 0; i < fiveStar; i++) playerWithOverall(95),
-    for (var i = 0; i < fourStar; i++) playerWithOverall(80),
-    for (var i = 0; i < belowFourStar; i++) playerWithOverall(50),
+    for (var i = 0; i < fourStar; i++) playerWithOverall(95),
+    for (var i = 0; i < threeStar; i++) playerWithOverall(85),
+    for (var i = 0; i < belowThreeStar; i++) playerWithOverall(50),
   ];
 }
 
 void main() {
-  test('an all below-four-star 12-player roster is legal', () {
-    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 12));
+  test('an all below-three-star 12-player roster is legal', () {
+    final legality = evaluateRosterLegality(
+      active: _roster(belowThreeStar: 12),
+    );
 
     expect(legality.isLegal, isTrue);
   });
 
   test(
-    'zero five-star players still allows the full six four-star players',
+    'zero four-star players still allows the full six three-star players',
     () {
       final legality = evaluateRosterLegality(
-        active: _roster(fourStar: 6, belowFourStar: 6),
+        active: _roster(threeStar: 6, belowThreeStar: 6),
       );
 
       expect(legality.isLegal, isTrue);
-      expect(legality.fiveStarCount, 0);
-      expect(legality.fourStarAndUpCount, 6);
+      expect(legality.fourStarCount, 0);
+      expect(legality.threeStarAndUpCount, 6);
     },
   );
 
-  test('two five-star plus four four-star (six elite total) is legal', () {
+  test('two four-star plus four three-star (six elite total) is legal', () {
     final legality = evaluateRosterLegality(
-      active: _roster(fiveStar: 2, fourStar: 4, belowFourStar: 6),
+      active: _roster(fourStar: 2, threeStar: 4, belowThreeStar: 6),
     );
 
     expect(legality.isLegal, isTrue);
-    expect(legality.fiveStarCount, 2);
-    expect(legality.fourStarAndUpCount, 6);
+    expect(legality.fourStarCount, 2);
+    expect(legality.threeStarAndUpCount, 6);
   });
 
-  test('three five-star players is illegal even though total is 12', () {
+  test('three four-star players is illegal even though total is 12', () {
     final legality = evaluateRosterLegality(
-      active: _roster(fiveStar: 3, fourStar: 3, belowFourStar: 6),
+      active: _roster(fourStar: 3, threeStar: 3, belowThreeStar: 6),
     );
 
     expect(legality.isLegal, isFalse);
-    expect(legality.hasLegalFiveStarCount, isFalse);
+    expect(legality.hasLegalFourStarCount, isFalse);
   });
 
-  test('seven four-star-and-up players is illegal', () {
+  test('seven three-star-and-up players is illegal', () {
     final legality = evaluateRosterLegality(
-      active: _roster(fiveStar: 1, fourStar: 6, belowFourStar: 5),
+      active: _roster(fourStar: 1, threeStar: 6, belowThreeStar: 5),
     );
 
     expect(legality.isLegal, isFalse);
-    expect(legality.hasLegalFourStarAndUpCount, isFalse);
-    expect(legality.fourStarAndUpCount, 7);
+    expect(legality.hasLegalThreeStarAndUpCount, isFalse);
+    expect(legality.threeStarAndUpCount, 7);
   });
 
   test('a roster with fewer than 12 players is legal -- no enforced floor', () {
-    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 8));
+    final legality = evaluateRosterLegality(active: _roster(belowThreeStar: 8));
 
     expect(legality.isLegal, isTrue);
     expect(legality.hasLegalActiveRosterSize, isTrue);
   });
 
   test('a roster with more than 12 players is illegal', () {
-    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 13));
+    final legality = evaluateRosterLegality(
+      active: _roster(belowThreeStar: 13),
+    );
 
     expect(legality.isLegal, isFalse);
     expect(legality.hasLegalActiveRosterSize, isFalse);
   });
 
   test('an empty developmental list is legal by default', () {
-    final legality = evaluateRosterLegality(active: _roster(belowFourStar: 12));
+    final legality = evaluateRosterLegality(
+      active: _roster(belowThreeStar: 12),
+    );
 
     expect(legality.hasLegalDevelopmentalRosterSize, isTrue);
     expect(legality.hasOnlyEligibleDevelopmentalPlayers, isTrue);
@@ -88,7 +94,7 @@ void main() {
 
   test('two eligible developmental players is legal', () {
     final legality = evaluateRosterLegality(
-      active: _roster(belowFourStar: 12),
+      active: _roster(belowThreeStar: 12),
       developmental: [
         playerWithOverall(50, yearsOfService: 0),
         playerWithOverall(50, yearsOfService: 3),
@@ -101,7 +107,7 @@ void main() {
 
   test('three developmental players is illegal', () {
     final legality = evaluateRosterLegality(
-      active: _roster(belowFourStar: 12),
+      active: _roster(belowThreeStar: 12),
       developmental: [
         playerWithOverall(50, yearsOfService: 0),
         playerWithOverall(50, yearsOfService: 0),
@@ -115,7 +121,7 @@ void main() {
 
   test('a developmental player with too much service time is illegal', () {
     final legality = evaluateRosterLegality(
-      active: _roster(belowFourStar: 12),
+      active: _roster(belowThreeStar: 12),
       developmental: [playerWithOverall(50, yearsOfService: 4)],
     );
 

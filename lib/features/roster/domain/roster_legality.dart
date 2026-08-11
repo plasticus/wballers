@@ -8,12 +8,18 @@ import 'star_tier.dart';
 /// disadvantage, not something the game blocks (decision 22: we're not
 /// modeling the real CBA's fill-the-roster deadlines).
 const kActiveRosterSize = 12;
-const kMaxFiveStarPlayers = 2;
 
-/// Five-star and four-star combined. A roster with zero five-star players
-/// can still carry up to this many four-star players — the cap doesn't
-/// shrink just because no five-star slots are used.
-const kMaxFourStarAndUpPlayers = 6;
+/// Revised 2026-08-10 (`season2roadmap.md` answer 1) alongside [StarTier]'s
+/// own tier shift -- was `kMaxFiveStarPlayers`, cap unchanged at 2, just
+/// renamed to match the new top tier's name.
+const kMaxFourStarPlayers = 2;
+
+/// Three-star and four-star combined. A roster with zero four-star players
+/// can still carry up to this many three-star players — the cap doesn't
+/// shrink just because no four-star slots are used. Was
+/// `kMaxFourStarAndUpPlayers`, cap unchanged at 6, renamed for the same
+/// reason as [kMaxFourStarPlayers].
+const kMaxThreeStarAndUpPlayers = 6;
 
 /// The result of checking a proposed roster against the active-roster
 /// star-tier caps and the developmental-roster rules. Reserve/Inactive
@@ -24,22 +30,22 @@ const kMaxFourStarAndUpPlayers = 6;
 class RosterLegality {
   const RosterLegality({
     required this.activeRosterSize,
-    required this.fiveStarCount,
-    required this.fourStarAndUpCount,
+    required this.fourStarCount,
+    required this.threeStarAndUpCount,
     required this.developmentalRosterSize,
     required this.ineligibleDevelopmentalCount,
   });
 
   final int activeRosterSize;
-  final int fiveStarCount;
-  final int fourStarAndUpCount;
+  final int fourStarCount;
+  final int threeStarAndUpCount;
   final int developmentalRosterSize;
   final int ineligibleDevelopmentalCount;
 
   bool get hasLegalActiveRosterSize => activeRosterSize <= kActiveRosterSize;
-  bool get hasLegalFiveStarCount => fiveStarCount <= kMaxFiveStarPlayers;
-  bool get hasLegalFourStarAndUpCount =>
-      fourStarAndUpCount <= kMaxFourStarAndUpPlayers;
+  bool get hasLegalFourStarCount => fourStarCount <= kMaxFourStarPlayers;
+  bool get hasLegalThreeStarAndUpCount =>
+      threeStarAndUpCount <= kMaxThreeStarAndUpPlayers;
   bool get hasLegalDevelopmentalRosterSize =>
       developmentalRosterSize <= kMaxDevelopmentalRosterSpots;
   bool get hasOnlyEligibleDevelopmentalPlayers =>
@@ -47,8 +53,8 @@ class RosterLegality {
 
   bool get isLegal =>
       hasLegalActiveRosterSize &&
-      hasLegalFiveStarCount &&
-      hasLegalFourStarAndUpCount &&
+      hasLegalFourStarCount &&
+      hasLegalThreeStarAndUpCount &&
       hasLegalDevelopmentalRosterSize &&
       hasOnlyEligibleDevelopmentalPlayers;
 }
@@ -57,11 +63,15 @@ RosterLegality evaluateRosterLegality({
   required List<Player> active,
   List<Player> developmental = const [],
 }) {
-  final fiveStarCount = active
-      .where((player) => StarTier.of(player) == StarTier.fiveStar)
+  final fourStarCount = active
+      .where((player) => StarTier.of(player) == StarTier.fourStar)
       .length;
-  final fourStarAndUpCount = active
-      .where((player) => StarTier.of(player) != StarTier.belowFourStar)
+  final threeStarAndUpCount = active
+      .where(
+        (player) =>
+            StarTier.of(player) == StarTier.fourStar ||
+            StarTier.of(player) == StarTier.threeStar,
+      )
       .length;
   final ineligibleDevelopmentalCount = developmental
       .where((player) => !isDevelopmentalEligible(player))
@@ -69,8 +79,8 @@ RosterLegality evaluateRosterLegality({
 
   return RosterLegality(
     activeRosterSize: active.length,
-    fiveStarCount: fiveStarCount,
-    fourStarAndUpCount: fourStarAndUpCount,
+    fourStarCount: fourStarCount,
+    threeStarAndUpCount: threeStarAndUpCount,
     developmentalRosterSize: developmental.length,
     ineligibleDevelopmentalCount: ineligibleDevelopmentalCount,
   );

@@ -87,7 +87,7 @@ void main() {
   });
 
   test(
-    'includes a narrative core: an aging four-star-or-better vet and a '
+    'includes a narrative core: an aging three-star-or-better vet and a '
     'boom-or-bust prospect with a wide gap between overall and potential',
     () {
       for (var seed = 0; seed < 100; seed++) {
@@ -95,12 +95,17 @@ void main() {
         final players = roster.map((m) => m.player).toList();
 
         final vetCandidates = players.where(
-          (p) => p.age >= 30 && StarTier.of(p) != StarTier.belowFourStar,
+          (p) =>
+              p.age >= 30 &&
+              const {
+                StarTier.fourStar,
+                StarTier.threeStar,
+              }.contains(StarTier.of(p)),
         );
         expect(
           vetCandidates,
           isNotEmpty,
-          reason: 'seed $seed: no aging four-star-or-better vet found',
+          reason: 'seed $seed: no aging three-star-or-better vet found',
         );
 
         final prospectCandidates = players.where(

@@ -8,24 +8,31 @@ Traditional sports management games rely on rigid financial structures like sala
 ## 2. League-Wide Scope & Star Limits
 Designed for a **20-team league** with a standard 12-player active roster (240 total active players), the game utilizes a **1–99 attribute scale** mapped to an intuitive star-rating system:
 
-* **5-Star Players (90–99 OVR):** Elite max-impact players and MVP candidates (~30 total in the league).
-* **4-Star Players (78–89 OVR):** Solid starters and high-level rotation pieces (~80 total in the league).
-* **3-Star & Below (1–77 OVR):** Bench players, specialists, and developmental rookies (~130+ total in the league) filling out the remaining roster slots.
+* **4-Star Players (90+ OVR):** Elite max-impact players and MVP candidates.
+* **3-Star Players (80–89 OVR):** Quality starters and difference-makers.
+* **2-Star Players (70–79 OVR):** Solid rotation pieces.
+* **1-Star Players (60–69 OVR):** Fringe roster players and specialists.
+* **No Stars (below 60 OVR):** Bench depth, developmental rookies, and replacement-level players.
 
-### Roster Configuration Options (12-Player Active Limit)
-Rather than fixed recipes, roster construction is governed by two nested caps:
-* At most **2** players may be 5-Star.
-* At most **6** players total may be 4-Star-or-better (5-Star and 4-Star combined).
-* 3-Star & Below players are uncapped and fill whatever active roster slots remain, up to 12 total.
+> Revised 2026-08-10 (GM decision, closing the "1-3 star bands need a
+> judgment call" question this doc used to leave open): the top tier is
+> now 4-star, not 5-star — every band shifted down one rather than adding
+> a real 5th tier on top.
 
-This means a team with zero 5-Star players can carry up to six 4-Star players — the 4-Star cap doesn't shrink just because no 5-Star slots are used. Revised from an earlier two-fixed-configuration draft (2+3+7 or 1+5+6) because the nested-cap framing is simpler to reason about and produces the same spirit of constraint without hardcoding every valid distribution.
+### Roster Configuration (12-Player Active Limit)
+Roster construction is governed by two nested caps:
+* At most **6** players total may be 3-Star-or-better (3-Star and 4-Star combined).
+* Within that 6, at most **2** may be 4-Star.
+* 2-Star and below are uncapped and fill whatever active roster slots remain, up to 12 total.
+
+This means a team with zero 4-Star players can still carry up to six 3-Star players — the 3-Star cap doesn't shrink just because no 4-Star slots are used.
 
 ---
 
 ## 3. Season-Over-Season Churn & The Off-Season Reckoning
 * **Mid-Season Grace Period:** Star limits lock only at the final regular-season buzzer. Calling up a rookie or trading for an upgrade mid-season lets teams make a high-stakes playoff push even if it temporarily violates structural norms.
-* **The Breakout Dilemma:** If a 3-star youngster or 4-star starter explodes statistically during a deep playoff run, their overall rating increases, pushing them into 5-star status.
-* **The Off-Season Reconciliation:** Rosters must be legal before free agency and the draft. Teams facing an illegal star surplus must choose between trading their original superstar, offloading the newly popped asset at peak value, or letting core players walk.
+* **The Breakout Dilemma:** If a rising player explodes statistically during a deep playoff run, their overall rating increases, pushing them into 4-star status.
+* **The Off-Season Reconciliation:** Rosters must be legal before free agency and the draft. Teams facing an illegal star surplus must choose between trading their original superstar, offloading the newly popped asset at peak value, or letting core players walk. A fuller enforcement flow (Assistant GM mail warning, a fixed grace period after the draft, AI teams offering trades before waiving an excess player) is designed but not yet built — see `season2roadmap.md` and `0D_Season_2_Roadmap.md`, both blocked on the same "no real multi-season flow yet" gap.
 
 ---
 

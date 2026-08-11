@@ -32,7 +32,7 @@ String formatHeightInches(int heightInches) {
 ///   chemistry, fatigue/readiness, morale, injury risk, development
 ///   trajectory — all depend on roster or simulation context, not just
 ///   this player alone.
-/// - Star-tier classification (5-star/4-star/etc.): it's a roster-legality
+/// - Star-tier classification (4-star/3-star/etc.): it's a roster-legality
 ///   concern, not a player attribute — see `StarTier.of` in the roster
 ///   feature, which computes it from [PlayerRatings.overall] on demand.
 /// - Roster placement (active/developmental/reserve): a roster-membership

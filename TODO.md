@@ -8,7 +8,7 @@ The GM's running punch list — playtest feedback and asks not yet built. Supers
 
 ## Player cards / roster display
 
-2. **Real star-quality indicator on the roster page** — off `star_system.md`'s OVR thresholds (90+ = 5★, 78-89 = 4★ are spelled out there; the 1-3★ bands below that still need a judgment call before this can be built).
+2. **Real star-quality indicator on the roster page** — the tier bands themselves are now fully defined (`star_system.md`, `StarTier`: 4★ 90+, 3★ 80-89, 2★ 70-79, 1★ 60-69, no stars below 60), so the earlier "1-3★ bands need a judgment call" blocker is resolved. Still needs a display-format decision before this can be built: repeated glyphs (⭐⭐⭐⭐) vs. compact "N ⭐", and where it shows (roster row, player detail, or both) -- see `Aug10Questions.md` #19, not yet answered.
 
 ## Open questions
 
