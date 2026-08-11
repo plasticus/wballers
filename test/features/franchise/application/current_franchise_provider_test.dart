@@ -4,6 +4,7 @@ import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
@@ -38,6 +39,11 @@ const _newAppearance = PortraitAppearance(
 );
 
 void main() {
+  // beginNextSeasonAndPersist reads the bundled portrait catalog
+  // (portraitWeightsProvider), same real-asset-loading requirement
+  // portrait_catalog_loader_test.dart already established.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('starts as null when nothing has been saved', () async {
     final container = ProviderContainer(
       overrides: [
@@ -1847,6 +1853,207 @@ void main() {
 
       expect(outcome, isNull);
       expect(container.read(currentFranchiseProvider).value, isNull);
+    });
+  });
+
+  group('beginNextSeasonAndPersist / makeDraftPick (2026-08-11, '
+      '0D_Season_2_Roadmap.md: The draft, for real)', () {
+    /// Creates a franchise, persists it, and plays it all the way through
+    /// season 0's postseason via the real provider -- same
+    /// play-every-game-day-then-postseason pattern the
+    /// `simulatePostseasonAndPersist` group above already established,
+    /// just packaged for reuse here too.
+    Future<ProviderContainer> playedOutContainer() async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      var progress = franchise.seasonProgress;
+      var guard = 0;
+      while (!progress.isComplete && guard < 60) {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        progress = container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress;
+        guard++;
+      }
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+      return container;
+    }
+
+    test('does nothing when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(currentFranchiseProvider.future);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+
+      expect(container.read(currentFranchiseProvider).value, isNull);
+    });
+
+    test('does nothing when the season isn\'t actually over yet', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.season, 0);
+      expect(updated.draftInProgress, isNull);
+    });
+
+    test('transitions to season 1 with a draftInProgress already resolved '
+        'up to the GM\'s own first turn', () async {
+      final container = await playedOutContainer();
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.season, 1);
+      expect(updated.draftInProgress, isNotNull);
+      expect(
+        updated.draftInProgress!.onTheClock,
+        updated.team.abbreviation,
+        reason:
+            'AI picks between the start of the draft and the GM\'s own '
+            'first turn should already be resolved',
+      );
+    });
+
+    test(
+      'makeDraftPick does nothing when there is no draft in progress',
+      () async {
+        final container = await playedOutContainer();
+        final before = container.read(currentFranchiseProvider).value!;
+
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .makeDraftPick('whoever');
+
+        final after = container.read(currentFranchiseProvider).value!;
+        expect(after.roster.length, before.roster.length);
+      },
+    );
+
+    test('makeDraftPick does nothing for a prospect id that isn\'t in the '
+        'draft class', () async {
+      final container = await playedOutContainer();
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+      final before = container.read(currentFranchiseProvider).value!;
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .makeDraftPick('not-a-real-prospect');
+
+      final after = container.read(currentFranchiseProvider).value!;
+      expect(
+        after.draftInProgress!.picks.length,
+        before.draftInProgress!.picks.length,
+      );
+    });
+
+    test('a full draft can be played out end-to-end: every own pick lands '
+        'on the roster, and both draftInProgress and draftClass end up '
+        'empty', () async {
+      final container = await playedOutContainer();
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+
+      var franchise = container.read(currentFranchiseProvider).value!;
+      final rosterCountBeforeDraft = franchise.roster.length;
+      final aiRosterCountBeforeDraft = franchise.league.aiTeams.fold<int>(
+        0,
+        (sum, aiTeam) => sum + aiTeam.roster.length,
+      );
+      var ownPicksMade = 0;
+      var guard = 0;
+      while (franchise.draftInProgress != null && guard < 10) {
+        expect(
+          franchise.draftInProgress!.onTheClock,
+          franchise.team.abbreviation,
+        );
+        final pickedIds = {
+          for (final pick in franchise.draftInProgress!.picks)
+            pick.prospect.player.id,
+        };
+        final best = franchise.draftClass
+            .where((p) => !pickedIds.contains(p.player.id))
+            .reduce(
+              (a, b) => draftProspectValue(a) >= draftProspectValue(b) ? a : b,
+            );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .makeDraftPick(best.player.id);
+        franchise = container.read(currentFranchiseProvider).value!;
+        ownPicksMade++;
+        guard++;
+      }
+
+      expect(ownPicksMade, kDraftRounds);
+      expect(franchise.draftInProgress, isNull);
+      expect(franchise.draftClass, isEmpty);
+      expect(franchise.roster.length, rosterCountBeforeDraft + kDraftRounds);
+      // Every AI team should also have gained players -- a real draft
+      // refreshes the whole league, not just the GM's own roster.
+      final aiRosterCountAfterDraft = franchise.league.aiTeams.fold<int>(
+        0,
+        (sum, aiTeam) => sum + aiTeam.roster.length,
+      );
+      expect(
+        aiRosterCountAfterDraft,
+        aiRosterCountBeforeDraft + 19 * kDraftRounds,
+      );
     });
   });
 }

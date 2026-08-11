@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
 import '../../coach/generation/coach_free_agency_advancer.dart';
+import '../../draft/generation/draft_advancer.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
+import '../../portrait/persistence/portrait_catalog_loader.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
@@ -23,6 +25,7 @@ import '../../season/generation/postseason_generator.dart' show seasonChampion;
 import '../../season/generation/retirement_advancer.dart';
 import '../../season/generation/season_advancer.dart';
 import '../../season/generation/season_tenure_advancer.dart';
+import '../../season/generation/season_transition_advancer.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
@@ -596,6 +599,94 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     // season *at* (`advancePlayerTenure`'s own doc comment).
     await _persist(advancePlayerTenure(withLegality));
     return advance.gamesPlayed;
+  }
+
+  /// Transitions [franchise] into its next season ([beginNextSeason]) and
+  /// persists the result -- the not-yet-built "Begin Season 2" button's
+  /// eventual write path (`0D_Season_2_Roadmap.md`'s Presentation stage),
+  /// exposed early here so `draft_advancer.dart`'s pick-resolution methods
+  /// below have something real to operate on. Reads the bundled portrait
+  /// catalog ([portraitWeightsProvider]) so the fresh free agents and
+  /// draft class this produces get real faces, same as every other
+  /// generator that accepts [PortraitWeights].
+  ///
+  /// Immediately resolves AI picks up to the GM's own first turn
+  /// ([resolveAiPicksUntilOwnTurn]) -- [DraftInProgress.order] rarely (if
+  /// ever) starts with the GM's own team, and nobody needs to watch
+  /// picks nobody's making a choice on before their first real one.
+  /// Does nothing if there's no current franchise or [seasonIsOver] isn't
+  /// true yet -- same guard [beginNextSeason] itself asserts.
+  Future<void> beginNextSeasonAndPersist() async {
+    final franchise = await future;
+    if (franchise == null || !seasonIsOver(franchise)) return;
+
+    final portraitWeights = await ref.read(portraitWeightsProvider.future);
+    final next = beginNextSeason(franchise, portraitWeights: portraitWeights);
+    final draft = next.draftInProgress;
+    if (draft == null) {
+      await _persist(next);
+      return;
+    }
+
+    final resolved = resolveAiPicksUntilOwnTurn(
+      draft: draft,
+      draftClass: next.draftClass,
+      ownTeamAbbreviation: next.team.abbreviation,
+    );
+    await _persist(next.copyWithDraftInProgress(resolved));
+  }
+
+  /// Records the GM's own pick ([makeOwnPick]) for the prospect with
+  /// [prospectPlayerId], then immediately resolves every AI pick up to
+  /// the GM's *next* turn ([resolveAiPicksUntilOwnTurn]) -- same "AI
+  /// picks between GM turns resolve instantly" posture
+  /// [beginNextSeasonAndPersist] already established for the draft's
+  /// very first picks. If that leaves the draft [DraftInProgress.isComplete],
+  /// immediately [finalizeDraft]s it too, landing every pick (the GM's own
+  /// and all 19 AI teams') onto its real roster in the same call -- there's
+  /// no separate "confirm the draft" step for the GM to remember.
+  ///
+  /// Does nothing if there's no current franchise, no draft in progress,
+  /// it isn't actually the GM's turn, or [prospectPlayerId] isn't a real
+  /// available prospect -- the Draft Day screen is expected to only ever
+  /// offer a pick when all of those already hold, same
+  /// only-call-when-valid contract every other write method here has.
+  Future<void> makeDraftPick(String prospectPlayerId) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    final draft = franchise.draftInProgress;
+    if (draft == null || draft.isComplete) return;
+    if (draft.onTheClock != franchise.team.abbreviation) return;
+
+    final prospectIndex = franchise.draftClass.indexWhere(
+      (prospect) => prospect.player.id == prospectPlayerId,
+    );
+    if (prospectIndex == -1) return;
+    final selected = franchise.draftClass[prospectIndex];
+
+    final afterOwnPick = makeOwnPick(
+      draft: draft,
+      draftClass: franchise.draftClass,
+      ownTeamAbbreviation: franchise.team.abbreviation,
+      selected: selected,
+    );
+    final afterAiPicks = resolveAiPicksUntilOwnTurn(
+      draft: afterOwnPick,
+      draftClass: franchise.draftClass,
+      ownTeamAbbreviation: franchise.team.abbreviation,
+    );
+
+    final withDraft = franchise.copyWithDraftInProgress(afterAiPicks);
+    if (!afterAiPicks.isComplete) {
+      await _persist(withDraft);
+      return;
+    }
+    await _persist(
+      finalizeDraft(
+        Random(franchise.seasonSeed + kDraftFinalizeSeedOffset),
+        withDraft,
+      ),
+    );
   }
 
   /// Replaces the training plan and persists it -- the Training screen's
