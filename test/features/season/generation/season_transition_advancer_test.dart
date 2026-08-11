@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
@@ -153,6 +154,56 @@ void main() {
       expect(season1Preseason, isNot(equals(season0Preseason)));
     },
   );
+
+  test('appends a fresh batch of free agents to whatever was already unsigned '
+      '-- nothing existing gets discarded (2026-08-11, 0D_Season_2_Roadmap.md: '
+      'Player pool refresh)', () async {
+    final base = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final playedOut = await _playedOutFranchise(base);
+    final oldFreeAgentIds = playedOut.freeAgents.map((p) => p.id).toSet();
+
+    final next = beginNextSeason(playedOut);
+
+    expect(next.freeAgents.length, greaterThan(playedOut.freeAgents.length));
+    expect(
+      next.freeAgents.map((p) => p.id).toSet(),
+      containsAll(oldFreeAgentIds),
+    );
+  });
+
+  test('replaces the entire draft class with a fresh one -- real, persisted '
+      'prospects, not a re-derived preview (2026-08-11, '
+      '0D_Season_2_Roadmap.md: Player pool refresh)', () async {
+    final base = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final playedOut = await _playedOutFranchise(base);
+    expect(playedOut.draftClass, isEmpty); // nothing persisted pre-season-1
+
+    final next = beginNextSeason(playedOut);
+
+    expect(next.draftClass, hasLength(kDefaultDraftClassSize));
+  });
 
   test('asserts when the season isn\'t actually over yet', () async {
     final base = withFullActiveRoster(

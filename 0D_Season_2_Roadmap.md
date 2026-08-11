@@ -101,21 +101,27 @@ a season number or reuses a seed offset that doesn't account for one yet.
 
 ## Player pool refresh
 
-- [ ] **Free agent pool refresh.** `Franchise.freeAgents` is generated once,
-      at franchise creation, and never regenerated — `player_market_screen.dart`
-      's own doc comment confirms Free Agents is the one real (signable) tab
-      on that screen, but the pool behind it is static for the life of the
-      save. A season transition needs a fresh pool: any roster-legality
-      cuts (already feeding in for real, as of the Aging & roster churn
-      stage) plus a newly-generated batch. **Not** retirees — a retired
-      player leaves the league entirely, confirmed during that same stage,
-      never back into free agency.
-- [ ] **A new draft class each season.** `draft_generator.dart`'s prospect
-      generation is already proven out — it's what powers both the Market
-      screen's Draft tab preview and Season Recap's projected pick — but
-      nothing calls it to persist a real, new class at a season boundary
-      today; every "class" shown anywhere in the app right now is a
-      regenerate-fresh-every-render preview, not saved data.
+- [x] **Free agent pool refresh.** Done 2026-08-11 --
+      `season_transition_advancer.dart`'s `beginNextSeason` generates a
+      fresh `generateFreeAgentPool` batch each season (seeded off the new
+      season's own `seasonSeed` slice, folding season in the same way the
+      Foundation stage's other recurring generators already do) and
+      *appends* it to whatever's still unsigned, rather than replacing --
+      any roster-legality waives from the season that just ended (Aging &
+      roster churn stage) survive the transition instead of getting
+      discarded before the GM ever sees them. Retirees still never appear
+      here -- confirmed during Aging & roster churn, a retired player
+      leaves the league entirely.
+- [x] **A new draft class each season.** Done 2026-08-11 --
+      `beginNextSeason` also calls `generateDraftClass` each season
+      (`Franchise.draftClass`, a new persisted field -- fully *replaces*
+      the previous season's class, unlike free agents, since last year's
+      undrafted prospects don't stay draft-eligible into a new one). Fixed
+      a real gap in the process: `generateDraftClass` never accepted
+      `portraitWeights` at all before this (nothing persisted a class long
+      enough for a missing face to matter) -- same class of bug
+      `generateFreeAgentPool` once had, fixed the same way, now that a
+      real class needs real faces.
 
 ## The draft, for real
 

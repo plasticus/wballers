@@ -1,10 +1,26 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:womensbballmgr/features/player/domain/college.dart';
 import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
+import 'package:womensbballmgr/features/player/domain/college.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/season/domain/standings_entry.dart';
+
+final _portraitWeights = PortraitWeights(
+  skinTone: const {'medium': 1},
+  hairColorByTone: const {
+    'medium': {'black': 1},
+  },
+  hair: const {'hair_afro': 1},
+  neonHair: const {'natural': 1},
+  eyes: const {'eyes_1center': 1},
+  nose: const {'nose_1': 1},
+  mouth: const {'mouth_1': 1},
+  eyebrows: const {'eyebrow_1': 1},
+  facial: const {'none': 1},
+  accessories: const {'none': 1},
+);
 
 List<StandingsEntry> _standings(int teamCount) {
   return [
@@ -36,6 +52,20 @@ void main() {
         expect(a[i].player.name, b[i].player.name);
         expect(a[i].college.abbreviation, b[i].college.abbreviation);
       }
+    });
+
+    test('appearance stays null when portraitWeights is omitted, and is '
+        'populated when given (2026-08-11, 0D_Season_2_Roadmap.md: Player '
+        'pool refresh -- a real, persisted class needs real faces)', () {
+      final withoutWeights = generateDraftClass(Random(1), count: 10);
+      final withWeights = generateDraftClass(
+        Random(1),
+        count: 10,
+        portraitWeights: _portraitWeights,
+      );
+
+      expect(withoutWeights.every((p) => p.player.appearance == null), isTrue);
+      expect(withWeights.every((p) => p.player.appearance != null), isTrue);
     });
 
     test('every prospect has 0 years of professional service and a young '

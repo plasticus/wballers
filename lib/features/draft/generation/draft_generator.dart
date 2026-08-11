@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
 import '../../player/generation/trait_generator.dart';
+import '../../portrait/domain/portrait_weights.dart';
 import '../../season/domain/standings_entry.dart';
 import '../domain/draft_pick.dart';
 import '../domain/draft_prospect.dart';
@@ -49,6 +50,15 @@ const kDefaultDraftClassSize = 70;
 /// way -- there is no Season 2 to actually pick in.
 const kDraftOrderSeedOffset = 13;
 
+/// Seed offset for [generateDraftClass]'s *real, persisted* class
+/// (`0D_Season_2_Roadmap.md`'s Player pool refresh stage, 2026-08-11,
+/// `season_transition_advancer.dart`'s `beginNextSeason`) -- a separate
+/// stream from [kDraftOrderSeedOffset]'s own preview-only re-derivation,
+/// so a save's real class can never shift because of what some other
+/// screen's throwaway preview happened to roll. Next free number after
+/// `retirement_advancer.dart`'s `kAiTeamRetirementSeedOffset` (18).
+const kDraftClassSeedOffset = 19;
+
 (int qualityCenter, int qualitySpread) _qualityTierFor(int index, int total) {
   final eliteCount = min(_eliteCount, total);
   final solidCount = min(_solidCount, total - eliteCount);
@@ -66,14 +76,25 @@ const kDraftOrderSeedOffset = 13;
 /// this is the primary way traits enter the league, not team-wide roster
 /// generation (`distributeTraits`). Deterministic for a given [random]
 /// stream.
+///
+/// [portraitWeights] is optional and threads straight through to
+/// [generatePlayer] -- omitted, every prospect's [Player.appearance] stays
+/// `null`, same fallback [generatePlayer] itself documents. Wasn't even a
+/// parameter here until `0D_Season_2_Roadmap.md`'s Player pool refresh
+/// stage (2026-08-11) started actually persisting a real class -- the
+/// same gap `generateFreeAgentPool` once had before a GM playtest bug
+/// report ("free agents should have a face," `Aug9bugs.md` #2) fixed it
+/// there; every draft prospect shown anywhere before this was a preview
+/// only, so a missing face never surfaced as a real bug.
 List<DraftProspect> generateDraftClass(
   Random random, {
   int count = kDefaultDraftClassSize,
+  PortraitWeights? portraitWeights,
 }) {
   final collegePool = weightedColleges();
   return [
     for (var i = 0; i < count; i++)
-      _generateProspect(random, i, count, collegePool),
+      _generateProspect(random, i, count, collegePool, portraitWeights),
   ];
 }
 
@@ -82,6 +103,7 @@ DraftProspect _generateProspect(
   int index,
   int classSize,
   List<College> collegePool,
+  PortraitWeights? portraitWeights,
 ) {
   final position = Position.values[random.nextInt(Position.values.length)];
   final (qualityCenter, qualitySpread) = _qualityTierFor(index, classSize);
@@ -93,6 +115,7 @@ DraftProspect _generateProspect(
     minAge: _minProspectAge,
     maxAge: _maxProspectAge,
     yearsOfService: 0,
+    portraitWeights: portraitWeights,
   );
   final traits = generateTraits(random);
   final withTraits = traits.isEmpty ? player : player.copyWithTraits(traits);

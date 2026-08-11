@@ -1,6 +1,9 @@
 import 'dart:math';
 
+import '../../draft/generation/draft_generator.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../portrait/domain/portrait_weights.dart';
+import '../../roster/generation/free_agent_pool_generator.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
@@ -23,34 +26,45 @@ bool seasonIsOver(Franchise franchise) {
 /// Transitions [franchise] into its next season: a freshly generated
 /// schedule (`generateSeasonSchedule`, seeded off the *new* season's own
 /// [Franchise.seasonSeed] slice so it doesn't just replay the old one --
-/// `0D_Season_2_Roadmap.md`'s Foundation item 2) and a clean
-/// [SeasonProgress] with nothing played yet.
+/// `0D_Season_2_Roadmap.md`'s Foundation stage), a clean [SeasonProgress]
+/// with nothing played yet, a fresh batch of free agents added to
+/// whatever's already unsigned in the pool (roster-legality waives from
+/// the season that just ended included -- never discarded just because a
+/// new season started), and a brand-new, fully-replacing draft class
+/// (Player pool refresh stage).
 ///
-/// Deliberately the *Foundation*-scoped version of "begin Season 2," not
-/// the finished thing -- see `0D_Season_2_Roadmap.md`. Everything below
-/// is explicitly **not** done here, each one a separate, not-yet-built
-/// roadmap stage:
-/// - No aging, no `Player.age`/`yearsOfService` increments, no
-///   retirement -- every player carries over exactly as they were
-///   ("Aging & churn").
-/// - No roster-legality enforcement -- an illegal roster carries over
-///   illegal ("Aging & churn").
-/// - No free-agent pool refresh, no new draft class ("Player pool
-///   refresh").
-/// - No real draft -- last season's draft order/prospects (if any were
-///   ever persisted) aren't touched, because nothing persists them yet
-///   ("The draft, for real").
+/// [Franchise.roster]/[Franchise.league] rosters themselves aren't
+/// touched here at all -- aging, decline, retirement, and roster-legality
+/// enforcement all already happened earlier, at the *previous* season's
+/// own postseason-end hook (`current_franchise_provider.dart`'s
+/// `simulatePostseasonAndPersist`, Aging & roster churn stage), not here.
+/// This function is specifically the "start of the new season" half, not
+/// the "wrap up the old one" half.
+///
+/// [portraitWeights] is optional and threads straight through to both the
+/// free-agent and draft-class generation, same "omit it, every new face
+/// stays `null`" fallback every other generator in this codebase already
+/// has -- this function has no async caller yet to load a manifest from,
+/// so a future one (the "Begin Season 2" button, Presentation stage) is
+/// expected to pass its own real weights through once it exists.
+///
+/// Still not done here, each one a separate, not-yet-built roadmap stage:
+/// - No real draft-day flow -- [Franchise.draftClass] is real, persisted
+///   prospects now, but nothing lets a GM (or the 19 AI teams) actually
+///   spend a pick and land one on a roster yet ("The draft, for real").
 /// - No ceremony, no awards granted, no "Begin Season 2" button anywhere
 ///   in the UI yet -- this function has no caller at all outside its own
-///   tests right now ("Presentation"). Wiring a real button before the
-///   stages above exist would let a GM start a new season with an
-///   illegal, unaged, stale-free-agent-pool roster -- actively worse
-///   than not offering the button at all.
+///   tests right now ("Presentation"). Wiring a real button before that
+///   stage exists would let a GM start a new season with last season's
+///   draft class just sitting there, never actually drafted from.
 ///
 /// Asserts [seasonIsOver] -- starting a new season before the old one's
 /// postseason has actually resolved would silently discard whatever's
 /// left of it.
-Franchise beginNextSeason(Franchise franchise) {
+Franchise beginNextSeason(
+  Franchise franchise, {
+  PortraitWeights? portraitWeights,
+}) {
   assert(
     seasonIsOver(franchise),
     'beginNextSeason called before the current season\'s postseason '
@@ -63,13 +77,24 @@ Franchise beginNextSeason(Franchise franchise) {
     allLeagueTeams(franchise),
     Random(newSeasonSeed + kSeasonScheduleSeedOffset),
   );
-
-  return franchise.copyWithNewSeason(
-    newSeason: newSeason,
-    newSeasonProgress: SeasonProgress(
-      schedule: newSchedule,
-      playedGames: const [],
-      nextGameDayIndex: 0,
-    ),
+  final freshFreeAgents = generateFreeAgentPool(
+    Random(newSeasonSeed + kFreeAgentPoolSeedOffset),
+    portraitWeights: portraitWeights,
   );
+  final newDraftClass = generateDraftClass(
+    Random(newSeasonSeed + kDraftClassSeedOffset),
+    portraitWeights: portraitWeights,
+  );
+
+  return franchise
+      .copyWithNewSeason(
+        newSeason: newSeason,
+        newSeasonProgress: SeasonProgress(
+          schedule: newSchedule,
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+      )
+      .copyWithFreeAgents([...franchise.freeAgents, ...freshFreeAgents])
+      .copyWithDraftClass(newDraftClass);
 }

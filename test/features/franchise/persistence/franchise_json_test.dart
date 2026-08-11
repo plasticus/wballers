@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/draft/domain/draft_prospect.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
@@ -323,5 +324,32 @@ void main() {
     final restored = franchiseFromJson(franchiseToJson(franchise));
 
     expect(restored.pendingRetirements, isEmpty);
+  });
+
+  test('round-trips draftClass (2026-08-11, 0D_Season_2_Roadmap.md: Player '
+      'pool refresh)', () {
+    final prospect = DraftProspect(
+      player: playerWithOverall(65, id: 'p-prospect', name: 'Sam Rookie'),
+      college: kColleges.first,
+    );
+    final franchise = _sampleFranchise().copyWithDraftClass([prospect]);
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.draftClass, hasLength(1));
+    expect(restored.draftClass.single.player.id, 'p-prospect');
+    expect(restored.draftClass.single.player.name, 'Sam Rookie');
+    expect(
+      restored.draftClass.single.college.abbreviation,
+      kColleges.first.abbreviation,
+    );
+  });
+
+  test('draftClass round-trips empty', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.draftClass, isEmpty);
   });
 }

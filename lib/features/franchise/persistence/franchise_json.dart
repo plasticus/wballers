@@ -1,4 +1,5 @@
 import '../../coach/persistence/coach_json.dart';
+import '../../draft/persistence/draft_prospect_json.dart';
 import '../../league/persistence/league_json.dart';
 import '../../league/persistence/team_json.dart';
 import '../../player/persistence/player_json.dart';
@@ -44,6 +45,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'pendingRetirements': franchise.pendingRetirements
         .map(pendingRetirementToJson)
         .toList(),
+    'draftClass': franchise.draftClass.map(draftProspectToJson).toList(),
   };
 }
 
@@ -96,6 +98,9 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
         .map(
           (value) => pendingRetirementFromJson(value as Map<String, dynamic>),
         )
+        .toList(),
+    draftClass: (json['draftClass'] as List<dynamic>)
+        .map((value) => draftProspectFromJson(value as Map<String, dynamic>))
         .toList(),
   );
 }
