@@ -59,6 +59,16 @@ const kDraftOrderSeedOffset = 13;
 /// `retirement_advancer.dart`'s `kAiTeamRetirementSeedOffset` (18).
 const kDraftClassSeedOffset = 19;
 
+/// Seed offset for the *real* draft order -- `0D_Season_2_Roadmap.md`'s
+/// "The draft, for real" stage (2026-08-11), `season_transition_advancer.dart`'s
+/// `beginNextSeason`. Deliberately a separate stream from
+/// [kDraftOrderSeedOffset]'s preview-only re-derivation (`SeasonRecapScreen`)
+/// -- a save's real draft order must never shift because some other
+/// screen's throwaway "what pick would I have" preview happened to roll
+/// its `Random` differently. Next free number after [kDraftClassSeedOffset]
+/// (19).
+const kRealDraftOrderSeedOffset = 20;
+
 (int qualityCenter, int qualitySpread) _qualityTierFor(int index, int total) {
   final eliteCount = min(_eliteCount, total);
   final solidCount = min(_solidCount, total - eliteCount);
@@ -200,7 +210,9 @@ List<DraftPick> simulateDraft(
   var overallPick = 1;
   for (var round = 1; round <= rounds; round++) {
     for (final team in draftOrder) {
-      available.sort((a, b) => _draftValue(b).compareTo(_draftValue(a)));
+      available.sort(
+        (a, b) => draftProspectValue(b).compareTo(draftProspectValue(a)),
+      );
       final selected = available.removeAt(0);
       picks.add(
         DraftPick(
@@ -216,5 +228,12 @@ List<DraftPick> simulateDraft(
   return picks;
 }
 
-int _draftValue(DraftProspect prospect) =>
+/// "Best player available" value for one prospect -- overall plus half of
+/// potential, so a lower-rated-but-high-upside prospect can still edge out
+/// a higher-rated-but-capped one. Shared by [simulateDraft] (the
+/// whole-draft preview) and `draft_advancer.dart`'s real, pick-by-pick AI
+/// resolution -- both need the exact same "who's best" ranking, or a real
+/// draft-day pick could disagree with what the preview screens showed for
+/// the same slot.
+int draftProspectValue(DraftProspect prospect) =>
     prospect.player.ratings.overall + prospect.player.ratings.potential ~/ 2;

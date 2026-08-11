@@ -1,4 +1,5 @@
 import '../../coach/persistence/coach_json.dart';
+import '../../draft/persistence/draft_in_progress_json.dart';
 import '../../draft/persistence/draft_prospect_json.dart';
 import '../../league/persistence/league_json.dart';
 import '../../league/persistence/team_json.dart';
@@ -46,6 +47,11 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         .map(pendingRetirementToJson)
         .toList(),
     'draftClass': franchise.draftClass.map(draftProspectToJson).toList(),
+    // Null nearly always -- only non-null while a draft is actually
+    // mid-resolution (`0D_Season_2_Roadmap.md`'s "The draft, for real").
+    'draftInProgress': franchise.draftInProgress == null
+        ? null
+        : draftInProgressToJson(franchise.draftInProgress!),
   };
 }
 
@@ -102,5 +108,10 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     draftClass: (json['draftClass'] as List<dynamic>)
         .map((value) => draftProspectFromJson(value as Map<String, dynamic>))
         .toList(),
+    draftInProgress: json['draftInProgress'] == null
+        ? null
+        : draftInProgressFromJson(
+            json['draftInProgress'] as Map<String, dynamic>,
+          ),
   );
 }

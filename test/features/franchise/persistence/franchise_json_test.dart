@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/draft/domain/draft_in_progress.dart';
+import 'package:womensbballmgr/features/draft/domain/draft_pick.dart';
 import 'package:womensbballmgr/features/draft/domain/draft_prospect.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
@@ -351,5 +353,45 @@ void main() {
     final restored = franchiseFromJson(franchiseToJson(franchise));
 
     expect(restored.draftClass, isEmpty);
+  });
+
+  test('draftInProgress is null by default and round-trips as null '
+      '(2026-08-11, 0D_Season_2_Roadmap.md: The draft, for real)', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.draftInProgress, isNull);
+  });
+
+  test('round-trips a mid-resolution draftInProgress, picks included', () {
+    final prospect = DraftProspect(
+      player: playerWithOverall(65, id: 'p-prospect', name: 'Sam Rookie'),
+      college: kColleges.first,
+    );
+    final draft = DraftInProgress(
+      order: const ['AAA', 'BBB', 'CCC'],
+      rounds: 3,
+      picks: [
+        DraftPick(
+          round: 1,
+          pickNumber: 1,
+          teamAbbreviation: 'AAA',
+          prospect: prospect,
+        ),
+      ],
+    );
+    final franchise = _sampleFranchise().copyWithDraftInProgress(draft);
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.draftInProgress, isNotNull);
+    expect(restored.draftInProgress!.order, ['AAA', 'BBB', 'CCC']);
+    expect(restored.draftInProgress!.rounds, 3);
+    expect(restored.draftInProgress!.picks, hasLength(1));
+    expect(
+      restored.draftInProgress!.picks.single.prospect.player.id,
+      'p-prospect',
+    );
   });
 }

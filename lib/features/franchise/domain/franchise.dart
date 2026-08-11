@@ -1,4 +1,5 @@
 import '../../coach/domain/coach.dart';
+import '../../draft/domain/draft_in_progress.dart';
 import '../../draft/domain/draft_prospect.dart';
 import '../../league/domain/initial_league.dart';
 import '../../league/domain/league.dart';
@@ -70,6 +71,7 @@ class Franchise {
     this.readMailIds = const {},
     this.pendingRetirements = const [],
     this.draftClass = const [],
+    this.draftInProgress,
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -234,6 +236,45 @@ class Franchise {
   /// prospects don't stay draft-eligible into a new class.
   final List<DraftProspect> draftClass;
 
+  /// This season's real draft, mid-resolution -- `0D_Season_2_Roadmap.md`'s
+  /// "The draft, for real" stage. `null` whenever no draft is currently
+  /// underway (the common case -- most of a season, and before the first
+  /// draft ever runs). Set by `season_transition_advancer.dart`'s
+  /// `beginNextSeason` alongside a fresh [draftClass], and cleared again
+  /// once `draft_advancer.dart`'s `finalizeDraft` lands every pick on a
+  /// roster.
+  final DraftInProgress? draftInProgress;
+
+  /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
+  /// `draft_advancer.dart` is the only caller so far, both to advance AI
+  /// picks and to record the GM's own, and finally to clear it (`null`)
+  /// once the draft is finalized.
+  Franchise copyWithDraftInProgress(DraftInProgress? newDraftInProgress) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: newDraftInProgress,
+    );
+  }
+
   /// Returns a copy with [newDraftClass] replacing [draftClass] --
   /// `season_transition_advancer.dart`'s `beginNextSeason` is the only
   /// caller so far.
@@ -259,6 +300,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: newDraftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -286,6 +328,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -313,6 +356,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -340,6 +384,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -367,6 +412,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -404,6 +450,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -439,6 +486,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -467,6 +515,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -496,6 +545,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -530,6 +580,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -561,6 +612,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -589,6 +641,7 @@ class Franchise {
       readMailIds: newReadMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 
@@ -669,6 +722,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      draftInProgress: draftInProgress,
     );
   }
 }
