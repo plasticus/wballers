@@ -1,3 +1,4 @@
+import '../../coach/domain/coach.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/achievement.dart';
@@ -15,6 +16,20 @@ Map<String, List<Player>> rostersByAbbreviation(Franchise franchise) {
     franchise.team.abbreviation: _activePlayers(franchise.roster),
     for (final aiTeam in franchise.league.aiTeams)
       aiTeam.team.abbreviation: _activePlayers(aiTeam.roster),
+  };
+}
+
+/// [franchise]'s own head coach plus every AI team's, keyed by
+/// `Team.abbreviation` -- the parallel-shaped map `simulateMatch`'s
+/// `homeCoach`/`awayCoach` (the coach Offense-vs-Defense matchup,
+/// TODO.md's coach-stats item) need at every real game-simulation call
+/// site, same "one map, built once per season-end/game-day call" pattern
+/// [rostersByAbbreviation] already established.
+Map<String, Coach> coachesByAbbreviation(Franchise franchise) {
+  return {
+    franchise.team.abbreviation: franchise.coach,
+    for (final aiTeam in franchise.league.aiTeams)
+      aiTeam.team.abbreviation: aiTeam.coach,
   };
 }
 

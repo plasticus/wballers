@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../coach/domain/coach.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../domain/game_result.dart';
@@ -59,6 +60,7 @@ PostseasonAdvance simulatePostseason(
   required List<Team> leagueTeams,
   required Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
+  Map<String, Coach>? coachesByAbbreviation,
 }) {
   if (progress.schedule.games.any((g) => g.type == GameType.postseason)) {
     return PostseasonAdvance(progress: progress, gamesPlayed: const []);
@@ -72,6 +74,7 @@ PostseasonAdvance simulatePostseason(
     seeds: seeds,
     rostersByAbbreviation: rostersByAbbreviation,
     ownTeamAbbreviation: ownTeamAbbreviation,
+    coachesByAbbreviation: coachesByAbbreviation,
   );
   final semifinals = generatePostseasonSemifinals(
     random,
@@ -79,6 +82,7 @@ PostseasonAdvance simulatePostseason(
     seeds: seeds,
     rostersByAbbreviation: rostersByAbbreviation,
     ownTeamAbbreviation: ownTeamAbbreviation,
+    coachesByAbbreviation: coachesByAbbreviation,
   );
   final finals = generatePostseasonFinals(
     random,
@@ -86,6 +90,7 @@ PostseasonAdvance simulatePostseason(
     seeds: seeds,
     rostersByAbbreviation: rostersByAbbreviation,
     ownTeamAbbreviation: ownTeamAbbreviation,
+    coachesByAbbreviation: coachesByAbbreviation,
   );
 
   final results = [

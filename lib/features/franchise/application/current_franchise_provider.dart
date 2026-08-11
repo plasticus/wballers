@@ -387,6 +387,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       franchise.seasonProgress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
       ownTeamAbbreviation: franchise.team.abbreviation,
+      coachesByAbbreviation: coachesByAbbreviation(franchise),
     );
 
     final withTraining = _catchUpTraining(
@@ -523,6 +524,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       leagueTeams: allLeagueTeams(franchise),
       rostersByAbbreviation: rostersByAbbreviation(franchise),
       ownTeamAbbreviation: franchise.team.abbreviation,
+      coachesByAbbreviation: coachesByAbbreviation(franchise),
     );
     if (advance.gamesPlayed.isEmpty) return null; // already played
 

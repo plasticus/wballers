@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../coach/domain/coach.dart';
 import '../../league/domain/team.dart';
 import '../../match/engine/match_engine.dart';
 import '../../match/engine/substitution_policy.dart';
@@ -79,6 +80,7 @@ SeriesResult simulateSeries(
   required int round,
   required Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
+  Map<String, Coach>? coachesByAbbreviation,
 }) {
   final pattern = _homeAwayPattern(winsNeeded);
   final games = <GameResult>[];
@@ -109,6 +111,8 @@ SeriesResult simulateSeries(
       awayTargetMinutes: awayAbbreviation == ownTeamAbbreviation
           ? targetMinutesForOrderedRoster(awayRoster)
           : null,
+      homeCoach: coachesByAbbreviation?[homeAbbreviation],
+      awayCoach: coachesByAbbreviation?[awayAbbreviation],
     );
     final result = GameResult(
       game: ScheduledGame(
@@ -154,6 +158,7 @@ List<SeriesResult> generatePostseasonFirstRound(
   required List<String> seeds,
   required Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
+  Map<String, Coach>? coachesByAbbreviation,
 }) {
   assert(
     seeds.length == kPostseasonTeamCount,
@@ -177,6 +182,7 @@ List<SeriesResult> generatePostseasonFirstRound(
         round: 1,
         rostersByAbbreviation: rostersByAbbreviation,
         ownTeamAbbreviation: ownTeamAbbreviation,
+        coachesByAbbreviation: coachesByAbbreviation,
       ),
   ];
 }
@@ -191,6 +197,7 @@ List<SeriesResult> generatePostseasonSemifinals(
   required List<String> seeds,
   required Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
+  Map<String, Coach>? coachesByAbbreviation,
 }) {
   assert(
     firstRoundResults.length == 4,
@@ -212,6 +219,7 @@ List<SeriesResult> generatePostseasonSemifinals(
         round: 2,
         rostersByAbbreviation: rostersByAbbreviation,
         ownTeamAbbreviation: ownTeamAbbreviation,
+        coachesByAbbreviation: coachesByAbbreviation,
       ),
   ];
 }
@@ -224,6 +232,7 @@ SeriesResult generatePostseasonFinals(
   required List<String> seeds,
   required Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
+  Map<String, Coach>? coachesByAbbreviation,
 }) {
   assert(
     semifinalResults.length == 2,
@@ -242,6 +251,7 @@ SeriesResult generatePostseasonFinals(
     round: 3,
     rostersByAbbreviation: rostersByAbbreviation,
     ownTeamAbbreviation: ownTeamAbbreviation,
+    coachesByAbbreviation: coachesByAbbreviation,
   );
 }
 

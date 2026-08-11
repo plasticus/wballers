@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../coach/domain/coach.dart';
 import '../../match/engine/match_engine.dart';
 import '../../match/engine/substitution_policy.dart';
 import '../../player/domain/player.dart';
@@ -80,6 +81,13 @@ class GameDayAdvance {
 /// team on the automatic ranking, which is what every AI-only diagnostic
 /// and most tests want.
 ///
+/// [coachesByAbbreviation], when given, feeds [simulateMatch]'s
+/// `homeCoach`/`awayCoach` (the coach Offense-vs-Defense matchup,
+/// TODO.md's coach-stats item) for every game this call simulates --
+/// `null` (the default) leaves every game's coach bonus at 0, same
+/// backward-compatible opt-in every other addition to this call chain
+/// gets.
+///
 /// Continental Cup Rounds 2-5 aren't part of the schedule at franchise
 /// creation (each depends on the previous round's actual results), so
 /// this function grows [SeasonProgress.schedule] itself the moment a
@@ -96,6 +104,7 @@ GameDayAdvance advanceToNextGameDay(
   SeasonProgress progress, {
   required Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
+  Map<String, Coach>? coachesByAbbreviation,
 }) {
   final gameDays = gameDaysInOrder(progress.schedule);
   assert(
@@ -115,6 +124,7 @@ GameDayAdvance advanceToNextGameDay(
           game,
           rostersByAbbreviation,
           ownTeamAbbreviation,
+          coachesByAbbreviation,
         ),
   ];
 
@@ -169,6 +179,7 @@ GameResult _simulateOneGame(
   ScheduledGame game,
   Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
+  Map<String, Coach>? coachesByAbbreviation,
 ) {
   final homeRoster = rostersByAbbreviation[game.homeTeamAbbreviation]!;
   final awayRoster = rostersByAbbreviation[game.awayTeamAbbreviation]!;
@@ -184,6 +195,8 @@ GameResult _simulateOneGame(
     homeTargetMinutes: game.homeTeamAbbreviation == ownTeamAbbreviation
         ? targetMinutesForOrderedRoster(homeRoster)
         : null,
+    homeCoach: coachesByAbbreviation?[game.homeTeamAbbreviation],
+    awayCoach: coachesByAbbreviation?[game.awayTeamAbbreviation],
     awayTargetMinutes: game.awayTeamAbbreviation == ownTeamAbbreviation
         ? targetMinutesForOrderedRoster(awayRoster)
         : null,
