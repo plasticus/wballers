@@ -11,6 +11,14 @@ Every item below was checked against the real codebase (not guessed) as of
 *what's left*, same spirit as `TODO.md`, just scoped to one big multi-part
 feature instead of a punch list of small ones.
 
+**Done, 2026-08-11.** Every item on this checklist is checked off — a GM
+can now play from one season into the next entirely for real: aging,
+retirement, a fresh player pool, a real interactive draft with all 20
+teams, real computed season-end awards, and a real (if deliberately
+plain) recap screen presenting it all. This file stays as the record of
+how it got built; new Season-2-and-beyond asks belong in `TODO.md` going
+forward, same as any other feature.
+
 ## Foundation
 
 These have to exist first — nearly everything else on this list either reads
@@ -165,16 +173,19 @@ a season number or reuses a seed offset that doesn't account for one yet.
       unlock apply automatically, via a newly-shared
       `achievement_grant.dart` helper (factored out of
       `all_star_advancer.dart`, which used to have this logic to itself).
-- [ ] **A real end-of-season ceremony.** Still a deliberate placeholder --
-      the awards above resolve silently in the background; nothing yet
-      presents champion + awards + nicknames/hair unlocked together as
-      one moment (see the separate Awards Catalog design doc). The
-      season-transition flow this item was waiting on now exists for
-      real too (see "The draft, for real" above) -- `SeasonRecapScreen`'s
-      "Begin Next Season" button already calls it, deliberately without
-      any ceremony wrapped around it yet. What's left here is purely the
-      presentation layer: a real screen showing what already happened,
-      not building any of the underlying systems.
+- [x] **A real end-of-season ceremony.** Done 2026-08-11 -- new
+      `seasonAwardWinners` (`franchise_rosters.dart`) derives every award
+      actually won this season straight from `Player.achievements`
+      league-wide (no separate persisted "last winners" list), and
+      `SeasonRecapScreen` gained a real "Season Awards" section between
+      the champion card and Player Development: each winner's award,
+      name + team, their new nickname, and a neon-hair-unlocked note on
+      their real 2nd career achievement -- champion, awards, and
+      nicknames/hair unlocked, all in one place, per this item's own
+      original framing. Deliberately a plain, functional presentation
+      rather than a flashier animated moment, same posture every other
+      season-boundary system this pass carries -- not a literal
+      "ceremony" with pomp, just a real screen instead of a placeholder.
 - [x] **The "Begin Season 2" button itself.** Done 2026-08-11, in minimal
       form -- `SeasonRecapScreen`'s "Begin Next Season" button, reachable
       the instant the postseason ends (not gated behind the ceremony
@@ -221,11 +232,10 @@ a season number or reuses a seed offset that doesn't account for one yet.
    legality gate.
 3. ~~Player pool refresh~~ — done. Free agents, a real new draft class.
 4. ~~The real draft flow, GM and AI both~~ — done.
-5. Ceremony and the *polished* "Begin Season 2" button — the only piece
-   left. Awards themselves are real and computed now (see "Presentation"
-   above), and the plain, functional version of the button already
-   shipped alongside stage 4; what's left is purely the presentation
-   layer -- a real screen showing what already happened.
+5. ~~Ceremony, awards, and the "Begin Season 2" button~~ — done. Real
+   computed season-end awards, a real recap screen presenting them
+   alongside the champion, and the season-transition button itself, all
+   shipped.
 
 Roughly in dependency order — each stage's items either read data the
 previous stage produces, or would be actively wrong to ship without it (a
