@@ -1,13 +1,18 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/save_envelope.dart';
+import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
+import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
+import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
@@ -29,6 +34,7 @@ import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
 import '../../../support/franchise_test_helpers.dart';
+import '../../../support/in_memory_save_repository.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
@@ -322,6 +328,42 @@ void main() {
         find.text('No development results recorded this season.'),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'tapping Begin Next Season transitions the franchise and opens Draft '
+    'Day (2026-08-11, 0D_Season_2_Roadmap.md: The draft, for real)',
+    (tester) async {
+      final franchise = _playFullSeason(1);
+      final repository = InMemorySaveRepository();
+      await repository.writeSave(
+        kCurrentFranchiseSaveId,
+        SaveEnvelope(
+          schemaVersion: 1,
+          payload: franchiseToJson(franchise),
+        ).toJson(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.scrollUntilVisible(find.text('Begin Next Season'), 200);
+      await tester.pump();
+      await tester.tap(find.text('Begin Next Season'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Draft Day'), findsOneWidget);
+      final context = tester.element(find.text('Draft Day'));
+      final container = ProviderScope.containerOf(context);
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.season, 1);
+      expect(updated.draftInProgress, isNotNull);
     },
   );
 }

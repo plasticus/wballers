@@ -1,10 +1,13 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../draft/generation/draft_generator.dart';
+import '../../draft/presentation/draft_day_screen.dart';
+import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/position.dart';
 import '../../training/domain/training_report.dart';
@@ -20,24 +23,31 @@ import '../generation/postseason_generator.dart'
 
 /// A completed season's landing page -- fires once a champion has been
 /// crowned, reachable from the Dashboard's permanent trophy banner. This
-/// is deliberately the **placeholder** version: a real end-of-season
-/// ceremony (award winners, nicknames earned, neon hair unlocked) is real
+/// is deliberately the **placeholder** version for the *ceremony* half:
+/// award winners, nicknames earned, and neon hair unlocked are real
 /// follow-up work the GM explicitly deferred (`0B_Planned.md`'s
 /// achievement/nickname-ceremony entry) rather than something to build
-/// alongside the rest of this pass -- this screen exists so a finished
-/// season has *somewhere* to land beyond a bare trophy line, not to be
-/// that ceremony itself.
-class SeasonRecapScreen extends StatelessWidget {
+/// alongside the rest of this pass. The season-*transition* half is real
+/// now, though (2026-08-11, `0D_Season_2_Roadmap.md`'s "The draft, for
+/// real" stage) -- see [_BeginNextSeasonButton].
+class SeasonRecapScreen extends ConsumerStatefulWidget {
   const SeasonRecapScreen({required this.franchise, super.key});
 
   final Franchise franchise;
+
+  @override
+  ConsumerState<SeasonRecapScreen> createState() => _SeasonRecapScreenState();
+}
+
+class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
+  var _isBeginning = false;
 
   /// Same lookup-with-fallback `TrainingReportScreen`'s own `_playerLabel`
   /// already established -- a player who's since left the roster (a
   /// free-agent swap; there's no trade system yet) still gets a readable
   /// label instead of a crash.
   String _playerLabel(String playerId) {
-    for (final membership in franchise.roster) {
+    for (final membership in widget.franchise.roster) {
       if (membership.player.id == playerId) {
         final player = membership.player;
         final jersey = player.jerseyNumber != null
@@ -49,8 +59,24 @@ class SeasonRecapScreen extends StatelessWidget {
     return 'Former Player';
   }
 
+  /// Transitions to the next season ([beginNextSeasonAndPersist]) and
+  /// replaces this screen with [DraftDayScreen] -- the recap of a season
+  /// that's already over has nothing left to show once a new one has
+  /// started, so this doesn't stay on the back stack underneath it.
+  Future<void> _beginNextSeason() async {
+    setState(() => _isBeginning = true);
+    await ref
+        .read(currentFranchiseProvider.notifier)
+        .beginNextSeasonAndPersist();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const DraftDayScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final franchise = widget.franchise;
     final theme = Theme.of(context);
     final playedGames = franchise.seasonProgress.playedGames;
     final championAbbreviation = seasonChampion(playedGames);
@@ -206,11 +232,24 @@ class SeasonRecapScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.sm),
                   const Text(
                     'A real end-of-season ceremony -- award winners, '
-                    'nicknames earned, and starting a new season with an '
-                    'aged-up roster and a fresh draft class -- is coming in '
-                    'a future update. For now, you can still browse '
-                    'everything that happened this season from the '
-                    'Results and Mail tabs.',
+                    'nicknames earned, neon hair unlocked -- is coming in a '
+                    'future update. Starting the new season itself is real '
+                    'right now, though: every roster ages up, a fresh '
+                    'batch of free agents and draft prospects arrives, and '
+                    'the draft plays out for real -- you\'ll pick for your '
+                    'own team, and every AI team fills out their roster too.',
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton.icon(
+                    onPressed: _isBeginning ? null : _beginNextSeason,
+                    icon: _isBeginning
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.arrow_forward),
+                    label: const Text('Begin Next Season'),
                   ),
                 ],
               ),
