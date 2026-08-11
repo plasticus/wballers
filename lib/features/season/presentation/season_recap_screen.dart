@@ -107,15 +107,18 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
       franchise.team.abbreviation,
     );
 
-    // A projection, not a real pick -- there's no Season 2 draft-day flow
-    // to actually make it in yet (2026-08-10, TODO.md item 13). Reseeded
-    // fresh every render off the franchise's own seed, same
-    // never-persisted posture `player_market_preview_generator.dart`'s
-    // Draft tab preview already established for the prospect class.
-    // `generateDraftOrder` needs a real lottery field (more teams than
-    // make the playoffs) to work at all -- guards a full league always
-    // satisfies, but a handful of tests build a deliberately thin
-    // standings table that wouldn't.
+    // Still just a projection, not the real pick -- this re-derives its
+    // own lottery roll off kDraftOrderSeedOffset (the preview-only
+    // stream), separate from the real draft order beginNextSeason
+    // actually computes off kRealDraftOrderSeedOffset once the GM taps
+    // "Begin Next Season" below (2026-08-11, 0D_Season_2_Roadmap.md's
+    // "The draft, for real" stage) -- the two seeds are deliberately
+    // different streams, so this number can land close to, but isn't
+    // guaranteed to exactly match, the real pick. `generateDraftOrder`
+    // needs a real lottery field (more teams than make the playoffs) to
+    // work at all -- guards a full league always satisfies, but a
+    // handful of tests build a deliberately thin standings table that
+    // wouldn't.
     final draftPosition = standings.length > kPostseasonTeamCount
         ? generateDraftOrder(
                 Random(franchise.seasonSeed + kDraftOrderSeedOffset),
@@ -215,9 +218,10 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                     Text('Next Draft', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Projected pick: #$draftPosition overall '
-                      '(off this season\'s final standings -- not locked '
-                      'in until a real draft-day flow exists).',
+                      'Rough estimate: #$draftPosition overall, off this '
+                      'season\'s final standings -- the real lottery runs '
+                      'when you begin the next season below, so the exact '
+                      'pick may land a little differently.',
                     ),
                   ],
                 ),

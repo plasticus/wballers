@@ -135,7 +135,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.textContaining('Projected pick: #$expectedPick overall'),
+        find.textContaining('Rough estimate: #$expectedPick overall'),
         findsOneWidget,
       );
       if (expectedEliminationRound != null) {

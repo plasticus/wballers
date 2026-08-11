@@ -24,14 +24,17 @@ import '../generation/player_market_preview_generator.dart';
 ///
 /// **Free Agents is real** -- `Franchise.freeAgents`, generated once at
 /// franchise creation and signable here (`CurrentFranchiseNotifier.signFreeAgent`).
-/// **Trade Block and Draft stay preview only**: there is no trade system
-/// and no draft-day flow wired to `Franchise` yet (`0B_Planned.md`'s
-/// Trade System and Draft entries) -- every player shown on those 2 tabs
-/// is flavor data from `pickTradeBlockPreview`/`generateDraftPreview`,
-/// regenerated fresh (but deterministically) every time the screen
-/// opens. Nothing on either tab is tradeable or draftable -- that's why
-/// each still opens with a banner saying so, and why there isn't a
-/// button on either one that claims to do something it can't.
+/// **Trade Block and Draft both stay preview only here**: there's still
+/// no trade system at all (`0B_Planned.md`'s Trade System entry), and
+/// while a real draft-day flow now exists (`draft/presentation/draft_day_screen.dart`,
+/// 2026-08-11, `0D_Season_2_Roadmap.md`'s "The draft, for real" stage),
+/// it only ever runs once a season, right after a "Begin Next Season" --
+/// this tab is for browsing a *hypothetical* class any time mid-season,
+/// not the real one. Every player shown on either tab is flavor data
+/// from `pickTradeBlockPreview`/`generateDraftPreview`, regenerated fresh
+/// (but deterministically) every time the screen opens -- nothing on
+/// either tab is tradeable or actually draftable from here, which is why
+/// each still opens with a banner saying so.
 class PlayerMarketScreen extends StatefulWidget {
   const PlayerMarketScreen({required this.franchise, super.key});
 
@@ -253,9 +256,11 @@ class _DraftTab extends StatelessWidget {
       children: [
         const _PreviewBanner(
           text:
-              'Preview only -- there\'s no draft-day flow yet, and no '
-              '"start next season" to hang one off of. This is a '
-              'projection of this year\'s class, not a pick order.',
+              'Preview only -- a fresh, hypothetical class regenerated '
+              'every time this tab opens, not this season\'s real draft '
+              'class. The real draft happens once the season ends -- '
+              'Season Recap\'s "Begin Next Season" button leads straight '
+              'into it.',
         ),
         for (var i = 0; i < prospects.length; i++) ...[
           _PlayerMarketRow(

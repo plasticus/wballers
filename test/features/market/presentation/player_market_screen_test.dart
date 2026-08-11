@@ -235,7 +235,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Preview only -- there\'s no draft-day flow'),
+      find.textContaining('Preview only -- a fresh, hypothetical class'),
       findsOneWidget,
     );
     // The screen's own preview prospects, recomputed the same way --

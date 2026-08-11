@@ -125,32 +125,48 @@ a season number or reuses a seed offset that doesn't account for one yet.
 
 ## The draft, for real
 
-- [ ] **A real draft-day flow.** `PlayerMarketScreen`'s Draft tab is
-      explicitly preview-only today — its own on-screen banner says so, and
-      says why: "there is no trade system and no draft-day flow wired to
-      `Franchise` yet." `generateDraftOrder` and prospect generation both
-      already exist and work; nothing lets a GM actually spend a pick and
-      land a player on their roster. This is the single biggest missing
-      piece on this whole list — everything above it exists to make this
-      possible, not the other way around.
-- [ ] **AI teams making their own picks.** A real draft needs the other 19
-      teams to draft too, not just sit out while the GM picks — otherwise
-      the AI player pool never refreshes and every rookie ends up on the
-      GM's own roster.
+- [x] **A real draft-day flow.** Done 2026-08-11 -- new `Franchise.draftInProgress`
+      (`draft/domain/draft_in_progress.dart`): a fixed pick order (computed
+      from the *old* season's final standings, `generateDraftOrder`, its
+      own new `kRealDraftOrderSeedOffset` stream so it can never shift
+      because some other screen's preview happened to roll differently)
+      plus a growing `picks` list. `season_transition_advancer.dart`'s
+      `beginNextSeason` sets it up alongside the fresh draft class;
+      `draft/generation/draft_advancer.dart`'s `makeOwnPick`/`finalizeDraft`
+      let the GM actually spend a pick and land every pick on a real
+      roster, with a real jersey number. New `draft/presentation/draft_day_screen.dart`
+      is the GM-facing screen -- reached from `SeasonRecapScreen`'s new
+      "Begin Next Season" button (`current_franchise_provider.dart`'s
+      `beginNextSeasonAndPersist`), the first real (if deliberately
+      minimal, no ceremony yet) entry point into a new season at all.
+- [x] **AI teams making their own picks.** Done 2026-08-11, same change --
+      `draft_advancer.dart`'s `resolveAiPicksUntilOwnTurn` auto-resolves
+      every other team's pick ("best player available," the exact
+      ranking `simulateDraft`'s old whole-draft preview already used, now
+      shared via public `draftProspectValue`) the instant it's not the
+      GM's turn, so the AI player pool refreshes right alongside the GM's
+      own roster, not just the GM's picks landing anywhere.
 
 ## Presentation
 
-- [ ] **A real end-of-season ceremony.** `SeasonRecapScreen` already says so
-      explicitly — its "What's Next" section is a deliberate placeholder,
-      not a finished feature (2026-08-05 GM call to defer it). Once awards
-      exist (see the separate Awards Catalog design doc) and a real
-      season-transition flow exists, this is where they'd actually get
-      presented together: champion, awards, nicknames/hair-colors unlocked,
-      in one batch moment.
-- [ ] **The "Begin Season 2" button itself.** The actual Dashboard entry
-      point a GM taps once everything above is in place — should probably
-      only appear once the ceremony above has been seen, not the instant the
-      postseason ends.
+- [ ] **A real end-of-season ceremony.** Still a deliberate placeholder --
+      award winners, nicknames earned, neon hair unlocked, all presented
+      together in one batch moment, once awards exist (see the separate
+      Awards Catalog design doc). **Partially superseded 2026-08-11**: the
+      season-transition flow this item was waiting on now exists for
+      real (see "The draft, for real" above) -- `SeasonRecapScreen`'s
+      "Begin Next Season" button already calls it, deliberately without
+      any ceremony trapping around it yet. This item is now specifically
+      about the presentation layer alone: replacing that plain button
+      with the real ceremony once awards exist, not building the
+      transition itself again.
+- [x] **The "Begin Season 2" button itself.** Done 2026-08-11, in minimal
+      form -- `SeasonRecapScreen`'s "Begin Next Season" button, reachable
+      the instant the postseason ends (not gated behind the ceremony
+      above, since that doesn't exist yet either). The polished version
+      this item originally described (only appearing once a real
+      ceremony has been seen) is still open, folded into the ceremony
+      item above rather than tracked twice.
 
 ## Open questions for GM review
 
@@ -184,11 +200,16 @@ a season number or reuses a seed offset that doesn't account for one yet.
 
 ## Suggested build order
 
-1. Foundation — season counter, seed scoping, the transition entry point.
-2. Aging & churn — age/experience increments, AI decline, the legality gate.
-3. Player pool refresh — free agents, a real new draft class.
-4. The real draft flow, GM and AI both.
-5. Ceremony, awards, and the "Begin Season 2" button itself.
+1. ~~Foundation~~ — done. Season counter, seed scoping, the transition
+   entry point.
+2. ~~Aging & churn~~ — done. Age/experience increments, AI decline, the
+   legality gate.
+3. ~~Player pool refresh~~ — done. Free agents, a real new draft class.
+4. ~~The real draft flow, GM and AI both~~ — done.
+5. Ceremony, awards, and the *polished* "Begin Season 2" button — still
+   open. The plain, functional version of the button already shipped
+   alongside stage 4 (see "Presentation" above); what's left here is
+   specifically the ceremony wrapped around it.
 
 Roughly in dependency order — each stage's items either read data the
 previous stage produces, or would be actively wrong to ship without it (a
