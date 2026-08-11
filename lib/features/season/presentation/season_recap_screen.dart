@@ -9,6 +9,7 @@ import '../../draft/generation/draft_generator.dart';
 import '../../draft/presentation/draft_day_screen.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../player/domain/achievement.dart';
 import '../../player/domain/position.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/presentation/player_growth_card.dart';
@@ -22,14 +23,13 @@ import '../generation/postseason_generator.dart'
     show kPostseasonTeamCount, seasonChampion;
 
 /// A completed season's landing page -- fires once a champion has been
-/// crowned, reachable from the Dashboard's permanent trophy banner. This
-/// is deliberately the **placeholder** version for the *ceremony* half:
-/// award winners, nicknames earned, and neon hair unlocked are real
-/// follow-up work the GM explicitly deferred (`0B_Planned.md`'s
-/// achievement/nickname-ceremony entry) rather than something to build
-/// alongside the rest of this pass. The season-*transition* half is real
-/// now, though (2026-08-11, `0D_Season_2_Roadmap.md`'s "The draft, for
-/// real" stage) -- see [_BeginNextSeasonButton].
+/// crowned, reachable from the Dashboard's permanent trophy banner. The
+/// real, computed ceremony (2026-08-11, `0D_Season_2_Roadmap.md`'s
+/// Presentation stage, completing the whole Season 2 roadmap): champion,
+/// [seasonAwardWinners], and starting the next season for real, all in
+/// one place -- deliberately a plain, functional presentation rather
+/// than a flashier animated moment, same posture every other
+/// season-boundary system this pass built already carries.
 class SeasonRecapScreen extends ConsumerStatefulWidget {
   const SeasonRecapScreen({required this.franchise, super.key});
 
@@ -136,6 +136,8 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
               totalPlayerGrowthDelta(b).compareTo(totalPlayerGrowthDelta(a)),
         );
 
+    final awardWinners = seasonAwardWinners(franchise);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Season Recap')),
       body: SafeArea(
@@ -176,6 +178,27 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Season Awards', style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              awardWinners.isEmpty
+                  ? 'No major individual awards were determined this '
+                        'season.'
+                  : '${awardWinners.length} award'
+                        '${awardWinners.length == 1 ? '' : 's'} handed out '
+                        'across the league.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (var i = 0; i < awardWinners.length; i++) ...[
+              _AwardWinnerRow(
+                winner: awardWinners[i],
+                season: franchise.season,
+              ),
+              if (i != awardWinners.length - 1)
+                const SizedBox(height: AppSpacing.sm),
+            ],
             const SizedBox(height: AppSpacing.lg),
             Text('Player Development', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.xs),
@@ -235,13 +258,11 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                   Text('What\'s Next', style: theme.textTheme.titleMedium),
                   const SizedBox(height: AppSpacing.sm),
                   const Text(
-                    'A real end-of-season ceremony -- award winners, '
-                    'nicknames earned, neon hair unlocked -- is coming in a '
-                    'future update. Starting the new season itself is real '
-                    'right now, though: every roster ages up, a fresh '
-                    'batch of free agents and draft prospects arrives, and '
-                    'the draft plays out for real -- you\'ll pick for your '
-                    'own team, and every AI team fills out their roster too.',
+                    'Starting the new season: every roster ages up, a '
+                    'fresh batch of free agents and draft prospects '
+                    'arrives, and the draft plays out for real -- '
+                    'you\'ll pick for your own team, and every AI team '
+                    'fills out their roster too.',
                   ),
                   const SizedBox(height: AppSpacing.md),
                   FilledButton.icon(
@@ -273,4 +294,71 @@ String _postseasonRoundLabel(int round) {
     2 => 'Semifinals',
     _ => 'Finals',
   };
+}
+
+/// One [SeasonAwardWinner], shown with their new nickname (every grant
+/// auto-applies one, `achievement_grant.dart`'s `applyAchievementGrant`)
+/// and a neon-hair-unlock note if this was their real 2nd career
+/// achievement -- found by locating the matching [PlayerAchievementRecord]
+/// in [Player.achievements] and checking its index, rather than a
+/// separate flag, since nothing else tracks "did this specific grant
+/// just cross the 2-achievement threshold."
+class _AwardWinnerRow extends StatelessWidget {
+  const _AwardWinnerRow({required this.winner, required this.season});
+
+  final SeasonAwardWinner winner;
+  final int season;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final player = winner.player;
+    final recordIndex = player.achievements.indexWhere(
+      (record) =>
+          record.achievement == winner.achievement && record.season == season,
+    );
+    final justUnlockedHair = recordIndex == 1;
+
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.emoji_events, color: Colors.amber.shade700),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  winner.achievement.label,
+                  style: theme.textTheme.titleSmall,
+                ),
+                Text(
+                  winner.teamAbbreviation != null
+                      ? '${player.name} (${winner.teamAbbreviation})'
+                      : player.name,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                if (player.nickname != null)
+                  Text(
+                    '"${player.nickname}"',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                if (justUnlockedHair)
+                  Text(
+                    '✨ Neon hair color unlocked',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

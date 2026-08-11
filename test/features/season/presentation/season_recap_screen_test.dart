@@ -15,6 +15,7 @@ import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
@@ -330,6 +331,127 @@ void main() {
       );
     },
   );
+
+  testWidgets('shows an empty-state message in the Season Awards section when '
+      'nobody has won anything this season (2026-08-11, '
+      '0D_Season_2_Roadmap.md: Presentation)', (tester) async {
+    final roster = generateStartingRoster(1);
+    final franchise = Franchise(
+      id: 'franchise-1',
+      gmName: 'Taylor Reed',
+      team: kLeagueTeamPool.first,
+      coach: const Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      ),
+      roster: roster,
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      league: testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ownTeam: kLeagueTeamPool.first,
+      ),
+      trainingCoaches: testTrainingCoaches(),
+      trainingPlan: TrainingPlan.initial(),
+      nextTrainingWeek: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+    );
+    await tester.pump();
+
+    expect(find.text('Season Awards'), findsOneWidget);
+    expect(
+      find.text('No major individual awards were determined this season.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows each award winner, their team, nickname, and a neon-hair-'
+      'unlocked note on their real 2nd career achievement (2026-08-11, '
+      '0D_Season_2_Roadmap.md: Presentation)', (tester) async {
+    final roster = generateStartingRoster(1);
+    final winner = roster.first.player
+        .copyWithAchievement(
+          const PlayerAchievementRecord(
+            achievement: Achievement.leagueMvp,
+            season: 3,
+          ),
+        )
+        .copyWithNickname('The Franchise');
+    final secondWinner = roster[1].player
+        .copyWithAchievement(
+          const PlayerAchievementRecord(
+            achievement: Achievement.scoringLeader,
+            season: 0, // an earlier season's award -- their 1st ever
+          ),
+        )
+        .copyWithAchievement(
+          const PlayerAchievementRecord(
+            achievement: Achievement.defensiveMvp,
+            season: 3, // this season's -- their real 2nd ever
+          ),
+        )
+        .copyWithNickname('Lockdown');
+    final updatedRoster = [
+      RosterMembership(player: winner, status: RosterStatus.active),
+      RosterMembership(player: secondWinner, status: RosterStatus.active),
+      ...roster.skip(2),
+    ];
+    final franchise = Franchise(
+      id: 'franchise-1',
+      gmName: 'Taylor Reed',
+      team: kLeagueTeamPool.first,
+      coach: const Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      ),
+      roster: updatedRoster,
+      simulationSeed: 1,
+      season: 3,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      league: testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ownTeam: kLeagueTeamPool.first,
+      ),
+      trainingCoaches: testTrainingCoaches(),
+      trainingPlan: TrainingPlan.initial(),
+      nextTrainingWeek: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+    );
+    await tester.pump();
+
+    expect(find.text('2 awards handed out across the league.'), findsOneWidget);
+    expect(find.text('League MVP'), findsOneWidget);
+    expect(
+      find.textContaining('${winner.name} (${franchise.team.abbreviation})'),
+      findsOneWidget,
+    );
+    expect(find.text('"The Franchise"'), findsOneWidget);
+    expect(find.text('Defensive MVP'), findsOneWidget);
+    expect(find.text('"Lockdown"'), findsOneWidget);
+    // Only the 2nd winner just crossed the 2-achievement threshold --
+    // the 1st winner's own award is their only one this test gives
+    // them, findsOneWidget (not findsWidgets) confirms no false
+    // positive for them.
+    expect(find.text('✨ Neon hair color unlocked'), findsOneWidget);
+  });
 
   testWidgets(
     'tapping Begin Next Season transitions the franchise and opens Draft '
