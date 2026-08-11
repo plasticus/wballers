@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
+import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
@@ -69,6 +71,72 @@ void main() {
 
     test('throws for an abbreviation outside this league', () {
       expect(() => teamByAbbreviation(franchise, 'ZZZ'), throwsStateError);
+    });
+  });
+
+  group('seasonAwardWinners', () {
+    test('finds a winner on the GM\'s own roster, tagged with the right '
+        'team abbreviation', () {
+      final target = franchise.roster.first.player.copyWithAchievement(
+        const PlayerAchievementRecord(
+          achievement: Achievement.leagueMvp,
+          season: 0,
+        ),
+      );
+      final withWinner = franchise.copyWithRoster([
+        RosterMembership(player: target, status: RosterStatus.active),
+        ...franchise.roster.skip(1),
+      ]);
+
+      final winners = seasonAwardWinners(withWinner);
+
+      expect(winners, hasLength(1));
+      expect(winners.single.achievement, Achievement.leagueMvp);
+      expect(winners.single.player.id, target.id);
+      expect(winners.single.teamAbbreviation, withWinner.team.abbreviation);
+    });
+
+    test('finds a winner on an AI team\'s roster too', () {
+      final aiTeam = franchise.league.aiTeams.first;
+      final target = aiTeam.roster.first.player.copyWithAchievement(
+        const PlayerAchievementRecord(
+          achievement: Achievement.defensiveMvp,
+          season: 0,
+        ),
+      );
+      final updatedAiTeam = aiTeam.copyWithRoster([
+        RosterMembership(player: target, status: RosterStatus.active),
+        ...aiTeam.roster.skip(1),
+      ]);
+      final withWinner = franchise.copyWithLeague(
+        League(aiTeams: [updatedAiTeam, ...franchise.league.aiTeams.skip(1)]),
+      );
+
+      final winners = seasonAwardWinners(withWinner);
+
+      expect(winners, hasLength(1));
+      expect(winners.single.achievement, Achievement.defensiveMvp);
+      expect(winners.single.player.id, target.id);
+      expect(winners.single.teamAbbreviation, aiTeam.team.abbreviation);
+    });
+
+    test('excludes an achievement from an earlier season', () {
+      final target = franchise.roster.first.player.copyWithAchievement(
+        const PlayerAchievementRecord(
+          achievement: Achievement.leagueMvp,
+          season: 5,
+        ),
+      );
+      final withOldWinner = franchise.copyWithRoster([
+        RosterMembership(player: target, status: RosterStatus.active),
+        ...franchise.roster.skip(1),
+      ]);
+
+      expect(seasonAwardWinners(withOldWinner), isEmpty);
+    });
+
+    test('is empty when nobody has won anything this season', () {
+      expect(seasonAwardWinners(franchise), isEmpty);
     });
   });
 }
