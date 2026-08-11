@@ -9,6 +9,7 @@ import '../../season/domain/skills_competition.dart';
 import '../../training/domain/training_coach.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
+import 'pending_retirement.dart';
 
 /// The player's save-game: their General Manager persona, their club, its
 /// hired coach, and its roster. This is the save-game root —
@@ -66,6 +67,7 @@ class Franchise {
     this.skillsCompetitionResults = const [],
     this.freeAgents = const [],
     this.readMailIds = const {},
+    this.pendingRetirements = const [],
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -207,6 +209,17 @@ class Franchise {
   /// save/reload.
   final Set<String> readMailIds;
 
+  /// GM-own-roster players currently waiting on a retirement decision --
+  /// see [PendingRetirement]'s own doc comment. Populated at season end
+  /// (`current_franchise_provider.dart`'s `simulatePostseasonAndPersist`)
+  /// and drained one at a time as the GM actually resolves each one
+  /// (`resolvePendingRetirement`) -- unlike [trainingReports]/
+  /// [seasonEndAgingResults], this deliberately survives a season
+  /// transition ([copyWithNewSeason] carries it forward untouched) rather
+  /// than resetting, since an unresolved decision shouldn't just vanish
+  /// because a new season started.
+  final List<PendingRetirement> pendingRetirements;
+
   /// Returns a copy with [newCoach] replacing [coach] -- the portrait
   /// editor's coach-appearance path.
   Franchise copyWithCoach(Coach newCoach) {
@@ -229,6 +242,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -254,6 +268,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -279,6 +294,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -304,6 +320,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -339,6 +356,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -372,6 +390,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -398,6 +417,7 @@ class Franchise {
       skillsCompetitionResults: [...skillsCompetitionResults, newResult],
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -425,6 +445,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -457,6 +478,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -486,6 +508,7 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 
@@ -512,6 +535,38 @@ class Franchise {
       skillsCompetitionResults: skillsCompetitionResults,
       freeAgents: freeAgents,
       readMailIds: newReadMailIds,
+      pendingRetirements: pendingRetirements,
+    );
+  }
+
+  /// Returns a copy with [newPendingRetirements] replacing
+  /// [pendingRetirements] -- `current_franchise_provider.dart`'s
+  /// `resolvePendingRetirement` (a GM decision resolving one) and
+  /// `simulatePostseasonAndPersist` (a fresh season's newly-eligible
+  /// players) are the only callers.
+  Franchise copyWithPendingRetirements(
+    List<PendingRetirement> newPendingRetirements,
+  ) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: newPendingRetirements,
     );
   }
 
@@ -559,6 +614,7 @@ class Franchise {
       skillsCompetitionResults: const [],
       freeAgents: freeAgents,
       readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
     );
   }
 }

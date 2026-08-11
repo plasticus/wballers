@@ -9,6 +9,7 @@ import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
@@ -229,6 +230,130 @@ void main() {
           franchise.league.aiTeams[i].roster.map((m) => m.player.id),
         );
       }
+    });
+  });
+
+  group('evaluateRetirementEligibility (the GM\'s-own-roster path -- no roll, '
+      'even for the championship trigger)', () {
+    test('flags the mandatory-age trigger', () {
+      final player = playerWithOverall(
+        70,
+        id: 'p1',
+        age: kMandatoryRetirementAge,
+      );
+
+      expect(
+        evaluateRetirementEligibility(player, wonChampionship: false),
+        RetirementReason.hitMandatoryAge,
+      );
+    });
+
+    test('flags the peak-decline trigger', () {
+      final player = Player(
+        id: 'p1',
+        name: 'Declined Vet',
+        age: 30,
+        yearsOfService: 8,
+        hometown: 'Testville',
+        primaryPosition: Position.smallForward,
+        handedness: Handedness.right,
+        biography: '',
+        ratings: playerWithOverall(60, id: 'p1').ratings,
+        heightInches: 70,
+        archetype: kArchetypesByPosition[Position.smallForward]!.first,
+        peakOverall: 60 + kRetirementDeclineFromPeak,
+      );
+
+      expect(
+        evaluateRetirementEligibility(player, wonChampionship: false),
+        RetirementReason.declinedFromPeak,
+      );
+    });
+
+    test('flags the championship trigger with no roll -- always eligible '
+        'when old enough and on the champion team, unlike '
+        'evaluateRetirement', () {
+      final player = playerWithOverall(
+        80,
+        id: 'p1',
+        age: kChampionshipConsiderationAge,
+      );
+
+      expect(
+        evaluateRetirementEligibility(player, wonChampionship: true),
+        RetirementReason.wonChampionshipLate,
+      );
+    });
+
+    test('never flags a young, healthy, non-champion player', () {
+      final player = playerWithOverall(70, id: 'p1', age: 24);
+
+      expect(
+        evaluateRetirementEligibility(player, wonChampionship: true),
+        isNull,
+      );
+    });
+  });
+
+  group('attemptRetirementPersuasion', () {
+    test('a maxed-out Motivation coach still isn\'t a guaranteed success -- '
+        'clamped at kMaxPersuasionChance', () {
+      const coach = Coach(
+        name: 'Coach',
+        stats: CoachStats(
+          offense: 50,
+          defense: 50,
+          development: 50,
+          motivation: 99,
+          management: 50,
+        ),
+        archetype: CoachArchetype.steadyHand,
+      );
+
+      var sawFailure = false;
+      for (var seed = 1; seed <= 200 && !sawFailure; seed++) {
+        if (!attemptRetirementPersuasion(Random(seed), coach)) {
+          sawFailure = true;
+        }
+      }
+
+      expect(
+        sawFailure,
+        isTrue,
+        reason:
+            'expected at least one failure within 200 seeds even at '
+            'max Motivation',
+      );
+    });
+
+    test('a bottomed-out Motivation coach still has a real chance -- clamped '
+        'at kMinPersuasionChance', () {
+      const coach = Coach(
+        name: 'Coach',
+        stats: CoachStats(
+          offense: 50,
+          defense: 50,
+          development: 50,
+          motivation: 1,
+          management: 50,
+        ),
+        archetype: CoachArchetype.steadyHand,
+      );
+
+      var sawSuccess = false;
+      for (var seed = 1; seed <= 200 && !sawSuccess; seed++) {
+        if (attemptRetirementPersuasion(Random(seed), coach)) {
+          sawSuccess = true;
+        }
+      }
+
+      expect(
+        sawSuccess,
+        isTrue,
+        reason:
+            'expected at least one success within 200 seeds even at '
+            'min Motivation',
+      );
     });
   });
 }

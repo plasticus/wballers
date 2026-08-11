@@ -31,7 +31,8 @@ const kRosterCompleteMailId = 'assistant_gm_roster_complete';
 /// [MailItem]'s doc comment for why nothing here is persisted directly.
 /// System messages ([kRosterGapMailId] while short a player, then
 /// [kRosterCompleteMailId] once that's fixed -- always exactly one of
-/// the two, never both) sort first, then every [TrainingReportMailItem]
+/// the two, never both) and every [RetirementDecisionMailItem] sort
+/// first (both need real GM action), then every [TrainingReportMailItem]
 /// newest week first -- the same "actionable before passive" priority
 /// the Dashboard's own card ordering already uses.
 List<MailItem> mailboxFor(Franchise franchise) {
@@ -64,11 +65,23 @@ List<MailItem> mailboxFor(Franchise franchise) {
               .firstWhere((r) => r.week == played.game.week)
               .squads,
         ),
+    for (final pending in franchise.pendingRetirements)
+      RetirementDecisionMailItem(
+        pending: pending,
+        player: franchise.roster
+            .firstWhere((m) => m.player.id == pending.playerId)
+            .player,
+      ),
   ];
 
   items.sort((a, b) {
-    final aIsSystem = a is AssistantGmMailItem;
-    final bIsSystem = b is AssistantGmMailItem;
+    // Actionable before passive -- a retirement decision needs the GM to
+    // actually do something, same footing the system messages already
+    // have.
+    final aIsSystem =
+        a is AssistantGmMailItem || a is RetirementDecisionMailItem;
+    final bIsSystem =
+        b is AssistantGmMailItem || b is RetirementDecisionMailItem;
     if (aIsSystem != bIsSystem) return aIsSystem ? -1 : 1;
     if (a is TrainingReportMailItem && b is TrainingReportMailItem) {
       return b.report.week.compareTo(a.report.week);

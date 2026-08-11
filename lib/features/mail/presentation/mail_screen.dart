@@ -8,6 +8,8 @@ import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../franchise/onboarding/onboarding_screen.dart';
 import '../../market/presentation/player_market_screen.dart';
+import '../../player/domain/retirement_reason.dart';
+import '../../player/presentation/retirement_decision_screen.dart';
 import '../../season/presentation/all_star_game_result_screen.dart';
 import '../../season/presentation/skills_competition_result_screen.dart';
 import '../../training/presentation/training_report_screen.dart';
@@ -121,6 +123,11 @@ class _MailRow extends ConsumerWidget {
         Icons.emoji_events_outlined,
         'Final: ${item0.playedGame.homeScore}-${item0.playedGame.awayScore}.',
       ),
+      RetirementDecisionMailItem() => (
+        'Coaching Staff',
+        Icons.watch_later_outlined,
+        item0.pending.reason.label,
+      ),
     };
 
     return AppCard(
@@ -149,6 +156,10 @@ class _MailRow extends ConsumerWidget {
                   franchise: franchise,
                   playedGame: item0.playedGame,
                   squads: item0.squads,
+                ),
+                RetirementDecisionMailItem() => RetirementDecisionScreen(
+                  franchise: franchise,
+                  item: item0,
                 ),
               },
             ),

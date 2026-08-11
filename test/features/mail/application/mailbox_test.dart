@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/mail/application/mailbox.dart';
 import 'package:womensbballmgr/features/mail/domain/mail_item.dart';
+import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/skills_competition.dart';
@@ -147,6 +149,55 @@ void main() {
       final items = mailboxFor(franchise);
 
       expect(items.whereType<AllStarGameMailItem>(), hasLength(1));
+    });
+  });
+
+  group('RetirementDecisionMailItem mail (2026-08-11, 0D_Season_2_Roadmap.md: '
+      'Aging & roster churn)', () {
+    test('includes one RetirementDecisionMailItem per pending decision, '
+        'resolving the real player off Franchise.roster', () {
+      final base = withFullActiveRoster(_franchise());
+      final target = base.roster.first.player;
+      final franchise = base.copyWithPendingRetirements([
+        PendingRetirement(
+          playerId: target.id,
+          reason: RetirementReason.hitMandatoryAge,
+        ),
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      final retirementItems = items.whereType<RetirementDecisionMailItem>();
+      expect(retirementItems, hasLength(1));
+      expect(retirementItems.single.player.id, target.id);
+      expect(
+        retirementItems.single.pending.reason,
+        RetirementReason.hitMandatoryAge,
+      );
+    });
+
+    test('sorts alongside the system message, before training reports', () {
+      final base = _withTrainingReports(withFullActiveRoster(_franchise()), [
+        1,
+      ]);
+      final target = base.roster.first.player;
+      final franchise = base.copyWithPendingRetirements([
+        PendingRetirement(
+          playerId: target.id,
+          reason: RetirementReason.hitMandatoryAge,
+        ),
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      final lastActionableIndex = items.lastIndexWhere(
+        (item) =>
+            item is AssistantGmMailItem || item is RetirementDecisionMailItem,
+      );
+      final firstReportIndex = items.indexWhere(
+        (item) => item is TrainingReportMailItem,
+      );
+      expect(lastActionableIndex, lessThan(firstReportIndex));
     });
   });
 

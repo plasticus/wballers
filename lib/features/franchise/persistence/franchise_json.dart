@@ -9,6 +9,7 @@ import '../../training/persistence/training_coach_json.dart';
 import '../../training/persistence/training_plan_json.dart';
 import '../../training/persistence/training_report_json.dart';
 import '../domain/franchise.dart';
+import 'pending_retirement_json.dart';
 
 Map<String, dynamic> franchiseToJson(Franchise franchise) {
   return {
@@ -40,6 +41,9 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         .toList(),
     'freeAgents': franchise.freeAgents.map(playerToJson).toList(),
     'readMailIds': franchise.readMailIds.toList(),
+    'pendingRetirements': franchise.pendingRetirements
+        .map(pendingRetirementToJson)
+        .toList(),
   };
 }
 
@@ -88,5 +92,10 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     readMailIds: (json['readMailIds'] as List<dynamic>)
         .map((value) => value as String)
         .toSet(),
+    pendingRetirements: (json['pendingRetirements'] as List<dynamic>)
+        .map(
+          (value) => pendingRetirementFromJson(value as Map<String, dynamic>),
+        )
+        .toList(),
   );
 }

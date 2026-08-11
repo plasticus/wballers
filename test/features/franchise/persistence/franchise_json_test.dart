@@ -3,11 +3,13 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
@@ -294,5 +296,32 @@ void main() {
     final restored = franchiseFromJson(franchiseToJson(franchise));
 
     expect(restored.seasonEndAgingResults, isEmpty);
+  });
+
+  test('round-trips pendingRetirements (2026-08-11, 0D_Season_2_Roadmap.md: '
+      'Aging & roster churn)', () {
+    final franchise = _sampleFranchise().copyWithPendingRetirements(const [
+      PendingRetirement(
+        playerId: 'p-starter',
+        reason: RetirementReason.declinedFromPeak,
+      ),
+    ]);
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.pendingRetirements, hasLength(1));
+    expect(restored.pendingRetirements.single.playerId, 'p-starter');
+    expect(
+      restored.pendingRetirements.single.reason,
+      RetirementReason.declinedFromPeak,
+    );
+  });
+
+  test('pendingRetirements round-trips empty', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.pendingRetirements, isEmpty);
   });
 }

@@ -19,6 +19,7 @@ import '../../season/domain/season_progress.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../season/generation/all_star_advancer.dart';
 import '../../season/generation/postseason_advancer.dart';
+import '../../season/generation/postseason_generator.dart' show seasonChampion;
 import '../../season/generation/retirement_advancer.dart';
 import '../../season/generation/season_advancer.dart';
 import '../../season/generation/season_tenure_advancer.dart';
@@ -26,6 +27,7 @@ import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
 import '../domain/franchise.dart';
+import '../domain/pending_retirement.dart';
 import '../persistence/franchise_json.dart';
 import 'save_slots.dart';
 
@@ -219,6 +221,64 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
         newFreeAgents: newFreeAgents,
       ),
     );
+  }
+
+  /// Resolves one of [Franchise.pendingRetirements] -- either the GM lets
+  /// [playerId] retire outright ([attemptPersuasion] `false`), or has the
+  /// coach attempt to talk them into playing one more year
+  /// ([attemptRetirementPersuasion], a real skill check off
+  /// [Franchise.coach]'s Motivation). Either way the pending entry is
+  /// cleared; a persuaded player simply stays on the roster untouched, a
+  /// retiring one is removed from it entirely -- never routed to
+  /// [Franchise.freeAgents], same "retired means retired" rule
+  /// `resolveAiTeamRetirements` already established.
+  ///
+  /// A no-op (returns `null`) if there's no current franchise or
+  /// [playerId] isn't actually pending -- the mail item that leads here
+  /// only ever exists for a real pending entry, so this is a defensive
+  /// guard, not a path the real UI should hit.
+  Future<RetirementDecisionOutcome?> resolvePendingRetirement(
+    String playerId, {
+    required bool attemptPersuasion,
+  }) async {
+    final franchise = await future;
+    if (franchise == null) return null;
+    if (!franchise.pendingRetirements.any((p) => p.playerId == playerId)) {
+      return null;
+    }
+
+    final newPending = [
+      for (final pending in franchise.pendingRetirements)
+        if (pending.playerId != playerId) pending,
+    ];
+
+    if (!attemptPersuasion) {
+      await _persist(
+        _retirePlayer(
+          franchise,
+          playerId,
+        ).copyWithPendingRetirements(newPending),
+      );
+      return RetirementDecisionOutcome.letRetire;
+    }
+
+    final succeeded = attemptRetirementPersuasion(Random(), franchise.coach);
+    final updated = succeeded ? franchise : _retirePlayer(franchise, playerId);
+    await _persist(updated.copyWithPendingRetirements(newPending));
+    return succeeded
+        ? RetirementDecisionOutcome.persuadedToStay
+        : RetirementDecisionOutcome.persuasionFailed;
+  }
+
+  /// Removes [playerId] from [franchise]'s roster entirely -- unlike
+  /// [dropPlayer], never routed to [Franchise.freeAgents]: this is
+  /// [resolvePendingRetirement]'s "actually retiring" path, and retired
+  /// means retired, not signable.
+  Franchise _retirePlayer(Franchise franchise, String playerId) {
+    return franchise.copyWithRoster([
+      for (final membership in franchise.roster)
+        if (membership.player.id != playerId) membership,
+    ]);
   }
 
   /// Replaces the coach's portrait appearance and persists it. Same
@@ -494,10 +554,43 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withAiRetirement = withAiAging.copyWithLeague(
       aiRetirementAdvance.league,
     );
+    // The GM's own roster is never auto-retired -- each newly-eligible
+    // player becomes a pending decision instead (a real Mail item lets
+    // the GM let them retire or have the coach attempt to convince them
+    // to stay). Appended, not replaced: an earlier season's still-
+    // unresolved decision (the GM never opened that mail) shouldn't get
+    // silently dropped just because another season's evaluation ran.
+    final championAbbreviation = seasonChampion(
+      withAiRetirement.seasonProgress.playedGames,
+    );
+    final wonChampionship =
+        championAbbreviation == withAiRetirement.team.abbreviation;
+    final alreadyPending = {
+      for (final pending in withAiRetirement.pendingRetirements)
+        pending.playerId,
+    };
+    final newlyEligible = [
+      for (final membership in withAiRetirement.roster)
+        if (!alreadyPending.contains(membership.player.id))
+          if (evaluateRetirementEligibility(
+                membership.player,
+                wonChampionship: wonChampionship,
+              )
+              case final reason?)
+            PendingRetirement(playerId: membership.player.id, reason: reason),
+    ];
+    final withPendingRetirements = newlyEligible.isEmpty
+        ? withAiRetirement
+        : withAiRetirement.copyWithPendingRetirements([
+            ...withAiRetirement.pendingRetirements,
+            ...newlyEligible,
+          ]);
     // Legality enforcement runs after retirement, so it sees who's
     // actually still on the roster -- and reads *this* season's final
     // star tiers, so it has to run after training/aging too.
-    final withLegality = enforceAiRosterLegality(withAiRetirement).franchise;
+    final withLegality = enforceAiRosterLegality(
+      withPendingRetirements,
+    ).franchise;
     // Tenure (age/yearsOfService) increments last, deliberately -- every
     // pass above computes its result against the age a player played this
     // season *at* (`advancePlayerTenure`'s own doc comment).

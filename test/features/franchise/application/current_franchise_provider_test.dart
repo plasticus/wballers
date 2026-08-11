@@ -2,17 +2,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/season/generation/retirement_advancer.dart';
 import 'package:womensbballmgr/features/training/domain/training_focus.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
@@ -1307,6 +1313,66 @@ void main() {
       expect(restoredVeteran.ratings.overall, lessThan(70));
     });
 
+    test('a GM-own-roster player who hits the mandatory retirement age '
+        'becomes a pending decision, not an automatic removal (2026-08-11, '
+        '0D_Season_2_Roadmap.md: Aging & roster churn)', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      var franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      final elder = playerWithOverall(
+        70,
+        id: 'elder-1',
+        age: kMandatoryRetirementAge,
+      );
+      franchise = franchise.copyWithRoster([
+        RosterMembership(player: elder, status: RosterStatus.active),
+        ...franchise.roster.skip(1),
+      ]);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      var progress = franchise.seasonProgress;
+      var guard = 0;
+      while (!progress.isComplete && guard < 60) {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+        progress = container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress;
+        guard++;
+      }
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .simulatePostseasonAndPersist();
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      // Still on the roster -- the GM hasn't decided anything yet.
+      expect(updated.roster.any((m) => m.player.id == 'elder-1'), isTrue);
+      final pending = updated.pendingRetirements.where(
+        (p) => p.playerId == 'elder-1',
+      );
+      expect(pending, hasLength(1));
+      expect(pending.single.reason, RetirementReason.hitMandatoryAge);
+    });
+
     test('also trains every AI team\'s roster, all at once, once the '
         'postseason resolves (TODO.md item 8, a direct GM ask -- "all AI '
         'training... at the end of the season... in one big lump")', () async {
@@ -1635,6 +1701,152 @@ void main() {
       final b = await playWeekAndTrain();
 
       expect(a, b);
+    });
+  });
+
+  group('resolvePendingRetirement', () {
+    Future<ProviderContainer> containerWithPending({
+      required Player player,
+      required int motivation,
+    }) async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      var franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      franchise = franchise
+          .copyWithCoach(
+            Coach(
+              name: franchise.coach.name,
+              stats: CoachStats(
+                offense: 50,
+                defense: 50,
+                development: 50,
+                motivation: motivation,
+                management: 50,
+              ),
+              archetype: franchise.coach.archetype,
+            ),
+          )
+          .copyWithRoster([
+            RosterMembership(player: player, status: RosterStatus.active),
+            ...franchise.roster.skip(1),
+          ])
+          .copyWithPendingRetirements([
+            PendingRetirement(
+              playerId: player.id,
+              reason: RetirementReason.hitMandatoryAge,
+            ),
+          ]);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      return container;
+    }
+
+    test('letting a player retire removes them from the roster, not into '
+        'freeAgents, and clears the pending entry', () async {
+      final player = playerWithOverall(70, id: 'p1', age: 38);
+      final container = await containerWithPending(
+        player: player,
+        motivation: 50,
+      );
+
+      final outcome = await container
+          .read(currentFranchiseProvider.notifier)
+          .resolvePendingRetirement('p1', attemptPersuasion: false);
+
+      expect(outcome, RetirementDecisionOutcome.letRetire);
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.roster.any((m) => m.player.id == 'p1'), isFalse);
+      expect(updated.freeAgents.any((p) => p.id == 'p1'), isFalse);
+      expect(updated.pendingRetirements, isEmpty);
+    });
+
+    test('attempting persuasion always clears the pending entry, and the '
+        'reported outcome always matches whether the player is still on '
+        'the roster', () async {
+      // Motivation 50 -> chance ~0.5, so both outcomes are reachable
+      // within a handful of fresh attempts -- no seed control over the
+      // provider's internal Random(), so this asserts self-consistency
+      // (outcome always matches roster state) across enough tries to
+      // see both branches, rather than forcing one specific branch.
+      final seenOutcomes = <RetirementDecisionOutcome>{};
+      for (var i = 0; i < 40 && seenOutcomes.length < 2; i++) {
+        final player = playerWithOverall(70, id: 'p1', age: 38);
+        final container = await containerWithPending(
+          player: player,
+          motivation: 50,
+        );
+
+        final outcome = await container
+            .read(currentFranchiseProvider.notifier)
+            .resolvePendingRetirement('p1', attemptPersuasion: true);
+        final updated = container.read(currentFranchiseProvider).value!;
+        final stillRostered = updated.roster.any((m) => m.player.id == 'p1');
+
+        expect(updated.pendingRetirements, isEmpty);
+        if (outcome == RetirementDecisionOutcome.persuadedToStay) {
+          expect(stillRostered, isTrue);
+        } else {
+          expect(outcome, RetirementDecisionOutcome.persuasionFailed);
+          expect(stillRostered, isFalse);
+          expect(updated.freeAgents.any((p) => p.id == 'p1'), isFalse);
+        }
+        seenOutcomes.add(outcome!);
+      }
+
+      expect(
+        seenOutcomes,
+        {
+          RetirementDecisionOutcome.persuadedToStay,
+          RetirementDecisionOutcome.persuasionFailed,
+        },
+        reason: 'expected both outcomes to occur within 40 fresh attempts',
+      );
+    });
+
+    test('is a no-op (returns null) when the given id isn\'t actually '
+        'pending', () async {
+      final player = playerWithOverall(70, id: 'p1', age: 38);
+      final container = await containerWithPending(
+        player: player,
+        motivation: 50,
+      );
+
+      final outcome = await container
+          .read(currentFranchiseProvider.notifier)
+          .resolvePendingRetirement('not-pending', attemptPersuasion: false);
+
+      expect(outcome, isNull);
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.pendingRetirements, hasLength(1));
+    });
+
+    test('does nothing when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final outcome = await container
+          .read(currentFranchiseProvider.notifier)
+          .resolvePendingRetirement('whatever', attemptPersuasion: false);
+
+      expect(outcome, isNull);
+      expect(container.read(currentFranchiseProvider).value, isNull);
     });
   });
 }

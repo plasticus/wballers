@@ -63,28 +63,31 @@ a season number or reuses a seed offset that doesn't account for one yet.
       per-player decline math (`_declinedPlayer`, factored out so both
       share it) across every AI roster, same call site and idempotency
       guard as the GM's own pass and `resolveAiTeamSeasonTraining`.
-- [ ] **Retirement (partially done -- AI side only, see below).** GM's rule
-      (2026-08-11, multiple triggers, not one):
-      an unsigned free agent for a full season retires; losing 10+ overall
-      from peak retires; hitting age 38 means a player wants to retire; age
-      34+ plus winning a championship means a player considers it; for the
-      GM's own roster, the coach can attempt to convince a retirement-
-      eligible player to play one more year (a skill check).
-      **AI-side done 2026-08-11**: new `Player.peakOverall`/`effectivePeakOverall`
-      (refreshed every season alongside the age/experience increment) plus
-      `retirement_advancer.dart`'s `resolveAiTeamRetirements` -- the
-      mandatory-age and peak-decline triggers apply outright, the
-      championship trigger rolls (`kChampionshipRetirementChance`, a
-      documented first-pass number). Wired into `simulatePostseasonAndPersist`
-      before the roster-legality gate (so it sees who's actually left) and
-      after training/aging (so it reads the season's *final* numbers).
-      **Still open**: the full-season-unsigned-FA trigger needs free-agent
-      tenure tracking the next stage (Player Pool Refresh) builds, so it's
-      left out rather than half-built on missing data; and the GM's own
-      roster isn't touched at all yet -- the stated rule needs a real
-      persuasion mail/UI flow (a coach skill check the GM can trigger),
-      not silent auto-retirement, and that's a genuinely separate,
-      UI-sized piece of work still to build.
+- [x] **Retirement.** Done 2026-08-11. GM's rule (multiple triggers, not
+      one): an unsigned free agent for a full season retires; losing 10+
+      overall from peak retires; hitting age 38 means a player wants to
+      retire; age 34+ plus winning a championship means a player considers
+      it; for the GM's own roster, the coach can attempt to convince a
+      retirement-eligible player to play one more year (a skill check).
+      New `Player.peakOverall`/`effectivePeakOverall` (refreshed every
+      season alongside the age/experience increment) plus
+      `retirement_advancer.dart`'s `resolveAiTeamRetirements` (AI teams --
+      mandatory-age and peak-decline apply outright, the championship
+      trigger rolls, `kChampionshipRetirementChance`, a documented
+      first-pass number) and `evaluateRetirementEligibility` (the GM's own
+      roster -- same 2 deterministic triggers plus the un-rolled
+      championship trigger, feeding `Franchise.pendingRetirements`). A real
+      Mail item (`RetirementDecisionMailItem`,
+      `player/presentation/retirement_decision_screen.dart`) lets the GM
+      let a pending player retire or have the coach attempt to persuade
+      them to stay (`attemptRetirementPersuasion`, a skill check off the
+      coach's Motivation, `current_franchise_provider.dart`'s
+      `resolvePendingRetirement`). Wired into `simulatePostseasonAndPersist`
+      after training/aging (so it reads the season's *final* numbers) and
+      before the roster-legality gate (so that gate sees who's actually
+      still around). **Still open**: the full-season-unsigned-FA trigger
+      needs free-agent tenure tracking the next stage (Player Pool Refresh)
+      builds, so it's left out rather than half-built on missing data.
 - [x] **Roster legality enforcement at the season boundary.** Done
       2026-08-11 -- `roster_legality_advancer.dart`'s `enforceAiRosterLegality`
       waives the lowest-overall excess player(s) off any AI roster that
@@ -147,17 +150,22 @@ a season number or reuses a seed offset that doesn't account for one yet.
    secretly need a contracts system too (multi-year deals, cap sheets), or
    whether roster-legality enforcement alone is the entire off-season gate,
    with no money involved at all.
-2. **Retirement rule** — age-based cutoff, age combined with declining
-   ratings, or a random chance weighted by both? This needs its own small
-   design pass, not just "someone eventually leaves the league."
+2. ~~**Retirement rule**~~ — answered 2026-08-11, see Aging & roster churn
+   above: multiple triggers (mandatory age, peak decline, a championship-
+   team roll, plus a not-yet-buildable full-season-unsigned-FA trigger),
+   not a single cutoff.
 3. **Does anything else quietly assume "one season only"?** `trainingReports`
    and Mail history both just append forever today — worth an audit for
    whether either needs a per-season reset/archive once seasons actually
    repeat, or whether unbounded growth across a multi-season save is fine to
    just leave as-is.
-4. **Free agent pool composition** — should it include players waived by AI
-   teams during roster-legality cleanup, or purely fresh-generated each
-   season?
+4. ~~**Free agent pool composition**~~ — answered 2026-08-11 for the
+   roster-legality-waive half: yes, into `Franchise.freeAgents` (see Aging
+   & roster churn above). Still genuinely open for the *next* stage's own
+   job (Player pool refresh) is whether a fresh season also mixes in
+   retirees (no -- retirement removes a player from the league entirely,
+   not into free agency) and what a purely-fresh-generated batch alongside
+   the waived players should look like.
 5. **How many rounds/picks feel right for a real draft?** `kDraftRounds = 3`
    already exists in `draft_generator.dart` (real WNBA draft length) — worth
    confirming that's still the right number once picks actually matter, not

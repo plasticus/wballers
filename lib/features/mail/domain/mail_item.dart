@@ -1,4 +1,6 @@
+import '../../franchise/domain/pending_retirement.dart';
 import '../../league/domain/team.dart';
+import '../../player/domain/player.dart';
 import '../../season/domain/played_game.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../training/domain/training_report.dart';
@@ -105,4 +107,28 @@ class AllStarGameMailItem extends MailItem {
 
   @override
   String get subject => 'All-Star Game Recap';
+}
+
+/// A [PendingRetirement] on the GM's own roster, plus the [player] it's
+/// about -- `mailboxFor` looks that player up fresh from
+/// [Franchise.roster] every time, same "never persisted itself" posture
+/// every [MailItem] already has ([PendingRetirement] itself is what's
+/// actually persisted, on [Franchise.pendingRetirements]). Unlike every
+/// other [MailItem] here, this one is actionable -- its detail screen
+/// (`player/presentation/retirement_decision_screen.dart`) is where the
+/// GM actually resolves it, not just reads it.
+class RetirementDecisionMailItem extends MailItem {
+  const RetirementDecisionMailItem({
+    required this.pending,
+    required this.player,
+  });
+
+  final PendingRetirement pending;
+  final Player player;
+
+  @override
+  String get id => 'retirement_decision_${pending.playerId}';
+
+  @override
+  String get subject => '${player.name} is Considering Retirement';
 }
