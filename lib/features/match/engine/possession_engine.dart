@@ -141,22 +141,48 @@ const kHomeCourtHeroBonus = 0.05;
 /// begin with.
 const kRoadWarriorBonus = 0.05;
 
+/// Per-point conversion of the coach Offense-vs-Defense matchup gap
+/// ([coachMatchupBonus]) into a rating multiplier -- 0.1% per point, so a
+/// 20-point gap (the GM's own worked example, TODO.md's coach-stats item)
+/// lands at a clean 2%.
+const kCoachMatchupBonusPerPoint = 0.001;
+
+/// Caps [coachMatchupBonus] at the same magnitude as the biggest trait
+/// bonuses already in this engine ([kHomeCourtHeroBonus]/[kRoadWarriorBonus],
+/// both 5%) -- reached once the coach gap hits 50 points, so a truly
+/// extreme mismatch (a 90+ Offense coach against a single-digit Defense
+/// one) doesn't run away past what a home-crowd trait combo can already
+/// do.
+const kCoachMatchupBonusCap = 0.05;
+
 enum _BallHandlerChoice { pass, drive, jumper }
 
-/// Applies the home-court/trait bonuses above to one of [player]'s raw
-/// ratings, ahead of any contest that reads it. [isHome] is which side of
-/// *this specific contest* [player] is playing on -- callers thread
-/// through whichever of `offenseIsHome`/`defenseIsHome` matches which
-/// list [player] came from, not a property of the player itself (the
-/// same roster is the home team for the whole game either way).
+/// Applies the home-court/trait bonuses above, plus [coachBonus] if given,
+/// to one of [player]'s raw ratings, ahead of any contest that reads it.
+/// [isHome] is which side of *this specific contest* [player] is playing
+/// on -- callers thread through whichever of `offenseIsHome`/`defenseIsHome`
+/// matches which list [player] came from, not a property of the player
+/// itself (the same roster is the home team for the whole game either
+/// way).
+///
+/// [coachBonus] (default 0, no effect) is [coachMatchupBonus]'s result for
+/// whichever team [player] is on *this possession* -- always 0 for a
+/// defending player, since the coach matchup only ever touches the
+/// attacking side (see that function's own doc comment for why one signed
+/// adjustment there does the job of two).
 ///
 /// Deliberately a real (non-underscored) top-level function rather than
 /// private to this file -- the actual bonus math is exact and
 /// deterministic, unlike the rest of this engine's stochastic contests, so
 /// it's tested directly against known inputs/outputs rather than inferred
 /// statistically from thousands of simulated possessions.
-int effectiveHomeAwayRating(Player player, int rawRating, bool isHome) {
-  var multiplier = 1.0;
+int effectiveHomeAwayRating(
+  Player player,
+  int rawRating,
+  bool isHome, {
+  double coachBonus = 0.0,
+}) {
+  var multiplier = 1.0 + coachBonus;
   if (isHome) {
     multiplier += kHomeAdvantageBonus;
     if (player.traits.contains(Trait.homeCourtHero)) {
@@ -179,11 +205,39 @@ int _averageEffectiveRating(
   Player player,
   int ratingA,
   int ratingB,
-  bool isHome,
-) => _averageRating(
-  effectiveHomeAwayRating(player, ratingA, isHome),
-  effectiveHomeAwayRating(player, ratingB, isHome),
+  bool isHome, {
+  double coachBonus = 0.0,
+}) => _averageRating(
+  effectiveHomeAwayRating(player, ratingA, isHome, coachBonus: coachBonus),
+  effectiveHomeAwayRating(player, ratingB, isHome, coachBonus: coachBonus),
 );
+
+/// The attacking team's rating multiplier for the current possession, from
+/// the coach Offense-vs-Defense matchup (TODO.md's coach-stats item, a
+/// direct GM ask): [offenseCoachOffense] is the attacking team's own
+/// coach's `CoachStats.offense`; [defenseCoachDefense] is the *defending*
+/// team's coach's `CoachStats.defense`. Positive when the attacking
+/// team's coach wins the matchup, negative when the defending team's
+/// coach does.
+///
+/// Deliberately single-sided -- applied only to the attacking team's own
+/// ratings via [effectiveHomeAwayRating]'s `coachBonus`, never by directly
+/// reducing the defense's. Every contest in this file resolves off the
+/// *gap* between an attacker and defender rating (`contest_resolver.dart`),
+/// so bumping just the attacker already reads identically to "their
+/// defense gave up ground" from the other side -- moving both numbers for
+/// the same matchup would double the swing per point of coach gap instead
+/// of matching it. Same one-sided posture [kHomeAdvantageBonus] already
+/// established (only the home player's rating moves, never the away
+/// player's).
+double coachMatchupBonus({
+  required int offenseCoachOffense,
+  required int defenseCoachDefense,
+}) {
+  final gap =
+      (offenseCoachOffense - defenseCoachDefense) * kCoachMatchupBonusPerPoint;
+  return gap.clamp(-kCoachMatchupBonusCap, kCoachMatchupBonusCap);
+}
 
 double _rollActionSeconds(Random random, {bool isProtectingLead = false}) {
   final base =
@@ -223,6 +277,7 @@ Player _randomOf(Random random, List<Player> players) =>
   List<Player> defense, {
   required bool offenseIsHome,
   required bool defenseIsHome,
+  double offenseCoachBonus = 0.0,
 }) {
   final offensiveRebounder = _randomOf(random, offense);
   final defensiveRebounder = _randomOf(random, defense);
@@ -233,6 +288,7 @@ Player _randomOf(Random random, List<Player> players) =>
       offensiveRebounder.ratings.strength,
       offensiveRebounder.ratings.interiorOffense,
       offenseIsHome,
+      coachBonus: offenseCoachBonus,
     ),
     defenderRating: _averageEffectiveRating(
       defensiveRebounder,
@@ -255,12 +311,16 @@ Player _randomOf(Random random, List<Player> players) =>
 /// the closest existing proxy for touch -- there's no dedicated
 /// free-throw rating. [shooterIsHome] is always the *offense*'s home
 /// status -- a free-throw shooter is always the team that had the ball.
+/// [coachBonus] is the offense's [coachMatchupBonus] for this game --
+/// nobody's actively defending a free throw, but the shooter's own coach
+/// matchup still applies to their touch.
 int _shootFreeThrows(
   Random random,
   List<MatchEvent> events,
   Player shooter,
   int attempts, {
   required bool shooterIsHome,
+  double coachBonus = 0.0,
 }) {
   var made = 0;
   for (var i = 0; i < attempts; i++) {
@@ -270,6 +330,7 @@ int _shootFreeThrows(
         shooter,
         shooter.ratings.perimeterOffense,
         shooterIsHome,
+        coachBonus: coachBonus,
       ),
       defenderRating: _neutralFreeThrowDefense,
       floor: _freeThrowFloor,
@@ -317,6 +378,14 @@ int _shootFreeThrows(
 /// that sets these for real, one `true` and one `false` every possession
 /// since a game always has exactly one home team.
 ///
+/// [offenseCoachBonus] is [coachMatchupBonus]'s result for whichever team
+/// is on offense *this* possession -- defaults to 0 (no effect), same
+/// opt-in-only posture as the home-court params. Applied to every
+/// attacking-side rating this possession touches (passing, shooting,
+/// free throws, offensive rebounding) via [effectiveHomeAwayRating]'s
+/// `coachBonus` -- never to the defense's ratings, see
+/// [coachMatchupBonus]'s own doc comment for why.
+///
 /// There's no court-position model yet (`0B_Planned.md`'s Phase 4 court
 /// presentation): "driving" and "shooting a jumper" are modeled as a
 /// choice between [PlayerRatings.interiorOffense] and
@@ -332,6 +401,7 @@ PossessionResult simulatePossession(
   int offenseMargin = 0,
   bool offenseIsHome = false,
   bool defenseIsHome = false,
+  double offenseCoachBonus = 0.0,
 }) {
   assert(offense.length == 5, 'offense must have exactly 5 players on court');
   assert(defense.length == 5, 'defense must have exactly 5 players on court');
@@ -387,6 +457,7 @@ PossessionResult simulatePossession(
           ballHandler.ratings.agility,
           ballHandler.ratings.passing,
           offenseIsHome,
+          coachBonus: offenseCoachBonus,
         ),
         defenderRating: _averageEffectiveRating(
           defender,
@@ -471,6 +542,7 @@ PossessionResult simulatePossession(
           ballHandler,
           2,
           shooterIsHome: offenseIsHome,
+          coachBonus: offenseCoachBonus,
         );
         return finish(
           freeThrowPoints > 0
@@ -500,12 +572,14 @@ PossessionResult simulatePossession(
             ballHandler.ratings.strength,
             ballHandler.ratings.interiorOffense,
             offenseIsHome,
+            coachBonus: offenseCoachBonus,
           )
         : _averageEffectiveRating(
             ballHandler,
             ballHandler.ratings.agility,
             ballHandler.ratings.perimeterOffense,
             offenseIsHome,
+            coachBonus: offenseCoachBonus,
           );
     final defenderRating = isDrive
         ? _averageEffectiveRating(
@@ -582,6 +656,7 @@ PossessionResult simulatePossession(
         ballHandler,
         freeThrowAttempts,
         shooterIsHome: offenseIsHome,
+        coachBonus: offenseCoachBonus,
       );
       final totalPoints = (made ? attemptPoints : 0) + freeThrowPoints;
       return finish(
@@ -651,6 +726,7 @@ PossessionResult simulatePossession(
       defense,
       offenseIsHome: offenseIsHome,
       defenseIsHome: defenseIsHome,
+      offenseCoachBonus: offenseCoachBonus,
     );
     events.add(
       MatchEvent(

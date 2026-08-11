@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../coach/domain/coach.dart';
 import '../../player/domain/player.dart';
 import '../domain/match_event.dart';
 import '../domain/match_result.dart';
@@ -79,18 +80,41 @@ Player _tallest(List<Player> players) =>
 ///   [Trait.homeCourtHero] adds a further home-only bump and
 ///   [Trait.roadWarrior] adds an away-only one. [homeRoster] is always
 ///   the home team here -- there's no neutral-site game.
+/// - **Coach Offense-vs-Defense matchup** (TODO.md's coach-stats item, a
+///   direct GM ask): [homeCoach]/[awayCoach] are optional (`null` skips
+///   the bonus entirely, e.g. an exhibition with no real per-team coach
+///   assigned) -- when both are given, each team's own coach's
+///   `CoachStats.offense` against the *other* coach's `CoachStats.defense`
+///   ([coachMatchupBonus], `possession_engine.dart`) becomes that team's
+///   flat rating bump whenever they're on offense, computed once here for
+///   the whole game (coach stats don't change mid-game) rather than
+///   re-derived every possession.
 MatchResult simulateMatch(
   Random random, {
   required List<Player> homeRoster,
   required List<Player> awayRoster,
   Map<Player, int>? homeTargetMinutes,
   Map<Player, int>? awayTargetMinutes,
+  Coach? homeCoach,
+  Coach? awayCoach,
 }) {
   assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
   assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
 
   homeTargetMinutes ??= targetMinutesFor(homeRoster);
   awayTargetMinutes ??= targetMinutesFor(awayRoster);
+  final homeOffenseCoachBonus = homeCoach == null || awayCoach == null
+      ? 0.0
+      : coachMatchupBonus(
+          offenseCoachOffense: homeCoach.stats.offense,
+          defenseCoachDefense: awayCoach.stats.defense,
+        );
+  final awayOffenseCoachBonus = homeCoach == null || awayCoach == null
+      ? 0.0
+      : coachMatchupBonus(
+          offenseCoachOffense: awayCoach.stats.offense,
+          defenseCoachDefense: homeCoach.stats.defense,
+        );
   final minutesPlayed = <Player, double>{};
   final personalFouls = <Player, int>{};
   final fouledOut = <Player>{};
@@ -167,6 +191,9 @@ MatchResult simulateMatch(
         offenseMargin: offenseMargin,
         offenseIsHome: offenseIsHome,
         defenseIsHome: !offenseIsHome,
+        offenseCoachBonus: offenseIsHome
+            ? homeOffenseCoachBonus
+            : awayOffenseCoachBonus,
       );
       events.addAll(result.events);
       quarterClock -= result.secondsElapsed;
