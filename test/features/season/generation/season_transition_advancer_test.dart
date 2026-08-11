@@ -256,6 +256,43 @@ void main() {
     expect(a.draftInProgress!.order, b.draftInProgress!.order);
   });
 
+  test('snapshots every current player\'s overall into '
+      'seasonStartOverallByPlayerId, own roster and every AI team '
+      '(2026-08-11, 0D_Season_2_Roadmap.md: Presentation -- Most Improved '
+      'Player support)', () async {
+    final base = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final playedOut = await _playedOutFranchise(base);
+    expect(playedOut.seasonStartOverallByPlayerId, isEmpty);
+
+    final next = beginNextSeason(playedOut);
+
+    for (final membership in next.roster) {
+      expect(
+        next.seasonStartOverallByPlayerId[membership.player.id],
+        membership.player.ratings.overall,
+      );
+    }
+    for (final aiTeam in next.league.aiTeams) {
+      for (final membership in aiTeam.roster) {
+        expect(
+          next.seasonStartOverallByPlayerId[membership.player.id],
+          membership.player.ratings.overall,
+        );
+      }
+    }
+  });
+
   test('asserts when the season isn\'t actually over yet', () async {
     final base = withFullActiveRoster(
       createExpansionFranchise(

@@ -72,6 +72,7 @@ class Franchise {
     this.pendingRetirements = const [],
     this.draftClass = const [],
     this.draftInProgress,
+    this.seasonStartOverallByPlayerId = const {},
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -245,6 +246,19 @@ class Franchise {
   /// roster.
   final DraftInProgress? draftInProgress;
 
+  /// Every player's [PlayerRatings.overall] snapshotted the moment *this*
+  /// season began -- `season_transition_advancer.dart`'s `beginNextSeason`
+  /// is the only writer, capturing it fresh (fully replacing, not merging)
+  /// right before that season's own training/aging ever runs.
+  /// `season_awards_advancer.dart`'s `resolveSeasonAwards` is the only
+  /// reader, at that same season's *end* -- Most Improved Player is
+  /// exactly "current overall minus this." Empty for season 0 (no prior
+  /// `beginNextSeason` call ever ran to capture it) and for anyone who
+  /// joined the league after the snapshot was taken (a mid-season draft
+  /// pick or free-agent signing) -- both cases are meant to just be
+  /// excluded from Most Improved Player, not crash.
+  final Map<String, int> seasonStartOverallByPlayerId;
+
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
   /// picks and to record the GM's own, and finally to clear it (`null`)
@@ -272,6 +286,37 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: newDraftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+    );
+  }
+
+  /// Returns a copy with [newSnapshot] replacing
+  /// [seasonStartOverallByPlayerId] -- `season_transition_advancer.dart`'s
+  /// `beginNextSeason` is the only caller.
+  Franchise copyWithSeasonStartOverallByPlayerId(Map<String, int> newSnapshot) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: newSnapshot,
     );
   }
 
@@ -301,6 +346,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: newDraftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -329,6 +375,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -357,6 +404,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -385,6 +433,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -413,6 +462,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -451,6 +501,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -487,6 +538,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -516,6 +568,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -546,6 +599,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -581,6 +635,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -613,6 +668,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -642,6 +698,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 
@@ -723,6 +780,7 @@ class Franchise {
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
       draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
     );
   }
 }

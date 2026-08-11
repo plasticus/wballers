@@ -6,6 +6,7 @@ import 'package:womensbballmgr/features/season/domain/played_game_stat_line.dart
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 
 PlayedGameStatLine _line({
+  double minutesPlayed = 30,
   int points = 0,
   int rebounds = 0,
   int assists = 0,
@@ -16,7 +17,7 @@ PlayedGameStatLine _line({
   int fgAttempts = 0,
 }) {
   return PlayedGameStatLine(
-    minutesPlayed: 30,
+    minutesPlayed: minutesPlayed,
     points: points,
     fieldGoalsMade: fgMade,
     fieldGoalAttempts: fgAttempts,
@@ -134,5 +135,41 @@ void main() {
 
     final p1 = computeLeagueLeaders(games)['p1']!;
     expect(p1.mvpScore, closeTo(20 + 10 + 5 + 2 + 1, 0.0001));
+  });
+
+  test('sums minutes across every counted game, and minutesPerGame '
+      'averages them', () {
+    final games = [
+      PlayedGame(
+        game: _scheduledGame(2, GameType.regularSeason),
+        homeScore: 80,
+        awayScore: 70,
+        boxScoreByPlayerId: {'p1': _line(minutesPlayed: 28)},
+      ),
+      PlayedGame(
+        game: _scheduledGame(3, GameType.regularSeason),
+        homeScore: 90,
+        awayScore: 60,
+        boxScoreByPlayerId: {'p1': _line(minutesPlayed: 32)},
+      ),
+    ];
+
+    final p1 = computeLeagueLeaders(games)['p1']!;
+    expect(p1.minutes, 60);
+    expect(p1.minutesPerGame, 30);
+  });
+
+  test('disruptionScore sums steals and blocks per game', () {
+    final games = [
+      PlayedGame(
+        game: _scheduledGame(2, GameType.regularSeason),
+        homeScore: 80,
+        awayScore: 70,
+        boxScoreByPlayerId: {'p1': _line(steals: 3, blocks: 2)},
+      ),
+    ];
+
+    final p1 = computeLeagueLeaders(games)['p1']!;
+    expect(p1.disruptionScore, closeTo(5, 0.0001));
   });
 }

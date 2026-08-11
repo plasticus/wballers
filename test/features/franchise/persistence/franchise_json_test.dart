@@ -394,4 +394,28 @@ void main() {
       'p-prospect',
     );
   });
+
+  test('seasonStartOverallByPlayerId defaults to empty and round-trips '
+      '(2026-08-11, 0D_Season_2_Roadmap.md: Presentation -- Most Improved '
+      'Player support)', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.seasonStartOverallByPlayerId, isEmpty);
+  });
+
+  test('round-trips a non-empty seasonStartOverallByPlayerId', () {
+    final franchise = _sampleFranchise().copyWithSeasonStartOverallByPlayerId({
+      'p-starter': 72,
+      'p-bench': 50,
+    });
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.seasonStartOverallByPlayerId, {
+      'p-starter': 72,
+      'p-bench': 50,
+    });
+  });
 }

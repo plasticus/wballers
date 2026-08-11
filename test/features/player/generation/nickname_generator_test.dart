@@ -33,14 +33,14 @@ void main() {
   test('grantAchievement returns a matching record and a valid nickname', () {
     final result = grantAchievement(
       Random(9),
-      achievement: Achievement.mostDefensiveDisruptions,
+      achievement: Achievement.defensiveMvp,
       season: 1,
     );
 
-    expect(result.record.achievement, Achievement.mostDefensiveDisruptions);
+    expect(result.record.achievement, Achievement.defensiveMvp);
     expect(result.record.season, 1);
     expect(
-      kNicknamePools[Achievement.mostDefensiveDisruptions],
+      kNicknamePools[Achievement.defensiveMvp],
       contains(result.suggestedNickname),
     );
   });

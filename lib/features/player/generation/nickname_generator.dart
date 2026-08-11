@@ -25,17 +25,29 @@ const Map<Achievement, List<String>> kNicknamePools = {
     'The Enforcer',
     'Iron Curtain',
   ],
-  Achievement.mostDefensiveDisruptions: [
-    'The Menace',
-    'Chaos',
-    'The Disruptor',
-    'Live Wire',
-  ],
   Achievement.allStarMvp: [
     'Weekend Star',
     'Center Stage',
     'Showtime',
     'The Headliner',
+  ],
+  Achievement.sixthManOfTheYear: [
+    'The Spark',
+    'Instant Offense',
+    'The Closer',
+    'Sixth Sense',
+  ],
+  Achievement.mostImprovedPlayer: [
+    'The Leap',
+    'Glow Up',
+    'Next Level',
+    'The Breakout',
+  ],
+  Achievement.rookieOfTheYear: [
+    'Freshman',
+    'The Prodigy',
+    'Day One',
+    'The Debut',
   ],
 };
 

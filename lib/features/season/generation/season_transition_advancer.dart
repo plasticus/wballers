@@ -54,6 +54,15 @@ bool seasonIsOver(Franchise franchise) {
 /// `resolveAiPicksUntilOwnTurn`/`makeOwnPick`/`finalizeDraft` are what
 /// actually resolve it from here.
 ///
+/// Also snapshots every current player's overall rating into
+/// [Franchise.seasonStartOverallByPlayerId] -- taken right here, before
+/// this new season's own training/aging ever runs, since that's the only
+/// moment "this season's starting point" actually means anything.
+/// `season_awards_advancer.dart`'s `resolveSeasonAwards` reads it back at
+/// *this* season's own end to compute Most Improved Player. Fully
+/// replaces the previous snapshot, same "last season's is stale" posture
+/// [draftClass] already has.
+///
 /// [portraitWeights] is optional and threads straight through to both the
 /// free-agent and draft-class generation, same "omit it, every new face
 /// stays `null`" fallback every other generator in this codebase already
@@ -61,10 +70,10 @@ bool seasonIsOver(Franchise franchise) {
 /// so a future one (the "Begin Season 2" button, Presentation stage) is
 /// expected to pass its own real weights through once it exists.
 ///
-/// Still not done here, a separate, not-yet-built roadmap stage: no
-/// ceremony, no awards granted, no "Begin Season 2" button anywhere in
-/// the UI yet -- this function has no caller at all outside its own tests
-/// right now ("Presentation").
+/// Still not done here, a separate, not-yet-built roadmap stage: no real
+/// ceremony screen presents the awards `resolveSeasonAwards` grants --
+/// `SeasonRecapScreen`'s "Begin Next Season" button calls straight
+/// through to this with no fanfare in between ("Presentation").
 ///
 /// Asserts [seasonIsOver] -- starting a new season before the old one's
 /// postseason has actually resolved would silently discard whatever's
@@ -101,6 +110,13 @@ Franchise beginNextSeason(
     Random(newSeasonSeed + kDraftClassSeedOffset),
     portraitWeights: portraitWeights,
   );
+  final seasonStartSnapshot = <String, int>{
+    for (final membership in franchise.roster)
+      membership.player.id: membership.player.ratings.overall,
+    for (final aiTeam in franchise.league.aiTeams)
+      for (final membership in aiTeam.roster)
+        membership.player.id: membership.player.ratings.overall,
+  };
 
   return franchise
       .copyWithNewSeason(
@@ -115,5 +131,6 @@ Franchise beginNextSeason(
       .copyWithDraftClass(newDraftClass)
       .copyWithDraftInProgress(
         DraftInProgress(order: draftOrder, rounds: kDraftRounds),
-      );
+      )
+      .copyWithSeasonStartOverallByPlayerId(seasonStartSnapshot);
 }

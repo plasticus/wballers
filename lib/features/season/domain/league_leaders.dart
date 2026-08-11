@@ -12,6 +12,7 @@ class PlayerSeasonTotals {
   const PlayerSeasonTotals({
     required this.playerId,
     required this.gamesPlayed,
+    required this.minutes,
     required this.points,
     required this.rebounds,
     required this.assists,
@@ -28,6 +29,11 @@ class PlayerSeasonTotals {
 
   final String playerId;
   final int gamesPlayed;
+
+  /// Total minutes across every counted game -- `season_awards_advancer.dart`'s
+  /// `resolveSeasonAwards` is the only consumer so far (Sixth Man of the
+  /// Year ranks each team's own active roster by this).
+  final double minutes;
   final int points;
   final int rebounds;
   final int assists;
@@ -46,6 +52,7 @@ class PlayerSeasonTotals {
   double get assistsPerGame => gamesPlayed == 0 ? 0 : assists / gamesPlayed;
   double get stealsPerGame => gamesPlayed == 0 ? 0 : steals / gamesPlayed;
   double get blocksPerGame => gamesPlayed == 0 ? 0 : blocks / gamesPlayed;
+  double get minutesPerGame => gamesPlayed == 0 ? 0 : minutes / gamesPlayed;
 
   double get fieldGoalPercentage =>
       fieldGoalAttempts == 0 ? 0 : fieldGoalsMade / fieldGoalAttempts;
@@ -65,10 +72,20 @@ class PlayerSeasonTotals {
       assistsPerGame +
       stealsPerGame +
       blocksPerGame;
+
+  /// The GM's own "Disruption" shorthand -- steals + blocks, per game --
+  /// as a real box-score composite, not just the rating-based stand-in
+  /// `all_star_advancer.dart`'s Skills Competition field uses (no box
+  /// score exists mid-heat there). `season_awards_advancer.dart`'s
+  /// Defensive MVP is this composite's real consumer
+  /// (`SeasonAwardsAnswers.md` #1 folded "Most Defensive Disruptions"
+  /// into Defensive MVP rather than keeping it a separate award).
+  double get disruptionScore => stealsPerGame + blocksPerGame;
 }
 
 class _MutableTotals {
   var gamesPlayed = 0;
+  var minutes = 0.0;
   var points = 0;
   var rebounds = 0;
   var assists = 0;
@@ -100,6 +117,7 @@ Map<String, PlayerSeasonTotals> computeLeagueLeaders(
       final line = entry.value;
       final t = totals.putIfAbsent(entry.key, _MutableTotals.new);
       t.gamesPlayed++;
+      t.minutes += line.minutesPlayed;
       t.points += line.points;
       t.rebounds += line.totalRebounds;
       t.assists += line.assists;
@@ -120,6 +138,7 @@ Map<String, PlayerSeasonTotals> computeLeagueLeaders(
       entry.key: PlayerSeasonTotals(
         playerId: entry.key,
         gamesPlayed: entry.value.gamesPlayed,
+        minutes: entry.value.minutes,
         points: entry.value.points,
         rebounds: entry.value.rebounds,
         assists: entry.value.assists,
