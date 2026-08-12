@@ -1,10 +1,27 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
 import 'package:womensbballmgr/features/match/engine/substitution_policy.dart';
 
 import '../../../support/match_test_players.dart';
+
+Coach _coach({required int offense, required int defense}) {
+  return Coach(
+    name: 'Coach',
+    stats: CoachStats(
+      offense: offense,
+      defense: defense,
+      development: 50,
+      motivation: 50,
+      management: 50,
+    ),
+    archetype: CoachArchetype.steadyHand,
+  );
+}
 
 void main() {
   test('is deterministic for a given seed', () {
@@ -186,6 +203,74 @@ void main() {
       result.minutesPlayed[topBenchOrderPlayer]!,
       greaterThan(result.minutesPlayed[bottomBenchOrderPlayer]!),
     );
+  });
+
+  test('a team with a real coach Offense/Defense advantage scores more '
+      'often than an identical team with no coach data at all (TODO.md '
+      'coach-stats item -- a direct GM ask)', () {
+    // Home's coach wins the offense-vs-defense matchup both ways: a
+    // strong Offense against a weak Defense, and a strong Defense of
+    // their own against a weak Offense.
+    final favoredHomeCoach = _coach(offense: 90, defense: 90);
+    final weakAwayCoach = _coach(offense: 10, defense: 10);
+    const sampleSize = 200;
+
+    var homeScoreWithCoaches = 0;
+    var awayScoreWithCoaches = 0;
+    final withCoaches = Random(21);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulateMatch(
+        withCoaches,
+        homeRoster: testRoster('home-$i', baseRating: 50, step: 0),
+        awayRoster: testRoster('away-$i', baseRating: 50, step: 0),
+        homeCoach: favoredHomeCoach,
+        awayCoach: weakAwayCoach,
+      );
+      homeScoreWithCoaches += result.homeScore;
+      awayScoreWithCoaches += result.awayScore;
+    }
+
+    var homeScoreNoCoaches = 0;
+    var awayScoreNoCoaches = 0;
+    final noCoaches = Random(21);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulateMatch(
+        noCoaches,
+        homeRoster: testRoster('home-$i', baseRating: 50, step: 0),
+        awayRoster: testRoster('away-$i', baseRating: 50, step: 0),
+      );
+      homeScoreNoCoaches += result.homeScore;
+      awayScoreNoCoaches += result.awayScore;
+    }
+
+    // With the coach matchup in play, home's scoring margin over away
+    // should be meaningfully wider than the same matchup with no coach
+    // bonus applied at all.
+    final marginWithCoaches = homeScoreWithCoaches - awayScoreWithCoaches;
+    final marginNoCoaches = homeScoreNoCoaches - awayScoreNoCoaches;
+    expect(marginWithCoaches, greaterThan(marginNoCoaches));
+  });
+
+  test('omitting homeCoach/awayCoach leaves the game completely unaffected '
+      '-- the exact same result as before the coach bonus existed', () {
+    final homeRoster = testRoster('home');
+    final awayRoster = testRoster('away');
+
+    final withoutCoaches = simulateMatch(
+      Random(41),
+      homeRoster: homeRoster,
+      awayRoster: awayRoster,
+    );
+    final withNullCoaches = simulateMatch(
+      Random(41),
+      homeRoster: homeRoster,
+      awayRoster: awayRoster,
+      homeCoach: null,
+      awayCoach: null,
+    );
+
+    expect(withoutCoaches.homeScore, withNullCoaches.homeScore);
+    expect(withoutCoaches.awayScore, withNullCoaches.awayScore);
   });
 
   test('throws when a roster does not have exactly 12 players', () {

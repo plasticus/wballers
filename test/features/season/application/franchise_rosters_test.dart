@@ -52,6 +52,19 @@ void main() {
     });
   });
 
+  group('coachesByAbbreviation', () {
+    test('has an entry for the GM\'s own coach plus every AI team\'s '
+        '(TODO.md coach-stats item)', () {
+      final coaches = coachesByAbbreviation(franchise);
+
+      expect(coaches.length, 20);
+      expect(coaches[franchise.team.abbreviation], franchise.coach);
+      for (final aiTeam in franchise.league.aiTeams) {
+        expect(coaches[aiTeam.team.abbreviation], aiTeam.coach);
+      }
+    });
+  });
+
   group('teamByAbbreviation', () {
     test('returns the GM\'s own team for its abbreviation', () {
       expect(

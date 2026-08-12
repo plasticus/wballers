@@ -438,6 +438,98 @@ void main() {
       );
       expect(effectiveHomeAwayRating(hero, 99, true), 99);
     });
+
+    test('coachBonus stacks on top of the home/trait bonuses (TODO.md '
+        'coach-stats item)', () {
+      final player = testPlayer(id: 'p', rating: 50);
+      // 50 * (1 + 0.025 + 0.02) = 52.25 -> rounds to 52.
+      expect(effectiveHomeAwayRating(player, 50, true, coachBonus: 0.02), 52);
+      // Away, no traits: only the coach bonus applies.
+      // 50 * 1.02 = 51.
+      expect(effectiveHomeAwayRating(player, 50, false, coachBonus: 0.02), 51);
+      // A negative coachBonus (the defending coach won the matchup)
+      // actually reduces the effective rating.
+      // 50 * 0.98 = 49.
+      expect(effectiveHomeAwayRating(player, 50, false, coachBonus: -0.02), 49);
+    });
+  });
+
+  group('coachMatchupBonus (TODO.md coach-stats item -- a direct GM ask)', () {
+    test('is zero when both coaches are equal on the relevant stat', () {
+      expect(
+        coachMatchupBonus(offenseCoachOffense: 65, defenseCoachDefense: 65),
+        0.0,
+      );
+    });
+
+    test('a 20-point gap lands at a clean 2%, the GM\'s own worked '
+        'example', () {
+      expect(
+        coachMatchupBonus(offenseCoachOffense: 65, defenseCoachDefense: 45),
+        closeTo(0.02, 0.0001),
+      );
+    });
+
+    test('is negative, not just zero, when the defending coach wins the '
+        'matchup', () {
+      expect(
+        coachMatchupBonus(offenseCoachOffense: 45, defenseCoachDefense: 65),
+        closeTo(-0.02, 0.0001),
+      );
+    });
+
+    test('clamps at kCoachMatchupBonusCap for an extreme gap, in either '
+        'direction', () {
+      expect(
+        coachMatchupBonus(offenseCoachOffense: 99, defenseCoachDefense: 1),
+        kCoachMatchupBonusCap,
+      );
+      expect(
+        coachMatchupBonus(offenseCoachOffense: 1, defenseCoachDefense: 99),
+        -kCoachMatchupBonusCap,
+      );
+    });
+
+    test('reaches exactly the cap at a 50-point gap, no further', () {
+      expect(
+        coachMatchupBonus(offenseCoachOffense: 90, defenseCoachDefense: 40),
+        kCoachMatchupBonusCap,
+      );
+    });
+  });
+
+  test('an offense with a favorable coach matchup scores more often than '
+      'an identical offense with no coach bonus at all (TODO.md coach-'
+      'stats item)', () {
+    final boostedOffense = testLineup('boosted', rating: 50);
+    final plainOffense = testLineup('plain', rating: 50);
+    final defense = testLineup('def', rating: 50);
+    const sampleSize = 50000;
+
+    var boostedScores = 0;
+    final boostedRandom = Random(3);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        boostedRandom,
+        offense: boostedOffense,
+        defense: defense,
+        offenseCoachBonus: kCoachMatchupBonusCap,
+      );
+      if (result.end == PossessionEnd.scored) boostedScores++;
+    }
+
+    var plainScores = 0;
+    final plainRandom = Random(3);
+    for (var i = 0; i < sampleSize; i++) {
+      final result = simulatePossession(
+        plainRandom,
+        offense: plainOffense,
+        defense: defense,
+      );
+      if (result.end == PossessionEnd.scored) plainScores++;
+    }
+
+    expect(boostedScores, greaterThan(plainScores));
   });
 
   test('a home offense scores more often than an identical away offense '
