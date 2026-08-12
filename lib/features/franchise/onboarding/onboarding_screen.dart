@@ -122,8 +122,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   /// Exactly 3 letters, same shape as every `kLeagueTeamPool` entry
   /// (`Team.abbreviation`'s own doc comment) -- a derived abbreviation
-  /// can't tell "DSM" from "DMD" apart for a team like the GM's own
-  /// "Des Moines Deebers" example, so this is now a real GM choice, not
+  /// can't tell "DSM" from "DMD" apart for a team like the "Des Moines
+  /// Dragons" hint example, so this is now a real GM choice, not
   /// guessed from the team name.
   static final _abbreviationPattern = RegExp(r'^[A-Za-z]{3}$');
 
@@ -206,7 +206,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
                   labelText: 'Team Name',
-                  hintText: 'e.g. Des Moines Deebers',
+                  hintText: 'e.g. Des Moines Dragons',
                   border: OutlineInputBorder(),
                 ),
               ),
