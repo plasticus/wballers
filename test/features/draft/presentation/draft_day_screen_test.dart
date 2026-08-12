@@ -14,6 +14,7 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/college.dart';
+import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
 import 'package:womensbballmgr/features/training/domain/training_coach.dart';
@@ -158,6 +159,88 @@ void main() {
       expect(updated.draftInProgress, isNull);
       expect(updated.draftClass, isEmpty);
       expect(updated.roster.any((m) => m.player.id == 'p1'), isTrue);
+    },
+  );
+
+  testWidgets(
+    'the Position filter narrows the prospect list (2026-08-11, a direct '
+    'GM ask: "I need to be able to sort by all the stuff, or filter. '
+    'Like filter for position...")',
+    (tester) async {
+      final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
+      final base =
+          Franchise(
+            id: 'franchise-1',
+            gmName: 'Taylor Reed',
+            team: kLeagueTeamPool[1],
+            coach: const Coach(
+              name: 'Jordan Ellis',
+              stats: CoachStats.neutral,
+              archetype: CoachArchetype.steadyHand,
+            ),
+            roster: const [],
+            simulationSeed: 1,
+            replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+            league: testLeague(
+              simulationSeed: 1,
+              replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+            ),
+            seasonProgress: SeasonProgress(
+              schedule: const SeasonSchedule(games: []),
+              playedGames: const [],
+              nextGameDayIndex: 0,
+            ),
+            trainingCoaches: const [
+              TrainingCoach(name: 'Coach A'),
+              TrainingCoach(name: 'Coach B'),
+              TrainingCoach(name: 'Coach C'),
+            ],
+            trainingPlan: TrainingPlan.initial(),
+            nextTrainingWeek: 1,
+          ).copyWithDraftClass([
+            DraftProspect(
+              player: playerWithOverall(
+                80,
+                id: 'p1',
+                name: 'Prospect p1',
+                primaryPosition: Position.pointGuard,
+              ),
+              college: kColleges.first,
+            ),
+            DraftProspect(
+              player: playerWithOverall(
+                70,
+                id: 'p2',
+                name: 'Prospect p2',
+                primaryPosition: Position.center,
+              ),
+              college: kColleges.first,
+            ),
+          ]);
+      final franchise = base.copyWithDraftInProgress(
+        DraftInProgress(order: [ownAbbreviation, 'AAA'], rounds: 1),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DraftDayScreen()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('PG Prospect p1'), findsOneWidget);
+      expect(find.text('C Prospect p2'), findsOneWidget);
+
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('C').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('PG Prospect p1'), findsNothing);
+      expect(find.text('C Prospect p2'), findsOneWidget);
     },
   );
 

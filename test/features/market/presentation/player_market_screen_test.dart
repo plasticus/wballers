@@ -12,6 +12,7 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/market/generation/player_market_preview_generator.dart';
 import 'package:womensbballmgr/features/market/presentation/player_market_screen.dart';
+import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 
 import '../../../support/in_memory_save_repository.dart';
@@ -109,7 +110,12 @@ void main() {
 
       final franchise = _newFranchise();
       final repository = await _seededRepository(franchise);
-      final targetFreeAgent = franchise.freeAgents.first;
+      // The tab defaults to Overall, descending -- the first "Sign" button
+      // on screen belongs to the highest-overall free agent, not
+      // necessarily `franchise.freeAgents.first`.
+      final targetFreeAgent = franchise.freeAgents.reduce(
+        (a, b) => a.ratings.overall >= b.ratings.overall ? a : b,
+      );
 
       await tester.pumpWidget(
         ProviderScope(
@@ -170,6 +176,44 @@ void main() {
       );
     },
   );
+
+  testWidgets('the Position filter narrows the Free Agents list (2026-08-11, a '
+      'direct GM ask: "Free agents also need to be sorted... I thought we '
+      'wired this up, but it isn\'t live in the build on my phone")', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 4500);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = _newFranchise();
+    final repository = await _seededRepository(franchise);
+    final targetPosition = franchise.freeAgents.first.primaryPosition;
+    final expectedCount = franchise.freeAgents
+        .where((p) => p.primaryPosition == targetPosition)
+        .length;
+    // The pool needs at least one player at a different position too,
+    // or this test can't tell "filtered" from "coincidentally everyone
+    // matches" -- true for every real seeded pool, but asserted here so
+    // a future change to pool generation fails loudly instead of
+    // silently testing nothing.
+    expect(expectedCount, lessThan(franchise.freeAgents.length));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(targetPosition.abbreviation).last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Free Agent ·'), findsNWidgets(expectedCount));
+  });
 
   testWidgets('the Trade Block tab shows real AI teams, one per player', (
     tester,

@@ -11,6 +11,7 @@ import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../../player/presentation/player_card_widgets.dart';
+import '../../player/presentation/player_sort_filter_bar.dart';
 import '../../player/presentation/trait_chip.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_legality.dart';
@@ -151,6 +152,9 @@ class _FreeAgentsTab extends ConsumerStatefulWidget {
 
 class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
   var _isSigning = false;
+  Position? _position;
+  var _sortKey = PlayerSortKey.overall;
+  var _descending = true;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +164,13 @@ class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
         .where((m) => m.status == RosterStatus.active)
         .length;
     final hasOpenSpot = activeCount < kActiveRosterSize;
+    final freeAgents = sortAndFilterPlayers(
+      franchise.freeAgents,
+      (player) => player,
+      position: _position,
+      sortKey: _sortKey,
+      descending: _descending,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -173,31 +184,48 @@ class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
                     '-- browse for reference, but there\'s no open spot to '
                     'sign into right now.',
         ),
-        for (var i = 0; i < franchise.freeAgents.length; i++) ...[
-          _PlayerMarketRow(
-            franchise: franchise,
-            player: franchise.freeAgents[i],
-            subtitle: 'Free Agent',
-            accentColor: theme.colorScheme.outline,
-            jersey: null,
-            trailing: hasOpenSpot
-                ? FilledButton(
-                    onPressed: _isSigning
-                        ? null
-                        : () => _sign(franchise.freeAgents[i].id),
-                    child: _isSigning
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Sign'),
-                  )
-                : null,
-          ),
-          if (i != franchise.freeAgents.length - 1)
-            const SizedBox(height: AppSpacing.sm),
-        ],
+        PlayerSortFilterBar(
+          position: _position,
+          onPositionChanged: (value) => setState(() => _position = value),
+          sortKey: _sortKey,
+          descending: _descending,
+          onSortChanged: (key, descending) => setState(() {
+            _sortKey = key;
+            _descending = descending;
+          }),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (freeAgents.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            child: Center(child: Text('No free agents match that filter.')),
+          )
+        else
+          for (var i = 0; i < freeAgents.length; i++) ...[
+            _PlayerMarketRow(
+              franchise: franchise,
+              player: freeAgents[i],
+              subtitle: 'Free Agent',
+              accentColor: theme.colorScheme.outline,
+              jersey: null,
+              trailing: hasOpenSpot
+                  ? FilledButton(
+                      onPressed: _isSigning
+                          ? null
+                          : () => _sign(freeAgents[i].id),
+                      child: _isSigning
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Sign'),
+                    )
+                  : null,
+            ),
+            if (i != freeAgents.length - 1)
+              const SizedBox(height: AppSpacing.sm),
+          ],
       ],
     );
   }

@@ -8,12 +8,12 @@ import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/position.dart';
 import '../../player/presentation/player_card_widgets.dart';
+import '../../player/presentation/player_sort_filter_bar.dart';
 import '../../player/presentation/trait_chip.dart';
 import '../domain/draft_in_progress.dart';
 import '../domain/draft_pick.dart';
 import '../domain/draft_prospect.dart';
-import '../generation/draft_generator.dart'
-    show draftProspectValue, kDraftRounds;
+import '../generation/draft_generator.dart' show kDraftRounds;
 
 /// Draft Day: the GM's real, interactive draft
 /// (`0D_Season_2_Roadmap.md`'s "The draft, for real" stage, 2026-08-11).
@@ -222,7 +222,7 @@ class _PickSummaryRow extends StatelessWidget {
   }
 }
 
-class _InProgressBody extends StatelessWidget {
+class _InProgressBody extends StatefulWidget {
   const _InProgressBody({
     required this.franchise,
     required this.draft,
@@ -236,17 +236,31 @@ class _InProgressBody extends StatelessWidget {
   final void Function(DraftProspect prospect) onDraft;
 
   @override
+  State<_InProgressBody> createState() => _InProgressBodyState();
+}
+
+class _InProgressBodyState extends State<_InProgressBody> {
+  Position? _position;
+  var _sortKey = PlayerSortKey.overall;
+  var _descending = true;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final franchise = widget.franchise;
+    final draft = widget.draft;
     final isOwnTurn = draft.onTheClock == franchise.team.abbreviation;
     final pickedIds = {for (final pick in draft.picks) pick.prospect.player.id};
-    final available =
-        franchise.draftClass
-            .where((prospect) => !pickedIds.contains(prospect.player.id))
-            .toList()
-          ..sort(
-            (a, b) => draftProspectValue(b).compareTo(draftProspectValue(a)),
-          );
+    final undrafted = franchise.draftClass.where(
+      (prospect) => !pickedIds.contains(prospect.player.id),
+    );
+    final available = sortAndFilterPlayers(
+      undrafted.toList(),
+      (prospect) => prospect.player,
+      position: _position,
+      sortKey: _sortKey,
+      descending: _descending,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -284,16 +298,33 @@ class _InProgressBody extends StatelessWidget {
         else ...[
           Text('On the Clock: You', style: theme.textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          for (var i = 0; i < available.length; i++) ...[
-            _ProspectRow(
-              franchise: franchise,
-              prospect: available[i],
-              enabled: !isPicking,
-              onDraft: () => onDraft(available[i]),
-            ),
-            if (i != available.length - 1)
-              const SizedBox(height: AppSpacing.sm),
-          ],
+          PlayerSortFilterBar(
+            position: _position,
+            onPositionChanged: (value) => setState(() => _position = value),
+            sortKey: _sortKey,
+            descending: _descending,
+            onSortChanged: (key, descending) => setState(() {
+              _sortKey = key;
+              _descending = descending;
+            }),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (available.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(child: Text('No prospects match that filter.')),
+            )
+          else
+            for (var i = 0; i < available.length; i++) ...[
+              _ProspectRow(
+                franchise: franchise,
+                prospect: available[i],
+                enabled: !widget.isPicking,
+                onDraft: () => widget.onDraft(available[i]),
+              ),
+              if (i != available.length - 1)
+                const SizedBox(height: AppSpacing.sm),
+            ],
         ],
       ],
     );
