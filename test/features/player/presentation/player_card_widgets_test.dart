@@ -40,4 +40,50 @@ void main() {
       expect(find.textContaining('★'), findsNothing);
     });
   });
+
+  group('statChipTone (2026-08-11, a direct GM report tied to their known '
+      'low-vision needs -- "purple font on a dark blue background... '
+      'really hard for me to read")', () {
+    testWidgets('uses a lighter shade in dark theme than in light theme, '
+        'same hue', (tester) async {
+      late Color darkTone;
+      late Color lightTone;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Theme(
+            data: ThemeData(brightness: Brightness.light),
+            child: Builder(
+              builder: (context) {
+                lightTone = statChipTone(context, Colors.purple);
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Theme(
+            data: ThemeData(brightness: Brightness.dark),
+            child: Builder(
+              builder: (context) {
+                darkTone = statChipTone(context, Colors.purple);
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(lightTone, Colors.purple.shade700);
+      expect(darkTone, Colors.purple.shade200);
+      // The dark-theme tone is meaningfully brighter (higher luminance)
+      // than the light-theme one -- the whole point of the fix.
+      expect(
+        darkTone.computeLuminance(),
+        greaterThan(lightTone.computeLuminance()),
+      );
+    });
+  });
 }

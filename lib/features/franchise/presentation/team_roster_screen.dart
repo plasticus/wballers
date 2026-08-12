@@ -727,7 +727,7 @@ class _PlayerRow extends StatelessWidget {
                       StatChip(
                         label: 'POT',
                         value: player.ratings.potential,
-                        color: Colors.purple.shade700,
+                        color: statChipTone(context, Colors.purple),
                       ),
                     ],
                   ),

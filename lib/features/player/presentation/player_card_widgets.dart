@@ -204,6 +204,22 @@ class PhotoOvrRail extends StatelessWidget {
   }
 }
 
+/// A stat chip's identity color, adjusted for legibility against the
+/// current theme's card background -- `shade700` reads fine on light
+/// theme's near-white cards, but the same shade sits too close in
+/// luminance to dark theme's navy panel (`AppTheme.dark`'s `_panel`) to
+/// read comfortably (2026-08-11, a direct GM report tied to their known
+/// low-vision needs: "purple font on a dark blue background... really
+/// hard for me to read"). A lighter shade in dark mode keeps the same
+/// hue identity (orange/blue/green/purple) while actually holding
+/// contrast; light mode is untouched since `shade700` was never the
+/// problem there.
+Color statChipTone(BuildContext context, MaterialColor swatch) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? swatch.shade200
+      : swatch.shade700;
+}
+
 /// A single OFF/DEF/PHY stat as a small colored pill -- the Card Lab's
 /// #3 "Stat Chips", the GM's other original favorite ("I like the 3
 /// colors on the stats, that'd make it nice to scroll through"). Pass
@@ -269,17 +285,17 @@ class StatChipRow extends StatelessWidget {
         StatChip(
           label: 'OFF',
           value: player.ratings.offenseOverall,
-          color: Colors.orange.shade700,
+          color: statChipTone(context, Colors.orange),
         ),
         StatChip(
           label: 'DEF',
           value: player.ratings.defenseOverall,
-          color: Colors.blue.shade700,
+          color: statChipTone(context, Colors.blue),
         ),
         StatChip(
           label: 'PHY',
           value: player.ratings.physicalOverall,
-          color: Colors.green.shade700,
+          color: statChipTone(context, Colors.green),
         ),
         ...extra,
       ],
