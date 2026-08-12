@@ -101,6 +101,14 @@ is far enough along to evaluate them properly.
   built, the GM's own leading idea: keep it simple, an easy-mode game-time
   stat boost (e.g. +10%) rather than touching the underlying action-success
   formulas directly.
+- **Draft prospects' OVR drifting during the season they're visible.**
+  Raised alongside the draft-class redesign (2026-08-12, `0A_Completed.md`)
+  but explicitly not committed: the draft class generates at the start of
+  the WBL season, so coaches can scout it for months before the actual
+  draft — the idea is every 4 weeks or so, each prospect's *overall* (never
+  potential) gets a small +1/0/-1 chance, as a flavor nod to her playing
+  out her senior season elsewhere. No chance/weighting decided, and the
+  GM's own words: "I may hate it tomorrow."
 
 ## III. Etc.
 
