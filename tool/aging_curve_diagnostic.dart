@@ -463,8 +463,251 @@ int? _retirementTriggerAge(Map<int, double> series, int maxAge) {
   return null;
 }
 
+// ---------------------------------------------------------------------
+// Growth-boost proposals (2026-08-12 follow-up GM ask): "a 70 OVR/99 POT
+// player only gets as far as 87 OVR" (the moderate curve's own headline
+// number, WITH individual coaching, the *best* case). The GM's own
+// framing of what's wrong -- players never really approach their
+// potential even in the best case, and it'd be nice to "sneak in" some
+// of that growth via the early-career window and the off-season, not
+// just by cranking the age-curve/growth-scale numbers indiscriminately.
+//
+// Three independent, additive knobs, each grounded in something real
+// pro sports do:
+//   1. Rookie surge: a young pro's first 2 seasons see outsized growth
+//      -- for real, first exposure to pro-level competition, strength &
+//      conditioning programs, and coaching all compound fastest before
+//      a player's game has "set". `_ageCurveFactor` already maxes out
+//      at 1.0 for age <=23, but doesn't distinguish a true rookie from
+//      a 23-year-old in her 4th pro season at the same age band -- this
+//      knob does, via `yearsOfService` instead of age.
+//   2. Off-season growth lump: mirrors the existing off-season
+//      *decline* lump (`_kOffSeasonDeclineScale`) but for the growth
+//      side -- a real summer of individual training/conditioning work
+//      away from the team, not just what accrues week to week during
+//      the season.
+//   3. Gentler gap-to-potential falloff: today's `gapFactor` is linear
+//      in the gap, so growth decays in lockstep as a player closes in
+//      on her potential -- by the time she's 10-15 points off, growth
+//      has nearly stalled. A concave (exponent < 1) falloff keeps
+//      meaningful growth alive through the last stretch, without ever
+//      letting a player exceed her potential (factor still hits exactly
+//      0 at gap 0).
+// All three apply to every growing player, individually coached or not
+// -- the existing `_kIndividualAttentionMultiplier` (1.3x, one of the 3
+// slots only) and coach-quality scaling still stack on top, so the 3
+// individually-coached players keep their edge; everyone else's growth
+// just stops being negligible.
+// ---------------------------------------------------------------------
+const _kRookieSurgeMultiplier = 1.35;
+const _kRookieSeasons = 2; // yearsOfService 0 and 1: the first 2 pro
+// seasons get the surge; from the 3rd season on, growth reverts to the
+// ordinary age-curve-driven rate.
+const _kGapConcavityExponent = 0.75; // < 1 = concave: keeps gapFactor
+// higher than linear for any gap short of "wide open" or "closed".
+const _kOffSeasonGrowthScale = 4.0; // smaller than
+// `_kOffSeasonDeclineScale` (12.5) -- growth still gets most of its
+// budget from in-season reps (minutes, coaching), unlike decline, which
+// was deliberately moved almost entirely off-season already.
+const _kIndividualAttentionMultiplier = 1.3; // `training_advancer.dart`'s
+// own constant, copied here so the "3 slots vs. everyone else" gap can
+// be modeled explicitly (the original closed-form model above never
+// needed it -- it only ever compared age curves, not individual slots).
+
+/// [_weeklyDelta]'s growth-side formula, plus the 3 boost knobs above.
+/// Decline is untouched -- these are growth-only proposals, same scope
+/// [_kIndividualAttentionMultiplier]'s own real-code doc comment gives.
+double _weeklyDeltaBoosted({
+  required int overall,
+  required int potential,
+  required int age,
+  required int yearsOfService,
+  required double minutes,
+  required int coachDevelopment,
+  required bool individuallySlotted,
+  required AgeCurve curve,
+}) {
+  final ageFactor = curve(age);
+  if (ageFactor < 0) return (ageFactor * _kDeclineScale) / _kFieldCount;
+
+  final gap = (potential - overall).clamp(0, 98).toDouble();
+  final gapNormalized = (gap / _kGapNormalization).clamp(0.0, 1.0);
+  final gapFactor = pow(gapNormalized, _kGapConcavityExponent).toDouble();
+  final minutesFactor = (minutes / _kFullWeekMinutes).clamp(
+    0.0,
+    _kMinutesFactorCap,
+  );
+  final coachFactor = coachDevelopment / 50.0;
+
+  var delta =
+      ageFactor * gapFactor * minutesFactor * coachFactor * _kGrowthScale;
+  if (yearsOfService < _kRookieSeasons) delta *= _kRookieSurgeMultiplier;
+  if (individuallySlotted) delta *= _kIndividualAttentionMultiplier;
+  return (delta + _kJitterFloor) / _kFieldCount;
+}
+
+double _offSeasonDeltaBoosted(int age, AgeCurve curve) {
+  final ageFactor = curve(age);
+  if (ageFactor < 0) {
+    return (ageFactor * _kOffSeasonDeclineScale) / _kFieldCount;
+  }
+  return (ageFactor * _kOffSeasonGrowthScale) / _kFieldCount;
+}
+
+Map<int, double> simulateCareerClosedFormBoosted({
+  required int startAge,
+  required int startOverall,
+  required int potential,
+  required int maxAge,
+  required double weeklyMinutes,
+  required int weeksPerSeason,
+  required int headCoachDevelopment,
+  required bool individuallySlotted,
+  required AgeCurve curve,
+}) {
+  final points = <int, double>{};
+  var overall = startOverall.toDouble();
+  var age = startAge;
+
+  while (age < maxAge) {
+    final yearsOfService = age - startAge;
+    for (var week = 0; week < weeksPerSeason; week++) {
+      final delta = _weeklyDeltaBoosted(
+        overall: overall.round().clamp(1, 99),
+        potential: potential,
+        age: age,
+        yearsOfService: yearsOfService,
+        minutes: weeklyMinutes,
+        coachDevelopment: headCoachDevelopment,
+        individuallySlotted: individuallySlotted,
+        curve: curve,
+      );
+      overall = (overall + delta).clamp(1, 99);
+    }
+    overall = (overall + _offSeasonDeltaBoosted(age, curve)).clamp(1, 99);
+    points[age] = overall;
+    age += 1;
+  }
+  return points;
+}
+
 void main() {
   test('generate aging-curve diagnostic data', _run);
+  test('generate growth-boost proposal data', _runBoostStudy);
+}
+
+void _runBoostStudy() {
+  const startAge = 22;
+  const startOverall = 70;
+  const potential = 99;
+  const maxAge = 40;
+  const weeksPerSeason = 19;
+  const neutralCoach = 50;
+  const goodCoach = 75;
+
+  // Same moderate curve the GM already picked -- these boosts are meant
+  // to layer on top of that decision, not relitigate it.
+  Map<int, double> run({
+    required int coach,
+    required bool individuallySlotted,
+    required bool boosted,
+  }) {
+    if (!boosted) {
+      return simulateCareerClosedForm(
+        startAge: startAge,
+        startOverall: startOverall,
+        potential: potential,
+        maxAge: maxAge,
+        weeklyMinutes: _kFullWeekMinutes,
+        weeksPerSeason: weeksPerSeason,
+        headCoachDevelopment: coach,
+        curve: moderateCurve,
+      );
+    }
+    return simulateCareerClosedFormBoosted(
+      startAge: startAge,
+      startOverall: startOverall,
+      potential: potential,
+      maxAge: maxAge,
+      weeklyMinutes: _kFullWeekMinutes,
+      weeksPerSeason: weeksPerSeason,
+      headCoachDevelopment: coach,
+      individuallySlotted: individuallySlotted,
+      curve: moderateCurve,
+    );
+  }
+
+  final series = <String, Map<int, double>>{
+    'Moderate curve, no boosts -- team-trained (coach 50)': run(
+      coach: neutralCoach,
+      individuallySlotted: false,
+      boosted: false,
+    ),
+    'Moderate curve, no boosts -- 1 of 3 individual slots (coach 75)': run(
+      coach: goodCoach,
+      individuallySlotted: false,
+      boosted: false,
+    ),
+    'Moderate + boosts -- team-trained (coach 50)': run(
+      coach: neutralCoach,
+      individuallySlotted: false,
+      boosted: true,
+    ),
+    'Moderate + boosts -- team-trained (coach 75)': run(
+      coach: goodCoach,
+      individuallySlotted: false,
+      boosted: true,
+    ),
+    'Moderate + boosts -- 1 of 3 individual slots (coach 75)': run(
+      coach: goodCoach,
+      individuallySlotted: true,
+      boosted: true,
+    ),
+    'Moderate + boosts -- 1 of 3 individual slots (coach 99, elite)': run(
+      coach: 99,
+      individuallySlotted: true,
+      boosted: true,
+    ),
+  };
+
+  final summary = {
+    for (final entry in series.entries)
+      entry.key: {
+        'peakAge': _peakAge(entry.value),
+        'peakOverall': entry.value[_peakAge(entry.value)]!.round(),
+        'overallAtAge24': entry.value[24]?.round(), // ~2-3 seasons in
+        'overallAtAge27': entry.value[27]?.round(), // ~5-6 seasons in
+        'age34': entry.value[34]?.round(),
+        'declinedFromPeakRetirementTriggerAge': _retirementTriggerAge(
+          entry.value,
+          maxAge,
+        ),
+      },
+  };
+
+  final output = {
+    'knobs': {
+      'kRookieSurgeMultiplier': _kRookieSurgeMultiplier,
+      'kRookieSeasons': _kRookieSeasons,
+      'kGapConcavityExponent': _kGapConcavityExponent,
+      'kOffSeasonGrowthScale': _kOffSeasonGrowthScale,
+    },
+    'summary': summary,
+    'series': {
+      for (final entry in series.entries)
+        entry.key: [
+          for (final age in entry.value.keys.toList()..sort())
+            {
+              'age': age,
+              'overall': double.parse(entry.value[age]!.toStringAsFixed(2)),
+            },
+        ],
+    },
+  };
+
+  print('---BOOST-STUDY-JSON-START---');
+  print(const JsonEncoder.withIndent('  ').convert(output));
+  print('---BOOST-STUDY-JSON-END---');
 }
 
 void _run() {
