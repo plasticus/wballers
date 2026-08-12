@@ -69,9 +69,9 @@ List<({Player player, Team team})> pickTradeBlockPreview(
 }
 
 /// This season's projected draft class, top-heavy same as a real one --
-/// just [generateDraftClass] sized down to preview length, no change to
-/// the actual talent-tier shape ([kDefaultDraftClassSize]'s own elite/
-/// solid/fringe split scales with class size).
+/// just [generateDraftClass] sized down to preview length. The elite
+/// headcount scales down proportionally for the smaller preview size --
+/// see [generateDraftClass]'s own doc comment.
 List<DraftProspect> generateDraftPreview(
   Random random, {
   int count = kPlayerMarketPreviewCount,

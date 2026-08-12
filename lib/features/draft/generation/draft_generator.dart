@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../../core/ratings/rating_scale.dart';
 import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
 import '../../player/generation/trait_generator.dart';
@@ -21,24 +22,54 @@ const _playoffTeamCount = 8;
 const _minProspectAge = 20;
 const _maxProspectAge = 23;
 
-/// Draft-class talent shape: a couple of true lottery-caliber prospects, a
-/// solid middle tier, and a long tail of fringe/deep prospects who may not
-/// stick on a roster at all -- loosely mirroring a real draft class rather
-/// than a flat quality curve, same idea as `ai_roster_generator.dart`'s
-/// star/quarter-star/role tiers.
-const _eliteCount = 2;
-const _eliteQualityCenter = 78;
-const _eliteQualitySpread = 6;
-const _solidCount = 12;
-const _solidQualityCenter = 60;
-const _solidQualitySpread = 8;
-const _fringeQualityCenter = 42;
-const _fringeQualitySpread = 10;
+/// Draft-class talent shape (2026-08-12, a direct GM redesign): potential
+/// is now drawn *directly* per tier, not derived from a generated overall
+/// via [_generatePotentialOffset] the way every other generated player
+/// still is -- the old "quality center + a wide offset, clamped to 99"
+/// approach meant a genuinely elite prospect's potential clamped to
+/// exactly 99 something like 60% of the time (confirmed against real
+/// generated data), which read as too lumpy, not like a real spread of
+/// outcomes. Two tiers only:
+///
+///  - **Elite** ([_minEliteCount]-[_maxEliteCount] prospects, potential
+///    uniform across [_eliteMinPotential]-[_eliteMaxPotential]) -- a true
+///    star-caliber prospect, no clamping-driven pileup at the ceiling.
+///  - **Everyone else** -- a single smooth taper from [_taperMinPotential]
+///    up to [_taperMaxPotential], leaning [_taperWeightRatio] times more
+///    common at the bottom than the top. Nobody generates below
+///    [_taperMinPotential] at all -- a direct GM call: "those players are
+///    going off to their non-BBall careers," i.e. they're simply not part
+///    of the draft-eligible pool, not a separate deep-fringe tier.
+///
+/// [_potentialToOverallRatioMin]/[_potentialToOverallRatioMax] then derive
+/// each prospect's actual draft-day overall from her potential (not the
+/// other way around), so a higher-potential prospect also reads as
+/// meaningfully better *right now*, not just a random roll with a big
+/// ceiling attached -- a real gap in the old system, caught by
+/// hand-simulating a sample class before this landed.
+const _minEliteCount = 5;
+const _maxEliteCount = 7;
+const _eliteMinPotential = 90;
+const _eliteMaxPotential = 99;
+const _taperMinPotential = 70;
+const _taperMaxPotential = 89;
+// A gentle lean, not a steep one -- an earlier version weighted the taper
+// all the way down to 0 at the top (~20x more common at 70 than 89) and
+// left the 85-89 band with essentially 1 prospect a class in a hand-run
+// sample, which read as too sparse. 2x keeps every band genuinely
+// present while still favoring the low end, matching real draft-class
+// scarcity.
+const _taperWeightRatio = 2.0;
+const _potentialToOverallRatioMin = 0.72;
+const _potentialToOverallRatioMax = 0.88;
+const _prospectQualitySpread = 8; // per-field jitter width once the
+// target overall (potential x ratio) is picked -- tier no longer implies
+// a different spread, now that tier only sets potential.
 
 /// Default draft class size -- comfortably more than the 60 picks a
 /// 20-team, 3-round draft needs (see [kDraftRounds]), so not every
 /// prospect gets drafted, same as real life.
-const kDefaultDraftClassSize = 70;
+const kDefaultDraftClassSize = 80;
 
 /// Seed offset for a re-derived, not-yet-real "what pick would I have"
 /// projection off a completed season's final standings
@@ -69,14 +100,22 @@ const kDraftClassSeedOffset = 19;
 /// (19).
 const kRealDraftOrderSeedOffset = 20;
 
-(int qualityCenter, int qualitySpread) _qualityTierFor(int index, int total) {
-  final eliteCount = min(_eliteCount, total);
-  final solidCount = min(_solidCount, total - eliteCount);
-  if (index < eliteCount) return (_eliteQualityCenter, _eliteQualitySpread);
-  if (index < eliteCount + solidCount) {
-    return (_solidQualityCenter, _solidQualitySpread);
+/// A weighted-random potential somewhere in [_taperMinPotential]-
+/// [_taperMaxPotential] -- linearly [_taperWeightRatio] times more common
+/// at the bottom than the top (see that constant's own doc comment).
+int _weightedTaperPotential(Random random) {
+  final span = _taperMaxPotential - _taperMinPotential;
+  final weights = [
+    for (var p = _taperMinPotential; p <= _taperMaxPotential; p++)
+      1 + (_taperWeightRatio - 1) * (_taperMaxPotential - p) / span,
+  ];
+  final totalWeight = weights.reduce((a, b) => a + b);
+  var roll = random.nextDouble() * totalWeight;
+  for (var i = 0; i < weights.length; i++) {
+    if (roll < weights[i]) return _taperMinPotential + i;
+    roll -= weights[i];
   }
-  return (_fringeQualityCenter, _fringeQualitySpread);
+  return _taperMaxPotential; // floating-point edge case fallback.
 }
 
 /// Generates [count] draft-eligible prospects: young (20-23), no
@@ -86,6 +125,13 @@ const kRealDraftOrderSeedOffset = 20;
 /// this is the primary way traits enter the league, not team-wide roster
 /// generation (`distributeTraits`). Deterministic for a given [random]
 /// stream.
+///
+/// The elite-tier headcount ([_minEliteCount]-[_maxEliteCount]) is rolled
+/// once per class and scaled down proportionally for a smaller-than-real
+/// [count] -- without that scaling, a small preview (the Draft tab's
+/// [kPlayerMarketPreviewCount]-sized one, `player_market_preview_generator.dart`)
+/// could end up mostly elite prospects instead of reading like a
+/// realistic slice of a real class.
 ///
 /// [portraitWeights] is optional and threads straight through to
 /// [generatePlayer] -- omitted, every prospect's [Player.appearance] stays
@@ -102,29 +148,49 @@ List<DraftProspect> generateDraftClass(
   PortraitWeights? portraitWeights,
 }) {
   final collegePool = weightedColleges();
+  final fullEliteCount =
+      _minEliteCount + random.nextInt(_maxEliteCount - _minEliteCount + 1);
+  final eliteCount = min(
+    count,
+    (fullEliteCount * count / kDefaultDraftClassSize).round(),
+  );
   return [
     for (var i = 0; i < count; i++)
-      _generateProspect(random, i, count, collegePool, portraitWeights),
+      _generateProspect(random, i, eliteCount, collegePool, portraitWeights),
   ];
 }
 
 DraftProspect _generateProspect(
   Random random,
   int index,
-  int classSize,
+  int eliteCount,
   List<College> collegePool,
   PortraitWeights? portraitWeights,
 ) {
   final position = Position.values[random.nextInt(Position.values.length)];
-  final (qualityCenter, qualitySpread) = _qualityTierFor(index, classSize);
+  final potential = index < eliteCount
+      ? _eliteMinPotential +
+            random.nextInt(_eliteMaxPotential - _eliteMinPotential + 1)
+      : _weightedTaperPotential(random);
+  final ratio =
+      _potentialToOverallRatioMin +
+      random.nextDouble() *
+          (_potentialToOverallRatioMax - _potentialToOverallRatioMin);
+  final targetOverall = (potential * ratio).round().clamp(
+    kMinRating,
+    potential,
+  );
+
   final player = generatePlayer(
     random,
     primaryPosition: position,
-    qualityCenter: qualityCenter,
-    qualitySpread: qualitySpread,
+    qualityCenter: targetOverall,
+    qualitySpread: _prospectQualitySpread,
     minAge: _minProspectAge,
     maxAge: _maxProspectAge,
     yearsOfService: 0,
+    potentialOverride: potential,
+    potentialOverrideSpread: 0,
     portraitWeights: portraitWeights,
   );
   final traits = generateTraits(random, position: position);
