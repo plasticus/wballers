@@ -36,9 +36,11 @@ const _kGrowthScale = 3.2;
 // goes all the way), worked out to roughly -22 to -50 total rating points
 // for a veteran across the 30-34 age bands -- an entire season's worth of
 // decline concentrated into dozens of small, alarming weekly dips. 0.5
-// keeps the same age-curve shape (`_ageCurveFactor`'s bands are the GM's
-// own confirmed shape, untouched here) but brings the in-season total down
-// to roughly -4 to -8 over a season -- felt, not brutal. The rest of a
+// keeps the same shape of curve `_ageCurveFactor` applies (its own band
+// *values* were re-picked later, see `_kOffSeasonGrowthScale`'s doc
+// comment below -- this scale still applies to whatever the curve
+// currently returns) but brings the in-season total down to roughly -4
+// to -8 over a season -- felt, not brutal. The rest of a
 // veteran's yearly decline now happens as a one-time lump at season's end
 // instead (`_kOffSeasonDeclineScale`, below) -- see `resolveSeasonEndAging`.
 const _kDeclineScale = 0.5;
@@ -61,14 +63,62 @@ const _kGymRatDeclineSoftening = 0.5; // "ages more gracefully".
 const _kJitterFloor = 0.15; // keeps an at-potential player from a hard 0.
 // The one-time off-season lump's own scale (`resolveSeasonEndAging`) --
 // deliberately much bigger than `_kDeclineScale` since it's applied once a
-// season, not once a week. Reuses `_ageCurveFactor`'s same decline bands
-// (30-31 at -0.4, 32-34 at -0.8), so 30-31 loses ~5 total and 32-34 loses
-// ~10 -- on top of the softer in-season total, a 32-34-year-old's full
-// season (in-season + off-season) now lands around -16 to -18, well
-// under the old system's -43 to -50, with most of it landing as one
-// clean "the off-season caught up with her" event rather than trickling
-// out week by week.
+// season, not once a week. Whatever `_ageCurveFactor` returns for a given
+// decline age gets multiplied by this once, at season's end, on top of
+// that same age's softer in-season weekly total -- most of a veteran's
+// yearly decline lands as one clean "the off-season caught up with her"
+// event rather than trickling out week by week. (Original calibration
+// note, now superseded by the growth-curve study's re-picked bands below:
+// the old 30-31/32-34 bands worked out to roughly -5/-10 here.)
 const _kOffSeasonDeclineScale = 12.5;
+// Growth-curve study, part 1 (2026-08-12, `tool/aging_curve_diagnostic.dart`,
+// https://claude.ai/code/artifact/31656bc8-19db-4724-85be-0fed26e98f63): the
+// GM re-picked `_ageCurveFactor`'s own bands (below) after seeing real
+// simulated career data, not vibes -- peak was landing at 29, not the 26
+// the GM expected, and the 30-34 decline read as too gentle (a player
+// stayed a legitimate rotation piece deep into her 30s, and the "declined
+// 10+ from peak" retirement rule didn't fire until 37, a year before
+// mandatory retirement at 38). The new bands move peak to 27 at the *same*
+// peak overall and the retirement trigger to 35, at zero cost to how good
+// a player gets.
+//
+// Growth-curve study, parts 2-3 (same session, same diagnostic file): with
+// the new curve locked in, the next ask -- "even the best current case
+// only reaches 87 OVR for a 70/99 rookie... this game needs a few players
+// in the upper 90s" -- surfaced that `gapFactor`'s old linear falloff
+// (below, in [_totalWeeklyDelta]) meant growth nearly stalled once a
+// player was 10-15 points off her potential, long before the age curve's
+// own growth window closed. 4 additive levers, all validated in the
+// diagnostic before landing here, close that gap without letting every
+// rookie become a superstar by accident:
+const _kRookieSurgeMultiplier = 1.35; // growth lever 1: a true rookie's
+// first 2 pro seasons grow faster than a same-age veteran's -- keyed to
+// [Player.yearsOfService], not age, so a late bloomer still gets it and a
+// veteran in her 4th season at the same age band doesn't.
+const _kRookieSeasons = 2;
+const _kGapConcavityExponent = 0.75; // growth lever 2: `gapFactor` becomes
+// concave (exponent < 1) instead of linear -- still hits exactly 0 once a
+// player is genuinely at her potential (nothing here lets her exceed it,
+// beyond the unconditional `_kJitterFloor` nudge below), but keeps
+// meaningful growth alive through the last stretch instead of
+// asymptotically stalling out short of it.
+const _kOffSeasonGrowthScale = 8.0; // growth lever 3: mirrors
+// `_kOffSeasonDeclineScale` above, but for the growth side -- a real
+// off-season training block, not just in-season reps. The diagnostic's
+// 100-rookie population study is what surfaced that even a
+// fully-invested prospect was landing 1-2 points short of ever actually
+// closing her gap without this.
+const _kBreakoutChanceSlotted = 0.06; // growth lever 4: once a season,
+// independent of everything else, a small chance of a big one-season
+// growth spike -- "she figures something out nobody expected this
+// summer." Deliberately more likely for a player who *isn't* one of the 3
+// individually-coached slots (the GM's own framing: "sometimes players
+// that don't get that individual coaching should have a chance of
+// sneaking up on you") -- the already-favored 3 don't need the extra
+// lottery ticket as much. Rolled once per season, not per week -- see
+// [_isBreakoutSeason].
+const _kBreakoutChanceUnslotted = 0.10;
+const _kBreakoutMultiplier = 3.0;
 const _kBroadFocusShare = 0.8; // how much of a broad focus's delta goes
 // to its own 4 fields, vs. trickling to the other 8.
 const _kSpecificFocusShare = 0.7; // how much of a specific-rating focus's
@@ -107,6 +157,18 @@ const kAiTeamTrainingSeedOffset = 14;
 /// happened to roll. Next free number after
 /// `coach_free_agency_advancer.dart`'s `kCoachFreeAgencySeedOffset` (16).
 const kAiTeamSeasonEndAgingSeedOffset = 17;
+
+/// Seed offset for [_isBreakoutSeason]'s per-player, per-season roll --
+/// next free number after [kAiTeamSeasonEndAgingSeedOffset] (17).
+/// Deliberately *not* combined with the per-week [Random] stream every
+/// other seed offset in this file reseeds ([kTrainingAdvanceSeedOffset]
+/// et al.) -- a breakout is a once-a-season thing, and [runTraining] gets
+/// called once per newly-completed week, sometimes several times across
+/// one season. Seeding straight off [Franchise.seasonSeed] plus a stable
+/// hash of the player's own id (see [_isBreakoutSeason]) instead gives
+/// the same answer for the same player all season long, no matter which
+/// week is being resolved when it's asked.
+const kBreakoutSeedOffset = 18;
 
 /// What one weekly training cycle produced: the updated [Franchise]
 /// (roster with new ratings, `nextTrainingWeek` advanced, the new report
@@ -161,6 +223,11 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
     final minutesThisWeek = minutesByPlayerId[player.id] ?? 0;
     final (focus, coachDevelopmentRating, isIndividuallySlotted) =
         _effectiveFocusAndCoach(franchise, player.id);
+    final isBreakoutSeason = _isBreakoutSeason(
+      seasonSeed: franchise.seasonSeed,
+      playerId: player.id,
+      individuallySlotted: isIndividuallySlotted,
+    );
 
     final newFieldValues = _newFieldValuesFor(
       random,
@@ -170,6 +237,7 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
       coachDevelopmentRating: coachDevelopmentRating,
       isDevelopmentalSlot: membership.status == RosterStatus.developmental,
       isIndividuallySlotted: isIndividuallySlotted,
+      isBreakoutSeason: isBreakoutSeason,
     );
 
     if (newFieldValues.isEmpty) {
@@ -226,7 +294,8 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
 }
 
 /// What one season-end aging resolution produced: the updated [Franchise]
-/// (roster with the lump decline applied) and the [results] themselves,
+/// (roster with the lump decline-or-growth applied) and the [results]
+/// themselves,
 /// for a caller that wants to show or aggregate them without re-deriving
 /// anything -- same shape as [TrainingAdvance], deliberately not reusing
 /// [TrainingReport] itself (that type means "one schedule week's worth of
@@ -239,24 +308,31 @@ class SeasonEndAgingAdvance {
   final List<PlayerGrowthResult> results;
 }
 
-/// Computes this off-season's decline lump for one [player] -- the shared
-/// core [resolveSeasonEndAging] (the GM's own roster) and
-/// [resolveAiTeamSeasonEndAging] (every AI roster) both apply. Returns
-/// [player] unchanged (and an empty delta map) when nothing applies --
-/// growing/plateaued players ([_ageCurveFactor] `>= 0`, this is
-/// specifically the veteran-decay half of the yearly budget, not a
-/// second growth pass) or every rolled delta happens to round to zero.
-(Player, Map<PlayerRatingField, int>) _declinedPlayer(
+/// Computes this off-season's lump for one [player] -- the shared core
+/// [resolveSeasonEndAging] (the GM's own roster) and
+/// [resolveAiTeamSeasonEndAging] (every AI roster) both apply. One-time
+/// per season, on top of whatever [runTraining]'s weekly cycles already
+/// did: a decline lump for an aging veteran ([_ageCurveFactor] `< 0`,
+/// `_kOffSeasonDeclineScale`), or growth lever 3's off-season training
+/// lump for a still-growing player (`_kOffSeasonGrowthScale`'s own doc
+/// comment) -- never both, since [_ageCurveFactor] can't be both signs at
+/// once. Returns [player] unchanged (and an empty delta map) when every
+/// rolled delta happens to round to zero.
+(Player, Map<PlayerRatingField, int>) _seasonEndAdjustedPlayer(
   Random random,
   Player player,
 ) {
   final ageFactor = _ageCurveFactor(player.age);
-  if (ageFactor >= 0) return (player, const {});
-
-  var totalDelta = ageFactor * _kOffSeasonDeclineScale;
-  if (player.traits.contains(Trait.gymRat)) {
-    totalDelta *= _kGymRatDeclineSoftening;
+  double totalDelta;
+  if (ageFactor < 0) {
+    totalDelta = ageFactor * _kOffSeasonDeclineScale;
+    if (player.traits.contains(Trait.gymRat)) {
+      totalDelta *= _kGymRatDeclineSoftening;
+    }
+  } else {
+    totalDelta = ageFactor * _kOffSeasonGrowthScale;
   }
+  if (totalDelta == 0) return (player, const {});
 
   final perField = _distributeAcrossFields(totalDelta, null);
   final newFieldValues = <PlayerRatingField, int>{};
@@ -274,12 +350,14 @@ class SeasonEndAgingAdvance {
   return _applyFieldValues(player, newFieldValues);
 }
 
-/// Applies a one-time "off-season" decline lump to every aging veteran on
-/// [franchise]'s roster -- the other half of `_kDeclineScale`'s softened
-/// in-season weekly decay (TODO.md item 1: "smaller week-to-week veteran
-/// decay during the season, with more of the decline concentrated in the
-/// off-season instead"). Meant to be called exactly once, right when a
-/// season's postseason bracket finishes
+/// Applies a one-time "off-season" lump to every player on [franchise]'s
+/// roster -- a decline lump for an aging veteran (the other half of
+/// `_kDeclineScale`'s softened in-season weekly decay, TODO.md item 1:
+/// "smaller week-to-week veteran decay during the season, with more of
+/// the decline concentrated in the off-season instead") or growth lever
+/// 3's off-season training lump for a still-growing one
+/// (`_kOffSeasonGrowthScale`'s own doc comment). Meant to be called
+/// exactly once, right when a season's postseason bracket finishes
 /// (`current_franchise_provider.dart`'s `simulatePostseasonAndPersist`,
 /// which already guards against re-resolving an already-played
 /// postseason) -- there's no real multi-season flow yet
@@ -289,10 +367,11 @@ class SeasonEndAgingAdvance {
 ///
 /// Same scope as [runTraining]: [RosterStatus.reserveInactive] players
 /// are skipped entirely -- no gap-to-potential, minutes, or coach-quality
-/// inputs, since those are growth-side concepts that don't apply here,
-/// same reasoning [_totalWeeklyDelta]'s own doc comment gives for why
-/// weekly decline itself is minutes-gate-free. The actual per-player math
-/// is [_declinedPlayer]'s.
+/// inputs on the decline side, same reasoning [_totalWeeklyDelta]'s own
+/// doc comment gives for why weekly decline itself is minutes-gate-free
+/// (the growth-side lump also skips those -- flat per the age curve
+/// alone, not gap-scaled, same as [_seasonEndAdjustedPlayer]'s own doc
+/// comment). The actual per-player math is [_seasonEndAdjustedPlayer]'s.
 SeasonEndAgingAdvance resolveSeasonEndAging(
   Random random,
   Franchise franchise,
@@ -307,7 +386,7 @@ SeasonEndAgingAdvance resolveSeasonEndAging(
     }
 
     final player = membership.player;
-    final (newPlayer, actualDeltas) = _declinedPlayer(random, player);
+    final (newPlayer, actualDeltas) = _seasonEndAdjustedPlayer(random, player);
     if (actualDeltas.isEmpty) {
       newRoster.add(membership);
       continue;
@@ -411,6 +490,11 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
           continue;
         }
         final player = membership.player;
+        final isBreakoutSeason = _isBreakoutSeason(
+          seasonSeed: franchise.seasonSeed,
+          playerId: player.id,
+          individuallySlotted: false,
+        );
         final newFieldValues = _newFieldValuesFor(
           random,
           player: player,
@@ -419,6 +503,7 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
           coachDevelopmentRating: CoachStats.neutral.development,
           isDevelopmentalSlot: membership.status == RosterStatus.developmental,
           isIndividuallySlotted: false,
+          isBreakoutSeason: isBreakoutSeason,
         );
         if (newFieldValues.isEmpty) {
           newRoster.add(membership);
@@ -438,7 +523,8 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
 }
 
 /// The updated [League] a full season's worth of AI-team off-season
-/// decline produces -- see [resolveAiTeamSeasonEndAging]. No per-player
+/// lumps (decline or growth) produces -- see [resolveAiTeamSeasonEndAging].
+/// No per-player
 /// [PlayerGrowthResult] list, same reasoning [AiTeamTrainingAdvance]'s
 /// own doc comment gives -- nothing surfaces this to the GM.
 class AiTeamAgingAdvance {
@@ -455,9 +541,10 @@ class AiTeamAgingAdvance {
 /// ever get better, never worse. Meant to be called exactly once per
 /// season, alongside every other season-end resolution -- same call site
 /// (`current_franchise_provider.dart`'s `simulatePostseasonAndPersist`),
-/// same idempotency guard. [_declinedPlayer] is the shared per-player
-/// math; [RosterStatus.reserveInactive] players are skipped, same scope
-/// as [resolveSeasonEndAging].
+/// same idempotency guard. [_seasonEndAdjustedPlayer] is the shared
+/// per-player math (decline lump for a veteran, growth lever 3's
+/// off-season lump for a still-growing player); [RosterStatus.reserveInactive]
+/// players are skipped, same scope as [resolveSeasonEndAging].
 AiTeamAgingAdvance resolveAiTeamSeasonEndAging(
   Random random,
   Franchise franchise,
@@ -470,7 +557,7 @@ AiTeamAgingAdvance resolveAiTeamSeasonEndAging(
         newRoster.add(membership);
         continue;
       }
-      final (newPlayer, actualDeltas) = _declinedPlayer(
+      final (newPlayer, actualDeltas) = _seasonEndAdjustedPlayer(
         random,
         membership.player,
       );
@@ -506,6 +593,41 @@ Map<String, double> _minutesInWeekRange(
     }
   }
   return totals;
+}
+
+/// A stable, cross-run-deterministic hash of a player id string -- used
+/// to seed [_isBreakoutSeason] instead of Dart's built-in `String.hashCode`
+/// (not a documented-stable algorithm across Dart/Flutter versions, and
+/// this codebase's own seeded-generation invariants all lean on exact
+/// reproducibility -- see every `kXSeedOffset`'s own doc comment).
+int _stableStringHash(String value) {
+  var hash = 0;
+  for (final codeUnit in value.codeUnits) {
+    hash = (31 * hash + codeUnit) & 0x7fffffff;
+  }
+  return hash;
+}
+
+/// Whether [playerId] rolled a breakout for the *current* season --
+/// growth lever 4, see `_kBreakoutChanceSlotted`'s doc comment. Seeded
+/// off [Franchise.seasonSeed] plus [kBreakoutSeedOffset] plus a stable
+/// hash of the player's own id, deliberately *not* the per-week [Random]
+/// stream [runTraining]/[resolveAiTeamSeasonTraining] otherwise use --
+/// this needs to answer the same way for the same player all season,
+/// regardless of which week is being resolved when it's asked (see
+/// [kBreakoutSeedOffset]'s own doc comment for why).
+bool _isBreakoutSeason({
+  required int seasonSeed,
+  required String playerId,
+  required bool individuallySlotted,
+}) {
+  final roll = Random(
+    seasonSeed + kBreakoutSeedOffset + _stableStringHash(playerId),
+  ).nextDouble();
+  final chance = individuallySlotted
+      ? _kBreakoutChanceSlotted
+      : _kBreakoutChanceUnslotted;
+  return roll < chance;
 }
 
 /// Which focus applies to [playerId]: whichever training coach slot has
@@ -550,6 +672,7 @@ Map<PlayerRatingField, int> _newFieldValuesFor(
   required int coachDevelopmentRating,
   required bool isDevelopmentalSlot,
   required bool isIndividuallySlotted,
+  required bool isBreakoutSeason,
 }) {
   final totalDelta = _totalWeeklyDelta(
     player: player,
@@ -557,6 +680,7 @@ Map<PlayerRatingField, int> _newFieldValuesFor(
     coachDevelopmentRating: coachDevelopmentRating,
     isDevelopmentalSlot: isDevelopmentalSlot,
     isIndividuallySlotted: isIndividuallySlotted,
+    isBreakoutSeason: isBreakoutSeason,
   );
   final isDecline = totalDelta < 0;
   final perField = _distributeAcrossFields(
@@ -577,16 +701,22 @@ Map<PlayerRatingField, int> _newFieldValuesFor(
   return newValues;
 }
 
-/// The age curve: 20-23 grows fastest, tapering through 26-27, plateau
-/// 27-29, decline starting ~30-32 and steepening through 34 -- the exact
-/// bands the GM confirmed. Positive = growth-side multiplier, negative =
-/// decline-side, both consumed by [_totalWeeklyDelta].
+/// The age curve: 20-23 grows fastest, tapering through 24-26, a single
+/// plateau year at 27, decline starting at 28 and steepening through 33+
+/// -- the "moderate" proposal from the growth-curve diagnostic's part 1
+/// (see `_kOffSeasonGrowthScale`'s own doc comment above for the full
+/// story), replacing the original 27-29 3-year plateau and gentler
+/// 30-34 decline. Positive = growth-side multiplier, negative =
+/// decline-side, both consumed by [_totalWeeklyDelta]; never exactly 0
+/// under these bands (the old plateau's `0.0` band is gone -- a player is
+/// always either still growing or already declining, if only a little).
 double _ageCurveFactor(int age) {
   if (age <= 23) return 1.0;
   if (age <= 26) return 0.6;
-  if (age <= 29) return 0.0;
-  if (age <= 31) return -0.4;
-  return -0.8;
+  if (age <= 27) return 0.2;
+  if (age <= 29) return -0.3;
+  if (age <= 32) return -0.7;
+  return -1.3;
 }
 
 /// The total field-points this player's ratings move by this week,
@@ -597,17 +727,21 @@ double _ageCurveFactor(int age) {
 /// (reps -- the honest reason a barely-used bench player doesn't
 /// develop, and why missed games from injury cost growth for free,
 /// without a separate injury-specific case), coach quality (whichever
-/// coach is actually working with this player), and traits. Decline is
-/// simpler and deliberately not minutes-gated -- aging happens whether
-/// you play or not -- and applies the same regardless of who's kept
-/// around for locker-room value (no veteran exemptions, the GM's
-/// explicit call).
+/// coach is actually working with this player), and traits, plus the 4
+/// growth-curve-study levers stacked on top (rookie surge, concave
+/// gap-to-potential falloff, individual-attention and breakout
+/// multipliers -- see `_kRookieSurgeMultiplier`'s doc comment for the
+/// full origin story). Decline is simpler and deliberately not
+/// minutes-gated -- aging happens whether you play or not -- and applies
+/// the same regardless of who's kept around for locker-room value (no
+/// veteran exemptions, the GM's explicit call).
 double _totalWeeklyDelta({
   required Player player,
   required double minutesThisWeek,
   required int coachDevelopmentRating,
   required bool isDevelopmentalSlot,
   required bool isIndividuallySlotted,
+  required bool isBreakoutSeason,
 }) {
   final ageFactor = _ageCurveFactor(player.age);
   final traits = player.traits;
@@ -622,7 +756,13 @@ double _totalWeeklyDelta({
     0,
     kMaxRating - kMinRating,
   );
-  final gapFactor = (gap / _kGapNormalization).clamp(0.0, 1.0);
+  // Concave (exponent < 1), not linear -- see `_kGapConcavityExponent`'s
+  // own doc comment: keeps meaningful growth alive through the last
+  // 10-15 points instead of asymptotically stalling short of potential.
+  final gapFactor = pow(
+    (gap / _kGapNormalization).clamp(0.0, 1.0),
+    _kGapConcavityExponent,
+  ).toDouble();
   final minutesFactor = (minutesThisWeek / _kFullWeekMinutes).clamp(
     0.0,
     _kMinutesFactorCap,
@@ -659,6 +799,15 @@ double _totalWeeklyDelta({
   // with gapFactor already rewarding a wide-open player more, a
   // high-potential prospect in one of the 3 individual slots double dips.
   if (isIndividuallySlotted) delta *= _kIndividualAttentionMultiplier;
+  // Growth lever 1: a true rookie's first 2 pro seasons outgrow a
+  // same-age veteran's -- see `_kRookieSurgeMultiplier`'s own doc
+  // comment.
+  if (player.yearsOfService < _kRookieSeasons) {
+    delta *= _kRookieSurgeMultiplier;
+  }
+  // Growth lever 4: this season's breakout roll, if any -- see
+  // `_kBreakoutChanceSlotted`'s own doc comment and [_isBreakoutSeason].
+  if (isBreakoutSeason) delta *= _kBreakoutMultiplier;
   if (traits.contains(Trait.gymRat)) delta += _kGymRatGrowthFloor;
   return delta + _kJitterFloor;
 }

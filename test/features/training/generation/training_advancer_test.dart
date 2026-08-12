@@ -504,14 +504,20 @@ void main() {
       expect(advance.results, isEmpty);
     });
 
-    test('a growing or plateaued player gets nothing -- this is the '
-        'veteran-decline half only', () {
+    test('a growing player gets an off-season growth lump too (growth '
+        'lever 3, growth-curve study part 2 -- not gap-gated, so even a '
+        'player already at her own potential still gets it)', () {
       final young = _player(id: 'p1', age: 22, overall: 45, potential: 90);
-      final plateaued = _player(id: 'p2', age: 28, overall: 60, potential: 60);
+      final atPotential = _player(
+        id: 'p2',
+        age: 22,
+        overall: 60,
+        potential: 60,
+      );
       final franchise = _franchiseWith(
         roster: [
           RosterMembership(player: young, status: RosterStatus.active),
-          RosterMembership(player: plateaued, status: RosterStatus.active),
+          RosterMembership(player: atPotential, status: RosterStatus.active),
         ],
         week: 2,
         minutesByPlayerId: const {},
@@ -519,7 +525,38 @@ void main() {
 
       final advance = resolveSeasonEndAging(Random(1), franchise);
 
-      expect(advance.results, isEmpty);
+      expect(advance.results, hasLength(2));
+      for (final result in advance.results) {
+        final total = result.fieldDeltas.values.fold(0, (a, b) => a + b);
+        expect(total, greaterThan(0));
+      }
+    });
+
+    test('a declining-age player (28+, past the single plateau year at '
+        '27) gets nothing from the growth-side lump', () {
+      final decliningAge = _player(
+        id: 'p1',
+        age: 28,
+        overall: 60,
+        potential: 60,
+      );
+      final franchise = _franchiseWith(
+        roster: [
+          RosterMembership(player: decliningAge, status: RosterStatus.active),
+        ],
+        week: 2,
+        minutesByPlayerId: const {},
+      );
+
+      final advance = resolveSeasonEndAging(Random(1), franchise);
+
+      // Still declines (this age's ageFactor is negative), just via the
+      // decline half, not the growth half -- covered by the "an old
+      // veteran declines" test below for the actual magnitude.
+      expect(
+        advance.franchise.roster.single.player.ratings.overall,
+        lessThanOrEqualTo(60),
+      );
     });
 
     test('an old veteran declines via the one-time lump, even with zero '
@@ -958,7 +995,8 @@ void main() {
       expect(result.ratings.overall, lessThan(70));
     });
 
-    test('a growing or plateaued AI player gets nothing', () {
+    test('a growing AI player gets the off-season growth lump too '
+        '(growth lever 3)', () {
       final young = _player(id: 'ai1', age: 22, overall: 45, potential: 90);
       final franchise = franchiseWithAiRoster([
         RosterMembership(player: young, status: RosterStatus.active),
@@ -968,7 +1006,7 @@ void main() {
 
       expect(
         advance.league.aiTeams.first.roster.single.player.ratings.overall,
-        45,
+        greaterThan(45),
       );
     });
 
