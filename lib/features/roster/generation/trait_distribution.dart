@@ -37,7 +37,11 @@ List<RosterMembership> distributeTraits(
   for (final index in order) {
     if (traitedIndices.length >= totalTraits) break;
     final player = updated[index].player;
-    final trait = pickEligibleTrait(random, player.traits);
+    final trait = pickEligibleTrait(
+      random,
+      player.traits,
+      position: player.primaryPosition,
+    );
     if (trait == null) continue;
     updated[index] = RosterMembership(
       player: player.copyWithTraits({...player.traits, trait}),
@@ -49,7 +53,11 @@ List<RosterMembership> distributeTraits(
   if (traitedIndices.isNotEmpty && random.nextDouble() < _secondTraitChance) {
     final index = traitedIndices[random.nextInt(traitedIndices.length)];
     final player = updated[index].player;
-    final trait = pickEligibleTrait(random, player.traits);
+    final trait = pickEligibleTrait(
+      random,
+      player.traits,
+      position: player.primaryPosition,
+    );
     if (trait != null) {
       updated[index] = RosterMembership(
         player: player.copyWithTraits({...player.traits, trait}),

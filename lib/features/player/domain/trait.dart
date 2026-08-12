@@ -1,3 +1,5 @@
+import 'position.dart';
+
 /// The seven groupings `traits.md` organizes the catalog into -- used to
 /// give a trait display something meaningful to color-code by, beyond an
 /// arbitrary per-trait color.
@@ -229,7 +231,28 @@ Trait? oppositeOf(Trait trait) {
 /// Homegrown requires having been drafted by this franchise, which isn't
 /// meaningful for a freshly generated roster -- expansion rosters aren't
 /// drafted through the game's own (not-yet-built) draft system. Every
-/// other trait is eligible to roll at player-generation time.
+/// other trait is eligible to roll at player-generation time, subject to
+/// [isTraitEligibleForPosition] below.
 final Set<Trait> kGenerationEligibleTraits = Trait.values
     .where((trait) => trait != Trait.homegrown)
     .toSet();
+
+/// Guard positions, for [isTraitEligibleForPosition] -- point guard and
+/// shooting guard, the two positions [Trait.rimGuardian] excludes.
+const _kGuardPositions = {Position.pointGuard, Position.shootingGuard};
+
+/// Whether [trait] can roll for a player at [position] -- a direct GM
+/// call (2026-08-11): "I don't think guards should be able to get rim
+/// guardian." [Trait.rimGuardian]'s own description is explicitly
+/// front-court ("protecting the rim"), so it's excluded for the two
+/// guard spots; every other trait stays position-agnostic, same as
+/// before this existed. A narrow, single-trait rule rather than a full
+/// eligibility matrix -- add another case here if a future trait needs
+/// the same kind of restriction, rather than building out a system
+/// nothing else needs yet.
+bool isTraitEligibleForPosition(Trait trait, Position position) {
+  if (trait == Trait.rimGuardian) {
+    return !_kGuardPositions.contains(position);
+  }
+  return true;
+}

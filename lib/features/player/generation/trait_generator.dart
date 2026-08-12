@@ -1,11 +1,14 @@
 import 'dart:math';
 
+import '../domain/position.dart';
 import '../domain/trait.dart';
 
 /// Rolls a small set of generation-eligible traits (`traits.md`) for a
-/// single player: somewhere between none and [maxTraits] (a hard ceiling,
-/// not a target -- see [_rollTraitCount]), distinct, never both sides of
-/// an opposite pair (`kOppositeTraitPairs`). Deterministic for a given
+/// single player at [position]: somewhere between none and [maxTraits]
+/// (a hard ceiling, not a target -- see [_rollTraitCount]), distinct,
+/// never both sides of an opposite pair (`kOppositeTraitPairs`), and
+/// never a trait [isTraitEligibleForPosition] rules out for [position]
+/// (e.g. [Trait.rimGuardian] for a guard). Deterministic for a given
 /// [random] stream.
 ///
 /// Used by the draft-prospect generator (`draft_generator.dart`) -- most
@@ -18,9 +21,17 @@ import '../domain/trait.dart';
 /// don't exist yet) — this only covers the subset assignable at
 /// generation/draft time (question.md decision 21), which is everything
 /// except [Trait.homegrown].
-Set<Trait> generateTraits(Random random, {int maxTraits = 3}) {
+Set<Trait> generateTraits(
+  Random random, {
+  required Position position,
+  int maxTraits = 3,
+}) {
   final count = _rollTraitCount(random, maxTraits);
-  final shuffled = kGenerationEligibleTraits.toList()..shuffle(random);
+  final shuffled =
+      kGenerationEligibleTraits
+          .where((trait) => isTraitEligibleForPosition(trait, position))
+          .toList()
+        ..shuffle(random);
 
   final selected = <Trait>{};
   for (final trait in shuffled) {
@@ -47,14 +58,20 @@ int _rollTraitCount(Random random, int maxTraits) {
   return uncapped > maxTraits ? maxTraits : uncapped;
 }
 
-/// Picks one trait not already in [existingTraits] and not the opposite of
-/// one already held -- `null` if no eligible trait remains (shouldn't
+/// Picks one trait not already in [existingTraits], not the opposite of
+/// one already held, and not ruled out by [isTraitEligibleForPosition]
+/// for [position] -- `null` if no eligible trait remains (shouldn't
 /// happen in practice with 29 traits and at most a couple already held).
 /// The single-trait building block both [generateTraits] and
 /// `distributeTraits` use.
-Trait? pickEligibleTrait(Random random, Set<Trait> existingTraits) {
+Trait? pickEligibleTrait(
+  Random random,
+  Set<Trait> existingTraits, {
+  required Position position,
+}) {
   final candidates = kGenerationEligibleTraits.where((trait) {
     if (existingTraits.contains(trait)) return false;
+    if (!isTraitEligibleForPosition(trait, position)) return false;
     final opposite = oppositeOf(trait);
     return opposite == null || !existingTraits.contains(opposite);
   }).toList();

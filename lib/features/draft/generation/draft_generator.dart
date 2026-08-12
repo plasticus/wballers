@@ -127,7 +127,7 @@ DraftProspect _generateProspect(
     yearsOfService: 0,
     portraitWeights: portraitWeights,
   );
-  final traits = generateTraits(random);
+  final traits = generateTraits(random, position: position);
   final withTraits = traits.isEmpty ? player : player.copyWithTraits(traits);
   final college = collegePool[random.nextInt(collegePool.length)];
   return DraftProspect(player: withTraits, college: college);

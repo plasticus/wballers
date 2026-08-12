@@ -138,7 +138,7 @@ Player _generateDecentFreeAgent(
     potentialOverrideSpread: _decentFreeAgentPotentialSpread,
     portraitWeights: portraitWeights,
   );
-  final traits = generateTraits(random);
+  final traits = generateTraits(random, position: position);
   return traits.isEmpty ? player : player.copyWithTraits(traits);
 }
 
@@ -156,6 +156,6 @@ Player _generateFillerFreeAgent(
     potentialOverrideSpread: _fillerPotentialCapSpread,
     portraitWeights: portraitWeights,
   );
-  final traits = generateTraits(random);
+  final traits = generateTraits(random, position: position);
   return traits.isEmpty ? player : player.copyWithTraits(traits);
 }
