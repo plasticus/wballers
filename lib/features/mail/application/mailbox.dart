@@ -30,15 +30,28 @@ const kRosterCompleteMailId = 'assistant_gm_roster_complete';
 /// The GM's current inbox, freshly derived from [franchise] -- see
 /// [MailItem]'s doc comment for why nothing here is persisted directly.
 /// System messages ([kRosterGapMailId] while short a player, then
-/// [kRosterCompleteMailId] once that's fixed -- always exactly one of
-/// the two, never both) and every [RetirementDecisionMailItem] sort
-/// first (both need real GM action), then every [TrainingReportMailItem]
-/// newest week first -- the same "actionable before passive" priority
-/// the Dashboard's own card ordering already uses.
+/// [kRosterCompleteMailId] once that's fixed -- never both at once) and
+/// every [RetirementDecisionMailItem] sort first (both need real GM
+/// action), then every [TrainingReportMailItem] newest week first -- the
+/// same "actionable before passive" priority the Dashboard's own card
+/// ordering already uses.
+///
+/// [kRosterCompleteMailId] specifically drops out for good once the GM
+/// has actually read it (2026-08-11, a direct GM report: "the Roster Set
+/// email should delete after a couple weeks -- it's still showing in
+/// season 2") -- it was only ever meant as a one-time "here's what to do
+/// next" nudge, not a permanent status line, and [kRosterGapMailId]'s own
+/// unread-until-fixed nature already means the GM sees it again the
+/// instant it's true again anyway (real re-derived state, not something
+/// to expire). No new persisted state needed -- [Franchise.readMailIds]
+/// already tracks exactly this.
 List<MailItem> mailboxFor(Franchise franchise) {
   final activeCount = franchise.roster
       .where((m) => m.status == RosterStatus.active)
       .length;
+  final rosterCompleteAlreadyRead = franchise.readMailIds.contains(
+    kRosterCompleteMailId,
+  );
 
   final items = <MailItem>[
     if (activeCount < kActiveRosterSize)
@@ -47,7 +60,7 @@ List<MailItem> mailboxFor(Franchise franchise) {
         subject: 'Last Roster Spot',
         body: assistantGmRosterGapMessage(franchise),
       )
-    else
+    else if (!rosterCompleteAlreadyRead)
       AssistantGmMailItem(
         id: kRosterCompleteMailId,
         subject: 'Roster Set',

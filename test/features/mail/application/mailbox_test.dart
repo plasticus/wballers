@@ -51,6 +51,32 @@ void main() {
       );
     });
 
+    test('the roster-complete message drops out for good once the GM has '
+        'actually read it (2026-08-11, a direct GM report -- "should '
+        'delete after a couple weeks... still showing in season 2")', () {
+      final franchise = withFullActiveRoster(
+        _franchise(),
+      ).copyWithReadMailIds({kRosterCompleteMailId});
+
+      final items = mailboxFor(franchise);
+
+      expect(items.whereType<AssistantGmMailItem>(), isEmpty);
+    });
+
+    test('the roster-gap message keeps reappearing even after being read '
+        '-- it\'s real re-derived state, not a one-time nudge', () {
+      final franchise =
+          _franchise() // still short a player
+              .copyWithReadMailIds({kRosterGapMailId});
+
+      final items = mailboxFor(franchise);
+
+      expect(
+        items.whereType<AssistantGmMailItem>().single.id,
+        kRosterGapMailId,
+      );
+    });
+
     test('includes one TrainingReportMailItem per report, system message '
         'first, then reports newest-week-first', () {
       // A fresh franchise (11 players, real Day-0 gap) with a few
