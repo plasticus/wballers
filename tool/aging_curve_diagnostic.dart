@@ -505,7 +505,7 @@ const _kRookieSeasons = 2; // yearsOfService 0 and 1: the first 2 pro
 // ordinary age-curve-driven rate.
 const _kGapConcavityExponent = 0.75; // < 1 = concave: keeps gapFactor
 // higher than linear for any gap short of "wide open" or "closed".
-const _kOffSeasonGrowthScale = 4.0; // smaller than
+const _kOffSeasonGrowthScale = 8.0; // smaller than
 // `_kOffSeasonDeclineScale` (12.5) -- growth still gets most of its
 // budget from in-season reps (minutes, coaching), unlike decline, which
 // was deliberately moved almost entirely off-season already.
@@ -591,9 +591,310 @@ Map<int, double> simulateCareerClosedFormBoosted({
   return points;
 }
 
+// ---------------------------------------------------------------------
+// Population study (2026-08-12 follow-up GM ask): "simulate 100 players
+// coming into the league with potential 90-99... I want to make sure a
+// few hit 99 with effort (decent coach, minutes, individual coaching)
+// -- but also that a player who DOESN'T get that individual coaching
+// has a chance of sneaking up on you." Two things the single-profile
+// studies above can't show: the spread across a realistic mix of draft
+// outcomes and investment levels, and whether the 3-slots choice
+// actually reads as a real trade-off (most who don't get a slot fall
+// short; a few get lucky anyway) rather than a formality.
+//
+// Adds a 4th lever on top of the 3 already proposed above:
+//   4. Breakout chance -- once a season, independent of everything
+//      else, a small chance of a big one-season growth spike (2.2x that
+//      season only) -- "she figures something out nobody expected this
+//      summer." Deliberately more likely for players who *aren't* one
+//      of the 3 individually-coached slots (10% a season vs. 3%) --
+//      the whole point is giving the GM's non-priority prospects a real
+//      (if unlikely) chance of paying off anyway, not just letting the
+//      already-favored 3 get luckier too.
+// ---------------------------------------------------------------------
+const _kBreakoutChanceSlotted = 0.06;
+const _kBreakoutChanceUnslotted = 0.10;
+const _kBreakoutMultiplier = 3.0;
+
+/// [_weeklyDeltaBoosted] plus a per-season breakout multiplier -- applied
+/// to the same growth-side `delta` the rookie-surge/individual-attention
+/// multipliers already stack onto, not the unconditional jitter floor.
+double _weeklyDeltaWithBreakout({
+  required int overall,
+  required int potential,
+  required int age,
+  required int yearsOfService,
+  required double minutes,
+  required int coachDevelopment,
+  required bool individuallySlotted,
+  required bool breakoutActive,
+  required AgeCurve curve,
+}) {
+  final ageFactor = curve(age);
+  if (ageFactor < 0) return (ageFactor * _kDeclineScale) / _kFieldCount;
+
+  final gap = (potential - overall).clamp(0, 98).toDouble();
+  final gapNormalized = (gap / _kGapNormalization).clamp(0.0, 1.0);
+  final gapFactor = pow(gapNormalized, _kGapConcavityExponent).toDouble();
+  final minutesFactor = (minutes / _kFullWeekMinutes).clamp(
+    0.0,
+    _kMinutesFactorCap,
+  );
+  final coachFactor = coachDevelopment / 50.0;
+
+  var delta =
+      ageFactor * gapFactor * minutesFactor * coachFactor * _kGrowthScale;
+  if (yearsOfService < _kRookieSeasons) delta *= _kRookieSurgeMultiplier;
+  if (individuallySlotted) delta *= _kIndividualAttentionMultiplier;
+  if (breakoutActive) delta *= _kBreakoutMultiplier;
+  return (delta + _kJitterFloor) / _kFieldCount;
+}
+
+/// One synthetic player's whole career, week by week, with one breakout
+/// roll per season -- same season/off-season structure as
+/// [simulateCareerClosedFormBoosted], just with per-player randomness
+/// (via [random]) instead of a deterministic expectation, since the
+/// population study cares about the *spread* across 100 different
+/// players, not one player's averaged-out expected curve.
+Map<int, double> _simulatePlayerCareer({
+  required Random random,
+  required int startAge,
+  required int startOverall,
+  required int potential,
+  required int maxAge,
+  required double weeklyMinutes,
+  required int weeksPerSeason,
+  required int coachDevelopment,
+  required bool individuallySlotted,
+  required AgeCurve curve,
+}) {
+  final points = <int, double>{};
+  var overall = startOverall.toDouble();
+  var age = startAge;
+
+  while (age < maxAge) {
+    final yearsOfService = age - startAge;
+    final breakoutChance = individuallySlotted
+        ? _kBreakoutChanceSlotted
+        : _kBreakoutChanceUnslotted;
+    final breakoutActive = random.nextDouble() < breakoutChance;
+    for (var week = 0; week < weeksPerSeason; week++) {
+      final delta = _weeklyDeltaWithBreakout(
+        overall: overall.round().clamp(1, 99),
+        potential: potential,
+        age: age,
+        yearsOfService: yearsOfService,
+        minutes: weeklyMinutes,
+        coachDevelopment: coachDevelopment,
+        individuallySlotted: individuallySlotted,
+        breakoutActive: breakoutActive,
+        curve: curve,
+      );
+      overall = (overall + delta).clamp(1, 99);
+    }
+    overall = (overall + _offSeasonDeltaBoosted(age, curve)).clamp(1, 99);
+    points[age] = overall;
+    age += 1;
+  }
+  return points;
+}
+
+/// One of the 3 investment tiers a drafted prospect can land in --
+/// deliberately weighted so most of the 100 land in [average] (only 3
+/// of a real ~12-15 player roster can ever be individually slotted at
+/// once, and not every roster spot even gets a good head coach), the
+/// same real scarcity the GM's own "it's a choice" framing describes.
+enum _InvestmentTier { invested, goodCoachTeamTrained, average }
+
+class _ProspectProfile {
+  _ProspectProfile({
+    required this.id,
+    required this.potential,
+    required this.startOverall,
+    required this.coachDevelopment,
+    required this.weeklyMinutes,
+    required this.tier,
+  });
+
+  final int id;
+  final int potential;
+  final int startOverall;
+  final int coachDevelopment;
+  final double weeklyMinutes;
+  final _InvestmentTier tier;
+}
+
+List<_ProspectProfile> _generateProspectPopulation(Random random, int count) {
+  final profiles = <_ProspectProfile>[];
+  for (var i = 0; i < count; i++) {
+    final potential = 90 + random.nextInt(10); // 90-99 inclusive
+    final gap = 15 + random.nextInt(21); // 15-35 points short at draft
+    final startOverall = (potential - gap).clamp(45, 90);
+
+    final roll = random.nextDouble();
+    final _InvestmentTier tier;
+    final int coachDevelopment;
+    final double weeklyMinutes;
+    if (roll < 0.15) {
+      tier = _InvestmentTier.invested; // one of the 3 slots
+      coachDevelopment = 70 + random.nextInt(21); // 70-90
+      weeklyMinutes = 42 + random.nextInt(9).toDouble(); // 42-50
+    } else if (roll < 0.40) {
+      tier = _InvestmentTier.goodCoachTeamTrained; // no slot, good coach
+      coachDevelopment = 60 + random.nextInt(26); // 60-85
+      weeklyMinutes = 25 + random.nextInt(21).toDouble(); // 25-45
+    } else {
+      tier = _InvestmentTier.average; // no slot, ordinary coach
+      coachDevelopment = 40 + random.nextInt(26); // 40-65
+      weeklyMinutes = 10 + random.nextInt(31).toDouble(); // 10-40
+    }
+
+    profiles.add(
+      _ProspectProfile(
+        id: i,
+        potential: potential,
+        startOverall: startOverall,
+        coachDevelopment: coachDevelopment,
+        weeklyMinutes: weeklyMinutes,
+        tier: tier,
+      ),
+    );
+  }
+  return profiles;
+}
+
+void _runPopulationStudy() {
+  const startAge = 22;
+  const maxAge = 38; // kMandatoryRetirementAge, retirement_advancer.dart
+  const weeksPerSeason = 19;
+  const populationSize = 100;
+  const tenYearMarkAge = startAge + 10; // 32
+
+  final genRandom = Random(2026);
+  final population = _generateProspectPopulation(genRandom, populationSize);
+
+  final results = <Map<String, Object?>>[];
+  for (final profile in population) {
+    final random = Random(profile.id * 104729 + 17); // per-player stream
+    final career = _simulatePlayerCareer(
+      random: random,
+      startAge: startAge,
+      startOverall: profile.startOverall,
+      potential: profile.potential,
+      maxAge: maxAge,
+      weeklyMinutes: profile.weeklyMinutes,
+      weeksPerSeason: weeksPerSeason,
+      coachDevelopment: profile.coachDevelopment,
+      individuallySlotted: profile.tier == _InvestmentTier.invested,
+      curve: moderateCurve,
+    );
+    final peakAge = _peakAge(career);
+    final peakOverall = career[peakAge]!;
+    final retirementAge = _retirementTriggerAge(career, maxAge);
+    results.add({
+      'id': profile.id,
+      'tier': profile.tier.name,
+      'potential': profile.potential,
+      'startOverall': profile.startOverall,
+      'coachDevelopment': profile.coachDevelopment,
+      'weeklyMinutes': profile.weeklyMinutes,
+      'peakAge': peakAge,
+      'peakOverall': double.parse(peakOverall.toStringAsFixed(1)),
+      'overallAtTenYears': double.parse(
+        (career[tenYearMarkAge] ?? career[career.keys.reduce(max)]!)
+            .toStringAsFixed(1),
+      ),
+      'retirementAge': retirementAge,
+      'hitPotential': peakOverall >= profile.potential,
+      'reached90': peakOverall >= 90,
+      'reached99': peakOverall.round() >= 99,
+    });
+  }
+
+  Map<String, Object?> tierSummary(_InvestmentTier tier) {
+    final inTier = results.where((r) => r['tier'] == tier.name).toList();
+    if (inTier.isEmpty) return {};
+    final peaks = inTier.map((r) => r['peakOverall']! as double).toList();
+    return {
+      'count': inTier.length,
+      'avgPeakOverall': double.parse(
+        (peaks.reduce((a, b) => a + b) / peaks.length).toStringAsFixed(1),
+      ),
+      'pctHitPotential': double.parse(
+        (100 *
+                inTier.where((r) => r['hitPotential']! as bool).length /
+                inTier.length)
+            .toStringAsFixed(1),
+      ),
+      'pctReached90': double.parse(
+        (100 *
+                inTier.where((r) => r['reached90']! as bool).length /
+                inTier.length)
+            .toStringAsFixed(1),
+      ),
+      'pctReached99': double.parse(
+        (100 *
+                inTier.where((r) => r['reached99']! as bool).length /
+                inTier.length)
+            .toStringAsFixed(1),
+      ),
+    };
+  }
+
+  // "Sneaking up" cases: no individual slot, but still climbed to their
+  // full potential (or at least 90) anyway -- the breakout mechanic
+  // actually paying off, not just theoretically possible.
+  final sneakUps = results
+      .where(
+        (r) =>
+            r['tier'] != _InvestmentTier.invested.name &&
+            (r['hitPotential']! as bool || r['reached90']! as bool),
+      )
+      .toList();
+
+  final output = {
+    'knobs': {
+      'kBreakoutChanceSlotted': _kBreakoutChanceSlotted,
+      'kBreakoutChanceUnslotted': _kBreakoutChanceUnslotted,
+      'kBreakoutMultiplier': _kBreakoutMultiplier,
+    },
+    'tierSummary': {
+      for (final tier in _InvestmentTier.values) tier.name: tierSummary(tier),
+    },
+    'overall': {
+      'count': results.length,
+      'pctHitPotential': double.parse(
+        (100 *
+                results.where((r) => r['hitPotential']! as bool).length /
+                results.length)
+            .toStringAsFixed(1),
+      ),
+      'pctReached90': double.parse(
+        (100 *
+                results.where((r) => r['reached90']! as bool).length /
+                results.length)
+            .toStringAsFixed(1),
+      ),
+      'pctReached99': double.parse(
+        (100 *
+                results.where((r) => r['reached99']! as bool).length /
+                results.length)
+            .toStringAsFixed(1),
+      ),
+      'sneakUpCount': sneakUps.length,
+    },
+    'players': results,
+  };
+
+  print('---POPULATION-STUDY-JSON-START---');
+  print(const JsonEncoder.withIndent('  ').convert(output));
+  print('---POPULATION-STUDY-JSON-END---');
+}
+
 void main() {
   test('generate aging-curve diagnostic data', _run);
   test('generate growth-boost proposal data', _runBoostStudy);
+  test('generate population study data', _runPopulationStudy);
 }
 
 void _runBoostStudy() {
