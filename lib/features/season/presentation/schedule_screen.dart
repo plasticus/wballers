@@ -7,6 +7,7 @@ import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
+import '../generation/all_star_generator.dart' show kAllStarWeek;
 import '../generation/season_schedule_generator.dart' show weekLabel;
 import 'results_screen.dart';
 
@@ -82,6 +83,24 @@ int _byWeekThenDay(ScheduledGame a, ScheduledGame b) {
   return a.day.index.compareTo(b.day.index);
 }
 
+/// Whether [game] is one of the 2 synthetic All-Star week placeholders
+/// (`all_star_generator.dart`'s `generateAllStarWeekGames`) -- their
+/// `homeTeamAbbreviation`/`awayTeamAbbreviation` are made-up conference
+/// squad ids (`kAtlanticAllStarsAbbreviation`/`kPacificAllStarsAbbreviation`),
+/// never a real league team, so every row builder here has to check this
+/// before ever calling [teamByAbbreviation] on either -- that function
+/// throws on an unrecognized abbreviation, same as it would for any other
+/// made-up one.
+bool _isAllStarPlaceholderGame(ScheduledGame game) =>
+    game.type == GameType.allStarGame ||
+    game.type == GameType.skillsCompetition;
+
+/// A neutral matchup line for an All-Star placeholder row -- no real
+/// team names to show (see [_isAllStarPlaceholderGame]'s own doc
+/// comment), and no "vs/at" framing either, since it isn't really the
+/// GM's own team playing.
+const _kAllStarMatchupLabel = 'Atlantic vs. Pacific All-Stars';
+
 class _MyTeamSchedule extends StatelessWidget {
   const _MyTeamSchedule({required this.franchise});
 
@@ -92,8 +111,15 @@ class _MyTeamSchedule extends StatelessWidget {
     final teamAbbreviation = franchise.team.abbreviation;
     final ownGames = [
       for (final game in franchise.seasonProgress.schedule.games)
+        // The All-Star week placeholders show up on every team's own
+        // calendar, GM's club included -- the whole league sits out its
+        // normal games that week, so it belongs here even though neither
+        // "team" in the fixture is literally the GM's own (2026-08-11, a
+        // direct GM ask -- the break was otherwise invisible on this
+        // view entirely, since it never matches the GM's own abbreviation).
         if (game.homeTeamAbbreviation == teamAbbreviation ||
-            game.awayTeamAbbreviation == teamAbbreviation)
+            game.awayTeamAbbreviation == teamAbbreviation ||
+            _isAllStarPlaceholderGame(game))
           game,
     ]..sort(_byWeekThenDay);
 
@@ -139,12 +165,23 @@ class _MyTeamRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isAllStar = _isAllStarPlaceholderGame(game);
     final isHome = game.homeTeamAbbreviation == franchise.team.abbreviation;
-    final opponentAbbreviation = isHome
-        ? game.awayTeamAbbreviation
-        : game.homeTeamAbbreviation;
-    final opponent = teamByAbbreviation(franchise, opponentAbbreviation);
     final played = this.played;
+
+    Widget matchup;
+    if (isAllStar) {
+      matchup = Text(_kAllStarMatchupLabel, style: theme.textTheme.bodyLarge);
+    } else {
+      final opponentAbbreviation = isHome
+          ? game.awayTeamAbbreviation
+          : game.homeTeamAbbreviation;
+      final opponent = teamByAbbreviation(franchise, opponentAbbreviation);
+      matchup = Text(
+        '${isHome ? 'vs' : 'at'} ${opponent.emoji} ${opponent.name}',
+        style: theme.textTheme.bodyLarge,
+      );
+    }
 
     final row = Row(
       children: [
@@ -163,21 +200,29 @@ class _MyTeamRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${isHome ? 'vs' : 'at'} ${opponent.emoji} ${opponent.name}',
-                style: theme.textTheme.bodyLarge,
-              ),
+              matchup,
               _TypeLabel(game: game),
             ],
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        _ResultLabel(isHome: isHome, played: played),
+        // The All-Star placeholder squads have no "GM's own team won/lost"
+        // outcome to report -- the real result lives on the dedicated
+        // result screens (reachable from Mail), not here.
+        if (isAllStar)
+          Text(
+            played == null ? 'Upcoming' : 'Played',
+            style: theme.textTheme.bodySmall,
+          )
+        else
+          _ResultLabel(isHome: isHome, played: played),
       ],
     );
 
-    // Only a played game has a box score worth linking to.
-    if (played == null) return AppCard(child: row);
+    // Only a played, non-placeholder game has a real box score to link to
+    // -- `teamByAbbreviation` (which `PlayedGameDetailScreen` also needs)
+    // would throw on the All-Star squads' made-up abbreviations.
+    if (played == null || isAllStar) return AppCard(child: row);
     return AppCard(
       child: InkWell(
         onTap: () {
@@ -204,18 +249,25 @@ class _TypeLabel extends StatelessWidget {
     final theme = Theme.of(context);
     final isPreseason = game.type == GameType.preseason;
     final isContinentalCup = game.type == GameType.continentalCup;
+    // All-Star week gets the same unmissable treatment as Preseason/Cup
+    // (2026-08-11, a direct GM ask -- the break was otherwise
+    // indistinguishable from any other week on this screen).
+    final isAllStarBreak = _isAllStarPlaceholderGame(game);
     // Cup games get the same unmissable treatment as Preseason -- just
     // "🏆 WBL Continental Cup", no round number (2026-08-07, a direct GM
     // ask). The round is still visible via the League screen's own Cup
     // tab, which already groups games under a real round header.
-    final label = isContinentalCup ? '🏆 WBL Continental Cup' : game.typeLabel;
+    final label = isContinentalCup
+        ? '🏆 WBL Continental Cup'
+        : isAllStarBreak
+        ? '⭐ ${game.typeLabel}'
+        : game.typeLabel;
+    final isCalledOut = isPreseason || isContinentalCup || isAllStarBreak;
     return Text(
       label,
       style: theme.textTheme.bodySmall?.copyWith(
-        color: isPreseason || isContinentalCup
-            ? theme.colorScheme.primary
-            : null,
-        fontWeight: isPreseason || isContinentalCup ? FontWeight.bold : null,
+        color: isCalledOut ? theme.colorScheme.primary : null,
+        fontWeight: isCalledOut ? FontWeight.bold : null,
       ),
     );
   }
@@ -326,10 +378,16 @@ class _WeekHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Called out the same way individual All-Star games already are
+    // (2026-08-11, a direct GM ask) -- the week header itself should say
+    // so too, not just the games underneath it.
+    final label = week == kAllStarWeek
+        ? '${weekLabel(week)} · ⭐ All-Star Break'
+        : weekLabel(week);
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
       child: Text(
-        weekLabel(week),
+        label,
         style: theme.textTheme.titleMedium?.copyWith(
           color: theme.colorScheme.primary,
         ),
@@ -352,10 +410,25 @@ class _LeagueGameRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final homeTeam = teamByAbbreviation(franchise, game.homeTeamAbbreviation);
-    final awayTeam = teamByAbbreviation(franchise, game.awayTeamAbbreviation);
+    final isAllStar = _isAllStarPlaceholderGame(game);
     final played = this.played;
-    final homeWon = played != null && played.homeScore > played.awayScore;
+
+    // `teamByAbbreviation` throws on the All-Star squads' made-up
+    // abbreviations -- see `_isAllStarPlaceholderGame`'s own doc comment.
+    Widget matchup;
+    bool homeWon;
+    if (isAllStar) {
+      matchup = Text(_kAllStarMatchupLabel, style: theme.textTheme.bodyMedium);
+      homeWon = false;
+    } else {
+      final homeTeam = teamByAbbreviation(franchise, game.homeTeamAbbreviation);
+      final awayTeam = teamByAbbreviation(franchise, game.awayTeamAbbreviation);
+      matchup = Text(
+        '${awayTeam.emoji} ${awayTeam.name} @ ${homeTeam.emoji} ${homeTeam.name}',
+        style: theme.textTheme.bodyMedium,
+      );
+      homeWon = played != null && played.homeScore > played.awayScore;
+    }
 
     final row = Row(
       children: [
@@ -368,17 +441,21 @@ class _LeagueGameRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${awayTeam.emoji} ${awayTeam.name} @ '
-                '${homeTeam.emoji} ${homeTeam.name}',
-                style: theme.textTheme.bodyMedium,
-              ),
+              matchup,
               _TypeLabel(game: game),
             ],
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        if (played == null)
+        // Same "no GM-own-team outcome to report" reasoning as
+        // `_MyTeamRow` -- the real result lives on the dedicated result
+        // screens (reachable from Mail), not here.
+        if (isAllStar)
+          Text(
+            played == null ? 'Upcoming' : 'Played',
+            style: theme.textTheme.bodySmall,
+          )
+        else if (played == null)
           Text('Upcoming', style: theme.textTheme.bodySmall)
         else
           Text(
@@ -390,7 +467,7 @@ class _LeagueGameRow extends StatelessWidget {
       ],
     );
 
-    if (played == null) return AppCard(child: row);
+    if (played == null || isAllStar) return AppCard(child: row);
     return AppCard(
       child: InkWell(
         onTap: () {

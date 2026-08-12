@@ -7,6 +7,8 @@ import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
+import 'package:womensbballmgr/features/season/generation/all_star_generator.dart'
+    show kAllStarWeek;
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart'
     show weekLabel;
@@ -40,7 +42,13 @@ void main() {
         .where(
           (g) =>
               g.homeTeamAbbreviation == franchise.team.abbreviation ||
-              g.awayTeamAbbreviation == franchise.team.abbreviation,
+              g.awayTeamAbbreviation == franchise.team.abbreviation ||
+              // The All-Star week's 2 placeholder games show up on every
+              // team's own schedule, GM's club included (2026-08-11, a
+              // direct GM ask -- see `_isAllStarPlaceholderGame`'s doc
+              // comment in `schedule_screen.dart`).
+              g.type == GameType.allStarGame ||
+              g.type == GameType.skillsCompetition,
         )
         .length;
     // The preseason alone guarantees at least 2 games for every team.
@@ -215,4 +223,84 @@ void main() {
       expect(find.text(matchupText), findsOneWidget);
     },
   );
+
+  group('All-Star week on the schedule (2026-08-11, a direct GM ask -- the '
+      'break "needs to show" on both schedule views)', () {
+    testWidgets('My Team mode shows both All-Star placeholder games with '
+        'a neutral matchup line and the ⭐ callout', (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: ScheduleScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      // Skills Competition + All-Star Game, both showing the same neutral
+      // matchup line -- neither "team" is the GM's own club.
+      expect(find.text('Atlantic vs. Pacific All-Stars'), findsNWidgets(2));
+      expect(find.textContaining('⭐'), findsWidgets);
+      expect(
+        find.text('${weekLabel(kAllStarWeek)} · ⭐ All-Star Break'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Full League mode\'s week header calls out the All-Star '
+        'break by name', (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: ScheduleScreen(franchise: franchise)),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Full League'));
+      await tester.pumpAndSettle();
+
+      // Scroll all the way down to week 19 -- the ListView.builder only
+      // lays out items near the viewport, and a full season runs to 300+
+      // games leaguewide, so this takes a lot more drag than a single
+      // screen's worth.
+      await tester.dragUntilVisible(
+        find.text('${weekLabel(kAllStarWeek)} · ⭐ All-Star Break'),
+        find.byType(ListView),
+        const Offset(0, -1000),
+        maxIteration: 100,
+      );
+
+      expect(
+        find.text('${weekLabel(kAllStarWeek)} · ⭐ All-Star Break'),
+        findsOneWidget,
+      );
+      // Neither All-Star placeholder game ever calls `teamByAbbreviation`
+      // on its made-up squad abbreviation -- this would have thrown before
+      // `_isAllStarPlaceholderGame` existed.
+      expect(find.text('Atlantic vs. Pacific All-Stars'), findsNWidgets(2));
+    });
+  });
 }
