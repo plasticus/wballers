@@ -4,6 +4,7 @@ import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/player.dart';
+import '../../player/presentation/player_detail_screen.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/skills_competition.dart';
 
@@ -64,6 +65,7 @@ class SkillsCompetitionResultScreen extends StatelessWidget {
             ],
             for (var i = 0; i < result.events.length; i++) ...[
               _EventCard(
+                franchise: franchise,
                 result: result.events[i],
                 playersById: playersById,
                 teamAbbreviations: teamAbbreviations,
@@ -81,12 +83,14 @@ class SkillsCompetitionResultScreen extends StatelessWidget {
 
 class _EventCard extends StatelessWidget {
   const _EventCard({
+    required this.franchise,
     required this.result,
     required this.playersById,
     required this.teamAbbreviations,
     required this.ownIds,
   });
 
+  final Franchise franchise;
   final SkillsEventResult result;
   final Map<String, Player> playersById;
   final Map<String, String> teamAbbreviations;
@@ -103,6 +107,7 @@ class _EventCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           for (var i = 0; i < result.standings.length; i++) ...[
             _StandingRow(
+              franchise: franchise,
               rank: i + 1,
               standing: result.standings[i],
               player: playersById[result.standings[i].playerId],
@@ -120,6 +125,7 @@ class _EventCard extends StatelessWidget {
 
 class _StandingRow extends StatelessWidget {
   const _StandingRow({
+    required this.franchise,
     required this.rank,
     required this.standing,
     required this.player,
@@ -127,6 +133,7 @@ class _StandingRow extends StatelessWidget {
     required this.isOwn,
   });
 
+  final Franchise franchise;
   final int rank;
   final SkillsEventStanding standing;
   final Player? player;
@@ -145,9 +152,10 @@ class _StandingRow extends StatelessWidget {
     // this event's own honoree pool, all still on their roster at the
     // moment this resolved) but a label beats a crash, same posture every
     // other id-lookup fallback in this codebase already takes.
+    final player = this.player;
     final name = player?.name ?? 'Former Player';
     final label = teamAbbreviation == null ? name : '$name ($teamAbbreviation)';
-    return Row(
+    final row = Row(
       children: [
         SizedBox(
           width: 28,
@@ -182,6 +190,20 @@ class _StandingRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+
+    // No id worth navigating to for the "Former Player" fallback case --
+    // left untappable rather than opening a "Player Not Found" screen
+    // (same posture the Stats screen's own player rows already take).
+    if (player == null) return row;
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              PlayerDetailScreen(franchise: franchise, playerId: player.id),
+        ),
+      ),
+      child: row,
     );
   }
 }

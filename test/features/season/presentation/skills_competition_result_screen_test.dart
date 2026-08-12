@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
@@ -229,5 +230,99 @@ void main() {
 
     expect(find.textContaining('Your player'), findsNothing);
     expect(find.textContaining('Your players'), findsNothing);
+  });
+
+  testWidgets('tapping a standing row opens that player\'s detail screen '
+      '(2026-08-11, a direct GM ask -- "I want to be able to click players '
+      'and see detail screen")', (tester) async {
+    // The rival's row is below the fold at the default test surface size.
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final rival = playerWithOverall(80, id: 'rival-1', name: 'Rival One');
+    final roster = generateStartingRoster(1);
+    final ownPlayer = roster.first.player;
+
+    final franchise = Franchise(
+      id: 'franchise-1',
+      gmName: 'Taylor Reed',
+      team: kLeagueTeamPool.first,
+      coach: const Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      ),
+      roster: roster,
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      league: _leagueWithRival(
+        testLeague(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ),
+        rival,
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ownTeam: kLeagueTeamPool.first,
+      ),
+      trainingCoaches: testTrainingCoaches(),
+      trainingPlan: TrainingPlan.initial(),
+      nextTrainingWeek: 1,
+    );
+
+    final result = SkillsCompetitionResult(
+      week: 19,
+      squads: {
+        Conference.atlantic: _squadOf('atl', [ownPlayer.id, rival.id]),
+        Conference.pacific: _squadOf('pac', const []),
+      },
+      events: [
+        SkillsEventResult(
+          event: SkillsEvent.threePointShootout,
+          standings: [
+            SkillsEventStanding(playerId: ownPlayer.id, score: 90),
+            SkillsEventStanding(playerId: rival.id, score: 70),
+          ],
+        ),
+        SkillsEventResult(
+          event: SkillsEvent.horse,
+          standings: [
+            SkillsEventStanding(playerId: ownPlayer.id, score: 90),
+            SkillsEventStanding(playerId: rival.id, score: 70),
+          ],
+        ),
+        SkillsEventResult(
+          event: SkillsEvent.defensiveSkillsChallenge,
+          standings: [
+            SkillsEventStanding(playerId: ownPlayer.id, score: 90),
+            SkillsEventStanding(playerId: rival.id, score: 70),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: SkillsCompetitionResultScreen(
+            franchise: franchise,
+            result: result,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final rivalAbbreviation = franchise.league.aiTeams.first.team.abbreviation;
+    await tester.tap(find.text('Rival One ($rivalAbbreviation)').first);
+    await tester.pumpAndSettle();
+
+    // "Ratings" is unique to `PlayerDetailScreen` -- neither result
+    // screen has a section by that name.
+    expect(find.text('Ratings'), findsOneWidget);
+    expect(find.text('Player Not Found'), findsNothing);
   });
 }

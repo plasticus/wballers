@@ -5,6 +5,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
+import '../../player/presentation/player_detail_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/played_game.dart';
@@ -280,10 +281,11 @@ class _BoxScoreRow extends StatelessWidget {
     // Shouldn't happen -- every box score entry comes from a player who
     // was on a squad at the moment the game resolved -- but a label beats
     // a crash, same fallback every other id-lookup in this codebase uses.
+    final player = this.player;
     final name = player?.name ?? 'Former Player';
     final label = teamAbbreviation == null ? name : '$name ($teamAbbreviation)';
 
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         PortraitImage(
@@ -341,6 +343,20 @@ class _BoxScoreRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+
+    // No id worth navigating to for the "Former Player" fallback case --
+    // left untappable rather than opening a "Player Not Found" screen
+    // (same posture the Stats screen's own player rows already take).
+    if (player == null) return row;
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              PlayerDetailScreen(franchise: franchise, playerId: player.id),
+        ),
+      ),
+      child: row,
     );
   }
 }
