@@ -174,6 +174,34 @@ List<ScheduledGame> upcomingGamesFor(
   return ownGames.take(limit).toList();
 }
 
+/// The result of [teamAbbreviation]'s last [limit] played games, oldest
+/// first -- what the "Matchup Analysis" screen's form-streak dots read
+/// left to right. `true` = a win. Any [GameType] counts (unlike
+/// [currentStandings], which only tallies regular-season results toward
+/// the official record) -- this is about recent form, so a Continental
+/// Cup or postseason result belongs in it too. Shorter than [limit] early
+/// in a season, once [teamAbbreviation] has played fewer games than that
+/// so far.
+List<bool> recentResultsFor(
+  SeasonProgress progress,
+  String teamAbbreviation, {
+  int limit = 5,
+}) {
+  final ownGames =
+      progress.playedGames
+          .where(
+            (played) =>
+                played.game.homeTeamAbbreviation == teamAbbreviation ||
+                played.game.awayTeamAbbreviation == teamAbbreviation,
+          )
+          .toList()
+        ..sort((a, b) => _byWeekThenDay(b.game, a.game)); // most recent first
+  return [
+    for (final played in ownGames.take(limit).toList().reversed)
+      played.toGameResult().winningTeamAbbreviation == teamAbbreviation,
+  ];
+}
+
 typedef _FixtureKey = (int week, GameDay day, String home, String away);
 
 _FixtureKey _fixtureKey(ScheduledGame game) =>

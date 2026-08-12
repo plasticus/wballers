@@ -207,6 +207,16 @@ Franchise createExpansionFranchise({
     portraitWeights: portraitWeights,
   );
 
+  // The hand-placed "grizzled vet" narrative slot is always roster index
+  // 0 (`starting_roster_generator.dart`'s own doc comment: only
+  // *positions* get shuffled per-franchise, never the roster list order)
+  // -- captured here, once, since nothing else in the game keeps a
+  // player's data around once she eventually leaves the roster (a direct
+  // GM ask, 2026-08-12: the pre-game screen's Analyst panel wants to seat
+  // her there for real once she retires). See `Franchise
+  // .narrativeVeteranPlayerId`'s own doc comment.
+  final narrativeVeteran = roster.first.player;
+
   // One player short of a full active roster on purpose -- see
   // `generateStartingRoster`'s doc comment. `freeAgents` is what the GM
   // has to sign from to fill it, generated once here and persisted from
@@ -258,5 +268,8 @@ Franchise createExpansionFranchise({
     trainingPlan: TrainingPlan.initial(),
     nextTrainingWeek: kPreseasonWeek,
     freeAgents: freeAgents,
+    narrativeVeteranPlayerId: narrativeVeteran.id,
+    narrativeVeteranName: narrativeVeteran.name,
+    narrativeVeteranAppearance: narrativeVeteran.appearance,
   );
 }

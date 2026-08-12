@@ -10,6 +10,7 @@ import '../../season/domain/season_progress.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../training/domain/training_coach.dart';
 import '../../training/domain/training_plan.dart';
+import '../../portrait/domain/portrait_appearance.dart';
 import '../../training/domain/training_report.dart';
 import 'pending_retirement.dart';
 
@@ -73,6 +74,9 @@ class Franchise {
     this.draftClass = const [],
     this.draftInProgress,
     this.seasonStartOverallByPlayerId = const {},
+    this.narrativeVeteranPlayerId = '',
+    this.narrativeVeteranName = '',
+    this.narrativeVeteranAppearance,
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -259,6 +263,45 @@ class Franchise {
   /// excluded from Most Improved Player, not crash.
   final Map<String, int> seasonStartOverallByPlayerId;
 
+  /// The [Player.id] of this franchise's hand-placed "grizzled vet"
+  /// narrative slot (`starting_roster_generator.dart`'s roster index 0,
+  /// age 33-34, ~87 OVR/~88 POT at generation) -- captured once, at
+  /// creation, by `expansion_franchise_factory.dart`'s
+  /// `createExpansionFranchise` (`roster.first.player.id` is reliably
+  /// her: only *positions* get shuffled per-franchise, never the roster
+  /// list order). Empty string for any `Franchise` built by hand rather
+  /// than through the real onboarding factory (most test fixtures) --
+  /// there's no veteran to point at in that case, and nothing reads this
+  /// as a match against a real player id unless it's actually set.
+  ///
+  /// What the "Matchup Analysis" pre-game screen's Analyst panel
+  /// (`matchup/domain/analyst.dart`) uses to decide whether seat 1 (a
+  /// direct GM ask, 2026-08-12) still shows the generic
+  /// [kNarrativeVeteranSeatFallback] look or her own real, retired
+  /// portrait: if this id is still found in [roster], she hasn't retired
+  /// yet, so the seat stays generic; once she's gone (today, the only way
+  /// a player ever leaves [roster] is retirement -- no trade/waive path
+  /// exists for the GM's own roster), the seat switches to
+  /// [narrativeVeteranAppearance] styled for the analyst desk
+  /// (`asAnalystPortrait`).
+  final String narrativeVeteranPlayerId;
+
+  /// The narrative veteran's real generated name, captured alongside
+  /// [narrativeVeteranPlayerId] -- what the Analyst panel displays for
+  /// seat 1 once she's taken it over for real, replacing the generic
+  /// "Preston" label.
+  final String narrativeVeteranName;
+
+  /// The narrative veteran's real generated [PortraitAppearance],
+  /// snapshotted alongside [narrativeVeteranPlayerId]/[narrativeVeteranName]
+  /// so her face survives her leaving [roster] -- nothing else in this
+  /// codebase keeps a retired player's data around otherwise (confirmed:
+  /// no alumni/retired-player registry exists anywhere). `null` when
+  /// [Franchise] was built without `portraitWeights` (same reason
+  /// [Coach.appearance]/[Player.appearance] are nullable) -- the seat
+  /// falls back to the generic look rather than crashing.
+  final PortraitAppearance? narrativeVeteranAppearance;
+
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
   /// picks and to record the GM's own, and finally to clear it (`null`)
@@ -287,6 +330,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: newDraftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -317,6 +363,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: newSnapshot,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -347,6 +396,9 @@ class Franchise {
       draftClass: newDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -376,6 +428,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -405,6 +460,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -434,6 +492,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -463,6 +524,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -502,6 +566,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -539,6 +606,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -569,6 +639,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -600,6 +673,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -636,6 +712,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -669,6 +748,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -699,6 +781,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -707,6 +792,17 @@ class Franchise {
   /// `resolvePendingRetirement` (a GM decision resolving one) and
   /// `simulatePostseasonAndPersist` (a fresh season's newly-eligible
   /// players) are the only callers.
+  ///
+  /// Fixed 2026-08-12: this constructor call used to omit [draftClass],
+  /// [draftInProgress], and [seasonStartOverallByPlayerId] entirely,
+  /// which meant every call silently reset all three to the main
+  /// constructor's own defaults (empty list, `null`, empty map) instead
+  /// of preserving them -- caught while adding [narrativeVeteranPlayerId]
+  /// and its siblings here and noticing every *other* `copyWithX` method
+  /// threads every field through. Whether this had a live symptom depends
+  /// on timing (a draft in progress or an un-consumed season-start
+  /// snapshot at the exact moment a retirement resolves), but it was
+  /// wrong regardless of whether it had ever been observed.
   Franchise copyWithPendingRetirements(
     List<PendingRetirement> newPendingRetirements,
   ) {
@@ -730,6 +826,12 @@ class Franchise {
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: newPendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 
@@ -781,6 +883,9 @@ class Franchise {
       draftClass: draftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
     );
   }
 }

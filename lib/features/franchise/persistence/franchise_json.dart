@@ -4,6 +4,7 @@ import '../../draft/persistence/draft_prospect_json.dart';
 import '../../league/persistence/league_json.dart';
 import '../../league/persistence/team_json.dart';
 import '../../player/persistence/player_json.dart';
+import '../../portrait/persistence/portrait_appearance_json.dart';
 import '../../roster/persistence/roster_membership_json.dart';
 import '../../season/persistence/season_progress_json.dart';
 import '../../season/persistence/skills_competition_json.dart';
@@ -53,6 +54,11 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         ? null
         : draftInProgressToJson(franchise.draftInProgress!),
     'seasonStartOverallByPlayerId': franchise.seasonStartOverallByPlayerId,
+    'narrativeVeteranPlayerId': franchise.narrativeVeteranPlayerId,
+    'narrativeVeteranName': franchise.narrativeVeteranName,
+    'narrativeVeteranAppearance': franchise.narrativeVeteranAppearance == null
+        ? null
+        : portraitAppearanceToJson(franchise.narrativeVeteranAppearance!),
   };
 }
 
@@ -118,5 +124,12 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
         (json['seasonStartOverallByPlayerId'] as Map<String, dynamic>).map(
           (key, value) => MapEntry(key, value as int),
         ),
+    narrativeVeteranPlayerId: json['narrativeVeteranPlayerId'] as String,
+    narrativeVeteranName: json['narrativeVeteranName'] as String,
+    narrativeVeteranAppearance: json['narrativeVeteranAppearance'] == null
+        ? null
+        : portraitAppearanceFromJson(
+            json['narrativeVeteranAppearance'] as Map<String, dynamic>,
+          ),
   );
 }

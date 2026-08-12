@@ -303,5 +303,47 @@ void main() {
         isTrue,
       );
     });
+
+    test('captures the narrative veteran (roster index 0) as '
+        'narrativeVeteranPlayerId/Name/Appearance', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+        portraitWeights: _portraitWeights,
+      );
+
+      final veteran = franchise.roster.first.player;
+      expect(franchise.narrativeVeteranPlayerId, veteran.id);
+      expect(franchise.narrativeVeteranName, veteran.name);
+      expect(franchise.narrativeVeteranAppearance, veteran.appearance);
+      // She's really the hand-placed vet slot -- age 33-34, ~87-88
+      // OVR/POT (`starting_roster_generator.dart`'s own constants), not
+      // just "whoever happens to be first."
+      expect(veteran.age, inInclusiveRange(33, 34));
+      expect(veteran.ratings.overall, inInclusiveRange(84, 90));
+    });
+
+    test('narrativeVeteranAppearance is null when portraitWeights is '
+        'omitted, same as every other generated appearance', () {
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      expect(franchise.narrativeVeteranPlayerId, isNotEmpty);
+      expect(franchise.narrativeVeteranAppearance, isNull);
+    });
   });
 }

@@ -358,4 +358,112 @@ void main() {
       expect(nextGameDayTypes(progress), isEmpty);
     });
   });
+
+  group('recentResultsFor', () {
+    test('oldest first, true for a win', () {
+      final progress = SeasonProgress(
+        schedule: const SeasonSchedule(games: []),
+        playedGames: [
+          // AAA: win (home), loss (away), win (home) -- in that order.
+          PlayedGame(
+            game: _game('AAA', 'BBB', week: 1),
+            homeScore: 90,
+            awayScore: 80,
+          ),
+          PlayedGame(
+            game: _game('BBB', 'AAA', week: 2),
+            homeScore: 70,
+            awayScore: 60,
+          ),
+          PlayedGame(
+            game: _game('AAA', 'BBB', week: 3),
+            homeScore: 85,
+            awayScore: 84,
+          ),
+        ],
+        nextGameDayIndex: 3,
+      );
+
+      expect(recentResultsFor(progress, 'AAA'), [true, false, true]);
+    });
+
+    test('ignores other teams\' games', () {
+      final progress = SeasonProgress(
+        schedule: const SeasonSchedule(games: []),
+        playedGames: [
+          PlayedGame(
+            game: _game('CCC', 'DDD', week: 1),
+            homeScore: 90,
+            awayScore: 80,
+          ),
+        ],
+        nextGameDayIndex: 1,
+      );
+
+      expect(recentResultsFor(progress, 'AAA'), isEmpty);
+    });
+
+    test('any GameType counts, not just regular season', () {
+      final progress = SeasonProgress(
+        schedule: const SeasonSchedule(games: []),
+        playedGames: [
+          PlayedGame(
+            game: _game(
+              'AAA',
+              'BBB',
+              week: 1,
+              type: GameType.continentalCup,
+              continentalCupRound: 1,
+            ),
+            homeScore: 90,
+            awayScore: 80,
+          ),
+        ],
+        nextGameDayIndex: 1,
+      );
+
+      expect(recentResultsFor(progress, 'AAA'), [true]);
+    });
+
+    test('shorter than limit early in a season', () {
+      final progress = SeasonProgress(
+        schedule: const SeasonSchedule(games: []),
+        playedGames: [
+          PlayedGame(
+            game: _game('AAA', 'BBB', week: 1),
+            homeScore: 90,
+            awayScore: 80,
+          ),
+        ],
+        nextGameDayIndex: 1,
+      );
+
+      expect(recentResultsFor(progress, 'AAA', limit: 5), [true]);
+    });
+
+    test('caps at limit, keeping only the most recent games', () {
+      final progress = SeasonProgress(
+        schedule: const SeasonSchedule(games: []),
+        playedGames: [
+          for (var week = 1; week <= 6; week++)
+            PlayedGame(
+              game: _game('AAA', 'BBB', week: week),
+              // AAA loses week 1 only -- every other week it wins.
+              homeScore: week == 1 ? 60 : 90,
+              awayScore: week == 1 ? 70 : 80,
+            ),
+        ],
+        nextGameDayIndex: 6,
+      );
+
+      // Last 5 of 6 games -- week 1's loss should have fallen off.
+      expect(recentResultsFor(progress, 'AAA', limit: 5), [
+        true,
+        true,
+        true,
+        true,
+        true,
+      ]);
+    });
+  });
 }

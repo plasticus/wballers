@@ -15,7 +15,12 @@ import 'roster_status.dart';
 /// the next 2 spots at 80%, the rest of the 12-man active roster at 60%,
 /// and (defensively, though the active-roster cap means this shouldn't
 /// come up in practice) anyone past rank 12 at zero.
-double _weightForRank(int rank) {
+///
+/// Exported (was private) so `matchup/domain/matchup_analysis.dart`'s
+/// `teamFieldGroupRating` -- the pre-game screen's Offense/Defense/
+/// Physical comparison -- can reuse the exact same weighting instead of
+/// duplicating this table a second time.
+double weightForRosterRank(int rank) {
   if (rank <= 6) return 1.0;
   if (rank <= 8) return 0.8;
   if (rank <= 12) return 0.6;
@@ -23,7 +28,7 @@ double _weightForRank(int rank) {
 }
 
 /// A team's overall rating: a rank-weighted mean of the active roster's
-/// individual [PlayerRatings.overall] values ([_weightForRank]), rounded
+/// individual [PlayerRatings.overall] values ([weightForRosterRank]), rounded
 /// to the nearest whole number -- "how good is this team" at a glance,
 /// per the GM's own framing (`0B_Planned.md`'s team-overall-rebalance
 /// entry). Active-roster players only, matching the scope the star-tier
@@ -39,7 +44,7 @@ int teamOverall(List<RosterMembership> roster) {
 /// callers that already have a plain active-roster [Player] list in hand
 /// rather than [RosterMembership]s -- `franchise_rosters.dart`'s
 /// `rostersByAbbreviation` (already filtered to active players, in the
-/// same roster-list order [_weightForRank] assumes) is the main one, used
+/// same roster-list order [weightForRosterRank] assumes) is the main one, used
 /// anywhere a game-preview or result screen wants to show both teams'
 /// strength. [players]' *list order* is what "rank" means here -- not a
 /// re-sort by rating -- since that's the same order Bench Order edits and
@@ -51,7 +56,7 @@ int teamOverallForPlayers(List<Player> players) {
   var weightedSum = 0.0;
   var totalWeight = 0.0;
   for (var i = 0; i < players.length; i++) {
-    final weight = _weightForRank(i + 1);
+    final weight = weightForRosterRank(i + 1);
     weightedSum += players[i].ratings.overall * weight;
     totalWeight += weight;
   }

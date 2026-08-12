@@ -14,6 +14,7 @@ import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
+import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
@@ -25,7 +26,11 @@ import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
-Franchise _sampleFranchise() {
+Franchise _sampleFranchise({
+  String narrativeVeteranPlayerId = '',
+  String narrativeVeteranName = '',
+  PortraitAppearance? narrativeVeteranAppearance,
+}) {
   final starter = playerWithOverall(72, id: 'p-starter', name: 'Riley Okafor');
   final roster = [
     RosterMembership(player: starter, status: RosterStatus.active),
@@ -74,6 +79,9 @@ Franchise _sampleFranchise() {
     trainingCoaches: testTrainingCoaches(),
     trainingPlan: TrainingPlan.initial(),
     nextTrainingWeek: 1,
+    narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+    narrativeVeteranName: narrativeVeteranName,
+    narrativeVeteranAppearance: narrativeVeteranAppearance,
   );
 }
 
@@ -417,5 +425,41 @@ void main() {
       'p-starter': 72,
       'p-bench': 50,
     });
+  });
+
+  test('narrativeVeteran* fields default to empty/null and round-trip', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.narrativeVeteranPlayerId, '');
+    expect(restored.narrativeVeteranName, '');
+    expect(restored.narrativeVeteranAppearance, isNull);
+  });
+
+  test('round-trips a real narrativeVeteranAppearance', () {
+    const appearance = PortraitAppearance(
+      baseSprite: 'base/BlankBaldwoman32H0.png',
+      skinTone: 'deep',
+      hair: 'hair_chinlength3',
+      hairColor: 'darkbrown',
+      eyes: 'eyes_1right',
+      nose: 'nose_2',
+      mouth: 'mouth_4',
+      isCoach: true,
+    );
+    final franchise = _sampleFranchise(
+      narrativeVeteranPlayerId: 'p-starter',
+      narrativeVeteranName: 'Jana Leblon',
+      narrativeVeteranAppearance: appearance,
+    );
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.narrativeVeteranPlayerId, 'p-starter');
+    expect(restored.narrativeVeteranName, 'Jana Leblon');
+    expect(restored.narrativeVeteranAppearance?.skinTone, 'deep');
+    expect(restored.narrativeVeteranAppearance?.hair, 'hair_chinlength3');
+    expect(restored.narrativeVeteranAppearance?.isCoach, isTrue);
   });
 }
