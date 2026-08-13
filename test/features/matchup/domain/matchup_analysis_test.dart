@@ -152,10 +152,7 @@ void main() {
 
   group('topThreeStatLine', () {
     test('returns default zeroes for null or zero games played', () {
-      expect(
-        topThreeStatLine(null),
-        '0.0 points, 0.0 rebounds, 0.0 assists',
-      );
+      expect(topThreeStatLine(null), '0.0 points, 0.0 rebounds, 0.0 assists');
       expect(
         topThreeStatLine(
           const PlayerSeasonTotals(
@@ -199,11 +196,7 @@ void main() {
         freeThrowAttempts: 35,
       );
 
-      expect(
-        topThreeStatLine(totals),
-        '19.0 points, 6.7 assists, 3.2 blocks',
-      );
+      expect(topThreeStatLine(totals), '19.0 points, 6.7 assists, 3.2 blocks');
     });
   });
 }
-

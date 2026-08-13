@@ -9,7 +9,6 @@ import '../../league/domain/team.dart';
 import '../../matchup/domain/analyst.dart';
 import '../../matchup/domain/matchup_analysis.dart';
 import '../../player/domain/player.dart';
-import '../../player/domain/position.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../roster/domain/team_overall.dart';
 import '../application/franchise_rosters.dart';
@@ -135,9 +134,7 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
         ? 0
         : awayTop3.first.ratings.overall;
 
-    final leaders = computeLeagueLeaders(
-      franchise.seasonProgress.playedGames,
-    );
+    final leaders = computeLeagueLeaders(franchise.seasonProgress.playedGames);
 
     // Seat 1 stays the generic fallback until the franchise's own
     // narrative veteran has actually left the roster -- see
@@ -565,10 +562,7 @@ class _FormDots extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: win ? kFormWinColor : kFormLossColor,
-              border: Border.all(
-                color: Colors.black26,
-                width: 0.5,
-              ),
+              border: Border.all(color: Colors.black26, width: 0.5),
             ),
           ),
       ],
@@ -727,17 +721,11 @@ class _StrengthBar extends StatelessWidget {
                     children: [
                       Expanded(
                         flex: awayPercent,
-                        child: Container(
-                          height: 8,
-                          color: kAwayStrengthColor,
-                        ),
+                        child: Container(height: 8, color: kAwayStrengthColor),
                       ),
                       Expanded(
                         flex: homePercent,
-                        child: Container(
-                          height: 8,
-                          color: kHomeStrengthColor,
-                        ),
+                        child: Container(height: 8, color: kHomeStrengthColor),
                       ),
                     ],
                   ),
@@ -751,10 +739,7 @@ class _StrengthBar extends StatelessWidget {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(1),
                       boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black45,
-                          blurRadius: 1,
-                        ),
+                        BoxShadow(color: Colors.black45, blurRadius: 1),
                       ],
                     ),
                   ),
@@ -865,10 +850,7 @@ class _ContributorColumn extends StatelessWidget {
 }
 
 class _ContributorPlayerEntry extends StatelessWidget {
-  const _ContributorPlayerEntry({
-    required this.player,
-    required this.totals,
-  });
+  const _ContributorPlayerEntry({required this.player, required this.totals});
 
   final Player player;
   final PlayerSeasonTotals? totals;

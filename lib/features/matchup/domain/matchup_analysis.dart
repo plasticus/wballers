@@ -121,4 +121,3 @@ String topThreeStatLine(PlayerSeasonTotals? totals) {
       .map((s) => '${s.value.toStringAsFixed(1)} ${s.label}')
       .join(', ');
 }
-
