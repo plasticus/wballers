@@ -679,9 +679,11 @@ class _StrengthBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final total = awayValue + homeValue;
-    final awayShare = total <= 0 ? 0.5 : awayValue / total;
-    final awayPercent = (awayShare * 100).round().clamp(1, 99);
+    // Scaled rating differential relative to 50% midpoint:
+    // A 1-point rating difference translates to a 2% bar width shift,
+    // so a 7-point gap (e.g. 69 vs 76) clearly shows as 36% vs 64%.
+    final diff = awayValue - homeValue;
+    final awayPercent = (50 + (diff * 2.0)).round().clamp(10, 90);
     final homePercent = 100 - awayPercent;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
