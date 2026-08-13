@@ -1,6 +1,7 @@
 import '../../player/domain/player.dart';
 import '../../player/domain/player_ratings.dart';
 import '../../roster/domain/team_overall.dart';
+import '../../season/domain/league_leaders.dart';
 import 'analyst.dart';
 
 /// A team's rank-weighted composite for whatever [selector] reads off a
@@ -96,3 +97,28 @@ List<AnalystVerdict> analystVerdicts({
       AnalystVerdict(analyst: panel[i], pickedTeamAbbreviation: picks[i]),
   ];
 }
+
+/// Formats a player's top 3 counting stats per game (from points, rebounds,
+/// assists, steals, blocks) formatted like `19.0 points, 6.7 assists, 3.2 blocks`.
+/// Ties break in standard counting-stat order (points, rebounds, assists,
+/// steals, blocks).
+/// For a player with no games played or null totals, returns
+/// `'0.0 points, 0.0 rebounds, 0.0 assists'`.
+String topThreeStatLine(PlayerSeasonTotals? totals) {
+  if (totals == null || totals.gamesPlayed == 0) {
+    return '0.0 points, 0.0 rebounds, 0.0 assists';
+  }
+  final stats = [
+    (value: totals.pointsPerGame, label: 'points'),
+    (value: totals.reboundsPerGame, label: 'rebounds'),
+    (value: totals.assistsPerGame, label: 'assists'),
+    (value: totals.stealsPerGame, label: 'steals'),
+    (value: totals.blocksPerGame, label: 'blocks'),
+  ];
+  stats.sort((a, b) => b.value.compareTo(a.value));
+  return stats
+      .take(3)
+      .map((s) => '${s.value.toStringAsFixed(1)} ${s.label}')
+      .join(', ');
+}
+

@@ -9,15 +9,22 @@ import '../../league/domain/team.dart';
 import '../../matchup/domain/analyst.dart';
 import '../../matchup/domain/matchup_analysis.dart';
 import '../../player/domain/player.dart';
+import '../../player/domain/position.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../roster/domain/team_overall.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/game_result.dart';
+import '../domain/league_leaders.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
 import '../domain/standings_entry.dart';
 import 'game_result_screen.dart';
+
+const kAwayStrengthColor = Color(0xFFFF8A00); // Vivid Orange
+const kHomeStrengthColor = Color(0xFF10B981); // Emerald Green
+const kFormWinColor = Color(0xFF22C55E); // High-contrast crisp green
+const kFormLossColor = Color(0xFFEF4444); // High-contrast bright red
 
 /// Shown before the GM's own scheduled game actually simulates -- a direct
 /// GM ask ("there should be some kind of splash before my games, not just
@@ -34,7 +41,7 @@ import 'game_result_screen.dart';
 /// ```
 /// [ad placeholder]           <- fixed
 /// Matchup Analysis           <- fixed
-/// [scroll: Team Callouts, Team Strength, Top 3, The Analysts]
+/// [scroll: Team Callouts, Team Strength, Top Contributors, The Analysts]
 /// [Play Game]                <- fixed
 /// ```
 ///
@@ -128,6 +135,10 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
         ? 0
         : awayTop3.first.ratings.overall;
 
+    final leaders = computeLeagueLeaders(
+      franchise.seasonProgress.playedGames,
+    );
+
     // Seat 1 stays the generic fallback until the franchise's own
     // narrative veteran has actually left the roster -- see
     // `Franchise.narrativeVeteranPlayerId`'s own doc comment for why
@@ -175,10 +186,10 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
+                  AppSpacing.sm,
                   0,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -187,12 +198,16 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
                       awayTeam: awayTeam,
                       awayRecord: awayRecord,
                       awayForm: awayForm,
+                      awayOverall: awayOverall,
                       homeTeam: homeTeam,
                       homeRecord: homeRecord,
                       homeForm: homeForm,
+                      homeOverall: homeOverall,
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.sm),
                     _TeamStrengthSection(
+                      awayTeam: awayTeam,
+                      homeTeam: homeTeam,
                       awayOffense: awayOffense,
                       homeOffense: homeOffense,
                       awayDefense: awayDefense,
@@ -200,9 +215,15 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
                       awayPhysical: awayPhysical,
                       homePhysical: homePhysical,
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _TopThreeSection(awayTop3: awayTop3, homeTop3: homeTop3),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.sm),
+                    _TopContributorsSection(
+                      awayTeam: awayTeam,
+                      homeTeam: homeTeam,
+                      awayTop3: awayTop3,
+                      homeTop3: homeTop3,
+                      leaders: leaders,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     _AnalystsSection(
                       franchise: franchise,
                       verdicts: verdicts,
@@ -214,16 +235,24 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: FilledButton(
-                onPressed: _isPlaying ? null : _playGame,
-                child: _isPlaying
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Play Game'),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.xs,
+                AppSpacing.sm,
+                AppSpacing.sm,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _isPlaying ? null : _playGame,
+                  child: _isPlaying
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Play Game'),
+                ),
               ),
             ),
           ],
@@ -284,9 +313,9 @@ class _AdBannerPlaceholder extends StatelessWidget {
     return Container(
       height: 40,
       margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
         AppSpacing.sm,
-        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.sm,
         0,
       ),
       decoration: BoxDecoration(
@@ -318,10 +347,10 @@ class _MatchupHeader extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
         AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.xs,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,57 +373,68 @@ class _MatchupHeader extends StatelessWidget {
   }
 }
 
-/// Emoji, name, and current record for both sides on one row, "@"
-/// between -- round 1's own layout, the GM's confirmed favorite -- with
-/// each side's last-5 form streak folded in underneath (round 2's own
-/// addition).
+/// Emoji, name, current record, and OVR rating for both sides on one row,
+/// "@" between, with each side's last-5 form streak folded in underneath.
 class _TeamCallouts extends StatelessWidget {
   const _TeamCallouts({
     required this.awayTeam,
     required this.awayRecord,
     required this.awayForm,
+    required this.awayOverall,
     required this.homeTeam,
     required this.homeRecord,
     required this.homeForm,
+    required this.homeOverall,
   });
 
   final Team awayTeam;
   final StandingsEntry awayRecord;
   final List<bool> awayForm;
+  final int awayOverall;
   final Team homeTeam;
   final StandingsEntry homeRecord;
   final List<bool> homeForm;
+  final int homeOverall;
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _TeamCallout(
-                team: awayTeam,
-                record: awayRecord,
-                form: awayForm,
-                alignEnd: false,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _TeamCallout(
+              team: awayTeam,
+              record: awayRecord,
+              overall: awayOverall,
+              form: awayForm,
+              alignEnd: false,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: AppSpacing.sm,
+            ),
+            child: Text(
+              '@',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              child: Text('@', style: Theme.of(context).textTheme.labelMedium),
+          ),
+          Expanded(
+            child: _TeamCallout(
+              team: homeTeam,
+              record: homeRecord,
+              overall: homeOverall,
+              form: homeForm,
+              alignEnd: true,
             ),
-            Expanded(
-              child: _TeamCallout(
-                team: homeTeam,
-                record: homeRecord,
-                form: homeForm,
-                alignEnd: true,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -404,12 +444,14 @@ class _TeamCallout extends StatelessWidget {
   const _TeamCallout({
     required this.team,
     required this.record,
+    required this.overall,
     required this.form,
     required this.alignEnd,
   });
 
   final Team team;
   final StandingsEntry record;
+  final int overall;
   final List<bool> form;
   final bool alignEnd;
 
@@ -419,30 +461,82 @@ class _TeamCallout extends StatelessWidget {
     final crossAxisAlignment = alignEnd
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
-    final row = [
-      Text(team.emoji, style: const TextStyle(fontSize: 22)),
-      const SizedBox(width: 6),
-      Flexible(
-        child: Text(
-          team.name,
-          style: theme.textTheme.titleSmall,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    ];
+
     return Column(
       crossAxisAlignment: crossAxisAlignment,
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
-          children: alignEnd ? row.reversed.toList() : row,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          '${record.wins}-${record.losses}',
-          style: theme.textTheme.headlineSmall,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!alignEnd) ...[
+              Text(team.emoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 4),
+            ],
+            Flexible(
+              child: Text(
+                team.name,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                softWrap: true,
+                textAlign: alignEnd ? TextAlign.right : TextAlign.left,
+              ),
+            ),
+            if (alignEnd) ...[
+              const SizedBox(width: 4),
+              Text(team.emoji, style: const TextStyle(fontSize: 20)),
+            ],
+          ],
         ),
         const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (alignEnd) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '$overall OVR',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              '${record.wins}-${record.losses}',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (!alignEnd) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '$overall OVR',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
         _FormDots(results: form, alignEnd: alignEnd),
       ],
     );
@@ -451,7 +545,7 @@ class _TeamCallout extends StatelessWidget {
 
 /// Last-5 form streak, one dot per game (oldest first, matching
 /// [recentResultsFor]'s own order) -- filled for a win, hollow for a
-/// loss.
+/// loss with high contrast colors.
 class _FormDots extends StatelessWidget {
   const _FormDots({required this.results, required this.alignEnd});
 
@@ -460,18 +554,21 @@ class _FormDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Wrap(
       alignment: alignEnd ? WrapAlignment.end : WrapAlignment.start,
       spacing: 4,
       children: [
         for (final win in results)
           Container(
-            width: 8,
-            height: 8,
+            width: 9,
+            height: 9,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: win ? theme.colorScheme.primary : theme.colorScheme.error,
+              color: win ? kFormWinColor : kFormLossColor,
+              border: Border.all(
+                color: Colors.black26,
+                width: 0.5,
+              ),
             ),
           ),
       ],
@@ -480,9 +577,12 @@ class _FormDots extends StatelessWidget {
 }
 
 /// Offense/Defense/Physical, each a comparison bar split proportionally
-/// between the two teams' [teamCompositeRating]s.
+/// between the two teams' [teamCompositeRating]s with high contrast colors
+/// and a prominent 50% midpoint hashmark.
 class _TeamStrengthSection extends StatelessWidget {
   const _TeamStrengthSection({
+    required this.awayTeam,
+    required this.homeTeam,
     required this.awayOffense,
     required this.homeOffense,
     required this.awayDefense,
@@ -491,6 +591,8 @@ class _TeamStrengthSection extends StatelessWidget {
     required this.homePhysical,
   });
 
+  final Team awayTeam;
+  final Team homeTeam;
   final double awayOffense;
   final double homeOffense;
   final double awayDefense;
@@ -502,30 +604,68 @@ class _TeamStrengthSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AppCard(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Team Strength', style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            _StrengthBar(
-              label: 'Offense',
-              awayValue: awayOffense,
-              homeValue: homeOffense,
-            ),
-            _StrengthBar(
-              label: 'Defense',
-              awayValue: awayDefense,
-              homeValue: homeDefense,
-            ),
-            _StrengthBar(
-              label: 'Physical',
-              awayValue: awayPhysical,
-              homeValue: homePhysical,
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Team Strength', style: theme.textTheme.titleMedium),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: kAwayStrengthColor,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    awayTeam.abbreviation,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: kHomeStrengthColor,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    homeTeam.abbreviation,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _StrengthBar(
+            label: 'Offense',
+            awayValue: awayOffense,
+            homeValue: homeOffense,
+          ),
+          _StrengthBar(
+            label: 'Defense',
+            awayValue: awayDefense,
+            homeValue: homeDefense,
+          ),
+          _StrengthBar(
+            label: 'Physical',
+            awayValue: awayPhysical,
+            homeValue: homePhysical,
+          ),
+        ],
       ),
     );
   }
@@ -550,26 +690,74 @@ class _StrengthBar extends StatelessWidget {
     final awayPercent = (awayShare * 100).round().clamp(1, 99);
     final homePercent = 100 - awayPercent;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: theme.textTheme.labelMedium),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${awayValue.round()}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: kAwayStrengthColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(label, style: theme.textTheme.labelMedium),
+              Text(
+                '${homeValue.round()}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: kHomeStrengthColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 3),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Row(
+          SizedBox(
+            height: 14,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
               children: [
-                Expanded(
-                  flex: awayPercent,
-                  child: Container(
-                    height: 8,
-                    color: theme.colorScheme.secondary,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: awayPercent,
+                        child: Container(
+                          height: 8,
+                          color: kAwayStrengthColor,
+                        ),
+                      ),
+                      Expanded(
+                        flex: homePercent,
+                        child: Container(
+                          height: 8,
+                          color: kHomeStrengthColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Expanded(
-                  flex: homePercent,
-                  child: Container(height: 8, color: theme.colorScheme.primary),
+                // 50% Center Hashmark
+                Center(
+                  child: Container(
+                    width: 2,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(1),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black45,
+                          blurRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -580,106 +768,150 @@ class _StrengthBar extends StatelessWidget {
   }
 }
 
-/// Each side's best 3 players by overall, name/position/rating lined up
-/// name-outside-stat-centered -- an alignment bug (names crowding the
-/// other team's numbers) caught and fixed during the design lab.
-class _TopThreeSection extends StatelessWidget {
-  const _TopThreeSection({required this.awayTop3, required this.homeTop3});
+/// Each side's best 3 players by overall with 2-line names, positions,
+/// ratings, and their top 3 counting stats per game.
+class _TopContributorsSection extends StatelessWidget {
+  const _TopContributorsSection({
+    required this.awayTeam,
+    required this.homeTeam,
+    required this.awayTop3,
+    required this.homeTop3,
+    required this.leaders,
+  });
 
+  final Team awayTeam;
+  final Team homeTeam;
   final List<Player> awayTop3;
   final List<Player> homeTop3;
+  final Map<String, PlayerSeasonTotals> leaders;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final rowCount = awayTop3.length > homeTop3.length
-        ? awayTop3.length
-        : homeTop3.length;
     return AppCard(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Top 3, Head to Head', style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            for (var i = 0; i < rowCount; i++)
-              _TopThreeRow(
-                away: i < awayTop3.length ? awayTop3[i] : null,
-                home: i < homeTop3.length ? homeTop3[i] : null,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Top Contributors', style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _ContributorColumn(
+                  team: awayTeam,
+                  players: awayTop3,
+                  leaders: leaders,
+                ),
               ),
-          ],
-        ),
+              Container(
+                width: 1,
+                height: 220,
+                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+              Expanded(
+                child: _ContributorColumn(
+                  team: homeTeam,
+                  players: homeTop3,
+                  leaders: leaders,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _TopThreeRow extends StatelessWidget {
-  const _TopThreeRow({required this.away, required this.home});
+class _ContributorColumn extends StatelessWidget {
+  const _ContributorColumn({
+    required this.team,
+    required this.players,
+    required this.leaders,
+  });
 
-  final Player? away;
-  final Player? home;
+  final Team team;
+  final List<Player> players;
+  final Map<String, PlayerSeasonTotals> leaders;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: away == null
-                ? const SizedBox.shrink()
-                : Row(
-                    children: [
-                      _PositionBadge(position: away!.primaryPosition),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          away!.name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${team.emoji} ${team.name}',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
-          SizedBox(
-            width: 28,
-            child: Text(
-              away == null ? '' : '${away!.ratings.overall}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelLarge,
-            ),
-          ),
-          SizedBox(
-            width: 28,
-            child: Text(
-              home == null ? '' : '${home!.ratings.overall}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelLarge,
-            ),
-          ),
-          Expanded(
-            child: home == null
-                ? const SizedBox.shrink()
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          home!.name,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _PositionBadge(position: home!.primaryPosition),
-                    ],
-                  ),
+          maxLines: 2,
+          softWrap: true,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        for (var i = 0; i < players.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.xs),
+          _ContributorPlayerEntry(
+            player: players[i],
+            totals: leaders[players[i].id],
           ),
         ],
-      ),
+      ],
+    );
+  }
+}
+
+class _ContributorPlayerEntry extends StatelessWidget {
+  const _ContributorPlayerEntry({
+    required this.player,
+    required this.totals,
+  });
+
+  final Player player;
+  final PlayerSeasonTotals? totals;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _PositionBadge(position: player.primaryPosition),
+            const SizedBox(width: 4),
+            Text(
+              '${player.ratings.overall} OVR',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          player.name,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 2,
+          softWrap: true,
+        ),
+        const SizedBox(height: 1),
+        Text(
+          topThreeStatLine(totals),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontSize: 11,
+          ),
+          maxLines: 2,
+          softWrap: true,
+        ),
+      ],
     );
   }
 }
@@ -733,39 +965,37 @@ class _AnalystsSection extends StatelessWidget {
     final awayCount = verdicts.length - homeCount;
 
     return AppCard(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('The Analysts', style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            for (var i = 0; i < verdicts.length; i++)
-              _AnalystRow(
-                franchise: franchise,
-                verdict: verdicts[i],
-                // Seat 1's ownerId is keyed off the franchise's own
-                // narrative-veteran id (even while she's still active and
-                // the fallback look is showing) so a save's cached
-                // portrait never collides with another save's -- see
-                // `PortraitImage`'s own cache-key doc comment.
-                ownerId: i == 0
-                    ? 'analyst-seat1-${franchise.narrativeVeteranPlayerId}'
-                    : 'analyst-${verdicts[i].analyst.name}',
-                pickedTeam:
-                    verdicts[i].pickedTeamAbbreviation == homeTeam.abbreviation
-                    ? homeTeam
-                    : awayTeam,
-              ),
-            const Divider(height: AppSpacing.lg),
-            Center(
-              child: Text(
-                '${homeTeam.emoji} $homeCount — $awayCount ${awayTeam.emoji}',
-                style: theme.textTheme.titleMedium,
-              ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('The Analysts', style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          for (var i = 0; i < verdicts.length; i++)
+            _AnalystRow(
+              franchise: franchise,
+              verdict: verdicts[i],
+              // Seat 1's ownerId is keyed off the franchise's own
+              // narrative-veteran id (even while she's still active and
+              // the fallback look is showing) so a save's cached
+              // portrait never collides with another save's -- see
+              // `PortraitImage`'s own cache-key doc comment.
+              ownerId: i == 0
+                  ? 'analyst-seat1-${franchise.narrativeVeteranPlayerId}'
+                  : 'analyst-${verdicts[i].analyst.name}',
+              pickedTeam:
+                  verdicts[i].pickedTeamAbbreviation == homeTeam.abbreviation
+                  ? homeTeam
+                  : awayTeam,
             ),
-          ],
-        ),
+          const Divider(height: AppSpacing.md),
+          Center(
+            child: Text(
+              '${homeTeam.emoji} $homeCount — $awayCount ${awayTeam.emoji}',
+              style: theme.textTheme.titleMedium,
+            ),
+          ),
+        ],
       ),
     );
   }

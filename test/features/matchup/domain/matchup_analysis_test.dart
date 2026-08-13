@@ -4,6 +4,7 @@ import 'package:womensbballmgr/features/matchup/domain/matchup_analysis.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
+import 'package:womensbballmgr/features/season/domain/league_leaders.dart';
 
 Player _player(String id, int overall, {int? offense, int? defense}) {
   return Player(
@@ -148,4 +149,61 @@ void main() {
       );
     });
   });
+
+  group('topThreeStatLine', () {
+    test('returns default zeroes for null or zero games played', () {
+      expect(
+        topThreeStatLine(null),
+        '0.0 points, 0.0 rebounds, 0.0 assists',
+      );
+      expect(
+        topThreeStatLine(
+          const PlayerSeasonTotals(
+            playerId: 'p1',
+            gamesPlayed: 0,
+            minutes: 0,
+            points: 0,
+            rebounds: 0,
+            assists: 0,
+            steals: 0,
+            blocks: 0,
+            turnovers: 0,
+            fieldGoalsMade: 0,
+            fieldGoalAttempts: 0,
+            threePointersMade: 0,
+            threePointAttempts: 0,
+            freeThrowsMade: 0,
+            freeThrowAttempts: 0,
+          ),
+        ),
+        '0.0 points, 0.0 rebounds, 0.0 assists',
+      );
+    });
+
+    test('picks top 3 counting stats per game sorted descending by value', () {
+      const totals = PlayerSeasonTotals(
+        playerId: 'p1',
+        gamesPlayed: 10,
+        minutes: 320,
+        points: 190, // 19.0 ppg
+        rebounds: 20, // 2.0 rpg
+        assists: 67, // 6.7 apg
+        steals: 10, // 1.0 spg
+        blocks: 32, // 3.2 bpg
+        turnovers: 15,
+        fieldGoalsMade: 70,
+        fieldGoalAttempts: 150,
+        threePointersMade: 20,
+        threePointAttempts: 50,
+        freeThrowsMade: 30,
+        freeThrowAttempts: 35,
+      );
+
+      expect(
+        topThreeStatLine(totals),
+        '19.0 points, 6.7 assists, 3.2 blocks',
+      );
+    });
+  });
 }
+

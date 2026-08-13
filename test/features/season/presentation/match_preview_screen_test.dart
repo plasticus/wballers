@@ -188,7 +188,9 @@ void main() {
       expect(find.text('Defense'), findsOneWidget);
       expect(find.text('Physical'), findsOneWidget);
 
-      expect(find.text('Top 3, Head to Head'), findsOneWidget);
+      expect(find.text('Top Contributors'), findsOneWidget);
+      expect(find.textContaining('OVR'), findsWidgets);
+      expect(find.textContaining('points'), findsWidgets);
 
       expect(find.text('The Analysts'), findsOneWidget);
       // The 4 fixed panelists always show, by name, regardless of
