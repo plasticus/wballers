@@ -161,69 +161,66 @@ void main() {
     },
   );
 
-  testWidgets(
-    'shows Team Strength, Top 3 Head to Head, and all 5 named analysts '
-    'with a final tally',
-    (tester) async {
-      tester.view.physicalSize = const Size(900, 2600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+  testWidgets('shows Team Strength, Starting Lineups, and all 5 named analysts '
+      'with a final tally', (tester) async {
+    tester.view.physicalSize = const Size(900, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
 
-      final base = _newFranchise();
-      final opponent = base.league.aiTeams.first.team;
-      final franchise = _withOwnGameToday(base, opponent);
-      final game = franchise.seasonProgress.schedule.games.single;
-      final repository = await _seededRepository(franchise);
+    final base = _newFranchise();
+    final opponent = base.league.aiTeams.first.team;
+    final franchise = _withOwnGameToday(base, opponent);
+    final game = franchise.seasonProgress.schedule.games.single;
+    final repository = await _seededRepository(franchise);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-          child: MaterialApp(
-            home: MatchPreviewScreen(franchise: franchise, game: game),
-          ),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          home: MatchPreviewScreen(franchise: franchise, game: game),
         ),
-      );
-      await tester.pump();
-      await tester.pump(); // portraits resolve async, one more frame
+      ),
+    );
+    await tester.pump();
+    await tester.pump(); // portraits resolve async, one more frame
 
-      expect(find.text('Offensive Shape'), findsOneWidget);
-      // Independently computed, the exact same way the screen itself
-      // does -- the GM's own side reads real bench order, the AI
-      // opponent auto-sorts by overall.
-      final rosters = rostersByAbbreviation(franchise);
-      final homeShape = detectOffenseShape(
-        startingFiveFor(
-          rosters[franchise.team.abbreviation]!,
-          isBenchOrdered: true,
-        ),
-      );
-      final awayShape = detectOffenseShape(
-        startingFiveFor(rosters[opponent.abbreviation]!, isBenchOrdered: false),
-      );
-      expect(find.text(homeShape.label), findsWidgets);
-      expect(find.text(awayShape.label), findsWidgets);
+    expect(find.text('Offensive Shape'), findsOneWidget);
+    // Independently computed, the exact same way the screen itself
+    // does -- the GM's own side reads real bench order, the AI
+    // opponent auto-sorts by overall.
+    final rosters = rostersByAbbreviation(franchise);
+    final homeShape = detectOffenseShape(
+      startingFiveFor(
+        rosters[franchise.team.abbreviation]!,
+        isBenchOrdered: true,
+      ),
+    );
+    final awayShape = detectOffenseShape(
+      startingFiveFor(rosters[opponent.abbreviation]!, isBenchOrdered: false),
+    );
+    expect(find.text(homeShape.label), findsWidgets);
+    expect(find.text(awayShape.label), findsWidgets);
 
-      expect(find.text('Team Strength'), findsOneWidget);
-      expect(find.text('Offense'), findsOneWidget);
-      expect(find.text('Defense'), findsOneWidget);
-      expect(find.text('Physical'), findsOneWidget);
+    expect(find.text('Team Strength'), findsOneWidget);
+    expect(find.text('Offense'), findsOneWidget);
+    expect(find.text('Defense'), findsOneWidget);
+    expect(find.text('Physical'), findsOneWidget);
 
-      expect(find.text('Top Contributors'), findsOneWidget);
-      expect(find.textContaining('OVR'), findsWidgets);
-      expect(find.textContaining('points'), findsWidgets);
+    expect(find.text('Starting Lineups'), findsOneWidget);
+    expect(find.textContaining('OVR'), findsWidgets);
+    expect(find.textContaining('points'), findsWidgets);
 
-      expect(find.text('The Analysts'), findsOneWidget);
-      // The 4 fixed panelists always show, by name, regardless of
-      // franchise -- seat 1 ("Preston") is covered by its own dedicated
-      // tests below since it depends on the narrative veteran's status.
-      expect(find.text('Reyes'), findsOneWidget);
-      expect(find.text('Shoemaker'), findsOneWidget);
-      expect(find.text('Adebayo'), findsOneWidget);
-      expect(find.text('Vale-Jones'), findsOneWidget);
-      // A tally reading "<emoji> <n> — <n> <emoji>" for exactly 5 picks.
-      expect(find.textContaining(franchise.team.emoji), findsWidgets);
-    },
-  );
+    expect(find.text('The Analysts'), findsOneWidget);
+    // The 4 fixed panelists always show, by name, regardless of
+    // franchise -- seat 1 ("Preston") is covered by its own dedicated
+    // tests below since it depends on the narrative veteran's status.
+    expect(find.text('Reyes'), findsOneWidget);
+    expect(find.text('Shoemaker'), findsOneWidget);
+    expect(find.text('Adebayo'), findsOneWidget);
+    expect(find.text('Vale-Jones'), findsOneWidget);
+    // A tally reading "<emoji> <n> — <n> <emoji>" for exactly 5 picks.
+    expect(find.textContaining(franchise.team.emoji), findsWidgets);
+  });
 
   testWidgets(
     'seat 1 shows the generic "Preston" look while the narrative veteran '
@@ -259,11 +256,14 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // Not asserting her real name is absent from the screen entirely --
-      // at 87 OVR she's a genuinely great player and can legitimately
-      // show up in Top 3, Head to Head; this only checks the Analyst
-      // seat itself still shows the generic look.
+      // Her real name is *expected* elsewhere on this same screen, not
+      // just tolerated -- she's always roster index 0
+      // (`starting_roster_generator.dart`'s own doc comment), so she's
+      // always in the GM's own bench-order top five, i.e. always in
+      // Starting Lineups. This only checks the Analyst seat itself still
+      // shows the generic look, separately from that.
       expect(find.text('Preston'), findsOneWidget);
+      expect(find.text(franchise.narrativeVeteranName), findsOneWidget);
     },
   );
 

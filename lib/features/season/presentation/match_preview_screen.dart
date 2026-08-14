@@ -42,8 +42,8 @@ const kFormLossColor = Color(0xFFEF4444); // High-contrast bright red
 /// ```
 /// [ad placeholder]           <- fixed
 /// Matchup Analysis           <- fixed
-/// [scroll: Team Callouts, Offense, Team Strength, Top Contributors,
-///          The Analysts, Defensive Tactic]
+/// [scroll: Team Callouts, Offensive Shape, Team Strength, Starting
+///          Lineups, The Analysts, Defensive Tactic]
 /// [Play Game]                <- fixed
 /// ```
 ///
@@ -58,16 +58,23 @@ const kFormLossColor = Color(0xFFEF4444); // High-contrast bright red
 /// Two new sections (2026-08-14, a direct GM ask following the "Coach's
 /// Board" design artifact,
 /// https://claude.ai/code/artifact/6f075bb0-8dc8-416c-9db1-e29b2c8a4ea6):
-/// **Offense** shows both teams' automatically-detected `OffenseShape`
-/// (`offense_shape.dart`) -- nothing to pick, just what each starting
-/// five's positions already determine. **Defensive Tactic**, the last
-/// thing in the scrolling body (below The Analysts), is the one real GM
-/// choice on this screen -- 4 `DefensiveTactic` options
-/// (`defensive_tactic.dart`), always defaulting to
+/// **Offensive Shape** shows both teams' automatically-detected
+/// `OffenseShape` (`offense_shape.dart`) -- nothing to pick, just what
+/// each starting five's positions already determine. **Defensive
+/// Tactic**, the last thing in the scrolling body (below The Analysts),
+/// is the one real GM choice on this screen -- 4 `DefensiveTactic`
+/// options (`defensive_tactic.dart`), always defaulting to
 /// `DefensiveTactic.balanced` on open (this widget's own local `State`,
 /// never persisted, so a fresh visit always starts there even if a
 /// clearly-better option existed last game). `_playGame` threads the pick
 /// into `advanceGameDay`'s new `ownDefenseTactic` param.
+///
+/// **Starting Lineups** (formerly "Top Contributors," best 3 by overall)
+/// switched to each side's real 5-player starting five (2026-08-14, a
+/// same-session follow-up GM ask): "otherwise you won't know what to
+/// choose for your defense" -- the GM needs to see who's actually on the
+/// floor to make the Defensive Tactic call below, not just who's rated
+/// highest.
 class MatchPreviewScreen extends ConsumerStatefulWidget {
   const MatchPreviewScreen({
     required this.franchise,
@@ -106,18 +113,16 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     // needs a resolved 12-player target-minutes map) -- a lightweight
     // preview shouldn't have to satisfy that assertion.
     final ownAbbreviation = franchise.team.abbreviation;
-    final homeShape = detectOffenseShape(
-      startingFiveFor(
-        homePlayers,
-        isBenchOrdered: game.homeTeamAbbreviation == ownAbbreviation,
-      ),
+    final homeStartingFive = startingFiveFor(
+      homePlayers,
+      isBenchOrdered: game.homeTeamAbbreviation == ownAbbreviation,
     );
-    final awayShape = detectOffenseShape(
-      startingFiveFor(
-        awayPlayers,
-        isBenchOrdered: game.awayTeamAbbreviation == ownAbbreviation,
-      ),
+    final awayStartingFive = startingFiveFor(
+      awayPlayers,
+      isBenchOrdered: game.awayTeamAbbreviation == ownAbbreviation,
     );
+    final homeShape = detectOffenseShape(homeStartingFive);
+    final awayShape = detectOffenseShape(awayStartingFive);
 
     final homeOverall = teamOverallForPlayers(homePlayers);
     final awayOverall = teamOverallForPlayers(awayPlayers);
@@ -163,6 +168,9 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
       (r) => r.physicalOverall,
     );
 
+    // Only feeds the Analysts' "best single player" pick below -- the
+    // screen's own lineup display uses the real starting five instead,
+    // see `homeStartingFive`/`awayStartingFive` above.
     final homeTop3 = topPlayersFor(homePlayers);
     final awayTop3 = topPlayersFor(awayPlayers);
     final homeTopOverall = homeTop3.isEmpty
@@ -258,11 +266,11 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
                       homePhysical: homePhysical,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    _TopContributorsSection(
+                    _StartingLineupsSection(
                       awayTeam: awayTeam,
                       homeTeam: homeTeam,
-                      awayTop3: awayTop3,
-                      homeTop3: homeTop3,
+                      awayLineup: awayStartingFive,
+                      homeLineup: homeStartingFive,
                       leaders: leaders,
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -898,21 +906,27 @@ class _StrengthBar extends StatelessWidget {
   }
 }
 
-/// Each side's best 3 players by overall with 2-line names, positions,
-/// ratings, and their top 3 counting stats per game.
-class _TopContributorsSection extends StatelessWidget {
-  const _TopContributorsSection({
+/// Each side's real 5-player starting lineup (same [startingFiveFor] the
+/// Offensive Shape section and the match engine itself both read --
+/// bench order for the GM's own team, best-by-overall for an AI
+/// opponent), 2-line names, positions, ratings, and each player's top 3
+/// counting stats per game. Was "Top Contributors" (best 3 by overall,
+/// `topPlayersFor`) until a direct GM ask (2026-08-14): seeing who's
+/// actually on the floor -- not just who's best -- is what a defensive
+/// tactic pick (below) actually needs.
+class _StartingLineupsSection extends StatelessWidget {
+  const _StartingLineupsSection({
     required this.awayTeam,
     required this.homeTeam,
-    required this.awayTop3,
-    required this.homeTop3,
+    required this.awayLineup,
+    required this.homeLineup,
     required this.leaders,
   });
 
   final Team awayTeam;
   final Team homeTeam;
-  final List<Player> awayTop3;
-  final List<Player> homeTop3;
+  final List<Player> awayLineup;
+  final List<Player> homeLineup;
   final Map<String, PlayerSeasonTotals> leaders;
 
   @override
@@ -923,32 +937,39 @@ class _TopContributorsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Top Contributors', style: theme.textTheme.titleMedium),
+          Text('Starting Lineups', style: theme.textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _ContributorColumn(
-                  team: awayTeam,
-                  players: awayTop3,
-                  leaders: leaders,
+          // IntrinsicHeight, not a fixed divider height -- 5 rows a side
+          // need real room, and this way the divider always matches
+          // whatever the content actually needs instead of a guessed
+          // number.
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _LineupColumn(
+                    team: awayTeam,
+                    players: awayLineup,
+                    leaders: leaders,
+                  ),
                 ),
-              ),
-              Container(
-                width: 1,
-                height: 220,
-                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-              ),
-              Expanded(
-                child: _ContributorColumn(
-                  team: homeTeam,
-                  players: homeTop3,
-                  leaders: leaders,
+                Container(
+                  width: 1,
+                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.5,
+                  ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: _LineupColumn(
+                    team: homeTeam,
+                    players: homeLineup,
+                    leaders: leaders,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -956,8 +977,8 @@ class _TopContributorsSection extends StatelessWidget {
   }
 }
 
-class _ContributorColumn extends StatelessWidget {
-  const _ContributorColumn({
+class _LineupColumn extends StatelessWidget {
+  const _LineupColumn({
     required this.team,
     required this.players,
     required this.leaders,
@@ -984,7 +1005,7 @@ class _ContributorColumn extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         for (var i = 0; i < players.length; i++) ...[
           if (i > 0) const SizedBox(height: AppSpacing.xs),
-          _ContributorPlayerEntry(
+          _LineupPlayerEntry(
             player: players[i],
             totals: leaders[players[i].id],
           ),
@@ -994,8 +1015,8 @@ class _ContributorColumn extends StatelessWidget {
   }
 }
 
-class _ContributorPlayerEntry extends StatelessWidget {
-  const _ContributorPlayerEntry({required this.player, required this.totals});
+class _LineupPlayerEntry extends StatelessWidget {
+  const _LineupPlayerEntry({required this.player, required this.totals});
 
   final Player player;
   final PlayerSeasonTotals? totals;
