@@ -133,6 +133,25 @@ void main() {
     },
   );
 
+  test('the default bench order\'s own top 5 (indices 0-4) is always a '
+      'real, legal standard starting five -- one player at each of the 5 '
+      'positions, out of the box, before the GM ever touches Bench Order '
+      '(2026-08-14, a real GM report: "I have 2x PFs in the starting 5... '
+      'if either had been a Center, I would have been okay")', () {
+    for (var seed = 0; seed < 200; seed++) {
+      final roster = generateStartingRoster(seed);
+      final startingFivePositions = roster
+          .take(5)
+          .map((m) => m.player.primaryPosition)
+          .toSet();
+      expect(
+        startingFivePositions,
+        Position.values.toSet(),
+        reason: 'seed $seed',
+      );
+    }
+  });
+
   test('the 4 narrative slots (2026-08-14 revision) always land on 4 '
       'distinct standard positions', () {
     for (var seed = 0; seed < 100; seed++) {

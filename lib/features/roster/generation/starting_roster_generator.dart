@@ -52,7 +52,13 @@ import 'trait_distribution.dart';
 /// reads that gap back out so `expansion_franchise_factory.dart` can target
 /// the Day-0 free agent at it, completing a real starting five spread
 /// across all 5 narrative-tier players (the 4 here plus the free agent)
-/// instead of leaving it to chance.
+/// instead of leaving it to chance. [_promoteMissingPositionStarter] (a
+/// same-day fix, a real GM report: "I have 2x PFs in the starting 5... if
+/// either had been a Center, I would have been okay") makes sure that
+/// 5th position is actually filled in the roster's *default bench-order
+/// top 5* too, not just present somewhere in the 12-man roster -- indices
+/// 0-4 are always exactly one player per standard position out of the
+/// box, before the GM ever touches Bench Order.
 ///
 /// The other seven are generic role players, centered so the full
 /// 11-player average -- together with the four narrative players above,
@@ -138,12 +144,58 @@ Position missingStartingPosition(List<RosterMembership> roster) {
   );
 }
 
+/// Moves whichever of [roster]'s generic fillers (indices 4+) plays
+/// [missingStartingPosition]'s position into index 4 -- the better of the
+/// two by overall, if both are still generic fillers at this point --
+/// completing a real, legal, standard 5-position starting five in the
+/// default bench order itself (indices 0-4), not just somewhere in the
+/// 12-man roster. A real GM report (2026-08-14): "I have 2x PFs in the
+/// starting 5... if either had been a Center, I would have been okay" --
+/// the 4 narrative slots already guaranteed 4 distinct positions
+/// *exist on the roster*, but nothing previously guaranteed the
+/// *default bench order's own top 5* actually included all 5 -- index 4
+/// was just whichever generic position happened to shuffle in first,
+/// which could easily double up a position the narrative slots already
+/// covered while the truly uncovered position sat buried in the bench.
+/// Only ever touches index 4 -- indices 0-3 (the narrative slots) are
+/// untouched, so [missingStartingPosition]'s own "always indices 0-3"
+/// contract still holds after this runs.
+List<RosterMembership> _promoteMissingPositionStarter(
+  List<RosterMembership> roster,
+) {
+  final missing = missingStartingPosition(roster);
+  final candidateIndices =
+      [
+        for (var i = 4; i < roster.length; i++)
+          if (roster[i].player.primaryPosition == missing) i,
+      ]..sort(
+        (a, b) => roster[b].player.ratings.overall.compareTo(
+          roster[a].player.ratings.overall,
+        ),
+      );
+  final promoteIndex = candidateIndices.first;
+  if (promoteIndex == 4) return roster;
+
+  final updated = List<RosterMembership>.of(roster);
+  final promoted = updated.removeAt(promoteIndex);
+  updated.insert(4, promoted);
+  return updated;
+}
+
 /// Generates a new expansion franchise's starting active roster.
 /// Deterministic: the same [seed] always produces the same 11 players in
 /// the same order (positions are shuffled from the seeded stream, so which
 /// position gets which narrative slot varies by franchise too, not just
 /// the ratings). [portraitWeights] is optional and threads straight
 /// through to `generatePlayer` -- see its doc comment.
+///
+/// The returned list's first 5 entries -- "the starting five" everywhere
+/// else in the game reads bench order (`Franchise`'s own doc comment,
+/// `DepthChartScreen`) -- are always one player at each of the 5 standard
+/// positions: indices 0-3 are the narrative slots (4 distinct positions,
+/// see [_narrativeAndGenericPositions]) and index 4 is
+/// [_promoteMissingPositionStarter]'s doing, not chance. A real starting
+/// five out of the box, before the GM ever touches Bench Order.
 ///
 /// Traits are assigned team-wide after all 11 players exist, not per
 /// player during generation -- see `distributeTraits`. Jersey numbers are
@@ -231,5 +283,6 @@ List<RosterMembership> generateStartingRoster(
       ),
   ];
 
-  return assignJerseyNumbers(random, distributeTraits(random, roster));
+  final orderedRoster = _promoteMissingPositionStarter(roster);
+  return assignJerseyNumbers(random, distributeTraits(random, orderedRoster));
 }
