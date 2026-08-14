@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/match/domain/match_event.dart';
 import 'package:womensbballmgr/features/match/domain/possession_result.dart';
 import 'package:womensbballmgr/features/match/engine/possession_engine.dart';
+import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
+import 'package:womensbballmgr/features/matchup/domain/offense_shape.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 
 import '../../../support/match_test_players.dart';
@@ -439,18 +441,18 @@ void main() {
       expect(effectiveHomeAwayRating(hero, 99, true), 99);
     });
 
-    test('coachBonus stacks on top of the home/trait bonuses (TODO.md '
-        'coach-stats item)', () {
+    test('bonus (e.g. the coach matchup bonus) stacks on top of the '
+        'home/trait bonuses (TODO.md coach-stats item)', () {
       final player = testPlayer(id: 'p', rating: 50);
       // 50 * (1 + 0.025 + 0.02) = 52.25 -> rounds to 52.
-      expect(effectiveHomeAwayRating(player, 50, true, coachBonus: 0.02), 52);
-      // Away, no traits: only the coach bonus applies.
+      expect(effectiveHomeAwayRating(player, 50, true, bonus: 0.02), 52);
+      // Away, no traits: only the bonus applies.
       // 50 * 1.02 = 51.
-      expect(effectiveHomeAwayRating(player, 50, false, coachBonus: 0.02), 51);
-      // A negative coachBonus (the defending coach won the matchup)
+      expect(effectiveHomeAwayRating(player, 50, false, bonus: 0.02), 51);
+      // A negative bonus (e.g. the defending coach won the matchup)
       // actually reduces the effective rating.
       // 50 * 0.98 = 49.
-      expect(effectiveHomeAwayRating(player, 50, false, coachBonus: -0.02), 49);
+      expect(effectiveHomeAwayRating(player, 50, false, bonus: -0.02), 49);
     });
   });
 
@@ -646,5 +648,172 @@ void main() {
     }
 
     expect(warriorScores, greaterThan(plainScores));
+  });
+
+  group('offenseBonus/defenseBonus (2026-08-14, offense shape + defensive '
+      'tactic -- a direct GM ask)', () {
+    const noOffenseBonus = (interior: 0.0, perimeter: 0.0, passing: 0.0);
+    const noDefenseBonus = (
+      interior: 0.0,
+      perimeter: 0.0,
+      disruption: 0.0,
+      targetedBonus: 0.0,
+      spreadThinPenalty: 0.0,
+    );
+
+    test('a Post-Up-boosted offense (interior up) scores more often than '
+        'an identical offense with no shape bonus', () {
+      final boostedOffense = testLineup('boosted', rating: 50);
+      final plainOffense = testLineup('plain', rating: 50);
+      final defense = testLineup('def', rating: 50);
+      const sampleSize = 50000;
+      final boostedBonus = offenseBonusFor(OffenseShape.postUp);
+
+      var boostedScores = 0;
+      final boostedRandom = Random(7);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          boostedRandom,
+          offense: boostedOffense,
+          defense: defense,
+          offenseBonus: boostedBonus,
+        );
+        if (result.end == PossessionEnd.scored) boostedScores++;
+      }
+
+      var plainScores = 0;
+      final plainRandom = Random(7);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          plainRandom,
+          offense: plainOffense,
+          defense: defense,
+          offenseBonus: noOffenseBonus,
+        );
+        if (result.end == PossessionEnd.scored) plainScores++;
+      }
+
+      expect(boostedScores, greaterThan(plainScores));
+    });
+
+    test('a Pack-the-Paint defense (interior up) holds the offense to a '
+        'lower scoring rate than an identical defense with no tactic '
+        'bonus', () {
+      final offense = testLineup('off', rating: 50);
+      final boostedDefense = testLineup('boosted-def', rating: 50);
+      final plainDefense = testLineup('plain-def', rating: 50);
+      const sampleSize = 50000;
+      final packThePaint = defenseBonusFor(DefensiveTactic.packThePaint);
+
+      var scoresVsBoosted = 0;
+      final boostedRandom = Random(9);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          boostedRandom,
+          offense: offense,
+          defense: boostedDefense,
+          defenseBonus: packThePaint,
+        );
+        if (result.end == PossessionEnd.scored) scoresVsBoosted++;
+      }
+
+      var scoresVsPlain = 0;
+      final plainRandom = Random(9);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          plainRandom,
+          offense: offense,
+          defense: plainDefense,
+          defenseBonus: noDefenseBonus,
+        );
+        if (result.end == PossessionEnd.scored) scoresVsPlain++;
+      }
+
+      expect(scoresVsBoosted, lessThan(scoresVsPlain));
+    });
+
+    test("Motion's small passing bonus reduces the turnover rate compared "
+        'to an identical offense with no shape bonus', () {
+      final boostedOffense = testLineup('boosted', rating: 50);
+      final plainOffense = testLineup('plain', rating: 50);
+      final defense = testLineup('def', rating: 50);
+      const sampleSize = 50000;
+      final motion = offenseBonusFor(OffenseShape.motion);
+
+      var boostedTurnovers = 0;
+      final boostedRandom = Random(13);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          boostedRandom,
+          offense: boostedOffense,
+          defense: defense,
+          offenseBonus: motion,
+        );
+        if (result.end == PossessionEnd.turnover) boostedTurnovers++;
+      }
+
+      var plainTurnovers = 0;
+      final plainRandom = Random(13);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          plainRandom,
+          offense: plainOffense,
+          defense: defense,
+          offenseBonus: noOffenseBonus,
+        );
+        if (result.end == PossessionEnd.turnover) plainTurnovers++;
+      }
+
+      expect(boostedTurnovers, lessThan(plainTurnovers));
+    });
+
+    test('Face-Guard the Star specifically suppresses the flagged '
+        "player's own shot-make rate -- not just a blanket team effect", () {
+      // A 5th "star" player, id `star`, alongside 4 identical teammates --
+      // `simulatePossession` picks a random ball handler each call, so
+      // over a large sample every player (including the star) attempts a
+      // comparable number of shots regardless of whether she's targeted;
+      // only her *make rate conditional on attempting* should move.
+      final offense = [
+        testPlayer(id: 'star', rating: 50),
+        ...List.generate(4, (i) => testPlayer(id: 'mate-$i', rating: 50)),
+      ];
+      final defense = testLineup('def', rating: 50);
+      const sampleSize = 80000;
+      final faceGuard = defenseBonusFor(DefensiveTactic.faceGuardStar);
+
+      (int made, int attempts) tallyStarShots({required String? targetId}) {
+        var made = 0;
+        var attempts = 0;
+        final random = Random(21);
+        for (var i = 0; i < sampleSize; i++) {
+          final result = simulatePossession(
+            random,
+            offense: offense,
+            defense: defense,
+            defenseBonus: faceGuard,
+            defenseTargetPlayerId: targetId,
+          );
+          for (final event in result.events) {
+            if (event.player?.id != 'star') continue;
+            if (event.type == MatchEventType.shotMade) {
+              made++;
+              attempts++;
+            } else if (event.type == MatchEventType.shotMissed) {
+              attempts++;
+            }
+          }
+        }
+        return (made, attempts);
+      }
+
+      final targeted = tallyStarShots(targetId: 'star');
+      final untargeted = tallyStarShots(targetId: null);
+
+      final targetedRate = targeted.$1 / targeted.$2;
+      final untargetedRate = untargeted.$1 / untargeted.$2;
+
+      expect(targetedRate, lessThan(untargetedRate));
+    });
   });
 }

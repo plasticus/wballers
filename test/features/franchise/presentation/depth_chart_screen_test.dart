@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/franchise/presentation/depth_chart_screen.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/matchup/domain/offense_shape.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/player_ratings.dart';
@@ -279,6 +280,77 @@ void main() {
           lessThan(y),
           reason: 'the 99-OVR star should rank above ${membership.player.name}',
         );
+      }
+    },
+  );
+
+  testWidgets('shows the live-detected offensive shape for the current top 5 '
+      '(2026-08-14, a direct GM ask, following the "Coach\'s Board" '
+      'design artifact)', (tester) async {
+    final franchise = _franchiseWith();
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: DepthChartScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
+
+    final expectedShape = detectOffenseShape(
+      franchise.roster.take(5).map((m) => m.player).toList(),
+    );
+    expect(find.text('Offense: ${expectedShape.label}'), findsOneWidget);
+    expect(find.text(expectedShape.why), findsOneWidget);
+  });
+
+  testWidgets(
+    'the offensive shape info box updates after a reorder -- it always '
+    'reads the current top 5, not a stale snapshot from open',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final star = _highOverallMember('star-1');
+      final franchise = _franchiseWith(extraMembers: [star]);
+      final repository = await _seededRepository(franchise);
+
+      final shapeBeforeReorder = detectOffenseShape(
+        franchise.roster.take(5).map((m) => m.player).toList(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: DepthChartScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      // "Let the Coach Set the Order" sorts by OVR -- the 99-OVR star
+      // (a center) always lands at rank 1 afterward, changing who's in
+      // the top 5 (and therefore the detected shape) unless the fixture
+      // already happened to have her there.
+      await tester.tap(find.text('Let the Coach Set the Order'));
+      await tester.pump();
+
+      final active =
+          franchise.roster
+              .where((m) => m.status == RosterStatus.active)
+              .toList()
+            ..sort(
+              (a, b) =>
+                  b.player.ratings.overall.compareTo(a.player.ratings.overall),
+            );
+      final shapeAfterReorder = detectOffenseShape(
+        active.take(5).map((m) => m.player).toList(),
+      );
+
+      expect(find.text('Offense: ${shapeAfterReorder.label}'), findsOneWidget);
+      if (shapeAfterReorder != shapeBeforeReorder) {
+        expect(find.text('Offense: ${shapeBeforeReorder.label}'), findsNothing);
       }
     },
   );

@@ -6,6 +6,8 @@ import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
 import 'package:womensbballmgr/features/match/engine/substitution_policy.dart';
+import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 
 import '../../../support/match_test_players.dart';
 
@@ -285,5 +287,125 @@ void main() {
       ),
       throwsA(isA<AssertionError>()),
     );
+  });
+
+  group('offense shape + defensive tactic (2026-08-14, a direct GM ask, '
+      'following the "Coach\'s Board" design artifact)', () {
+    /// 12 players, all flat [rating] except the first 5 (bench order),
+    /// whose positions are [startingFivePositions] -- the only thing this
+    /// changes is what `detectOffenseShape` reads off the top of the
+    /// roster.
+    List<Player> rosterWithShape(
+      String label,
+      List<Position> startingFivePositions, {
+      int rating = 50,
+    }) {
+      return [
+        for (var i = 0; i < startingFivePositions.length; i++)
+          testPlayer(
+            id: '$label-$i',
+            rating: rating,
+            position: startingFivePositions[i],
+          ),
+        for (var i = startingFivePositions.length; i < 12; i++)
+          testPlayer(id: '$label-$i', rating: rating),
+      ];
+    }
+
+    test("Motion's ball-movement bump nets out to more scoring over many "
+        'games than an identical roster running Traditional (fewer '
+        'turnovers -> more possessions that end in points)', () {
+      final motionRoster = rosterWithShape('motion', const [
+        Position.pointGuard,
+        Position.smallForward,
+        Position.smallForward,
+        Position.powerForward,
+        Position.center,
+      ]);
+      final traditionalRoster = rosterWithShape('trad', const [
+        Position.pointGuard,
+        Position.shootingGuard,
+        Position.smallForward,
+        Position.powerForward,
+        Position.center,
+      ]);
+      const sampleSize = 150;
+
+      var motionScore = 0;
+      final motionRandom = Random(31);
+      for (var i = 0; i < sampleSize; i++) {
+        motionScore += simulateMatch(
+          motionRandom,
+          homeRoster: motionRoster,
+          awayRoster: testRoster('away-$i', baseRating: 50, step: 0),
+        ).homeScore;
+      }
+
+      var traditionalScore = 0;
+      final traditionalRandom = Random(31);
+      for (var i = 0; i < sampleSize; i++) {
+        traditionalScore += simulateMatch(
+          traditionalRandom,
+          homeRoster: traditionalRoster,
+          awayRoster: testRoster('away-$i', baseRating: 50, step: 0),
+        ).homeScore;
+      }
+
+      expect(motionScore, greaterThan(traditionalScore));
+    });
+
+    test("Face-Guard the Star widens the defense's scoring margin over "
+        'many games compared to an identical matchup on Balanced', () {
+      // A real, identifiable best player (away-0, highest overall) for
+      // Face-Guard the Star to actually have a target worth suppressing.
+      final home = testRoster('home', baseRating: 50, step: 0);
+
+      var awayScoreFaceGuarded = 0;
+      final faceGuardedRandom = Random(43);
+      const sampleSize = 150;
+      for (var i = 0; i < sampleSize; i++) {
+        awayScoreFaceGuarded += simulateMatch(
+          faceGuardedRandom,
+          homeRoster: home,
+          awayRoster: testRoster('away-$i', baseRating: 88, step: 4),
+          homeDefenseTactic: DefensiveTactic.faceGuardStar,
+        ).awayScore;
+      }
+
+      var awayScoreBalanced = 0;
+      final balancedRandom = Random(43);
+      for (var i = 0; i < sampleSize; i++) {
+        awayScoreBalanced += simulateMatch(
+          balancedRandom,
+          homeRoster: home,
+          awayRoster: testRoster('away-$i', baseRating: 88, step: 4),
+        ).awayScore;
+      }
+
+      expect(awayScoreFaceGuarded, lessThan(awayScoreBalanced));
+    });
+
+    test('AI opponents always defend Balanced -- omitting '
+        'homeDefenseTactic/awayDefenseTactic is identical to passing '
+        'DefensiveTactic.balanced explicitly for both sides', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+
+      final omitted = simulateMatch(
+        Random(53),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+      );
+      final explicit = simulateMatch(
+        Random(53),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeDefenseTactic: DefensiveTactic.balanced,
+        awayDefenseTactic: DefensiveTactic.balanced,
+      );
+
+      expect(omitted.homeScore, explicit.homeScore);
+      expect(omitted.awayScore, explicit.awayScore);
+    });
   });
 }

@@ -6,6 +6,7 @@ import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
 import '../../coach/generation/coach_free_agency_advancer.dart';
 import '../../draft/generation/draft_advancer.dart';
+import '../../matchup/domain/defensive_tactic.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../portrait/persistence/portrait_catalog_loader.dart';
@@ -368,7 +369,17 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// the game day index being advanced, not carried forward across calls
   /// -- see [kSeasonAdvanceSeedOffset]'s doc comment for why that's what
   /// makes a given game day's result reproducible across a save/reload.
-  Future<List<GameResult>?> advanceGameDay() async {
+  ///
+  /// [ownDefenseTactic] (2026-08-14, a direct GM ask, following the
+  /// "Coach's Board" design artifact) is the GM's pre-game pick from the
+  /// Matchup Analysis screen -- `null` (the default, e.g. every other
+  /// caller: the Dashboard's own "Advance to Next Game Day" button) falls
+  /// back to [DefensiveTactic.balanced], same as omitting it entirely.
+  /// Only ever applied to the GM's own team's side of their own game --
+  /// see [advanceToNextGameDay]'s own doc comment.
+  Future<List<GameResult>?> advanceGameDay({
+    DefensiveTactic? ownDefenseTactic,
+  }) async {
     final franchise = await future;
     if (franchise == null || franchise.seasonProgress.isComplete) {
       return null;
@@ -388,6 +399,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       rostersByAbbreviation: rostersByAbbreviation(franchise),
       ownTeamAbbreviation: franchise.team.abbreviation,
       coachesByAbbreviation: coachesByAbbreviation(franchise),
+      ownDefenseTactic: ownDefenseTactic,
     );
 
     final withTraining = _catchUpTraining(

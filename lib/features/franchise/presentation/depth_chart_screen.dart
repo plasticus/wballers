@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/presentation/portrait_image.dart';
@@ -89,6 +90,13 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
     final developmental = widget.franchise.roster
         .where((m) => m.status == RosterStatus.developmental)
         .toList();
+    // Recomputed on every build -- already rebuilds via `setState` on
+    // reorder/auto-fill, so this updates live as the GM changes who's in
+    // the top 5 (2026-08-14, a direct GM ask, following the "Coach's
+    // Board" design artifact).
+    final offenseShape = detectOffenseShape(
+      _active.take(5).map((m) => m.player).toList(),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Bench Order')),
@@ -98,6 +106,8 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _OffenseShapeBanner(shape: offenseShape),
+              const SizedBox(height: AppSpacing.sm),
               const Text(
                 'Drag to set your minutes-ranked order -- the top 5 are '
                 'your starters.',
@@ -152,6 +162,57 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A small live readout of the offensive shape the current top-5 order
+/// produces -- a direct GM ask (2026-08-14), following the "Coach's
+/// Board" design artifact
+/// (https://claude.ai/code/artifact/6f075bb0-8dc8-416c-9db1-e29b2c8a4ea6):
+/// "maybe add in a small box at the top that says what offensive strategy
+/// they'll be employing based on the starting 5." Purely informational --
+/// this screen doesn't need a "GM choice" for offense, since
+/// [detectOffenseShape] already reads it straight off whatever order the
+/// GM sets here.
+class _OffenseShapeBanner extends StatelessWidget {
+  const _OffenseShapeBanner({required this.shape});
+
+  final OffenseShape shape;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.sports_basketball, color: theme.colorScheme.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Offense: ${shape.label}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  shape.why,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

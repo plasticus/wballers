@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../coach/domain/coach.dart';
 import '../../match/engine/match_engine.dart';
 import '../../match/engine/substitution_policy.dart';
+import '../../matchup/domain/defensive_tactic.dart';
 import '../../player/domain/player.dart';
 import '../domain/game_result.dart';
 import '../domain/played_game.dart';
@@ -88,6 +89,15 @@ class GameDayAdvance {
 /// backward-compatible opt-in every other addition to this call chain
 /// gets.
 ///
+/// [ownDefenseTactic] (2026-08-14, a direct GM ask), when given, is the
+/// GM's own picked [DefensiveTactic] for today -- applied only to
+/// whichever side matches [ownTeamAbbreviation] in each of today's games;
+/// every other side (every AI opponent, always) gets the literal
+/// [DefensiveTactic.balanced], regardless of what's passed here. `null`
+/// (the default) also resolves to Balanced for the GM's own side -- same
+/// "AI always Balanced, no exception" behavior applies to a franchise
+/// with no real pick made yet.
+///
 /// Continental Cup Rounds 2-5 aren't part of the schedule at franchise
 /// creation (each depends on the previous round's actual results), so
 /// this function grows [SeasonProgress.schedule] itself the moment a
@@ -105,6 +115,7 @@ GameDayAdvance advanceToNextGameDay(
   required Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
   Map<String, Coach>? coachesByAbbreviation,
+  DefensiveTactic? ownDefenseTactic,
 }) {
   final gameDays = gameDaysInOrder(progress.schedule);
   assert(
@@ -125,6 +136,7 @@ GameDayAdvance advanceToNextGameDay(
           rostersByAbbreviation,
           ownTeamAbbreviation,
           coachesByAbbreviation,
+          ownDefenseTactic,
         ),
   ];
 
@@ -180,6 +192,7 @@ GameResult _simulateOneGame(
   Map<String, List<Player>> rostersByAbbreviation,
   String? ownTeamAbbreviation,
   Map<String, Coach>? coachesByAbbreviation,
+  DefensiveTactic? ownDefenseTactic,
 ) {
   final homeRoster = rostersByAbbreviation[game.homeTeamAbbreviation]!;
   final awayRoster = rostersByAbbreviation[game.awayTeamAbbreviation]!;
@@ -200,6 +213,15 @@ GameResult _simulateOneGame(
     awayTargetMinutes: game.awayTeamAbbreviation == ownTeamAbbreviation
         ? targetMinutesForOrderedRoster(awayRoster)
         : null,
+    // Only the GM's own team ever plays anything but Balanced -- every AI
+    // opponent gets the literal default, always, "AI always plays
+    // Balanced" with no separate decision logic anywhere.
+    homeDefenseTactic: game.homeTeamAbbreviation == ownTeamAbbreviation
+        ? (ownDefenseTactic ?? DefensiveTactic.balanced)
+        : DefensiveTactic.balanced,
+    awayDefenseTactic: game.awayTeamAbbreviation == ownTeamAbbreviation
+        ? (ownDefenseTactic ?? DefensiveTactic.balanced)
+        : DefensiveTactic.balanced,
   );
   return GameResult(game: game, match: match);
 }

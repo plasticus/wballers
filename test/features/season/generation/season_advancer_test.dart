@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
@@ -190,6 +191,52 @@ void main() {
       aaaGame.match.minutesPlayed[topBenchOrderPlayer]!,
       greaterThan(aaaGame.match.minutesPlayed[bottomBenchOrderPlayer]!),
     );
+  });
+
+  test('ownDefenseTactic only ever reaches the GM\'s own side -- the AI '
+      'opponent still measurably feels a real tactic (no separate '
+      'AI-decision code exists; this is `simulateMatch`\'s own default '
+      'wired through correctly, not a new AI behavior)', () {
+    final rosters = {
+      // AAA ("ours," home in the AAA-BBB game) stays flat so BBB's own
+      // rating carries the matchup; BBB gets a real, identifiable best
+      // player (varied overalls) for Face-Guard the Star to target.
+      'AAA': testRoster('AAA', baseRating: 50, step: 0),
+      'BBB': testRoster('BBB', baseRating: 88, step: 4),
+      'CCC': testRoster('CCC'),
+      'DDD': testRoster('DDD'),
+    };
+    const progress = SeasonProgress(
+      schedule: _schedule,
+      playedGames: [],
+      nextGameDayIndex: 0,
+    );
+    const sampleSize = 150;
+
+    var bbbScoreFaceGuarded = 0;
+    for (var seed = 0; seed < sampleSize; seed++) {
+      final result = advanceToNextGameDay(
+        Random(seed),
+        progress,
+        rostersByAbbreviation: rosters,
+        ownTeamAbbreviation: 'AAA',
+        ownDefenseTactic: DefensiveTactic.faceGuardStar,
+      );
+      bbbScoreFaceGuarded += result.gamesPlayed.single.match.awayScore;
+    }
+
+    var bbbScoreBalanced = 0;
+    for (var seed = 0; seed < sampleSize; seed++) {
+      final result = advanceToNextGameDay(
+        Random(seed),
+        progress,
+        rostersByAbbreviation: rosters,
+        ownTeamAbbreviation: 'AAA',
+      );
+      bbbScoreBalanced += result.gamesPlayed.single.match.awayScore;
+    }
+
+    expect(bbbScoreFaceGuarded, lessThan(bbbScoreBalanced));
   });
 
   group('Continental Cup round-chaining', () {

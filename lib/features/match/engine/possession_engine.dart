@@ -1,11 +1,26 @@
 import 'dart:math';
 
 import '../../../core/ratings/rating_scale.dart';
+import '../../matchup/domain/defensive_tactic.dart';
+import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/player.dart';
 import '../../player/domain/trait.dart';
 import '../domain/match_event.dart';
 import '../domain/possession_result.dart';
 import 'contest_resolver.dart';
+
+/// "No effect" defaults for [simulatePossession]'s `offenseBonus`/
+/// `defenseBonus` params -- every field zero, so omitting them (every
+/// possession-level test that doesn't care about lineup shape or
+/// defensive tactic) behaves exactly like before either concept existed.
+const _noOffenseBonus = (interior: 0.0, perimeter: 0.0, passing: 0.0);
+const _noDefenseBonus = (
+  interior: 0.0,
+  perimeter: 0.0,
+  disruption: 0.0,
+  targetedBonus: 0.0,
+  spreadThinPenalty: 0.0,
+);
 
 /// Full shot clock, in seconds.
 const _shotClockSeconds = 24.0;
@@ -157,19 +172,21 @@ const kCoachMatchupBonusCap = 0.05;
 
 enum _BallHandlerChoice { pass, drive, jumper }
 
-/// Applies the home-court/trait bonuses above, plus [coachBonus] if given,
-/// to one of [player]'s raw ratings, ahead of any contest that reads it.
+/// Applies the home-court/trait bonuses above, plus [bonus] if given, to
+/// one of [player]'s raw ratings, ahead of any contest that reads it.
 /// [isHome] is which side of *this specific contest* [player] is playing
 /// on -- callers thread through whichever of `offenseIsHome`/`defenseIsHome`
 /// matches which list [player] came from, not a property of the player
 /// itself (the same roster is the home team for the whole game either
 /// way).
 ///
-/// [coachBonus] (default 0, no effect) is [coachMatchupBonus]'s result for
-/// whichever team [player] is on *this possession* -- always 0 for a
-/// defending player, since the coach matchup only ever touches the
-/// attacking side (see that function's own doc comment for why one signed
-/// adjustment there does the job of two).
+/// [bonus] (default 0, no effect) is a general multiplier-delta
+/// accumulator, not a single named bonus -- a call site sums together
+/// whichever of [coachMatchupBonus], `OffenseShapeBonus`, or
+/// `DefenseTacticBonus` actually apply to this specific rating before
+/// passing the total in here. Was `coachBonus` (coach-matchup-only) until
+/// the 2026-08-14 offense-shape/defensive-tactic work gave this same slot
+/// more than one possible contributor.
 ///
 /// Deliberately a real (non-underscored) top-level function rather than
 /// private to this file -- the actual bonus math is exact and
@@ -180,9 +197,9 @@ int effectiveHomeAwayRating(
   Player player,
   int rawRating,
   bool isHome, {
-  double coachBonus = 0.0,
+  double bonus = 0.0,
 }) {
-  var multiplier = 1.0 + coachBonus;
+  var multiplier = 1.0 + bonus;
   if (isHome) {
     multiplier += kHomeAdvantageBonus;
     if (player.traits.contains(Trait.homeCourtHero)) {
@@ -206,10 +223,10 @@ int _averageEffectiveRating(
   int ratingA,
   int ratingB,
   bool isHome, {
-  double coachBonus = 0.0,
+  double bonus = 0.0,
 }) => _averageRating(
-  effectiveHomeAwayRating(player, ratingA, isHome, coachBonus: coachBonus),
-  effectiveHomeAwayRating(player, ratingB, isHome, coachBonus: coachBonus),
+  effectiveHomeAwayRating(player, ratingA, isHome, bonus: bonus),
+  effectiveHomeAwayRating(player, ratingB, isHome, bonus: bonus),
 );
 
 /// The attacking team's rating multiplier for the current possession, from
@@ -271,6 +288,14 @@ Player _randomOf(Random random, List<Player> players) =>
 /// formula, per `PlayerRatings`' doc comment), between one random
 /// rebounder on each side. [ceiling] is capped below 50/50 favoring the
 /// defense -- offensive rebounds are the exception, not the norm.
+///
+/// [offenseBonus]/[defenseBonus] are the offense-shape/defensive-tactic
+/// bonuses for each side this game -- both default to "no effect" so a
+/// caller that doesn't care about either gets the exact old behavior.
+/// [defenseTargetPlayerId] (a defensive-tactic Face-Guard-the-Star target,
+/// if any) swaps [defenseBonus]'s `targetedBonus` in for its
+/// `spreadThinPenalty` specifically when the offensive rebounder being
+/// contested is the flagged player.
 ({bool offensiveRebound, Player rebounder}) _resolveRebound(
   Random random,
   List<Player> offense,
@@ -278,6 +303,9 @@ Player _randomOf(Random random, List<Player> players) =>
   required bool offenseIsHome,
   required bool defenseIsHome,
   double offenseCoachBonus = 0.0,
+  OffenseShapeBonus offenseBonus = _noOffenseBonus,
+  DefenseTacticBonus defenseBonus = _noDefenseBonus,
+  String? defenseTargetPlayerId,
 }) {
   final offensiveRebounder = _randomOf(random, offense);
   final defensiveRebounder = _randomOf(random, defense);
@@ -288,13 +316,20 @@ Player _randomOf(Random random, List<Player> players) =>
       offensiveRebounder.ratings.strength,
       offensiveRebounder.ratings.interiorOffense,
       offenseIsHome,
-      coachBonus: offenseCoachBonus,
+      bonus: offenseCoachBonus + offenseBonus.interior,
     ),
     defenderRating: _averageEffectiveRating(
       defensiveRebounder,
       defensiveRebounder.ratings.strength,
       defensiveRebounder.ratings.interiorDefense,
       defenseIsHome,
+      bonus:
+          defenseBonus.interior +
+          _defenseTargetBonus(
+            defenseBonus,
+            offensiveRebounder,
+            defenseTargetPlayerId,
+          ),
     ),
     floor: 0.05,
     ceiling: 0.6,
@@ -305,22 +340,37 @@ Player _randomOf(Random random, List<Player> players) =>
   );
 }
 
+/// [DefenseTacticBonus.targetedBonus] when [attacker] is the flagged
+/// Face-Guard-the-Star target, else [DefenseTacticBonus.spreadThinPenalty]
+/// -- both 0 for every tactic except [DefensiveTactic.faceGuardStar], so
+/// this is always safe to add in regardless of which tactic is actually
+/// active.
+double _defenseTargetBonus(
+  DefenseTacticBonus defenseBonus,
+  Player attacker,
+  String? defenseTargetPlayerId,
+) {
+  return attacker.id == defenseTargetPlayerId
+      ? defenseBonus.targetedBonus
+      : defenseBonus.spreadThinPenalty;
+}
+
 /// Shoots [attempts] free throws for [shooter], appending a made/missed
 /// event for each, and returns how many went in. Resolved against a fixed
 /// neutral rating (`_neutralFreeThrowDefense`) via [perimeterOffense] as
 /// the closest existing proxy for touch -- there's no dedicated
 /// free-throw rating. [shooterIsHome] is always the *offense*'s home
 /// status -- a free-throw shooter is always the team that had the ball.
-/// [coachBonus] is the offense's [coachMatchupBonus] for this game --
-/// nobody's actively defending a free throw, but the shooter's own coach
-/// matchup still applies to their touch.
+/// [bonus] is the offense's combined coach-matchup + offense-shape
+/// perimeter bonus for this game -- nobody's actively defending a free
+/// throw, but the shooter's own bonuses still apply to their touch.
 int _shootFreeThrows(
   Random random,
   List<MatchEvent> events,
   Player shooter,
   int attempts, {
   required bool shooterIsHome,
-  double coachBonus = 0.0,
+  double bonus = 0.0,
 }) {
   var made = 0;
   for (var i = 0; i < attempts; i++) {
@@ -330,7 +380,7 @@ int _shootFreeThrows(
         shooter,
         shooter.ratings.perimeterOffense,
         shooterIsHome,
-        coachBonus: coachBonus,
+        bonus: bonus,
       ),
       defenderRating: _neutralFreeThrowDefense,
       floor: _freeThrowFloor,
@@ -383,8 +433,21 @@ int _shootFreeThrows(
 /// opt-in-only posture as the home-court params. Applied to every
 /// attacking-side rating this possession touches (passing, shooting,
 /// free throws, offensive rebounding) via [effectiveHomeAwayRating]'s
-/// `coachBonus` -- never to the defense's ratings, see
-/// [coachMatchupBonus]'s own doc comment for why.
+/// `bonus` -- never to the defense's ratings, see [coachMatchupBonus]'s
+/// own doc comment for why.
+///
+/// [offenseBonus]/[defenseBonus] (2026-08-14, a direct GM ask following
+/// the "Coach's Board" design artifact) are the current offense's
+/// lineup-shape bonus (`offense_shape.dart`) and the current defense's
+/// GM-picked tactic bonus (`defensive_tactic.dart`) -- both default to
+/// "no effect." Unlike the coach bonus, [defenseBonus] *does* reach the
+/// defense's own ratings (shot defense, pass disruption, blocking,
+/// defensive rebounding) -- these are new bonus-eligible spots that never
+/// existed before this. [defenseTargetPlayerId], when set (only ever
+/// meaningful for `DefensiveTactic.faceGuardStar`), swaps
+/// [defenseBonus]'s `targetedBonus` in for its `spreadThinPenalty` at
+/// every one of those defender-side spots specifically when the
+/// offensive player involved in that contest is the flagged target.
 ///
 /// There's no court-position model yet (`0B_Planned.md`'s Phase 4 court
 /// presentation): "driving" and "shooting a jumper" are modeled as a
@@ -402,6 +465,9 @@ PossessionResult simulatePossession(
   bool offenseIsHome = false,
   bool defenseIsHome = false,
   double offenseCoachBonus = 0.0,
+  OffenseShapeBonus offenseBonus = _noOffenseBonus,
+  DefenseTacticBonus defenseBonus = _noDefenseBonus,
+  String? defenseTargetPlayerId,
 }) {
   assert(offense.length == 5, 'offense must have exactly 5 players on court');
   assert(defense.length == 5, 'defense must have exactly 5 players on court');
@@ -457,13 +523,20 @@ PossessionResult simulatePossession(
           ballHandler.ratings.agility,
           ballHandler.ratings.passing,
           offenseIsHome,
-          coachBonus: offenseCoachBonus,
+          bonus: offenseCoachBonus + offenseBonus.passing,
         ),
         defenderRating: _averageEffectiveRating(
           defender,
           defender.ratings.agility,
           defender.ratings.disruption,
           defenseIsHome,
+          bonus:
+              defenseBonus.disruption +
+              _defenseTargetBonus(
+                defenseBonus,
+                ballHandler,
+                defenseTargetPlayerId,
+              ),
         ),
         floor: _passCleanFloor,
         ceiling: _passCleanCeiling,
@@ -542,7 +615,7 @@ PossessionResult simulatePossession(
           ballHandler,
           2,
           shooterIsHome: offenseIsHome,
-          coachBonus: offenseCoachBonus,
+          bonus: offenseCoachBonus + offenseBonus.perimeter,
         );
         return finish(
           freeThrowPoints > 0
@@ -572,27 +645,34 @@ PossessionResult simulatePossession(
             ballHandler.ratings.strength,
             ballHandler.ratings.interiorOffense,
             offenseIsHome,
-            coachBonus: offenseCoachBonus,
+            bonus: offenseCoachBonus + offenseBonus.interior,
           )
         : _averageEffectiveRating(
             ballHandler,
             ballHandler.ratings.agility,
             ballHandler.ratings.perimeterOffense,
             offenseIsHome,
-            coachBonus: offenseCoachBonus,
+            bonus: offenseCoachBonus + offenseBonus.perimeter,
           );
+    final defenseTargetBonus = _defenseTargetBonus(
+      defenseBonus,
+      ballHandler,
+      defenseTargetPlayerId,
+    );
     final defenderRating = isDrive
         ? _averageEffectiveRating(
             defender,
             defender.ratings.strength,
             defender.ratings.interiorDefense,
             defenseIsHome,
+            bonus: defenseBonus.interior + defenseTargetBonus,
           )
         : _averageEffectiveRating(
             defender,
             defender.ratings.agility,
             defender.ratings.perimeterDefense,
             defenseIsHome,
+            bonus: defenseBonus.perimeter + defenseTargetBonus,
           );
 
     final isThree = !isDrive && random.nextDouble() < _threePointAttemptRate;
@@ -656,7 +736,7 @@ PossessionResult simulatePossession(
         ballHandler,
         freeThrowAttempts,
         shooterIsHome: offenseIsHome,
-        coachBonus: offenseCoachBonus,
+        bonus: offenseCoachBonus + offenseBonus.perimeter,
       );
       final totalPoints = (made ? attemptPoints : 0) + freeThrowPoints;
       return finish(
@@ -702,6 +782,10 @@ PossessionResult simulatePossession(
         defender,
         defender.ratings.blocking,
         defenseIsHome,
+        // Blocking reads as rim protection regardless of shot type, so it
+        // shares the drive/jumper defender's own interior bonus + target
+        // check rather than needing a third variant.
+        bonus: defenseBonus.interior + defenseTargetBonus,
       ),
       // shooterRating is already boosted for offenseIsHome above -- reused
       // as-is rather than re-derived.
@@ -727,6 +811,9 @@ PossessionResult simulatePossession(
       offenseIsHome: offenseIsHome,
       defenseIsHome: defenseIsHome,
       offenseCoachBonus: offenseCoachBonus,
+      offenseBonus: offenseBonus,
+      defenseBonus: defenseBonus,
+      defenseTargetPlayerId: defenseTargetPlayerId,
     );
     events.add(
       MatchEvent(

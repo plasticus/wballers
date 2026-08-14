@@ -8,7 +8,10 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
+import 'package:womensbballmgr/features/matchup/domain/offense_shape.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
+import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
@@ -182,6 +185,23 @@ void main() {
       );
       await tester.pump();
       await tester.pump(); // portraits resolve async, one more frame
+
+      expect(find.text('Offensive Shape'), findsOneWidget);
+      // Independently computed, the exact same way the screen itself
+      // does -- the GM's own side reads real bench order, the AI
+      // opponent auto-sorts by overall.
+      final rosters = rostersByAbbreviation(franchise);
+      final homeShape = detectOffenseShape(
+        startingFiveFor(
+          rosters[franchise.team.abbreviation]!,
+          isBenchOrdered: true,
+        ),
+      );
+      final awayShape = detectOffenseShape(
+        startingFiveFor(rosters[opponent.abbreviation]!, isBenchOrdered: false),
+      );
+      expect(find.text(homeShape.label), findsWidgets);
+      expect(find.text(awayShape.label), findsWidgets);
 
       expect(find.text('Team Strength'), findsOneWidget);
       expect(find.text('Offense'), findsOneWidget);
@@ -374,4 +394,75 @@ void main() {
       expect(savedFranchise.seasonProgress.playedGames, hasLength(1));
     },
   );
+
+  testWidgets('the Defensive Tactic picker shows all 4 options with their '
+      'shorthand, defaulting to Balanced (2026-08-14, a direct GM ask)', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final base = _newFranchise();
+    final opponent = base.league.aiTeams.first.team;
+    final franchise = _withOwnGameToday(base, opponent);
+    final game = franchise.seasonProgress.schedule.games.single;
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          home: MatchPreviewScreen(franchise: franchise, game: game),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Defensive Tactic'), findsOneWidget);
+    for (final tactic in DefensiveTactic.values) {
+      expect(find.text(tactic.label), findsOneWidget);
+      expect(find.text(tactic.shorthand), findsOneWidget);
+    }
+    // Balanced starts checked, every other option doesn't.
+    expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
+    expect(
+      find.byIcon(Icons.radio_button_unchecked),
+      findsNWidgets(DefensiveTactic.values.length - 1),
+    );
+  });
+
+  testWidgets('tapping a Defensive Tactic option selects it', (tester) async {
+    tester.view.physicalSize = const Size(900, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final base = _newFranchise();
+    final opponent = base.league.aiTeams.first.team;
+    final franchise = _withOwnGameToday(base, opponent);
+    final game = franchise.seasonProgress.schedule.games.single;
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          home: MatchPreviewScreen(franchise: franchise, game: game),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text(DefensiveTactic.packThePaint.label));
+    await tester.pump();
+
+    // Still exactly one checked -- it just moved off Balanced.
+    expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
+    expect(
+      find.byIcon(Icons.radio_button_unchecked),
+      findsNWidgets(DefensiveTactic.values.length - 1),
+    );
+  });
 }

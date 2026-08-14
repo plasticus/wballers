@@ -7,7 +7,9 @@ import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../matchup/domain/analyst.dart';
+import '../../matchup/domain/defensive_tactic.dart';
 import '../../matchup/domain/matchup_analysis.dart';
+import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../roster/domain/team_overall.dart';
@@ -40,18 +42,32 @@ const kFormLossColor = Color(0xFFEF4444); // High-contrast bright red
 /// ```
 /// [ad placeholder]           <- fixed
 /// Matchup Analysis           <- fixed
-/// [scroll: Team Callouts, Team Strength, Top Contributors, The Analysts]
+/// [scroll: Team Callouts, Offense, Team Strength, Top Contributors,
+///          The Analysts, Defensive Tactic]
 /// [Play Game]                <- fixed
 /// ```
 ///
-/// The single thing that actually does anything here is still the Play
-/// Game button: it runs the same `advanceGameDay` the Dashboard's "Advance
-/// to Next Game Day" button already calls (this screen only ever gets
-/// pushed in place of that direct call, on a day `nextOwnGame` says the
-/// GM's own team is playing), then hands off to `GameResultScreen`. Every
-/// other team's game that game day is still simulated the same instant,
+/// Play Game runs the same `advanceGameDay` the Dashboard's "Advance to
+/// Next Game Day" button already calls (this screen only ever gets pushed
+/// in place of that direct call, on a day `nextOwnGame` says the GM's own
+/// team is playing), then hands off to `GameResultScreen`. Every other
+/// team's game that game day is still simulated the same instant,
 /// background-sim way it always was -- this only changes what the GM sees
 /// for their own.
+///
+/// Two new sections (2026-08-14, a direct GM ask following the "Coach's
+/// Board" design artifact,
+/// https://claude.ai/code/artifact/6f075bb0-8dc8-416c-9db1-e29b2c8a4ea6):
+/// **Offense** shows both teams' automatically-detected `OffenseShape`
+/// (`offense_shape.dart`) -- nothing to pick, just what each starting
+/// five's positions already determine. **Defensive Tactic**, the last
+/// thing in the scrolling body (below The Analysts), is the one real GM
+/// choice on this screen -- 4 `DefensiveTactic` options
+/// (`defensive_tactic.dart`), always defaulting to
+/// `DefensiveTactic.balanced` on open (this widget's own local `State`,
+/// never persisted, so a fresh visit always starts there even if a
+/// clearly-better option existed last game). `_playGame` threads the pick
+/// into `advanceGameDay`'s new `ownDefenseTactic` param.
 class MatchPreviewScreen extends ConsumerStatefulWidget {
   const MatchPreviewScreen({
     required this.franchise,
@@ -68,6 +84,7 @@ class MatchPreviewScreen extends ConsumerStatefulWidget {
 
 class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
   var _isPlaying = false;
+  var _tactic = DefensiveTactic.balanced;
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +97,27 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     final rosters = rostersByAbbreviation(franchise);
     final homePlayers = rosters[game.homeTeamAbbreviation] ?? const <Player>[];
     final awayPlayers = rosters[game.awayTeamAbbreviation] ?? const <Player>[];
+
+    // Same bench-order-vs-auto-sort convention `_simulateOneGame` actually
+    // uses for this exact game -- the GM's own side reads its real bench
+    // order, the opponent falls back to the automatic overall-based sort
+    // -- so the shape shown here always matches what's about to be
+    // simulated. `startingFiveFor`, not `startingFiveByMinutes` (which
+    // needs a resolved 12-player target-minutes map) -- a lightweight
+    // preview shouldn't have to satisfy that assertion.
+    final ownAbbreviation = franchise.team.abbreviation;
+    final homeShape = detectOffenseShape(
+      startingFiveFor(
+        homePlayers,
+        isBenchOrdered: game.homeTeamAbbreviation == ownAbbreviation,
+      ),
+    );
+    final awayShape = detectOffenseShape(
+      startingFiveFor(
+        awayPlayers,
+        isBenchOrdered: game.awayTeamAbbreviation == ownAbbreviation,
+      ),
+    );
 
     final homeOverall = teamOverallForPlayers(homePlayers);
     final awayOverall = teamOverallForPlayers(awayPlayers);
@@ -202,6 +240,13 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
                       homeOverall: homeOverall,
                     ),
                     const SizedBox(height: AppSpacing.sm),
+                    _OffenseShapesSection(
+                      awayTeam: awayTeam,
+                      awayShape: awayShape,
+                      homeTeam: homeTeam,
+                      homeShape: homeShape,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     _TeamStrengthSection(
                       awayTeam: awayTeam,
                       homeTeam: homeTeam,
@@ -226,6 +271,11 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
                       verdicts: verdicts,
                       homeTeam: homeTeam,
                       awayTeam: awayTeam,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _DefensiveTacticPicker(
+                      selected: _tactic,
+                      onSelected: (tactic) => setState(() => _tactic = tactic),
                     ),
                   ],
                 ),
@@ -262,7 +312,7 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     setState(() => _isPlaying = true);
     final results = await ref
         .read(currentFranchiseProvider.notifier)
-        .advanceGameDay();
+        .advanceGameDay(ownDefenseTactic: _tactic);
     if (!mounted) return;
 
     final ownAbbreviation = widget.franchise.team.abbreviation;
@@ -565,6 +615,99 @@ class _FormDots extends StatelessWidget {
               border: Border.all(color: Colors.black26, width: 0.5),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Both teams' automatically-detected [OffenseShape] side by side --
+/// nothing for the GM to pick, just what each starting five's real
+/// positions already determine (2026-08-14, a direct GM ask). Kept
+/// visually separate from [_TeamStrengthSection] below on purpose: this
+/// is a play-style explainer, not a roster-quality number.
+class _OffenseShapesSection extends StatelessWidget {
+  const _OffenseShapesSection({
+    required this.awayTeam,
+    required this.awayShape,
+    required this.homeTeam,
+    required this.homeShape,
+  });
+
+  final Team awayTeam;
+  final OffenseShape awayShape;
+  final Team homeTeam;
+  final OffenseShape homeShape;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // "Offensive Shape," not the bare "Offense" `_TeamStrengthSection`
+          // already uses for its own bar label -- two different sections
+          // both saying just "Offense" collides for anything that finds
+          // by text.
+          Text('Offensive Shape', style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _OffenseShapeColumn(team: awayTeam, shape: awayShape),
+              ),
+              Container(
+                width: 1,
+                height: 64,
+                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+              Expanded(
+                child: _OffenseShapeColumn(team: homeTeam, shape: homeShape),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OffenseShapeColumn extends StatelessWidget {
+  const _OffenseShapeColumn({required this.team, required this.shape});
+
+  final Team team;
+  final OffenseShape shape;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${team.emoji} ${team.abbreviation}',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          shape.label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          shape.why,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }
@@ -1024,6 +1167,127 @@ class _AnalystRow extends StatelessWidget {
           ),
           Text(pickedTeam.emoji, style: const TextStyle(fontSize: 20)),
         ],
+      ),
+    );
+  }
+}
+
+/// The GM's one real choice on this screen -- 4 [DefensiveTactic] options,
+/// each a tappable card carrying its own name and a quick shorthand of
+/// what it is and when to use it (a direct GM ask, 2026-08-14: "I'd like
+/// it if the choices had a quick shorthand... when you should use them" --
+/// every option's blurb is visible at once, not hidden behind a tap). Not
+/// a `SegmentedButton` (this codebase's usual 3-4-option picker, e.g.
+/// Training Focus) on purpose -- that pattern only shows short labels, not
+/// the descriptive text this specifically needs.
+class _DefensiveTacticPicker extends StatelessWidget {
+  const _DefensiveTacticPicker({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final DefensiveTactic selected;
+  final ValueChanged<DefensiveTactic> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Defensive Tactic', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 2),
+          Text(
+            'Always starts on Balanced -- pick something else only if you '
+            'see a real edge.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final tactic in DefensiveTactic.values) ...[
+            if (tactic != DefensiveTactic.values.first)
+              const SizedBox(height: AppSpacing.xs),
+            _TacticOption(
+              tactic: tactic,
+              isSelected: tactic == selected,
+              onTap: () => onSelected(tactic),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TacticOption extends StatelessWidget {
+  const _TacticOption({
+    required this.tactic,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final DefensiveTactic tactic;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+            width: isSelected ? 2 : 1,
+          ),
+          color: isSelected
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+              : null,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              size: 20,
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tactic.label,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    tactic.shorthand,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

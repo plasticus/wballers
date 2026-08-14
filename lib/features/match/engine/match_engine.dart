@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import '../../coach/domain/coach.dart';
+import '../../matchup/domain/defensive_tactic.dart';
+import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/player.dart';
 import '../domain/match_event.dart';
 import '../domain/match_result.dart';
@@ -33,6 +35,17 @@ const _substitutionCheckSeconds = 120.0;
 
 Player _tallest(List<Player> players) =>
     players.reduce((a, b) => a.heightInches >= b.heightInches ? a : b);
+
+/// The id of whoever in [roster] rates highest by `PlayerRatings.overall`
+/// -- [DefensiveTactic.faceGuardStar]'s target, always computed off the
+/// *opposing* team's roster. Null-safe on an empty roster (never actually
+/// empty for a real 12-player game, but cheap to guard).
+String? _bestPlayerId(List<Player> roster) {
+  if (roster.isEmpty) return null;
+  return roster
+      .reduce((a, b) => a.ratings.overall >= b.ratings.overall ? a : b)
+      .id;
+}
 
 /// Simulates one full game between [homeRoster] and [awayRoster] (each the
 /// full 12-player active roster) -- quarters, a running score, fouls
@@ -89,6 +102,30 @@ Player _tallest(List<Player> players) =>
 ///   flat rating bump whenever they're on offense, computed once here for
 ///   the whole game (coach stats don't change mid-game) rather than
 ///   re-derived every possession.
+/// - **Offense shape** (2026-08-14, a direct GM ask, following the
+///   "Coach's Board" design artifact): fully automatic, no param to set --
+///   each side's starting five (the 5 players carrying the most minutes
+///   in its resolved target-minutes map, via `startingFiveByMinutes`)
+///   determines an `OffenseShape` (`offense_shape.dart`), which becomes
+///   that team's flat rating bump whenever they're on offense. Applies to
+///   every game this function ever simulates, including postseason,
+///   All-Star, and AI-vs-AI regular-season games -- there's no opt-out,
+///   since it's read straight off real roster data rather than a GM
+///   choice.
+/// - **Defensive tactic** (2026-08-14, same ask): [homeDefenseTactic]/
+///   [awayDefenseTactic] default to [DefensiveTactic.balanced] --
+///   deliberately *not* nullable/coach-style all-or-nothing, since
+///   Balanced is a legitimate value on its own (every AI opponent and
+///   every non-"today's game" call site just leaves these at their
+///   default, which *is* "AI always plays Balanced," with no separate
+///   AI-decision logic anywhere). Only the pre-game screen's Play Game
+///   flow ever passes something else, for the GM's own team only. Each
+///   side's tactic becomes that team's rating bump whenever they're on
+///   *defense* (`defensive_tactic.dart`'s `DefenseTacticBonus`) --
+///   [DefensiveTactic.faceGuardStar] additionally targets whichever
+///   player on the *opposing* roster has the highest
+///   `PlayerRatings.overall` (this game's fixed target for the whole
+///   game, not re-evaluated possession to possession).
 MatchResult simulateMatch(
   Random random, {
   required List<Player> homeRoster,
@@ -97,6 +134,8 @@ MatchResult simulateMatch(
   Map<Player, int>? awayTargetMinutes,
   Coach? homeCoach,
   Coach? awayCoach,
+  DefensiveTactic homeDefenseTactic = DefensiveTactic.balanced,
+  DefensiveTactic awayDefenseTactic = DefensiveTactic.balanced,
 }) {
   assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
   assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
@@ -115,6 +154,19 @@ MatchResult simulateMatch(
           offenseCoachOffense: awayCoach.stats.offense,
           defenseCoachDefense: homeCoach.stats.defense,
         );
+  final homeOffenseBonus = offenseBonusFor(
+    detectOffenseShape(startingFiveByMinutes(homeTargetMinutes)),
+  );
+  final awayOffenseBonus = offenseBonusFor(
+    detectOffenseShape(startingFiveByMinutes(awayTargetMinutes)),
+  );
+  final homeDefenseBonus = defenseBonusFor(homeDefenseTactic);
+  final awayDefenseBonus = defenseBonusFor(awayDefenseTactic);
+  // Each side's Face-Guard-the-Star target (if any) is whoever on the
+  // *opposing* roster rates highest overall -- null-safe, though a real
+  // 12-player roster is never empty in practice.
+  final homeDefenseTargetId = _bestPlayerId(awayRoster);
+  final awayDefenseTargetId = _bestPlayerId(homeRoster);
   final minutesPlayed = <Player, double>{};
   final personalFouls = <Player, int>{};
   final fouledOut = <Player>{};
@@ -194,6 +246,11 @@ MatchResult simulateMatch(
         offenseCoachBonus: offenseIsHome
             ? homeOffenseCoachBonus
             : awayOffenseCoachBonus,
+        offenseBonus: offenseIsHome ? homeOffenseBonus : awayOffenseBonus,
+        defenseBonus: offenseIsHome ? awayDefenseBonus : homeDefenseBonus,
+        defenseTargetPlayerId: offenseIsHome
+            ? awayDefenseTargetId
+            : homeDefenseTargetId,
       );
       events.addAll(result.events);
       quarterClock -= result.secondsElapsed;
