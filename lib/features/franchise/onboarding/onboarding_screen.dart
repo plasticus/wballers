@@ -9,13 +9,19 @@ import '../../league/domain/team.dart';
 import '../../league/team_row.dart';
 import 'coach_selection_screen.dart';
 import 'expansion_franchise_factory.dart';
+import 'quick_start_teams.dart';
 import 'team_emoji_options.dart';
 
 /// Name yourself (the GM), name the club, choose a conference/colors/
-/// emoji, and pick which of the drawn league's 20 teams to replace.
-/// Continuing from here doesn't create the franchise yet -- it hands off
-/// to [CoachSelectionScreen] first (Phase 1's expansion onboarding flow
-/// now has two steps, identity then a real staffing decision).
+/// emoji, and pick which of the drawn league's 20 teams to replace. A
+/// Quick Start row (2026-08-14, a direct GM ask -- "I'm tired of typing
+/// in my team info on each restart") can fill in a whole identity (GM
+/// name, club name, city, colors, emoji) in one tap from
+/// [kQuickStartTeams]; every field it touches stays exactly as editable
+/// afterward as a manually-typed one. Continuing from here doesn't
+/// create the franchise yet -- it hands off to [CoachSelectionScreen]
+/// first (Phase 1's expansion onboarding flow now has two steps,
+/// identity then a real staffing decision).
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -120,6 +126,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return options[Random().nextInt(options.length)];
   }
 
+  /// Fills club name/home city/home state/abbreviation/colors/emoji, plus
+  /// a random hokey GM name, from [preset] -- a direct GM ask
+  /// (2026-08-14): "I'm tired of typing in my team info on each restart,"
+  /// immediately followed by "put in a random name for the GM. Hokey
+  /// names that sound like women from the city/emoji selected." Never
+  /// touches conference (still out of scope -- "it's just team info +
+  /// emoji"), and doesn't lock anything -- every field this sets stays
+  /// exactly as hand-editable afterward as it already is for a
+  /// manually-typed entry, same "curated default, still freely editable"
+  /// posture colors/emoji already have. [Random] here, not seeded --
+  /// same "real entropy, not reproducible on purpose" posture
+  /// [_simulationSeed] itself has; picking a fresh GM name is a cosmetic
+  /// convenience, not something a save needs to reproduce.
+  void _applyQuickStart(QuickStartTeam preset) {
+    setState(() {
+      _gmNameController.text =
+          preset.gmNames[Random().nextInt(preset.gmNames.length)];
+      _clubNameController.text = preset.clubName;
+      _homeCityController.text = preset.homeCity;
+      _homeStateController.text = preset.homeState;
+      _abbreviationController.text = preset.abbreviation;
+      _selectedColors = preset.colors;
+      _selectedEmoji = preset.emoji;
+    });
+  }
+
   /// Exactly 3 letters, same shape as every `kLeagueTeamPool` entry
   /// (`Team.abbreviation`'s own doc comment) -- a derived abbreviation
   /// can't tell "DSM" from "DMD" apart for a team like the "Des Moines
@@ -179,6 +211,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 "You're the General Manager: build the roster and set the "
                 'direction. Your coach handles in-game decisions.',
                 style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Text('Quick Start', style: theme.textTheme.titleSmall),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Tap a club to fill in everything below -- a GM name, '
+                'team name, city, and colors. Still yours to edit '
+                'afterward.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final preset in kQuickStartTeams)
+                    _QuickStartOption(
+                      key: ValueKey(preset.abbreviation),
+                      preset: preset,
+                      onTap: () => _applyQuickStart(preset),
+                    ),
+                ],
               ),
               const SizedBox(height: AppSpacing.xl),
               TextField(
@@ -539,6 +593,60 @@ class _PaletteSwatch extends StatelessWidget {
             ),
           ),
           child: isSelected ? Icon(Icons.check, color: colors.accent) : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// One quick-start club option -- emoji + club name, tappable, no
+/// "selected" state of its own (unlike [_PaletteSwatch]/[_EmojiOption]):
+/// a tap is a one-shot fill-in the GM can freely hand-edit afterward, not
+/// a persistent choice this tile needs to keep tracking (`_applyQuickStart`).
+class _QuickStartOption extends StatelessWidget {
+  const _QuickStartOption({
+    required this.preset,
+    required this.onTap,
+    super.key,
+  });
+
+  final QuickStartTeam preset;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      label: 'Quick start ${preset.clubName}',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 96,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xs,
+            vertical: AppSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(preset.emoji, style: const TextStyle(fontSize: 26)),
+              const SizedBox(height: 4),
+              Text(
+                preset.clubName,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                softWrap: true,
+                style: theme.textTheme.labelSmall,
+              ),
+            ],
+          ),
         ),
       ),
     );

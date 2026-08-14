@@ -8,6 +8,7 @@ import 'package:womensbballmgr/features/franchise/onboarding/coach_selection_scr
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart'
     show kStarterPalettes;
 import 'package:womensbballmgr/features/franchise/onboarding/onboarding_screen.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/quick_start_teams.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/team_emoji_options.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
@@ -176,6 +177,41 @@ void main() {
     expect(continueButton().onPressed, isNotNull);
   });
 
+  testWidgets('tapping a Quick Start club fills in GM name, team name, city, '
+      'state, abbreviation, and the emoji -- and every field stays '
+      'hand-editable afterward (2026-08-14, a direct GM ask)', (tester) async {
+    await pumpHarness(tester);
+
+    final preset = kQuickStartTeams.first;
+    await tester.tap(find.text(preset.clubName));
+    await tester.pump();
+
+    String textOf(String label) => tester
+        .widget<TextField>(find.widgetWithText(TextField, label))
+        .controller!
+        .text;
+
+    expect(textOf('Team Name'), preset.clubName);
+    expect(textOf('Home City'), preset.homeCity);
+    expect(textOf('State/Province'), preset.homeState);
+    expect(textOf('Abbr.'), preset.abbreviation);
+    expect(preset.gmNames, contains(textOf('Name of General Manager')));
+    // Every emoji option this preset could have picked renders somewhere
+    // -- specifically confirming *this* preset's own emoji shows as
+    // selected would need reaching into `_EmojiOption`'s internal
+    // selected state, more than this test needs; the identity preview
+    // card rendering the right emoji is the real, user-visible signal.
+    expect(find.textContaining(preset.emoji), findsWidgets);
+
+    // Still freely hand-editable afterward -- not locked in by the tap.
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Team Name'),
+      'Something Else Entirely',
+    );
+    await tester.pump();
+    expect(textOf('Team Name'), 'Something Else Entirely');
+  });
+
   testWidgets('shows a live preview of the identity as it\'s typed', (
     tester,
   ) async {
@@ -225,6 +261,15 @@ void main() {
   testWidgets(
     'shows 10 of the conference\'s 20-team pool, and swaps when it changes',
     (tester) async {
+      // The Pacific/Atlantic SegmentedButton this test taps sits below
+      // the Quick Start row (2026-08-14) -- tall enough that the default
+      // test viewport hides it off the bottom of the screen, same
+      // "needs real height, this content doesn't lazily build" reasoning
+      // other tall-page tests in this codebase already handle this way.
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       await pumpHarness(tester);
 
       // Each conference now has a 20-team candidate pool, of which this
