@@ -36,12 +36,17 @@ import 'trait_distribution.dart';
 /// the original three-slot version below) rather than drawn from the same
 /// flat distribution as the rest of the roster:
 ///  - one franchise vet, a real star (~95 OVR) with 1-2 seasons left
-///    before she starts aging down hard
+///    before she starts aging down hard -- potential is pinned to exactly
+///    her own rolled overall (not a separate jittered value), a same-day
+///    tightening once a rolled example showed her a few points under her
+///    own potential: "Star Vet needs to be AT her potential... No wiggle
+///    room, I don't want anyone to think she should be trained more."
 ///  - one boom-or-bust 21-year-old, starting in the mid-60s OVR but with
 ///    a genuine superstar ceiling (95+ potential)
 ///  - one solid 21-23-year-old, already good today (mid-70s OVR) with a
-///    real but non-superstar ceiling (83-87 potential) -- worth training,
-///    not a franchise cornerstone
+///    real but non-superstar ceiling (83-87 potential, +/-5 -- widened
+///    same-day from +/-2, a GM preference after seeing sample rosters) --
+///    worth training, not a franchise cornerstone
 ///  - one second vet, age 26 and already at her ceiling (~80 OVR, no
 ///    real gap to potential) -- worth starting today, not worth spending
 ///    training time on
@@ -64,15 +69,17 @@ import 'trait_distribution.dart';
 /// 11-player average -- together with the four narrative players above,
 /// now stronger than the original three-slot version -- still lands in
 /// the same target range as before (`Aug9bugs.md` #11's original ~69
-/// target; center dropped from 65 to 63 on the 2026-08-14 revision to
-/// hold that line against the stronger narrative core, tuned empirically
-/// same as the original).
+/// target). Center re-tuned twice the same day the 4-slot version shipped:
+/// first to 63 to hold the ~69 line against the stronger narrative core,
+/// then to 59 once a real sampled sweep showed 63 actually averaging
+/// ~71.3, not ~69 -- "I worry I creeped them up a bit" turned out to be
+/// right (300-seed sweep: 63->71.3, 61->70.2, 59->69.1 team overall,
+/// post-signing). Every generic filler's own potential is also capped
+/// now -- see [_genericPotentialCap]'s own doc comment for why.
 const _veteranQualityCenter = 95;
 const _veteranQualitySpread = 2;
 const _veteranMinAge = 33;
 const _veteranMaxAge = 34;
-const _veteranPotential = 95;
-const _veteranPotentialSpread = 2;
 
 const _prospectQualityCenter = 64;
 const _prospectQualitySpread = 3;
@@ -85,7 +92,10 @@ const _youngsterAQualitySpread = 3;
 const _youngsterAMinAge = 21;
 const _youngsterAMaxAge = 23;
 const _youngsterAPotential = 85;
-const _youngsterAPotentialSpread = 2;
+// A 10-point-wide window (2026-08-14, a GM preference after seeing sample
+// rosters: "I think I prefer the 10 point spread for her, wherever her
+// numbers land") -- was +/-2, now +/-5.
+const _youngsterAPotentialSpread = 5;
 
 /// The new 4th narrative slot (2026-08-14) -- a second vet already at her
 /// ceiling. Potential is centered on the same value as current ability
@@ -99,8 +109,25 @@ const _primeVetAge = 26;
 const _primeVetPotential = 80;
 const _primeVetPotentialSpread = 2;
 
-const _genericQualityCenter = 63;
+const _genericQualityCenter = 59;
 const _genericQualitySpread = 10;
+
+/// Caps a generic filler's potential regardless of age -- without this, a
+/// filler who happens to roll young (`generatePlayer`'s own age-based
+/// [_generatePotentialOffset], 8-35 points wide for age <=23) can roll a
+/// real prospect-looking gap purely by chance, with no narrative intent
+/// behind it. A direct GM report (2026-08-14, a real rolled roster): 3 of
+/// 7 generic fillers read as "worth training" alongside the real 3
+/// narrative-tier prospects (rookie/young-solid/free agent) -- "I don't
+/// want that for the opening season. Too much choice for a head coach to
+/// make when they're just learning the game." Same exact numbers
+/// `free_agent_pool_generator.dart`'s own `_fillerPotentialCap`/
+/// `_fillerPotentialCapSpread` already use for its fillers, for the same
+/// reason -- confirmed via sampled rosters this keeps every generic
+/// filler's gap-to-potential comfortably below the real narrative-tier
+/// prospects', every time.
+const _genericPotentialCap = 66;
+const _genericPotentialCapSpread = 6;
 
 /// Splits [kElevenPlayerPositionPlan]'s 11 slots into the 4 distinct
 /// standard positions the narrative slots occupy (the first 4 entries of
@@ -239,14 +266,14 @@ List<RosterMembership> generateStartingRoster(
   }
 
   final roster = <RosterMembership>[
+    // No potentialOverride here -- her potential is pinned to exactly her
+    // own rolled overall right after the roster is built, below.
     build(
       0,
       qualityCenter: _veteranQualityCenter,
       qualitySpread: _veteranQualitySpread,
       minAge: _veteranMinAge,
       maxAge: _veteranMaxAge,
-      potentialOverride: _veteranPotential,
-      potentialOverrideSpread: _veteranPotentialSpread,
     ),
     build(
       1,
@@ -280,8 +307,23 @@ List<RosterMembership> generateStartingRoster(
         i,
         qualityCenter: _genericQualityCenter,
         qualitySpread: _genericQualitySpread,
+        potentialOverride: _genericPotentialCap,
+        potentialOverrideSpread: _genericPotentialCapSpread,
       ),
   ];
+
+  // The franchise vet's potential, pinned to exactly her own overall --
+  // `generatePlayer` has no "potential == overall exactly" mode (its own
+  // `potentialOverride` always jitters toward a separate target), so this
+  // is done directly, once, right here rather than by fighting that
+  // mechanism into producing a zero gap.
+  final vet = roster[0].player;
+  roster[0] = RosterMembership(
+    player: vet.copyWithRatings(
+      vet.ratings.copyWith(potential: vet.ratings.overall),
+    ),
+    status: RosterStatus.active,
+  );
 
   final orderedRoster = _promoteMissingPositionStarter(roster);
   return assignJerseyNumbers(random, distributeTraits(random, orderedRoster));

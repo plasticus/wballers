@@ -133,6 +133,58 @@ void main() {
     },
   );
 
+  test('the franchise vet\'s potential is pinned to exactly her own '
+      'overall -- no wiggle room, a direct GM ask (2026-08-14): "I don\'t '
+      'want anyone to think she should be trained more"', () {
+    for (var seed = 0; seed < 100; seed++) {
+      final vet = generateStartingRoster(seed)[0].player;
+      expect(vet.ratings.potential, vet.ratings.overall, reason: 'seed $seed');
+    }
+  });
+
+  test('the young-solid slot\'s potential spans a real 10-point window, '
+      'not a tight one (2026-08-14, a GM preference: "I think I prefer '
+      'the 10 point spread for her")', () {
+    final gaps = <int>[];
+    for (var seed = 0; seed < 200; seed++) {
+      final youngSolid = generateStartingRoster(seed)[2].player;
+      gaps.add(youngSolid.ratings.potential - youngSolid.ratings.overall);
+    }
+    // The jittered target itself spans a 10-point window (85 +/- 5) --
+    // actual gaps vary further since overall has its own independent
+    // roll, but they should spread meaningfully wider than the old +/-2
+    // version ever could.
+    expect(gaps.toSet().length, greaterThan(5), reason: '$gaps');
+  });
+
+  test('no generic filler\'s potential gap comes close to the real '
+      'narrative-tier prospects\' -- capped regardless of age (2026-08-14, '
+      'a direct GM report: 3 of 7 fillers read as "worth training" '
+      'alongside the real 3, "too much choice for a head coach... just '
+      'learning the game")', () {
+    // 22 is a comfortable margin above the real observed ceiling (18,
+    // sampled across 3000 seeds x 7 fillers -- the cap floors potential
+    // at whatever overall rolls, `max(overall, jitter(66, 6))`, so a rare
+    // low-overall/high-jitter tail can still clear 15) -- still nowhere
+    // near the rookie's 28+ or a typical young-solid's 10-14.
+    for (var seed = 0; seed < 200; seed++) {
+      final roster = generateStartingRoster(seed);
+      for (final membership in roster.skip(4)) {
+        final gap =
+            membership.player.ratings.potential -
+            membership.player.ratings.overall;
+        expect(
+          gap,
+          lessThanOrEqualTo(22),
+          reason:
+              'seed $seed: ${membership.player.name} (age '
+              '${membership.player.age}) gapped $gap, close to '
+              'narrative-tier territory',
+        );
+      }
+    }
+  });
+
   test('the default bench order\'s own top 5 (indices 0-4) is always a '
       'real, legal standard starting five -- one player at each of the 5 '
       'positions, out of the box, before the GM ever touches Bench Order '
