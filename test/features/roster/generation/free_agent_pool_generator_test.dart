@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/generation/free_agent_pool_generator.dart';
 
 void main() {
@@ -30,7 +31,10 @@ void main() {
 
       expect(
         byPotential.first.ratings.potential,
-        inInclusiveRange(77, 83),
+        // 2026-08-14 revision: potential = max(overall, jitter(82, 3)), so
+        // 79-85 is the mathematically guaranteed band -- see
+        // `kDecentFreeAgentPotential`'s doc comment.
+        inInclusiveRange(78, 88),
         reason:
             'seed $seed: the decent prospect should land near '
             '$kDecentFreeAgentPotential potential',
@@ -45,14 +49,18 @@ void main() {
     }
   });
 
-  test('filler quality stays below roster level -- max OVR around 65, per '
-      'the GM\'s own guideline', () {
+  test('pool quality stays within reach of the starting roster -- max OVR '
+      'in the high 70s, per the decent prospect\'s own 2026-08-14 retuning '
+      '(was ~65, back when she was a pure flier)', () {
     // Random(9) drew a filler at 71 once `country_pool.dart`'s weights
     // changed to the flat 80/20 split (2026-08-10, TODO.md item 10) --
     // same "the exact draw sequence shifted, not a real quality
     // regression" RNG-stream-shift this codebase has re-verified against
     // a clean seed for several times before. Random(2) stays comfortably
-    // at 69 across the same 200-pool sample.
+    // at 69 across the same 200-pool sample. The ceiling itself moved up
+    // (2026-08-14): the deliberately-planted decent prospect now centers
+    // on 70 OVR, not 62, so she -- not a filler -- is what actually sets
+    // the pool's real max most of the time.
     final random = Random(2);
     var maxOverall = 0;
     for (var i = 0; i < 200; i++) {
@@ -62,10 +70,10 @@ void main() {
         }
       }
     }
-    expect(maxOverall, lessThanOrEqualTo(70));
+    expect(maxOverall, lessThanOrEqualTo(80));
   });
 
-  test('the decent prospect is a 23-year-old international rookie -- a '
+  test('the decent prospect is a 24-year-old international rookie -- a '
       'direct GM ask so a high-potential pickup has real runway to grow', () {
     for (var seed = 0; seed < 100; seed++) {
       final pool = generateFreeAgentPool(Random(seed));
@@ -84,6 +92,27 @@ void main() {
         isNull,
         reason: 'seed $seed: should read as international, not domestic',
       );
+    }
+  });
+
+  test('plantedPosition forces the decent prospect to a specific position '
+      '(2026-08-14, a direct GM ask -- she should complete the GM\'s '
+      'starting five at whatever position needs her, not land randomly)', () {
+    for (final position in Position.values) {
+      for (var seed = 0; seed < 20; seed++) {
+        final pool = generateFreeAgentPool(
+          Random(seed),
+          plantedPosition: position,
+        );
+        final decent = pool.reduce(
+          (a, b) => a.ratings.potential > b.ratings.potential ? a : b,
+        );
+        expect(
+          decent.primaryPosition,
+          position,
+          reason: 'seed $seed, target $position',
+        );
+      }
     }
   });
 

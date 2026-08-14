@@ -129,9 +129,14 @@ RosterMembership _activeMember(String id) {
   );
 }
 
-/// A deliberately maxed-out player -- 95 across the board -- so an OVR
-/// sort has an unambiguous, seed-independent winner regardless of what
-/// `generateStartingRoster` happened to roll for everyone else.
+/// A deliberately maxed-out player -- 99 (the scale's actual ceiling,
+/// `kMaxRating`) across the board -- so an OVR sort has an unambiguous,
+/// seed-independent winner regardless of what `generateStartingRoster`
+/// happened to roll for everyone else. Was 95 flat until
+/// `starting_roster_generator.dart`'s 2026-08-14 revision raised the
+/// hand-placed franchise vet's own quality center to 95 -- close enough
+/// (with her own spread and a favorable position bias) to occasionally
+/// tie or edge out a flat-95 fixture, which this test can't tolerate.
 RosterMembership _highOverallMember(String id) {
   return RosterMembership(
     player: Player(
@@ -145,19 +150,19 @@ RosterMembership _highOverallMember(String id) {
       handedness: Handedness.right,
       biography: '',
       ratings: const PlayerRatings(
-        speed: 95,
-        agility: 95,
-        strength: 95,
-        stamina: 95,
-        ballControl: 95,
-        passing: 95,
-        interiorOffense: 95,
-        perimeterOffense: 95,
-        perimeterDefense: 95,
-        interiorDefense: 95,
-        disruption: 95,
-        blocking: 95,
-        potential: 95,
+        speed: 99,
+        agility: 99,
+        strength: 99,
+        stamina: 99,
+        ballControl: 99,
+        passing: 99,
+        interiorOffense: 99,
+        perimeterOffense: 99,
+        perimeterDefense: 99,
+        interiorDefense: 99,
+        disruption: 99,
+        blocking: 99,
+        potential: 99,
       ),
       heightInches: 76,
       archetype: Archetype.shotBlocker,
@@ -272,7 +277,7 @@ void main() {
         expect(
           starY,
           lessThan(y),
-          reason: 'the 95-OVR star should rank above ${membership.player.name}',
+          reason: 'the 99-OVR star should rank above ${membership.player.name}',
         );
       }
     },

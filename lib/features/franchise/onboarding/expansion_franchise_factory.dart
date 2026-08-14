@@ -217,6 +217,13 @@ Franchise createExpansionFranchise({
   // .narrativeVeteranPlayerId`'s own doc comment.
   final narrativeVeteran = roster.first.player;
 
+  // The one standard position the 4 narrative slots (roster indices 0-3)
+  // don't cover -- a direct GM ask (2026-08-14): the Day-0 free agent
+  // should be generated to fill exactly this position, completing a real
+  // starting five instead of landing wherever chance puts her. See
+  // `missingStartingPosition`'s own doc comment.
+  final missingPosition = missingStartingPosition(roster);
+
   // One player short of a full active roster on purpose -- see
   // `generateStartingRoster`'s doc comment. `freeAgents` is what the GM
   // has to sign from to fill it, generated once here and persisted from
@@ -224,6 +231,7 @@ Franchise createExpansionFranchise({
   final freeAgents = generateFreeAgentPool(
     Random(simulationSeed + kFreeAgentPoolSeedOffset),
     portraitWeights: portraitWeights,
+    plantedPosition: missingPosition,
   );
 
   final league = generateLeague(

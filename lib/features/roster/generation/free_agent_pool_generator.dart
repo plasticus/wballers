@@ -51,35 +51,41 @@ const _fillerPotentialCapSpread = 6;
 /// The one deliberately-planted "decent" free agent every new pool gets --
 /// a direct GM ask, paired with the Day-0 Assistant GM mail
 /// (`dashboard/dashboard_screen.dart`) that nudges toward exactly this
-/// kind of pickup: "try to find a high-potential player." Position is
-/// still left to `generatePlayer`'s own default (fully random), but
-/// current ability is not -- it used to be ("everything else about them
-/// should be random"), left at `generatePlayer`'s flat default center
-/// (50), until a real problem surfaced (`Aug9bugs.md` #11): a player
-/// generated around 50 OVR is *below* every other player on a fresh
-/// 11-player starting roster, so signing "the good free agent" the
-/// Assistant GM specifically pointed to actively *lowered* the team's
-/// overall rating -- the opposite of the "found a gem" signing it was
-/// supposed to read as. [_decentFreeAgentQualityCenter] (62, empirically
-/// tuned alongside `starting_roster_generator.dart`'s own matching bump)
-/// makes this a real, competitive-if-unspectacular current contributor,
-/// with [kDecentFreeAgentPotential] doing all the work of making her feel
-/// like a find. Age, experience, and hometown are also pinned (2026-08-09,
-/// a direct GM follow-up ask: "the age should be 23, an international
-/// rookie... give them a little runway to grow").
-const kDecentFreeAgentPotential = 80;
+/// kind of pickup: "try to find a high-potential player." Current ability
+/// used to be left at `generatePlayer`'s flat default center (50), until a
+/// real problem surfaced (`Aug9bugs.md` #11): a player generated around 50
+/// OVR is *below* every other player on a fresh 11-player starting roster,
+/// so signing "the good free agent" the Assistant GM specifically pointed
+/// to actively *lowered* the team's overall rating -- the opposite of the
+/// "found a gem" signing it was supposed to read as.
+///
+/// Re-tuned again 2026-08-14 (a direct GM ask, alongside
+/// `starting_roster_generator.dart`'s 4-narrative-slot revision): she
+/// should read as "worth training for a season or two, then good depth,"
+/// not a multi-year project -- [_decentFreeAgentQualityCenter] (70) and
+/// [kDecentFreeAgentPotential] (82) hold a moderate, closeable gap instead
+/// of the original wide-open one. Age, experience, and hometown are also
+/// pinned (2026-08-09 originally, bumped to 24 on the same 2026-08-14
+/// revision: "the age should be [24], an international rookie... give
+/// them a little runway to grow"). Position is no longer left to
+/// `generatePlayer`'s own random default either -- see
+/// [generateFreeAgentPool]'s `plantedPosition` parameter: this player is
+/// meant to complete the GM's starting five at a specific position, not
+/// land wherever chance puts her.
+const kDecentFreeAgentPotential = 82;
 const _decentFreeAgentPotentialSpread = 3;
-const _decentFreeAgentQualityCenter = 62;
-const _decentFreeAgentQualitySpread = 10;
+const _decentFreeAgentQualityCenter = 70;
+const _decentFreeAgentQualitySpread = 5;
 
 /// The planted decent free agent's pinned age -- see
-/// [kDecentFreeAgentPotential]'s doc comment. 23 reads as "just arrived,"
-/// old enough to already be a real, evaluable prospect (not a total
-/// question mark) but young enough that -- combined with
-/// [_kDecentFreeAgentYearsOfService] pinning her as a rookie -- most of
-/// [kDecentFreeAgentPotential]'s gap-to-potential growth is still ahead of
-/// her rather than behind her.
-const kDecentFreeAgentAge = 23;
+/// [kDecentFreeAgentPotential]'s doc comment. 24 (bumped from 23 on the
+/// 2026-08-14 revision) reads as "just arrived," old enough to already be
+/// a real, evaluable prospect (not a total question mark) but young
+/// enough that -- combined with [_kDecentFreeAgentYearsOfService] pinning
+/// her as a rookie -- most of [kDecentFreeAgentPotential]'s (now moderate,
+/// not wide-open) gap-to-potential growth is still ahead of her rather
+/// than behind her.
+const kDecentFreeAgentAge = 24;
 
 /// Pinned to 0 (`generatePlayer`'s own "freshly drafted prospect" value,
 /// same one `draft_generator.dart` uses) rather than left to the normal
@@ -92,6 +98,15 @@ const _kDecentFreeAgentYearsOfService = 0;
 /// one of them the deliberately-planted "decent" prospect (landing at a
 /// random position within the pool, not always slot 0), the rest random
 /// filler. Deterministic for a given [random] stream.
+///
+/// [plantedPosition] is optional -- when given, the decent prospect
+/// generates at exactly that position instead of a random one (a direct
+/// GM ask, 2026-08-14: she should complete the GM's starting five at
+/// whichever position `starting_roster_generator.dart`'s 4 narrative
+/// slots left uncovered, not land wherever chance puts her -- see
+/// `missingStartingPosition`). Omitted, she falls back to the original
+/// fully-random position, same as every pre-existing caller (mostly
+/// tests).
 ///
 /// [portraitWeights] is optional and threads straight through to
 /// [generatePlayer] -- omitted (e.g. in tests), every free agent's
@@ -108,12 +123,13 @@ List<Player> generateFreeAgentPool(
   Random random, {
   int count = kFreeAgentPoolSize,
   PortraitWeights? portraitWeights,
+  Position? plantedPosition,
 }) {
   final decentIndex = random.nextInt(count);
   return [
     for (var i = 0; i < count; i++)
       i == decentIndex
-          ? _generateDecentFreeAgent(random, portraitWeights)
+          ? _generateDecentFreeAgent(random, portraitWeights, plantedPosition)
           : _generateFillerFreeAgent(random, portraitWeights),
   ];
 }
@@ -121,8 +137,11 @@ List<Player> generateFreeAgentPool(
 Player _generateDecentFreeAgent(
   Random random,
   PortraitWeights? portraitWeights,
+  Position? plantedPosition,
 ) {
-  final position = Position.values[random.nextInt(Position.values.length)];
+  final position =
+      plantedPosition ??
+      Position.values[random.nextInt(Position.values.length)];
   final country =
       _kNonDomesticCountries[random.nextInt(_kNonDomesticCountries.length)];
   final player = generatePlayer(

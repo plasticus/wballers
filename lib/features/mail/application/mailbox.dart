@@ -129,12 +129,14 @@ String assistantGmRosterGapMessage(Franchise franchise) {
         );
 
   return 'Boss -- we\'re one player short of a full active roster. We '
-      'need to sign a free agent before we can advance the season. Our '
-      'starting five is already set, so I\'d skip the safe veterans and '
-      'bet on upside.'
+      'need to sign a free agent before we can advance the season. Four '
+      'of our five starting spots are already locked in -- this last '
+      'one\'s still open, so I\'d fill it with someone worth building '
+      'around, not just a stopgap.'
       '${prospect == null ? '' : ' Take a look at ${prospect.name} '
-                '(${prospect.primaryPosition.abbreviation}) -- that '
-                'ceiling is worth the roster spot.'}';
+                '(${prospect.primaryPosition.abbreviation}) -- she can '
+                'start for us today, and that ceiling\'s worth the roster '
+                'spot too.'}';
 }
 
 /// The Assistant GM's follow-up once the roster's actually full

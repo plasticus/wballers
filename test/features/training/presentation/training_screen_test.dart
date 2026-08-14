@@ -314,8 +314,24 @@ void main() {
     // line -- check each piece instead of one combined string.
     final lastName = targetPlayer.name.split(' ').skip(1).join(' ');
     expect(find.text(lastName), findsOneWidget);
-    expect(_findBareStatChip(targetPlayer.ratings.overall), findsOneWidget);
-    expect(_findBareStatChip(targetPlayer.ratings.potential), findsOneWidget);
+    // `_findBareStatChip` matches by raw numeric value alone (the widget
+    // itself carries nothing else to tell an OVR chip from a POT chip),
+    // so when the two happen to coincide -- expected and common now for
+    // `starting_roster_generator.dart`'s franchise-vet slot, whose
+    // potential is deliberately centered on the same value as her current
+    // ability (2026-08-14 revision: she's not a training project, she's
+    // already near her ceiling) -- the same number legitimately renders
+    // twice (her OVR chip and her POT chip both showing it).
+    final overallMatchesPotential =
+        targetPlayer.ratings.overall == targetPlayer.ratings.potential;
+    expect(
+      _findBareStatChip(targetPlayer.ratings.overall),
+      overallMatchesPotential ? findsNWidgets(2) : findsOneWidget,
+    );
+    expect(
+      _findBareStatChip(targetPlayer.ratings.potential),
+      overallMatchesPotential ? findsNWidgets(2) : findsOneWidget,
+    );
     expect(_findBareStatChip(targetPlayer.age), findsOneWidget);
     expect(find.text('Specific'), findsOneWidget);
     expect(find.text('Speed'), findsOneWidget);

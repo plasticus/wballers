@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../player/domain/position.dart';
 import '../../player/generation/player_generator.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
@@ -30,48 +31,112 @@ import 'trait_distribution.dart';
 /// AI roster still uses) keeps every position at 2+ players even with the
 /// gap.
 ///
-/// Three of the eleven slots are hand-placed narrative players rather than
-/// drawn from the same flat distribution as the rest of the roster --
-/// the GM's own request was for "valuable pieces to train" and "bargaining
-/// chips," not just eleven interchangeable unknowns:
-///  - one grizzled vet, already near her ceiling and about to age out
-///  - one boom-or-bust 21-year-old, a real potential superstar buried on
-///    the bench today
-///  - one more promising youngster a tier below the boom-or-bust pick
-///    (a second one at this tier was cut when the roster dropped from 12
-///    to 11 -- "I had you making 2 with potential in the 80s -- drop one
-///    of those")
+/// **Four of the eleven slots are hand-placed narrative players** (revised
+/// 2026-08-14, a direct GM ask -- "let's redo the rules a bit," replacing
+/// the original three-slot version below) rather than drawn from the same
+/// flat distribution as the rest of the roster:
+///  - one franchise vet, a real star (~95 OVR) with 1-2 seasons left
+///    before she starts aging down hard
+///  - one boom-or-bust 21-year-old, starting in the mid-60s OVR but with
+///    a genuine superstar ceiling (95+ potential)
+///  - one solid 21-23-year-old, already good today (mid-70s OVR) with a
+///    real but non-superstar ceiling (83-87 potential) -- worth training,
+///    not a franchise cornerstone
+///  - one second vet, age 26 and already at her ceiling (~80 OVR, no
+///    real gap to potential) -- worth starting today, not worth spending
+///    training time on
 ///
-/// The other eight are generic role players, centered so the full
-/// 11-player average lands in the target range together with the three
-/// narrative players (`Aug9bugs.md` #11 raised this center from 62 to 65,
-/// tuned empirically against 500 seeds, alongside a matching bump to the
-/// free-agent-pool's own planted prospect -- see that generator's own
-/// note -- once it became clear signing that prospect was *lowering* the
-/// team average rather than the accretive "found a gem" signing it was
-/// supposed to read as).
-const _veteranQualityCenter = 87;
-const _veteranQualitySpread = 3;
+/// These 4 are assigned 4 distinct standard positions (randomized per
+/// franchise -- see [_narrativeAndGenericPositions]), deliberately leaving
+/// exactly one of the 5 standard positions uncovered. [missingStartingPosition]
+/// reads that gap back out so `expansion_franchise_factory.dart` can target
+/// the Day-0 free agent at it, completing a real starting five spread
+/// across all 5 narrative-tier players (the 4 here plus the free agent)
+/// instead of leaving it to chance.
+///
+/// The other seven are generic role players, centered so the full
+/// 11-player average -- together with the four narrative players above,
+/// now stronger than the original three-slot version -- still lands in
+/// the same target range as before (`Aug9bugs.md` #11's original ~69
+/// target; center dropped from 65 to 63 on the 2026-08-14 revision to
+/// hold that line against the stronger narrative core, tuned empirically
+/// same as the original).
+const _veteranQualityCenter = 95;
+const _veteranQualitySpread = 2;
 const _veteranMinAge = 33;
 const _veteranMaxAge = 34;
-const _veteranPotential = 88;
+const _veteranPotential = 95;
 const _veteranPotentialSpread = 2;
 
-const _prospectQualityCenter = 70;
+const _prospectQualityCenter = 64;
 const _prospectQualitySpread = 3;
 const _prospectAge = 21;
-const _prospectPotential = 92;
+const _prospectPotential = 96;
 const _prospectPotentialSpread = 2;
 
-const _youngsterAQualityCenter = 65;
-const _youngsterAQualitySpread = 4;
+const _youngsterAQualityCenter = 75;
+const _youngsterAQualitySpread = 3;
 const _youngsterAMinAge = 21;
 const _youngsterAMaxAge = 23;
-const _youngsterAPotential = 83;
-const _youngsterAPotentialSpread = 3;
+const _youngsterAPotential = 85;
+const _youngsterAPotentialSpread = 2;
 
-const _genericQualityCenter = 65;
+/// The new 4th narrative slot (2026-08-14) -- a second vet already at her
+/// ceiling. Potential is centered on the same value as current ability
+/// (rather than meaningfully above it, like every other narrative slot)
+/// so training her yields next to nothing -- `generatePlayer` still
+/// floors potential at whatever overall actually rolls, so she'll always
+/// read as at-or-just-above her current level, never below it.
+const _primeVetQualityCenter = 80;
+const _primeVetQualitySpread = 2;
+const _primeVetAge = 26;
+const _primeVetPotential = 80;
+const _primeVetPotentialSpread = 2;
+
+const _genericQualityCenter = 63;
 const _genericQualitySpread = 10;
+
+/// Splits [kElevenPlayerPositionPlan]'s 11 slots into the 4 distinct
+/// standard positions the narrative slots occupy (the first 4 entries of
+/// the returned list, randomized per franchise) and the 7 remaining slots
+/// the generic role players fill (the rest). Whichever of the 5 standard
+/// positions doesn't make the narrative-slot cut is deliberately left
+/// generic-only -- see [missingStartingPosition], which reads that gap
+/// back out for the Day-0 free agent to target.
+List<Position> _narrativeAndGenericPositions(Random random) {
+  final narrativeFour = (List.of(
+    Position.values,
+  )..shuffle(random)).sublist(0, 4);
+
+  // `List.remove` drops only the first match, exactly what's needed here
+  // -- one plan slot per narrative position claimed, leaving the rest
+  // (including every slot of the one position none of the 4 claimed).
+  final genericPositions = List.of(kElevenPlayerPositionPlan);
+  for (final position in narrativeFour) {
+    genericPositions.remove(position);
+  }
+  genericPositions.shuffle(random);
+
+  return [...narrativeFour, ...genericPositions];
+}
+
+/// The one standard position none of the 4 narrative players occupies --
+/// always roster indices 0-3, per [generateStartingRoster]'s own doc
+/// comment and [_narrativeAndGenericPositions]. A direct GM ask
+/// (2026-08-14): the Day-0 free agent should be generated to specifically
+/// fill this position, so she completes a real starting five alongside
+/// the 4 narrative slots instead of landing wherever chance puts her.
+/// `expansion_franchise_factory.dart` reads this and threads it into
+/// `generateFreeAgentPool`.
+Position missingStartingPosition(List<RosterMembership> roster) {
+  final narrativePositions = roster
+      .take(4)
+      .map((membership) => membership.player.primaryPosition)
+      .toSet();
+  return Position.values.firstWhere(
+    (position) => !narrativePositions.contains(position),
+  );
+}
 
 /// Generates a new expansion franchise's starting active roster.
 /// Deterministic: the same [seed] always produces the same 11 players in
@@ -88,7 +153,7 @@ List<RosterMembership> generateStartingRoster(
   PortraitWeights? portraitWeights,
 }) {
   final random = Random(seed);
-  final positions = List.of(kElevenPlayerPositionPlan)..shuffle(random);
+  final positions = _narrativeAndGenericPositions(random);
 
   // Every surname already placed on this roster so far -- threaded into
   // each [generatePlayer] call below so it rerolls away from a repeat
@@ -149,7 +214,16 @@ List<RosterMembership> generateStartingRoster(
       potentialOverride: _youngsterAPotential,
       potentialOverrideSpread: _youngsterAPotentialSpread,
     ),
-    for (var i = 3; i < positions.length; i++)
+    build(
+      3,
+      qualityCenter: _primeVetQualityCenter,
+      qualitySpread: _primeVetQualitySpread,
+      minAge: _primeVetAge,
+      maxAge: _primeVetAge,
+      potentialOverride: _primeVetPotential,
+      potentialOverrideSpread: _primeVetPotentialSpread,
+    ),
+    for (var i = 4; i < positions.length; i++)
       build(
         i,
         qualityCenter: _genericQualityCenter,

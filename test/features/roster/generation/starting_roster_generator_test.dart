@@ -133,6 +133,71 @@ void main() {
     },
   );
 
+  test('the 4 narrative slots (2026-08-14 revision) always land on 4 '
+      'distinct standard positions', () {
+    for (var seed = 0; seed < 100; seed++) {
+      final roster = generateStartingRoster(seed);
+      final narrativePositions = roster
+          .take(4)
+          .map((m) => m.player.primaryPosition)
+          .toSet();
+      expect(narrativePositions, hasLength(4), reason: 'seed $seed');
+    }
+  });
+
+  test('missingStartingPosition names the one standard position none of '
+      'the 4 narrative players occupies -- the Day-0 free agent\'s target '
+      '(2026-08-14, a direct GM ask)', () {
+    for (var seed = 0; seed < 100; seed++) {
+      final roster = generateStartingRoster(seed);
+      final missing = missingStartingPosition(roster);
+
+      expect(
+        roster.take(4).map((m) => m.player.primaryPosition),
+        isNot(contains(missing)),
+        reason: 'seed $seed',
+      );
+      // Together with the 4 narrative positions, every standard position
+      // is accounted for exactly once.
+      final covered = {
+        ...roster.take(4).map((m) => m.player.primaryPosition),
+        missing,
+      };
+      expect(covered, Position.values.toSet(), reason: 'seed $seed');
+    }
+  });
+
+  test('the 4th narrative slot is a second vet already at her ceiling -- '
+      'age 26, ~80 OVR, and not really worth training (a direct GM ask, '
+      '2026-08-14)', () {
+    for (var seed = 0; seed < 100; seed++) {
+      final roster = generateStartingRoster(seed);
+      final primeVet = roster[3].player;
+
+      expect(primeVet.age, 26, reason: 'seed $seed');
+      expect(primeVet.ratings.overall, inInclusiveRange(75, 85));
+      // "Not worth training" -- the gap to potential should stay small,
+      // nothing like the boom-or-bust prospect's wide-open one.
+      expect(
+        primeVet.ratings.potential - primeVet.ratings.overall,
+        lessThanOrEqualTo(8),
+        reason: 'seed $seed',
+      );
+    }
+  });
+
+  test('the boom-or-bust prospect starts in the mid-60s with a 95+ '
+      'ceiling (2026-08-14 revision -- lower floor, higher ceiling than '
+      'the original)', () {
+    for (var seed = 0; seed < 100; seed++) {
+      final prospect = generateStartingRoster(seed)[1].player;
+
+      expect(prospect.age, 21, reason: 'seed $seed');
+      expect(prospect.ratings.overall, inInclusiveRange(58, 70));
+      expect(prospect.ratings.potential, greaterThanOrEqualTo(93));
+    }
+  });
+
   test('different seeds produce meaningfully different rosters', () {
     final a = generateStartingRoster(10);
     final b = generateStartingRoster(20);

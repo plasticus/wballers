@@ -5,6 +5,8 @@ import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart'
+    show missingStartingPosition;
 
 final _portraitManifest = PortraitManifest(
   hair: const ['hair_afro.png'],
@@ -235,7 +237,8 @@ void main() {
       // out), but at least one player at this level is guaranteed.
       expect(
         franchise.freeAgents.map((p) => p.ratings.potential),
-        contains(inInclusiveRange(77, 83)),
+        // 2026-08-14 revision -- see `free_agent_pool_generator_test.dart`.
+        contains(inInclusiveRange(78, 88)),
       );
     });
 
@@ -322,11 +325,43 @@ void main() {
       expect(franchise.narrativeVeteranPlayerId, veteran.id);
       expect(franchise.narrativeVeteranName, veteran.name);
       expect(franchise.narrativeVeteranAppearance, veteran.appearance);
-      // She's really the hand-placed vet slot -- age 33-34, ~87-88
-      // OVR/POT (`starting_roster_generator.dart`'s own constants), not
-      // just "whoever happens to be first."
+      // She's really the hand-placed vet slot -- age 33-34, ~93-97
+      // OVR/POT (`starting_roster_generator.dart`'s own constants,
+      // re-tuned 2026-08-14), not just "whoever happens to be first."
       expect(veteran.age, inInclusiveRange(33, 34));
-      expect(veteran.ratings.overall, inInclusiveRange(84, 90));
+      expect(veteran.ratings.overall, inInclusiveRange(91, 99));
+    });
+
+    test('the Day-0 free agent pool\'s decent prospect is planted at the '
+        'one standard position the starting roster\'s 4 narrative slots '
+        'left uncovered -- a direct GM ask (2026-08-14) so signing her '
+        'actually completes a real starting five', () {
+      // A single seed is enough here -- this test is about the *wiring*
+      // between `missingStartingPosition` and `generateFreeAgentPool`
+      // inside `createExpansionFranchise`, not the underlying position
+      // math itself (already covered across many seeds by
+      // `starting_roster_generator_test.dart` and
+      // `free_agent_pool_generator_test.dart`). `replacedTeamAbbreviation`
+      // has to actually be drawn for the given `simulationSeed` (see
+      // `createExpansionFranchise`'s own doc comment), so this can't just
+      // loop seeds with a fixed 'DEN' like a lower-level test could.
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.pacific,
+        replacedTeamAbbreviation: 'DEN',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      final missing = missingStartingPosition(franchise.roster);
+      final decent = franchise.freeAgents.reduce(
+        (a, b) => a.ratings.potential > b.ratings.potential ? a : b,
+      );
+
+      expect(decent.primaryPosition, missing);
     });
 
     test('narrativeVeteranAppearance is null when portraitWeights is '
