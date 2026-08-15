@@ -681,6 +681,15 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
       progress.playedGames,
       franchise.team.abbreviation,
     );
+    // Neither All-Star day is a normal team-vs-team game for the GM's own
+    // club, so it isn't a "bye" in the sense this note means -- excluded
+    // the same way `_advanceOrPreview` treats it as its own special case.
+    final nextDayTypes = nextGameDayTypes(progress);
+    final isOwnByeDay =
+        !progress.isComplete &&
+        !nextDayTypes.contains(GameType.skillsCompetition) &&
+        !nextDayTypes.contains(GameType.allStarGame) &&
+        nextOwnGame(progress, franchise.team.abbreviation) == null;
 
     return AppCard(
       child: Column(
@@ -749,6 +758,37 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                   style: theme.textTheme.bodySmall,
                 ),
               ],
+              const SizedBox(height: AppSpacing.sm),
+            ] else if (isOwnByeDay) ...[
+              // A plain regular-season/preseason bye -- the greedy
+              // schedule packer doesn't guarantee every team a game on
+              // every game day (`season_schedule_generator.dart`), so
+              // this is normal, not a bug -- but with nothing on screen
+              // saying so, advancing on a day the GM's own team sits out
+              // read as confusing (a direct GM report, 2026-08-15: "I
+              // need to know why" my team isn't playing this game day).
+              Row(
+                children: [
+                  Icon(
+                    Icons.event_busy_outlined,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'No Game Today',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Your team has the day off -- other league games are '
+                'still being simulated.',
+                style: theme.textTheme.bodySmall,
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             _UpcomingGamesList(franchise: franchise),

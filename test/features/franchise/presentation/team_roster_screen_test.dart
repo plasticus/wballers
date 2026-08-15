@@ -111,6 +111,31 @@ void main() {
   });
 
   testWidgets(
+    'the Calendar button opens TeamCalendarScreen (2026-08-15, a direct '
+    'GM ask)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Calendar'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'Calendar'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'the sort dropdown reorders the Active Roster display -- picking OVR '
     'puts the roster\'s single highest-OVR player first',
     (tester) async {

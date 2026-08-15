@@ -86,14 +86,28 @@ class _ResultRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              game.type == GameType.preseason
-                  ? '${weekLabel(game.week)} · ${game.day.label} · Preseason'
-                  : '${weekLabel(game.week)} · ${game.day.label}',
+              switch (game.type) {
+                GameType.preseason =>
+                  '${weekLabel(game.week)} · ${game.day.label} · Preseason',
+                // Same unmissable treatment Schedule already gives Cup
+                // games -- a direct GM ask (2026-08-15): games results
+                // weren't noted as Cup games at all here, so a bye-day
+                // "why is the league still simulating" question had
+                // nowhere on this screen to answer itself either.
+                GameType.continentalCup =>
+                  '${weekLabel(game.week)} · ${game.day.label} · '
+                      '🏆 WBL Continental Cup',
+                _ => '${weekLabel(game.week)} · ${game.day.label}',
+              },
               style: theme.textTheme.bodySmall?.copyWith(
-                color: game.type == GameType.preseason
+                color:
+                    game.type == GameType.preseason ||
+                        game.type == GameType.continentalCup
                     ? theme.colorScheme.primary
                     : null,
-                fontWeight: game.type == GameType.preseason
+                fontWeight:
+                    game.type == GameType.preseason ||
+                        game.type == GameType.continentalCup
                     ? FontWeight.bold
                     : null,
               ),

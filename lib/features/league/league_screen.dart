@@ -19,6 +19,14 @@ import '../season/domain/season_progress.dart';
 import '../season/domain/standings_entry.dart';
 import '../season/generation/continental_cup_generator.dart';
 import '../season/generation/postseason_generator.dart';
+import '../season/generation/season_schedule_generator.dart'
+    show
+        kContinentalCupRound1Week,
+        kContinentalCupRound2Week,
+        kContinentalCupRound3Week,
+        kContinentalCupRound4Week,
+        kContinentalCupRound5Week,
+        weekLabel;
 import '../season/presentation/results_screen.dart';
 import '../season/presentation/schedule_screen.dart';
 import 'domain/league_draw.dart';
@@ -355,6 +363,21 @@ class _CupTab extends StatelessWidget {
   }
 }
 
+/// The fixed game week a Continental Cup [round] falls on -- a compile-time
+/// constant regardless of whether that round's games have actually been
+/// generated yet (`_growContinentalCup` only creates them once the round
+/// before finishes), so [_CupRoundSection] can show it in the header even
+/// for a not-yet-set round (a direct GM ask, 2026-08-15: "we should add
+/// what game week those rounds are happening").
+int continentalCupRoundWeek(int round) => switch (round) {
+  1 => kContinentalCupRound1Week,
+  2 => kContinentalCupRound2Week,
+  3 => kContinentalCupRound3Week,
+  4 => kContinentalCupRound4Week,
+  5 => kContinentalCupRound5Week,
+  _ => throw ArgumentError.value(round, 'round', 'must be 1-5'),
+};
+
 class _CupRoundSection extends StatelessWidget {
   const _CupRoundSection({
     required this.franchise,
@@ -374,7 +397,11 @@ class _CupRoundSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(continentalCupRoundName(round), style: theme.textTheme.titleLarge),
+        Text(
+          '${continentalCupRoundName(round)} '
+          '(${weekLabel(continentalCupRoundWeek(round))})',
+          style: theme.textTheme.titleLarge,
+        ),
         const SizedBox(height: AppSpacing.sm),
         if (games.isEmpty)
           AppCard(

@@ -17,6 +17,7 @@ import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../season/presentation/team_calendar_screen.dart';
 import '../../training/presentation/training_screen.dart';
 import '../application/current_franchise_provider.dart';
 import '../domain/franchise.dart';
@@ -208,6 +209,18 @@ class _RosterViewState extends State<_RosterView> {
           },
           icon: const Icon(Icons.storefront_outlined),
           label: const Text('Player Market'),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => TeamCalendarScreen(franchise: franchise),
+              ),
+            );
+          },
+          icon: const Icon(Icons.calendar_month_outlined),
+          label: const Text('Calendar'),
         ),
         const SizedBox(height: AppSpacing.lg),
         _RosterSection(

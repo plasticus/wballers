@@ -32,26 +32,22 @@ const kRosterCompleteMailId = 'assistant_gm_roster_complete';
 /// System messages ([kRosterGapMailId] while short a player, then
 /// [kRosterCompleteMailId] once that's fixed -- never both at once) and
 /// every [RetirementDecisionMailItem] sort first (both need real GM
-/// action), then every [TrainingReportMailItem] newest week first -- the
-/// same "actionable before passive" priority the Dashboard's own card
-/// ordering already uses.
+/// action). Everything else sorts newest-first by [_recencyWeek] -- the
+/// same "actionable before passive, then newest on top" priority the
+/// Dashboard's own card ordering already uses.
 ///
-/// [kRosterCompleteMailId] specifically drops out for good once the GM
-/// has actually read it (2026-08-11, a direct GM report: "the Roster Set
-/// email should delete after a couple weeks -- it's still showing in
-/// season 2") -- it was only ever meant as a one-time "here's what to do
-/// next" nudge, not a permanent status line, and [kRosterGapMailId]'s own
-/// unread-until-fixed nature already means the GM sees it again the
-/// instant it's true again anyway (real re-derived state, not something
-/// to expire). No new persisted state needed -- [Franchise.readMailIds]
-/// already tracks exactly this.
+/// (2026-08-11 originally had [kRosterCompleteMailId] drop out for good
+/// the instant it was read, meant to satisfy "the Roster Set email should
+/// delete after a couple weeks" -- but reading mail deleting it outright,
+/// with no "couple weeks" grace at all, turned out to be exactly the
+/// "asst GM mail vanishes right after I read it" bug reported 2026-08-15.
+/// Read mail now behaves like every other [MailItem]: [Franchise.readMailIds]
+/// marks it read, but it stays in the inbox and simply sorts wherever its
+/// recency puts it -- no more read-triggered removal for any mail type.)
 List<MailItem> mailboxFor(Franchise franchise) {
   final activeCount = franchise.roster
       .where((m) => m.status == RosterStatus.active)
       .length;
-  final rosterCompleteAlreadyRead = franchise.readMailIds.contains(
-    kRosterCompleteMailId,
-  );
 
   final items = <MailItem>[
     if (activeCount < kActiveRosterSize)
@@ -60,7 +56,7 @@ List<MailItem> mailboxFor(Franchise franchise) {
         subject: 'Last Roster Spot',
         body: assistantGmRosterGapMessage(franchise),
       )
-    else if (!rosterCompleteAlreadyRead)
+    else
       AssistantGmMailItem(
         id: kRosterCompleteMailId,
         subject: 'Roster Set',
@@ -96,13 +92,27 @@ List<MailItem> mailboxFor(Franchise franchise) {
     final bIsSystem =
         b is AssistantGmMailItem || b is RetirementDecisionMailItem;
     if (aIsSystem != bIsSystem) return aIsSystem ? -1 : 1;
-    if (a is TrainingReportMailItem && b is TrainingReportMailItem) {
-      return b.report.week.compareTo(a.report.week);
-    }
+    final aWeek = _recencyWeek(a);
+    final bWeek = _recencyWeek(b);
+    if (aWeek != null && bWeek != null) return bWeek.compareTo(aWeek);
     return 0;
   });
   return items;
 }
+
+/// The season week a given [MailItem] is "about", for newest-first
+/// sorting -- `null` for the two actionable types ([AssistantGmMailItem],
+/// [RetirementDecisionMailItem]), which sort by the bucket rule above
+/// instead. Every report-like mail type is compared here, not just
+/// [TrainingReportMailItem], so e.g. a Week 10 Skills Competition result
+/// correctly outranks a Week 8 Training Report instead of falling back to
+/// build-order (2026-08-15, a direct GM ask: "new emails at the top").
+int? _recencyWeek(MailItem item) => switch (item) {
+  TrainingReportMailItem(:final report) => report.week,
+  SkillsCompetitionMailItem(:final result) => result.week,
+  AllStarGameMailItem(:final playedGame) => playedGame.game.week,
+  AssistantGmMailItem() || RetirementDecisionMailItem() => null,
+};
 
 /// How many items [mailboxFor] would return that aren't yet in
 /// [Franchise.readMailIds] -- what the Mail tab's red unread badge shows.
