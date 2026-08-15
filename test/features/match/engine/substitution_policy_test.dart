@@ -4,6 +4,41 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 
 import '../../../support/match_test_players.dart';
 
+/// A 12-player roster whose 5 highest-overall players are 3 SFs and 2
+/// SGs -- no PG, PF, or C at all -- while the full pool still carries the
+/// usual `kTwelvePlayerPositionPlan` spread (2 PG, 3 SG, 3 SF, 2 PF,
+/// 2 C). [label] only ever varies the player ids, not ratings/positions
+/// -- `targetMinutesFor`'s balance-or-not decision is a deterministic
+/// hash of roster player ids, so a different [label] is what actually
+/// changes which of the two branches a given call exercises.
+List<Player> _imbalancedRoster(String label) {
+  return [
+    testPlayer(id: '$label-sf1', rating: 90, position: Position.smallForward),
+    testPlayer(id: '$label-sf2', rating: 88, position: Position.smallForward),
+    testPlayer(id: '$label-sf3', rating: 86, position: Position.smallForward),
+    testPlayer(id: '$label-sg1', rating: 84, position: Position.shootingGuard),
+    testPlayer(id: '$label-sg2', rating: 82, position: Position.shootingGuard),
+    testPlayer(id: '$label-pg1', rating: 80, position: Position.pointGuard),
+    testPlayer(id: '$label-pg2', rating: 78, position: Position.pointGuard),
+    testPlayer(id: '$label-pf1', rating: 76, position: Position.powerForward),
+    testPlayer(id: '$label-pf2', rating: 74, position: Position.powerForward),
+    testPlayer(id: '$label-c1', rating: 72, position: Position.center),
+    testPlayer(id: '$label-c2', rating: 70, position: Position.center),
+    testPlayer(id: '$label-sg3', rating: 68, position: Position.shootingGuard),
+  ];
+}
+
+/// Whether [targetMinutes]' own top 5 (ranks 0-4, the only entries at 26+
+/// target minutes -- rank 5 onward tops out at 14, see
+/// `_targetMinutesByRank`) covers all 5 standard positions.
+bool _hasStandardTopFive(Map<Player, int> targetMinutes) {
+  final starters = targetMinutes.entries
+      .where((entry) => entry.value >= 26)
+      .map((entry) => entry.key)
+      .toSet();
+  return starters.map((p) => p.primaryPosition).toSet().length == 5;
+}
+
 void main() {
   group('targetMinutesFor', () {
     test('assigns minutes summing to 200 across a 12-player roster', () {
@@ -32,6 +67,69 @@ void main() {
       final roster = testRoster('r').take(11).toList();
 
       expect(() => targetMinutesFor(roster), throwsA(isA<AssertionError>()));
+    });
+
+    test('balances roughly half of position-imbalanced rosters, leaving '
+        'the rest naturally non-standard -- a direct GM follow-up '
+        '(2026-08-15) walked back an earlier "balance every AI team" fix: '
+        '"I don\'t want them all to field standard lineups... having some '
+        'non-standard ones is really cool... that\'s why I said 50%, not '
+        '100%"', () {
+      const trials = 200;
+      var balancedCount = 0;
+      for (var i = 0; i < trials; i++) {
+        if (_hasStandardTopFive(targetMinutesFor(_imbalancedRoster('t$i')))) {
+          balancedCount++;
+        }
+      }
+
+      // Both branches actually fire...
+      expect(balancedCount, greaterThan(0));
+      expect(balancedCount, lessThan(trials));
+      // ...and land somewhere in the neighborhood of half -- a wide band,
+      // not an exact-50% assertion, since this is a deterministic hash
+      // split rather than a true coin flip.
+      expect(balancedCount, greaterThan(trials * 0.25));
+      expect(balancedCount, lessThan(trials * 0.75));
+    });
+
+    test('when a team lands on the balanced half, its top 5 covers every '
+        'standard position, promoting the best bench player up at any '
+        'missing one without ever displacing the single highest-overall '
+        'player', () {
+      for (var i = 0; i < 50; i++) {
+        final roster = _imbalancedRoster('balanced$i');
+        final targetMinutes = targetMinutesFor(roster);
+        if (!_hasStandardTopFive(targetMinutes)) continue;
+
+        final best = roster.reduce(
+          (a, b) => a.ratings.overall >= b.ratings.overall ? a : b,
+        );
+        expect(targetMinutes[best], 30);
+        expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
+        return;
+      }
+      fail('expected at least one balanced roster within 50 tries');
+    });
+
+    test('when a team lands on the non-balanced half, its top 5 keeps '
+        'whatever positional duplication the plain overall sort produced '
+        '-- the preserved "interesting" variety, not a residual bug', () {
+      for (var i = 0; i < 50; i++) {
+        final roster = _imbalancedRoster('unbalanced$i');
+        final targetMinutes = targetMinutesFor(roster);
+        if (_hasStandardTopFive(targetMinutes)) continue;
+
+        // Skipping the rebalance doesn't break anything else about the
+        // assignment.
+        final best = roster.reduce(
+          (a, b) => a.ratings.overall >= b.ratings.overall ? a : b,
+        );
+        expect(targetMinutes[best], 30);
+        expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
+        return;
+      }
+      fail('expected at least one non-balanced roster within 50 tries');
     });
   });
 

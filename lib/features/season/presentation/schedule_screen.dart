@@ -185,16 +185,7 @@ class _MyTeamRow extends StatelessWidget {
 
     final row = Row(
       children: [
-        SizedBox(
-          width: 88,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(weekLabel(game.week), style: theme.textTheme.bodyMedium),
-              Text(game.day.label, style: theme.textTheme.bodySmall),
-            ],
-          ),
-        ),
+        _ScheduleDateColumn(week: game.week, day: game.day),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
@@ -234,6 +225,53 @@ class _MyTeamRow extends StatelessWidget {
           );
         },
         child: row,
+      ),
+    );
+  }
+}
+
+/// The 3-line date column every schedule row (both My Team and Full
+/// League) leads with: the full fictional date, the abbreviated weekday,
+/// and the game week number -- e.g. "May 3" / "Thu" / "Week 4". Used to
+/// be just [GameDay.label] alone in the Full League row, which wrapped
+/// to two lines in a too-narrow column (a direct GM report, 2026-08-15),
+/// and didn't show the week number at all -- a second direct ask in the
+/// same report ("full league schedule needs to show what game week it
+/// is"). Fixed width plus `maxLines: 1` on every line keeps all three
+/// single-line even at larger text-scale settings.
+class _ScheduleDateColumn extends StatelessWidget {
+  const _ScheduleDateColumn({required this.week, required this.day});
+
+  final int week;
+  final GameDay day;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 72,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            formatFictionalDate(week, day),
+            style: theme.textTheme.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            day.shortLabel,
+            style: theme.textTheme.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            weekLabel(week),
+            style: theme.textTheme.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -432,10 +470,7 @@ class _LeagueGameRow extends StatelessWidget {
 
     final row = Row(
       children: [
-        SizedBox(
-          width: 56,
-          child: Text(game.day.label, style: theme.textTheme.bodySmall),
-        ),
+        _ScheduleDateColumn(week: game.week, day: game.day),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(

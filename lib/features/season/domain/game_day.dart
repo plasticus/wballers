@@ -17,6 +17,17 @@ extension GameDayLabel on GameDay {
     };
   }
 
+  /// 3-letter abbreviated label, e.g. "Sun" -- for tight layouts (the
+  /// Full League schedule's date column) where [label]'s full weekday
+  /// name wraps to two lines (a direct GM report, 2026-08-15).
+  String get shortLabel {
+    return switch (this) {
+      GameDay.sunday => 'Sun',
+      GameDay.tuesday => 'Tue',
+      GameDay.thursday => 'Thu',
+    };
+  }
+
   /// Real-calendar day offset from a week's own Sunday -- Sunday=0,
   /// Tuesday=2, Thursday=4 -- distinct from [Enum.index] (0/1/2), which is
   /// just declaration order. What [formatFictionalDate] adds to a week's

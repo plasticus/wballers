@@ -496,6 +496,49 @@ void main() {
     },
   );
 
+  testWidgets(
+    'shows a "No Game Today" note on a plain regular-season bye day -- no '
+    'Continental Cup involved at all (2026-08-15, a direct GM report: '
+    '"I need to know why" my team isn\'t playing this game day)',
+    (tester) async {
+      final league = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      );
+      final ai1 = league.aiTeams[0].team.abbreviation;
+      final ai2 = league.aiTeams[1].team.abbreviation;
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [
+              ScheduledGame(
+                week: 9,
+                day: GameDay.sunday,
+                homeTeamAbbreviation: ai1,
+                awayTeamAbbreviation: ai2,
+                type: GameType.regularSeason,
+              ),
+            ],
+          ),
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('No Game Today'), findsOneWidget);
+      expect(find.text('Continental Cup Week'), findsNothing);
+    },
+  );
+
   testWidgets('advancing through a Continental Cup-only game day names the Cup '
       'specifically in the snackbar (2026-08-10, TODO.md item 12)', (
     tester,

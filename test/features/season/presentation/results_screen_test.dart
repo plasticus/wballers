@@ -170,4 +170,55 @@ void main() {
       expect(ownSectionY, lessThan(opponentSectionY));
     },
   );
+
+  testWidgets(
+    'flags a Continental Cup game the same unmissable way Schedule does '
+    '(2026-08-15, a direct GM ask)',
+    (tester) async {
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      final opponent = franchise.league.aiTeams.first.team;
+      final rosters = rostersByAbbreviation(franchise);
+      final match = simulateMatch(
+        Random(1),
+        homeRoster: rosters[franchise.team.abbreviation]!,
+        awayRoster: rosters[opponent.abbreviation]!,
+      );
+      final result = GameResult(
+        game: ScheduledGame(
+          week: 4,
+          day: GameDay.thursday,
+          homeTeamAbbreviation: franchise.team.abbreviation,
+          awayTeamAbbreviation: opponent.abbreviation,
+          type: GameType.continentalCup,
+          continentalCupRound: 1,
+        ),
+        match: match,
+      );
+      final played = PlayedGame.fromResult(
+        result,
+        rostersByAbbreviation: rosters,
+      );
+      final playedFranchise = franchise.copyWithSeasonProgress(
+        franchise.seasonProgress.copyWithGameDayPlayed([played]),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: ResultsScreen(franchise: playedFranchise)),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('🏆 WBL Continental Cup'), findsOneWidget);
+    },
+  );
 }

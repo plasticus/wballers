@@ -22,6 +22,8 @@ import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
+import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart'
+    show weekLabel;
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
 
@@ -298,7 +300,12 @@ void main() {
       expect(find.byType(WblLogo), findsNothing);
       expect(find.byType(ContinentalCupLogo), findsOneWidget);
 
-      expect(find.text('Round 1'), findsOneWidget);
+      // Each round header names its game week too (2026-08-15, a direct
+      // GM ask -- "Round 1 (Week 4)" or similar).
+      expect(
+        find.text('Round 1 (${weekLabel(continentalCupRoundWeek(1))})'),
+        findsOneWidget,
+      );
       // Round 1 is always generated up front (`generateSeasonSchedule`) --
       // 10 games, none played yet, each showing its real scheduled date
       // (2026-08-10, a direct GM ask -- "instead of 'Upcoming', put the
@@ -314,15 +321,28 @@ void main() {
           findsWidgets,
         );
       }
-      // Every later round is a real header with a "not decided yet"
-      // placeholder underneath it, not a gap in the list.
-      expect(find.text('Round 2'), findsOneWidget);
+      // Every later round is a real header (with its own week number,
+      // even before its games exist) and a "not decided yet" placeholder
+      // underneath it, not a gap in the list.
+      expect(
+        find.text('Round 2 (${weekLabel(continentalCupRoundWeek(2))})'),
+        findsOneWidget,
+      );
       expect(find.text('Set once Round 1 finishes.'), findsOneWidget);
-      expect(find.text('Quarterfinals'), findsOneWidget);
+      expect(
+        find.text('Quarterfinals (${weekLabel(continentalCupRoundWeek(3))})'),
+        findsOneWidget,
+      );
       expect(find.text('Set once Round 2 finishes.'), findsOneWidget);
-      expect(find.text('Semifinals'), findsOneWidget);
+      expect(
+        find.text('Semifinals (${weekLabel(continentalCupRoundWeek(4))})'),
+        findsOneWidget,
+      );
       expect(find.text('Set once Quarterfinals finishes.'), findsOneWidget);
-      expect(find.text('Final'), findsOneWidget);
+      expect(
+        find.text('Final (${weekLabel(continentalCupRoundWeek(5))})'),
+        findsOneWidget,
+      );
       expect(find.text('Set once Semifinals finishes.'), findsOneWidget);
     },
   );

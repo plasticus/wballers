@@ -280,6 +280,61 @@ void main() {
     );
   });
 
+  test('a bye week (the team had no game at all) credits assumed '
+      'minutes, growing more than a real game the player just didn\'t '
+      'play in (2026-08-15, a direct GM ask: "players should all train '
+      'like they played 30 minutes")', () {
+    final onBye = _player(id: 'p1', age: 21, overall: 45, potential: 90);
+    final realZero = _player(id: 'p1', age: 21, overall: 45, potential: 90);
+
+    // Same shape as `_franchiseWith`'s own dummy game, except neither
+    // side is the GM's own team -- a real bye, not just a real game this
+    // player rode the bench for.
+    final byeGame = ScheduledGame(
+      week: 2,
+      day: GameDay.sunday,
+      homeTeamAbbreviation: 'ZZZ',
+      awayTeamAbbreviation: 'YYY',
+      type: GameType.regularSeason,
+    );
+    final byeFranchise =
+        _franchiseWith(
+          roster: [
+            RosterMembership(player: onBye, status: RosterStatus.active),
+          ],
+          week: 2,
+          minutesByPlayerId: const {},
+        ).copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: SeasonSchedule(games: [byeGame]),
+            playedGames: [
+              PlayedGame(game: byeGame, homeScore: 80, awayScore: 70),
+            ],
+            nextGameDayIndex: 1,
+          ),
+        );
+    final realZeroFranchise = _franchiseWith(
+      roster: [RosterMembership(player: realZero, status: RosterStatus.active)],
+      week: 2,
+      minutesByPlayerId: const {}, // the team played; this player just didn't.
+    );
+
+    // A single seed can land on an all-zero stochastic-rounding draw even
+    // at a solidly positive expected delta (same reasoning
+    // `_runUntilNonEmpty`'s own doc comment gives) -- summed across many
+    // seeds instead, same pattern the individual-slot test above uses.
+    var byeTotal = 0;
+    var realZeroTotal = 0;
+    for (var seed = 0; seed < 50; seed++) {
+      byeTotal += _totalFieldDelta(runTraining(Random(seed), byeFranchise)!.report);
+      realZeroTotal += _totalFieldDelta(
+        runTraining(Random(seed), realZeroFranchise)!.report,
+      );
+    }
+
+    expect(byeTotal, greaterThan(realZeroTotal));
+  });
+
   test('a player already at potential barely moves', () {
     final player = _player(id: 'p1', age: 21, overall: 70, potential: 70);
     final franchise = _franchiseWith(
@@ -699,6 +754,17 @@ void main() {
     /// straight from [testLeague] untouched, satisfying [League]'s own
     /// "exactly 19 AI teams" assert without this test needing to build
     /// all 19 by hand.
+    // The controlled team's real abbreviation -- `weekGame` needs this as
+    // its home side so a played game actually counts as *this* team
+    // playing (not an unrelated bye -- see `_kAssumedByeWeekMinutes`'s
+    // doc comment in `training_advancer.dart`). Stable across calls:
+    // `generateLeague` is deterministic for a given seed +
+    // replacedTeamAbbreviation, the same two values every call here uses.
+    final controlledTeamAbbreviation = testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+    ).aiTeams.first.team.abbreviation;
+
     Franchise franchiseWithAiTeam({
       required List<RosterMembership> controlledRoster,
       required List<PlayedGame> playedGames,
@@ -767,7 +833,7 @@ void main() {
         game: ScheduledGame(
           week: week,
           day: GameDay.sunday,
-          homeTeamAbbreviation: 'AAA',
+          homeTeamAbbreviation: controlledTeamAbbreviation,
           awayTeamAbbreviation: 'BBB',
           type: GameType.regularSeason,
         ),
@@ -801,6 +867,67 @@ void main() {
         totalRatingFields(grownPlayer.ratings),
         greaterThan(totalRatingFields(player.ratings)),
       );
+    });
+
+    test('an AI player gets assumed-minutes bye credit for a week the '
+        'league played but her own team didn\'t (2026-08-15, a direct GM '
+        'ask: "players should all train like they played 30 minutes")', () {
+      final onBye = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+      final realZero = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+
+      // Week 1: two other teams play -- the controlled team has no game
+      // at all, a real bye, not just a real game this player didn't
+      // dress for.
+      final byeWeekFranchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(player: onBye, status: RosterStatus.active),
+        ],
+        playedGames: [
+          PlayedGame(
+            game: const ScheduledGame(
+              week: 1,
+              day: GameDay.sunday,
+              homeTeamAbbreviation: 'BBB',
+              awayTeamAbbreviation: 'CCC',
+              type: GameType.regularSeason,
+            ),
+            homeScore: 80,
+            awayScore: 70,
+          ),
+        ],
+      );
+      // Week 1: the controlled team plays, but this player gets 0 minutes.
+      final realZeroFranchise = franchiseWithAiTeam(
+        controlledRoster: [
+          RosterMembership(player: realZero, status: RosterStatus.active),
+        ],
+        playedGames: [weekGame(1, const {})],
+      );
+
+      // Same "sum across many seeds" reasoning as the individual-slot
+      // test above -- a single seed can land on an all-zero
+      // stochastic-rounding draw even at a solidly positive expected
+      // delta.
+      var byeTotal = 0;
+      var realZeroTotal = 0;
+      for (var seed = 0; seed < 50; seed++) {
+        final byeAdvance = resolveAiTeamSeasonTraining(
+          Random(seed),
+          byeWeekFranchise,
+        );
+        final realZeroAdvance = resolveAiTeamSeasonTraining(
+          Random(seed),
+          realZeroFranchise,
+        );
+        byeTotal += totalRatingFields(
+          byeAdvance.league.aiTeams.first.roster.single.player.ratings,
+        );
+        realZeroTotal += totalRatingFields(
+          realZeroAdvance.league.aiTeams.first.roster.single.player.ratings,
+        );
+      }
+
+      expect(byeTotal, greaterThan(realZeroTotal));
     });
 
     test('reserve/inactive AI players never change', () {

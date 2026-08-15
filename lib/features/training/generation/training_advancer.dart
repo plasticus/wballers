@@ -61,6 +61,17 @@ const _kStubbornMultiplier = 0.6;
 const _kGymRatGrowthFloor = 0.3; // unconditional, independent of coach.
 const _kGymRatDeclineSoftening = 0.5; // "ages more gracefully".
 const _kJitterFloor = 0.15; // keeps an at-potential player from a hard 0.
+// A bye week (the schedule packer doesn't guarantee a team a game every
+// week, and a Continental Cup elimination round only includes surviving
+// teams -- `season_schedule_generator.dart`) used to credit real 0
+// minutes, which fully stalled growth for the week since growth is
+// minutes-gated (`_totalWeeklyDelta`'s `minutesFactor`) while decline
+// isn't. A direct GM ask (2026-08-15): "players should all train like
+// they played 30 minutes" on a day the team doesn't play, rather than
+// silently losing the week. 30, not `_kFullWeekMinutes` (50) -- a
+// deliberately modest "still got some run in practice" credit, not a
+// full game's worth.
+const _kAssumedByeWeekMinutes = 30.0;
 // The one-time off-season lump's own scale (`resolveSeasonEndAging`) --
 // deliberately much bigger than `_kDeclineScale` since it's applied once a
 // season, not once a week. Whatever `_ageCurveFactor` returns for a given
@@ -208,6 +219,8 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
     franchise.seasonProgress.playedGames,
     fromWeekInclusive: franchise.nextTrainingWeek,
     toWeekInclusive: week,
+    teamAbbreviation: franchise.team.abbreviation,
+    rosterPlayerIds: [for (final m in franchise.roster) m.player.id],
   );
 
   final newRoster = <RosterMembership>[];
@@ -481,6 +494,8 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
         playedGames,
         fromWeekInclusive: week,
         toWeekInclusive: week,
+        teamAbbreviation: aiTeam.team.abbreviation,
+        rosterPlayerIds: [for (final m in roster) m.player.id],
       );
 
       final newRoster = <RosterMembership>[];
@@ -577,21 +592,48 @@ AiTeamAgingAdvance resolveAiTeamSeasonEndAging(
 /// the week(s) this training cycle covers. Player IDs outside
 /// [Franchise.roster] just accumulate unused entries here; the caller
 /// only ever looks up its own roster's ids.
+///
+/// Any week in range where the league played games but [teamAbbreviation]
+/// itself didn't (a bye -- see [_kAssumedByeWeekMinutes]'s own doc
+/// comment) still credits every id in [rosterPlayerIds]
+/// [_kAssumedByeWeekMinutes], on top of whatever real minutes they
+/// separately earned elsewhere in the range -- a team can't be "on bye"
+/// for part of a multi-week range and have real minutes for the rest, so
+/// this only ever adds to, never overrides, the real sum above.
 Map<String, double> _minutesInWeekRange(
   List<PlayedGame> playedGames, {
   required int fromWeekInclusive,
   required int toWeekInclusive,
+  required String teamAbbreviation,
+  required Iterable<String> rosterPlayerIds,
 }) {
   final totals = <String, double>{};
+  final leagueWeeksWithGames = <int>{};
+  final weeksTeamPlayed = <int>{};
   for (final played in playedGames) {
     if (played.game.week < fromWeekInclusive ||
         played.game.week > toWeekInclusive) {
       continue;
     }
+    leagueWeeksWithGames.add(played.game.week);
+    if (played.game.homeTeamAbbreviation == teamAbbreviation ||
+        played.game.awayTeamAbbreviation == teamAbbreviation) {
+      weeksTeamPlayed.add(played.game.week);
+    }
     for (final entry in played.minutesByPlayerId.entries) {
       totals[entry.key] = (totals[entry.key] ?? 0) + entry.value;
     }
   }
+
+  for (var week = fromWeekInclusive; week <= toWeekInclusive; week++) {
+    if (!leagueWeeksWithGames.contains(week) || weeksTeamPlayed.contains(week)) {
+      continue;
+    }
+    for (final playerId in rosterPlayerIds) {
+      totals[playerId] = (totals[playerId] ?? 0) + _kAssumedByeWeekMinutes;
+    }
+  }
+
   return totals;
 }
 

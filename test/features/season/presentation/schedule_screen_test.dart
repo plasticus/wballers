@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/game_result.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/all_star_generator.dart'
@@ -221,6 +222,14 @@ void main() {
 
       expect(find.text(weekLabel(aiVsAiGame.week)), findsWidgets);
       expect(find.text(matchupText), findsOneWidget);
+      // The row's own 3-line date column (2026-08-15, a direct GM report:
+      // the old single-line weekday wrapped, and the week number wasn't
+      // shown at all in Full League mode).
+      expect(
+        find.text(formatFictionalDate(aiVsAiGame.week, aiVsAiGame.day)),
+        findsWidgets,
+      );
+      expect(find.text(aiVsAiGame.day.shortLabel), findsWidgets);
     },
   );
 

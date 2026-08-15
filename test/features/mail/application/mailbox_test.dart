@@ -51,16 +51,19 @@ void main() {
       );
     });
 
-    test('the roster-complete message drops out for good once the GM has '
-        'actually read it (2026-08-11, a direct GM report -- "should '
-        'delete after a couple weeks... still showing in season 2")', () {
+    test('the roster-complete message stays in the inbox once the GM has '
+        'read it -- it\'s just marked read, not removed (2026-08-15, a '
+        'direct GM report: mail was disappearing right after being read)', () {
       final franchise = withFullActiveRoster(
         _franchise(),
       ).copyWithReadMailIds({kRosterCompleteMailId});
 
       final items = mailboxFor(franchise);
 
-      expect(items.whereType<AssistantGmMailItem>(), isEmpty);
+      expect(
+        items.whereType<AssistantGmMailItem>().single.id,
+        kRosterCompleteMailId,
+      );
     });
 
     test('the roster-gap message keeps reappearing even after being read '
@@ -175,6 +178,42 @@ void main() {
       final items = mailboxFor(franchise);
 
       expect(items.whereType<AllStarGameMailItem>(), hasLength(1));
+    });
+
+    test('a later-week SkillsCompetitionMailItem sorts above an '
+        'earlier-week TrainingReportMailItem -- newest mail on top '
+        'regardless of type (2026-08-15, a direct GM ask)', () {
+      final franchise = _withTrainingReports(_franchise(), [1]).copyWithSkillsCompetitionResult(
+        SkillsCompetitionResult(
+          week: 5,
+          squads: {
+            Conference.atlantic: List.generate(10, (i) => 'atl-$i'),
+            Conference.pacific: List.generate(10, (i) => 'pac-$i'),
+          },
+          events: [
+            for (final event in SkillsEvent.values)
+              SkillsEventResult(
+                event: event,
+                standings: const [
+                  SkillsEventStanding(playerId: 'atl-0', score: 90),
+                  SkillsEventStanding(playerId: 'pac-0', score: 80),
+                ],
+              ),
+          ],
+        ),
+      );
+
+      final items = mailboxFor(franchise);
+      final reportlike = items
+          .where(
+            (item) =>
+                item is SkillsCompetitionMailItem ||
+                item is TrainingReportMailItem,
+          )
+          .toList();
+
+      expect(reportlike.first, isA<SkillsCompetitionMailItem>());
+      expect(reportlike.last, isA<TrainingReportMailItem>());
     });
   });
 
