@@ -5,6 +5,7 @@ import '../../../app/app_preferences.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/presentation/main_menu_screen.dart';
+import '../../match/presentation/live_game_lab_screen.dart';
 
 /// Settings, reachable from the top-right of every `AppShell` tab
 /// (2026-08-07, a direct GM ask: "let's also get a settings button going
@@ -105,6 +106,32 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: Text(
                   'Watch a short ad for a temporary in-game boost.',
                 ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Text('Developer', style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.sm),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'A dev-only design lab -- not a real feature, no '
+                    'save-file effect. Comparing 3 ways to present a '
+                    'live, in-progress game (TODO.md item 8).',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const LiveGameLabScreen(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.sports_basketball_outlined),
+                    label: const Text('Live Game Lab'),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
