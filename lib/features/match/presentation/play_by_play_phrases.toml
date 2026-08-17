@@ -1,0 +1,246 @@
+# Play-by-play wording bank -- Live Game Lab
+#
+# A content bank, not wired into the app yet (2026-08-17, a direct GM
+# ask): "put into a TOML, so I can go through and edit/add my own
+# stuff... if it's more efficient to pull it into the code, not a file,
+# we can do that later after I've hand edited it." Edit/add/delete
+# freely -- nothing here is load-bearing until someone wires it in.
+#
+# PLACEHOLDERS
+#   {player}   -- the primary actor's tag, "#4 Kiln (PG DSM)"
+#   {player2}  -- a second player's tag, for passes/assists (the
+#                 receiver) -- same "#N Name (POS TEAM)" format
+#   {team}     -- the acting team's abbreviation, e.g. "DSM"
+#   {opponent} -- the other team's abbreviation, e.g. "KCY"
+#
+# Every phrase is a *complete sentence template*, not a trailing clause
+# assuming a fixed "{player} " prefix -- some of the GM's own examples
+# put the tag mid-sentence or use two tags (an inbound pass, an assist),
+# which a fixed-prefix format can't express. `[perimeter_no_name]` is
+# the one category with no {player}/{player2} at all -- team-level
+# flavor, no specific player, so it gets no blip on the court either.
+#
+# POSITIONAL NOTES (2026-08-17, a direct GM ask -- only these two are
+# meant as real constraints; nothing else in here needs positional
+# gating: "I just want you doing what's already in the engine"):
+#   - [tip_off]: must be a Center, or a PF if the team has no Center.
+#   - [backcourt_bringup]: should usually be a PG (the "setting up a
+#     play" ball-handler) -- a soft bias, not a hard rule.
+#
+# PACING NOTE (2026-08-17, a direct GM ask): [inbound_after_make]
+# shouldn't fire after *every* basket -- "the game doesn't feel so
+# stale by going basket-basket-basket-basket." A few times a quarter,
+# or reliably after a big play (a 3, an and-1, a highlight), is the
+# intent -- basket-basket-inbound-basket-otherfiller, not
+# basket-inbound-basket-inbound. That's a selection-logic decision for
+# whoever wires this in, not something encoded in the phrases below.
+
+[tip_off]
+# Position: C, or PF if no C.
+phrases = [
+  "{player} wins the tip for {team}.",
+  "{player} controls the opening tip, and {team} has the ball first.",
+  "{player} out-jumps her opposite number to start it off for {team}.",
+  "{player} taps it cleanly back to a teammate -- {team} ball to open the quarter.",
+]
+
+[inbound_after_make]
+# Not every possession -- see the pacing note above.
+phrases = [
+  "{player} inbounds the ball after the {opponent} score.",
+  "{player} passes it in, looking to answer on offense.",
+  "The ball is sent inbounds by {player}.",
+  "After the {opponent} bucket, {player} bounces it in to {player2}.",
+  "{player} takes the inbounds pass and starts {team} the other way.",
+  "{player} steps out of bounds to put it back in play for {team}.",
+  "Quick inbounds from {player} -- {team} wants to push the pace.",
+  "{player} gets the ball in cleanly, {team} bringing it up.",
+]
+
+[inbound_after_deadball]
+# After a foul, out-of-bounds, or other stoppage -- not a made basket.
+phrases = [
+  "{player} inbounds after the whistle.",
+  "{team} takes it out of bounds, {player} handling the pass-in.",
+  "{player} restarts things for {team} after the stoppage.",
+  "The referee hands it to {player} to put back in play.",
+  "{player} checks it in for {team}.",
+]
+
+[backcourt_bringup]
+# Soft position bias: usually PG.
+phrases = [
+  "{player} dribbles at the top, surveying the defense.",
+  "{player} brings the ball up, calling out the set.",
+  "{player} walks it up, in no hurry to attack.",
+  "{player} controls the tempo, easing into the frontcourt.",
+  "{player} pushes it up the floor, scanning for an opening.",
+  "{player} settles the offense into its spacing.",
+]
+
+[midcourt_advance]
+phrases = [
+  "{player} swings it ahead to {player2} crossing half-court.",
+  "{player} finds {player2} streaking into the frontcourt.",
+  "{player} flips it up the sideline to {player2}.",
+  "{player} advances the ball to {player2} near midcourt.",
+  "{player} hits {player2} in stride past half-court.",
+]
+
+[perimeter_no_name]
+# Team-level flavor -- no {player}/{player2}, no blip on the court.
+phrases = [
+  "{team} works it around the perimeter, probing for an opening.",
+  "{team} swings the ball side to side, patient on offense.",
+  "{team} is content to let the shot clock run, looking for a good look.",
+  "The ball moves crisply around {team}'s offense -- nothing there yet.",
+  "{team} resets, running through their offense again.",
+]
+
+[clock_milking]
+# Late-game, protecting a lead or just killing clock.
+phrases = [
+  "{player} slows it down, letting the clock bleed a little.",
+  "{player} is in no rush -- {team} happy to eat the clock here.",
+  "{player} holds it out top, content to wait.",
+  "{player} controls the pace, {team} managing the clock.",
+]
+
+[foul_no_ft]
+# A dead-ball foul that doesn't send anyone to the line (not in the
+# bonus yet).
+phrases = [
+  "{player} picks up a foul away from the ball.",
+  "{player} is whistled for a reach-in.",
+  "A foul is called on {player} -- {team} not yet in the bonus.",
+  "{player} gets tagged with a loose-ball foul.",
+  "{player} gets a whistle for an over-the-back foul.",
+]
+
+[twopt_make]
+phrases = [
+  "{player} jukes her defender, steps left, and puts it up -- it's good for 2.",
+  "{player} dribbles and takes a step, it's up, and it's good. 2 points.",
+  "{player} fakes a shot, the defender bites, and she drains the mid-range for 2.",
+  "{player} makes a nice jumpshot from just inside the perimeter for 2 points.",
+  "{player} made that 2-pointer look easy!",
+  "{player} drives and scores.",
+  "{player} finishes strong through the contact.",
+  "{player} rises for the pull-up and buries it.",
+  "{player} spins baseline and finishes with the reverse.",
+  "{player} pulls up from the elbow -- good.",
+  "{player} gets to her spot and knocks it down.",
+  "{player} slices through the lane for an easy bucket.",
+  "{player} with the fadeaway... it's good."
+]
+
+[twopt_miss]
+phrases = [
+  "{player}'s shot rims out.",
+  "{player}'s jumper is off the mark.",
+  "{player} can't connect, the ball caroms off the rim.",
+  "{player}'s attempt is short.",
+  "{player} rushes the shot and misses everything.",
+  "{player}'s floater rolls off the front of the rim.",
+  "{player} gets a good look but the shot won't fall.",
+  "{player}'s runner in the lane doesn't go.",
+  "No good on {player}'s attempt.",
+  "{player}'s shot clangs off the back iron.",
+  "{player}'s shot is looking good... nope, it bounces out.",
+]
+
+[threept_make]
+phrases = [
+  "{player} buries the three off the catch!",
+  "{player} drills the corner three!",
+  "{player} drains a three pointer!",
+  "{player} lets it fly from deep -- and it's good!",
+  "{player} steps back and buries it from downtown!",
+  "{player} splashes one from way outside!",
+  "{player} pulls up in transition and nails the triple!",
+  "{player} finds nothing but net from beyond the arc!",
+]
+
+[threept_miss]
+phrases = [
+  "{player}'s three rims out.",
+  "{player}'s deep ball is off target.",
+  "{player} airballs the attempt from outside.",
+  "{player}'s three-point try doesn't have the distance.",
+  "{player} can't connect from downtown.",
+  "{player}'s look from beyond the arc bounces away.",
+  "{player}'s three is long, no good.",
+]
+
+[and_one]
+phrases = [
+  "{player} scores through contact -- and-one!",
+  "{player} finishes at the rim and draws the foul -- and-one chance!",
+  "{player} powers it in with a body on her -- and-one!",
+  "{player} absorbs the hit and still finishes -- and-one!",
+  "{player} banks it home through contact -- and-one!",
+  "{player} gets fouled through the shot, she's going back to the line for one more."
+]
+
+[free_throws]
+# Only ever shown when clutch (under a minute, game within 3) -- see
+# _isClutchFreeThrow in live_game_lab_screen.dart.
+phrases = [
+  "{player} steps to the line and hits both.",
+  "{player} splits the pair at the line.",
+  "{player} knocks down both free throws.",
+  "{player} misses the first, makes the second at the line.",
+  "{player} calmly sinks both from the stripe.",
+]
+
+[putback]
+# A made shot right after an offensive rebound -- still a twopt_make
+# for scoring purposes, just its own flavor bank.
+phrases = [
+  "{player} cleans up the putback.",
+  "{player} taps the offensive rebound back in.",
+  "{player} follows her own miss and scores.",
+  "{player} out-works everyone for the putback bucket.",
+  "{player} grabs the offensive board and scores right back up.",
+]
+
+[block]
+# Position: C/PF primarily, SF occasionally.
+phrases = [
+  "{player} swats the shot away!",
+  "{player} rejects it at the rim!",
+  "{player} sends the shot into the seats!",
+  "{player} times the jump perfectly for the block!",
+  "{player} denies it at the basket!",
+]
+
+[steal]
+# Position: PG/SG primarily, SF occasionally.
+phrases = [
+  "{player} tips the pass away!",
+  "{player} jumps the passing lane for the steal!",
+  "{player} picks the pocket clean!",
+  "{player} reads the pass and comes away with it!",
+  "{player} strips the ball loose!",
+]
+
+[defensive_rebound]
+# Position: C/PF/SF primarily.
+phrases = [
+  "{player} pulls down the defensive rebound.",
+  "{player} controls the boards for {team}.",
+  "{player} cleans up the miss.",
+  "{player} out-rebounds her matchup for the ball.",
+  "{player} secures the rebound to end the possession.",
+]
+
+[assist]
+# The pass leading directly to a score -- position: PG primarily.
+phrases = [
+  "{player} kicks it out to {player2} in the corner.",
+  "{player} lobs a pass to {player2} on the perimeter.",
+  "{player} finds {player2} cutting to the rim.",
+  "{player} dishes it to {player2} for the open look.",
+  "{player} threads a pass to {player2} in the paint.",
+  "{player} swings it to {player2} on the wing.",
+]

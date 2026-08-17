@@ -8,6 +8,7 @@ import '../../../app/app_theme.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/onboarding/quick_start_teams.dart';
 import '../../matchup/domain/defensive_tactic.dart';
+import 'play_by_play_phrases.dart';
 
 /// Which team (if any) a [_LabBeat] belongs to -- `null` for a neutral
 /// beat like the opening tip-off.
@@ -21,25 +22,36 @@ enum _Zone { paint, arc }
 /// picker (2026-08-17, a direct GM ask), same pattern the Settings theme
 /// picker already uses. Intervals slid slower on a same-session
 /// follow-up ask ("let's slide those speed a little") -- the first pass
-/// (1.8s/1.1s/0.55s) read as too fast to actually read a play.
-enum _Speed { slow, medium, fast }
+/// (1.8s/1.1s/0.55s) read as too fast to actually read a play. [step]
+/// added on a later follow-up ask ("one play at a time... the user has
+/// to click to see the next play") -- no auto-timer at all in that mode,
+/// see [_LiveGameLabScreenState._stepOnce].
+enum _Speed { slow, medium, fast, step }
 
+/// Only meaningful for the 3 auto-advancing speeds -- [_Speed.step] has
+/// no timer, but still needs *some* value here since ball-travel
+/// animation durations scale off it regardless of mode (falls back to
+/// the medium pace).
 int _intervalMsFor(_Speed speed) => switch (speed) {
   _Speed.slow => 3000,
   _Speed.medium => 2000,
   _Speed.fast => 750,
+  _Speed.step => 2000,
 };
 
 /// A notable play worth calling out with a colored keyword badge --
-/// "keywords that stand out" (2026-08-17, a direct GM ask), deliberately
-/// reserved for genuine highlights (three-pointers, and-ones, steals,
-/// blocks) rather than every single basket, so the badge stays
-/// meaningful instead of becoming visual noise.
-enum _Highlight { none, threePointer, andOne, steal, block }
+/// "keywords that stand out" (2026-08-17, a direct GM ask). Every made
+/// basket gets one now (`twoPointer` added in the same-session follow-up
+/// on assists/shots: "I think Bold is reserved for steals and buckets,
+/// and blocks") -- a pass/assist beat is deliberately *not* one of
+/// these, see [_LabBeat.isPass]'s own doc comment for why that's a
+/// separate, plain-text treatment instead.
+enum _Highlight { none, twoPointer, threePointer, andOne, steal, block }
 
 extension on _Highlight {
   String? get label => switch (this) {
     _Highlight.none => null,
+    _Highlight.twoPointer => '2PTS',
     _Highlight.threePointer => '3PTS',
     _Highlight.andOne => 'AND-1',
     _Highlight.steal => 'STEAL',
@@ -47,22 +59,109 @@ extension on _Highlight {
   };
 }
 
-/// One scripted beat in the mock possession sequence -- hand-written
-/// flavor text, not real engine output, so pacing/wording can be tuned
-/// directly rather than filtered out of a much noisier real
-/// `MatchEvent` log. Wiring this to a real `simulateMatch` result is a
-/// natural follow-up once the visual itself is settled.
+/// Every category in `play_by_play_phrases.toml` (via the generated
+/// `play_by_play_phrases.dart`) -- one entry per `[section]` header.
+/// [tomlKey] is the bridge back to that file's `Map` keys; see
+/// `tool/generate_play_by_play_phrases.py` for how the TOML becomes that
+/// map.
+enum _PhraseCategory {
+  tipOff,
+  inboundAfterMake,
+  inboundAfterDeadball,
+  backcourtBringup,
+  midcourtAdvance,
+  perimeterNoName,
+  clockMilking,
+  foulNoFt,
+  twoPointMake,
+  twoPointMiss,
+  threePointMake,
+  threePointMiss,
+  andOne,
+  freeThrows,
+  putback,
+  block,
+  steal,
+  defensiveRebound,
+  assist,
+}
+
+extension on _PhraseCategory {
+  String get tomlKey => switch (this) {
+    _PhraseCategory.tipOff => 'tip_off',
+    _PhraseCategory.inboundAfterMake => 'inbound_after_make',
+    _PhraseCategory.inboundAfterDeadball => 'inbound_after_deadball',
+    _PhraseCategory.backcourtBringup => 'backcourt_bringup',
+    _PhraseCategory.midcourtAdvance => 'midcourt_advance',
+    _PhraseCategory.perimeterNoName => 'perimeter_no_name',
+    _PhraseCategory.clockMilking => 'clock_milking',
+    _PhraseCategory.foulNoFt => 'foul_no_ft',
+    _PhraseCategory.twoPointMake => 'twopt_make',
+    _PhraseCategory.twoPointMiss => 'twopt_miss',
+    _PhraseCategory.threePointMake => 'threept_make',
+    _PhraseCategory.threePointMiss => 'threept_miss',
+    _PhraseCategory.andOne => 'and_one',
+    _PhraseCategory.freeThrows => 'free_throws',
+    _PhraseCategory.putback => 'putback',
+    _PhraseCategory.block => 'block',
+    _PhraseCategory.steal => 'steal',
+    _PhraseCategory.defensiveRebound => 'defensive_rebound',
+    _PhraseCategory.assist => 'assist',
+  };
+}
+
+final _phraseRandom = math.Random();
+
+/// "#4 Castellano (PG DSM)" -- the same tag format the old hardcoded
+/// `displayText` used to build itself; now built once per player
+/// reference wherever a phrase template needs a `{player}`/`{player2}`.
+String _tag(String name, int number, String position, String team) =>
+    '#$number $name ($position $team)';
+
+/// Picks a random phrase from [category]'s bank and fills in its
+/// placeholders -- see the header comment in `play_by_play_phrases.toml`
+/// for the full placeholder contract. Called once per beat, at
+/// `_beats`-list-construction time (not per rebuild), so a beat's wording
+/// is picked fresh each time the lab reloads but stays stable for the
+/// rest of that session.
+String _phrase(
+  _PhraseCategory category, {
+  String? playerTag,
+  String? player2Tag,
+  String? team,
+  String? opponent,
+}) {
+  final options = kPlayByPlayPhrases[category.tomlKey]!;
+  final template = options[_phraseRandom.nextInt(options.length)];
+  var text = template;
+  if (playerTag != null) text = text.replaceAll('{player}', playerTag);
+  if (player2Tag != null) text = text.replaceAll('{player2}', player2Tag);
+  if (team != null) text = text.replaceAll('{team}', team);
+  if (opponent != null) text = text.replaceAll('{opponent}', opponent);
+  return text;
+}
+
+/// One scripted beat in the mock possession sequence -- hand-picked
+/// *categories* resolved to actual wording via [_phrase] against
+/// `play_by_play_phrases.toml`'s content bank, not real engine output,
+/// so pacing/structure can be tuned directly rather than filtered out of
+/// a much noisier real `MatchEvent` log. Wiring this to a real
+/// `simulateMatch` result is a natural follow-up once the visual itself
+/// is settled.
 class _LabBeat {
   const _LabBeat({
     required this.team,
     this.zone,
     this.chipIndex,
     this.creditTeam,
-    required this.playerName,
-    required this.playerNumber,
-    required this.playerPosition,
     required this.action,
     this.highlight = _Highlight.none,
+    this.isPass = false,
+    this.passFromZone,
+    this.passFromChipIndex,
+    this.isShotAttempt = false,
+    this.shotMade,
+    this.isFreeThrow = false,
     this.deltaHome = 0,
     this.deltaAway = 0,
     required this.clockSeconds,
@@ -76,7 +175,10 @@ class _LabBeat {
   final _Team? team;
   final _Zone? zone;
 
-  /// Which of 5 candidate slots within a zone the blip spawns at.
+  /// Which of 5 candidate slots within a zone the blip spawns at -- for
+  /// a pass beat, this is the *receiver's* spot (where the ball ends
+  /// up); for a shot beat, the shooter's spot the ball travels to the
+  /// basket from.
   final int? chipIndex;
 
   /// Who gets credit for this beat -- the badge, the blip's color, and
@@ -86,13 +188,43 @@ class _LabBeat {
   /// credited player is on the other side -- see [badgeTeam].
   final _Team? creditTeam;
 
-  final String playerName;
-  final int playerNumber;
-  final String playerPosition;
-
-  /// The action phrase after the player tag, e.g. "drives and scores."
+  /// The fully-resolved play-by-play sentence -- built once, at
+  /// `_beats`-construction time, via [_phrase] against a
+  /// `play_by_play_phrases.toml` category. Already contains any
+  /// `{player}`/`{player2}`/`{team}`/`{opponent}` tags filled in, so
+  /// [displayText] below no longer needs to prepend anything.
   final String action;
   final _Highlight highlight;
+
+  /// True for an assist's pass half -- a direct GM ask (2026-08-17):
+  /// "I think Bold is reserved for steals and buckets, and blocks," so a
+  /// pass gets the same "TEAM Label" headline shape as a highlight but
+  /// deliberately un-bold, plain text -- see [_PlayHeadline]. Also
+  /// drives the ball-travel animation from [passFromZone]/
+  /// [passFromChipIndex] (the passer's spot) to [zone]/[chipIndex] (the
+  /// receiver's spot) -- see [_FullCourtPanel].
+  final bool isPass;
+  final _Zone? passFromZone;
+  final int? passFromChipIndex;
+
+  /// True for a field-goal attempt (make or miss) -- drives the
+  /// ball-travel animation from [zone]/[chipIndex] (the shooter's spot)
+  /// to the shooting team's basket, then a flash/float result popup
+  /// (points made, or a red miss mark) once the ball arrives. [shotMade]
+  /// is only meaningful when this is true. Blocks/steals/fouls/rebounds
+  /// don't get this treatment -- their own badge already carries the
+  /// moment.
+  final bool isShotAttempt;
+  final bool? shotMade;
+
+  /// Routine free throws don't get shown at all by default -- a direct
+  /// GM ask (2026-08-17): "generally, I don't want to see free throws.
+  /// But... if it's under a minute, and the game is within 3 points, I'd
+  /// like to see them." Still applied to the score either way; only
+  /// whether this beat ever becomes `current` (and so visible) is
+  /// conditional -- see `_LiveGameLabScreenState._step`'s clutch check.
+  final bool isFreeThrow;
+
   final int deltaHome;
   final int deltaAway;
   final int clockSeconds;
@@ -104,14 +236,11 @@ class _LabBeat {
   /// "#4 Castellano (PG DSM) drives and scores." -- a direct GM ask
   /// (2026-08-17): "when naming a player, instead of 'Castellano drives
   /// and scores', it should be like '#42 Castellano (PF DSM) drives and
-  /// scores.'"
-  String get displayText {
-    final abbreviation = badgeTeam == _Team.home
-        ? _homeTeam.abbreviation
-        : _awayTeam.abbreviation;
-    return '#$playerNumber $playerName ($playerPosition $abbreviation) '
-        '$action';
-  }
+  /// scores.'" Now just [action] verbatim -- the phrase templates
+  /// themselves place the `{player}` tag (a later GM ask, same date:
+  /// "every phrase is a complete sentence template," since some phrasing
+  /// puts the tag mid-sentence or uses two tags).
+  String get displayText => action;
 }
 
 /// Des Moines Dragons (home) vs. Kansas City Aviators (away) -- 2 of the
@@ -149,71 +278,138 @@ Color _legibleTextColor(Color raw, Brightness brightness) {
 
 /// A small invented roster (last name, number, position) for each team
 /// -- just enough identity to make the "#N Name (POS TEAM)" tag format
-/// feel real, not a placeholder like "Player 1."
-const _beats = <_LabBeat>[
+/// feel real, not a placeholder like "Player 1." Home's Center (needed
+/// for the tip-off's positional rule below) is Whitfield -- previously
+/// only a name mentioned in flavor text for the block beat, promoted to
+/// a full roster spot once the tip-off actually needed a real Center to
+/// credit.
+///
+/// Not `const` anymore -- each beat's `action` is resolved by [_phrase]
+/// against the wording bank at list-construction time (a top-level
+/// `final` still only runs this once per app session, same cost as the
+/// old `const` literal in practice).
+final _beats = <_LabBeat>[
+  // Tip-off: must go to a Center (PF if the team has no Center) -- a
+  // direct GM ask (2026-08-17): "a PG winning a tip-off ain't happening.
+  // It's either the Center, or if they don't have a Center than it's a
+  // PF." Home's roster has a Center (Whitfield), so no PF fallback
+  // needed here.
   _LabBeat(
     team: null,
     creditTeam: _Team.home,
-    playerName: 'Castellano',
-    playerNumber: 4,
-    playerPosition: 'PG',
-    action: 'wins the tip for Des Moines.',
+    action: _phrase(
+      _PhraseCategory.tipOff,
+      playerTag: _tag('Whitfield', 0, 'C', _homeTeam.abbreviation),
+      team: _homeTeam.abbreviation,
+    ),
     clockSeconds: 600,
+  ),
+  // A filler beat -- no score, no highlight, just atmosphere. A direct
+  // GM ask (2026-08-17): "some filler items every 3ish possessions...
+  // having some dull items in here will make the exciting moments feel
+  // MORE exciting." Sprinkled through the sequence, not batched.
+  // Soft PG bias for "setting up a play" (2026-08-17, a direct GM ask) --
+  // Castellano is DSM's PG.
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.arc,
+    chipIndex: 2,
+    action: _phrase(
+      _PhraseCategory.backcourtBringup,
+      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
+    ),
+    clockSeconds: 594,
+  ),
+  // Team-level flavor, no player, no blip -- "sometimes a sequence
+  // without even a player name where it just says that some team is
+  // passing it around the perimeter" (2026-08-17, a direct GM ask).
+  _LabBeat(
+    team: _Team.home,
+    action: _phrase(
+      _PhraseCategory.perimeterNoName,
+      team: _homeTeam.abbreviation,
+    ),
+    clockSeconds: 588,
   ),
   _LabBeat(
     team: _Team.home,
     zone: _Zone.paint,
     chipIndex: 0,
-    playerName: 'Castellano',
-    playerNumber: 4,
-    playerPosition: 'PG',
-    action: 'drives and scores.',
+    action: _phrase(
+      _PhraseCategory.twoPointMake,
+      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
+    ),
+    highlight: _Highlight.twoPointer,
+    isShotAttempt: true,
+    shotMade: true,
     deltaHome: 2,
-    clockSeconds: 586,
+    clockSeconds: 580,
   ),
   _LabBeat(
     team: _Team.away,
     zone: _Zone.arc,
     chipIndex: 4,
-    playerName: 'Chen',
-    playerNumber: 8,
-    playerPosition: 'SG',
-    action: 'buries the three off the catch!',
+    action: _phrase(
+      _PhraseCategory.threePointMake,
+      playerTag: _tag('Chen', 8, 'SG', _awayTeam.abbreviation),
+    ),
     highlight: _Highlight.threePointer,
+    isShotAttempt: true,
+    shotMade: true,
     deltaAway: 3,
-    clockSeconds: 570,
+    clockSeconds: 566,
+  ),
+  // Inbound after a made basket -- reserved for "a big play" (a three,
+  // here), not fired after every score -- a direct GM ask (2026-08-17):
+  // "inbounding doesn't need to be called EVERY time... definitely after
+  // a big offensive play, so the game doesn't feel so stale."
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.arc,
+    chipIndex: 3,
+    action: _phrase(
+      _PhraseCategory.inboundAfterMake,
+      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
+      team: _homeTeam.abbreviation,
+      opponent: _awayTeam.abbreviation,
+    ),
+    clockSeconds: 560,
   ),
   _LabBeat(
     team: _Team.home,
     creditTeam: _Team.away,
     zone: _Zone.paint,
     chipIndex: 2,
-    playerName: 'Petrov',
-    playerNumber: 55,
-    playerPosition: 'C',
-    action: "swats away Whitfield's shot at the rim!",
+    action: _phrase(
+      _PhraseCategory.block,
+      playerTag: _tag('Petrov', 55, 'C', _awayTeam.abbreviation),
+    ),
     highlight: _Highlight.block,
-    clockSeconds: 558,
+    clockSeconds: 548,
   ),
   _LabBeat(
     team: _Team.away,
     zone: _Zone.paint,
     chipIndex: 0,
-    playerName: 'Holloway',
-    playerNumber: 14,
-    playerPosition: 'SF',
-    action: 'drives, fouled -- 2 for 2 at the line.',
+    action: _phrase(
+      _PhraseCategory.freeThrows,
+      playerTag: _tag('Holloway', 14, 'SF', _awayTeam.abbreviation),
+    ),
+    isFreeThrow: true,
     deltaAway: 2,
-    clockSeconds: 548,
+    clockSeconds: 540,
   ),
   _LabBeat(
     team: _Team.home,
     zone: _Zone.paint,
     chipIndex: 2,
-    playerName: 'Okonkwo',
-    playerNumber: 21,
-    playerPosition: 'PF',
-    action: "cleans up the putback after Vasquez's three rims out.",
+    action: _phrase(
+      _PhraseCategory.putback,
+      playerTag: _tag('Okonkwo', 21, 'PF', _homeTeam.abbreviation),
+    ),
+    highlight: _Highlight.twoPointer,
+    isShotAttempt: true,
+    shotMade: true,
     deltaHome: 2,
     clockSeconds: 530,
   ),
@@ -221,21 +417,25 @@ const _beats = <_LabBeat>[
     team: _Team.away,
     zone: _Zone.arc,
     chipIndex: 1,
-    playerName: 'Tuiasosopo',
-    playerNumber: 32,
-    playerPosition: 'PF',
-    action: 'jumper is off the mark, Des Moines ball.',
+    action: _phrase(
+      _PhraseCategory.threePointMiss,
+      playerTag: _tag('Tuiasosopo', 32, 'PF', _awayTeam.abbreviation),
+    ),
+    isShotAttempt: true,
+    shotMade: false,
     clockSeconds: 515,
   ),
   _LabBeat(
     team: _Team.home,
     zone: _Zone.paint,
     chipIndex: 0,
-    playerName: 'Castellano',
-    playerNumber: 4,
-    playerPosition: 'PG',
-    action: 'scores through contact -- and-one!',
+    action: _phrase(
+      _PhraseCategory.andOne,
+      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
+    ),
     highlight: _Highlight.andOne,
+    isShotAttempt: true,
+    shotMade: true,
     deltaHome: 3,
     clockSeconds: 502,
   ),
@@ -243,10 +443,13 @@ const _beats = <_LabBeat>[
     team: _Team.away,
     zone: _Zone.paint,
     chipIndex: 2,
-    playerName: 'Petrov',
-    playerNumber: 55,
-    playerPosition: 'C',
-    action: 'overpowers inside for two.',
+    action: _phrase(
+      _PhraseCategory.twoPointMake,
+      playerTag: _tag('Petrov', 55, 'C', _awayTeam.abbreviation),
+    ),
+    highlight: _Highlight.twoPointer,
+    isShotAttempt: true,
+    shotMade: true,
     deltaAway: 2,
     clockSeconds: 491,
   ),
@@ -255,68 +458,193 @@ const _beats = <_LabBeat>[
     creditTeam: _Team.home,
     zone: _Zone.arc,
     chipIndex: 1,
-    playerName: 'Vasquez',
-    playerNumber: 11,
-    playerPosition: 'SG',
-    action: 'tips the pass away -- Des Moines recovers!',
+    action: _phrase(
+      _PhraseCategory.steal,
+      playerTag: _tag('Vasquez', 11, 'SG', _homeTeam.abbreviation),
+    ),
     highlight: _Highlight.steal,
     clockSeconds: 478,
   ),
+  // A dead-ball foul, not in the bonus -- credited to the defense.
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
-    chipIndex: 4,
-    playerName: 'Marsh',
-    playerNumber: 23,
-    playerPosition: 'SF',
-    action: 'drills a corner three!',
-    highlight: _Highlight.threePointer,
-    deltaHome: 3,
-    clockSeconds: 462,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.arc,
-    chipIndex: 3,
-    playerName: 'Chen',
-    playerNumber: 8,
-    playerPosition: 'SG',
-    action: 'buries another off a Reyes feed -- Kansas City answers!',
-    highlight: _Highlight.threePointer,
-    deltaAway: 3,
-    clockSeconds: 446,
-  ),
-  _LabBeat(
-    team: _Team.home,
+    creditTeam: _Team.away,
     zone: _Zone.paint,
+    chipIndex: 1,
+    action: _phrase(
+      _PhraseCategory.foulNoFt,
+      playerTag: _tag('Tuiasosopo', 32, 'PF', _awayTeam.abbreviation),
+      team: _awayTeam.abbreviation,
+    ),
+    clockSeconds: 472,
+  ),
+  // ...and the resulting dead-ball inbound.
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.arc,
     chipIndex: 2,
-    playerName: 'Okonkwo',
-    playerNumber: 21,
-    playerPosition: 'PF',
-    action: 'backs down her defender, scores inside.',
-    deltaHome: 2,
-    clockSeconds: 429,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 0,
-    playerName: 'Holloway',
-    playerNumber: 14,
-    playerPosition: 'SF',
-    action: "floater falls short, Des Moines rebounds.",
-    clockSeconds: 408,
+    action: _phrase(
+      _PhraseCategory.inboundAfterDeadball,
+      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
+      team: _homeTeam.abbreviation,
+    ),
+    clockSeconds: 468,
   ),
   _LabBeat(
     team: _Team.home,
     zone: _Zone.arc,
     chipIndex: 1,
-    playerName: 'Castellano',
-    playerNumber: 4,
-    playerPosition: 'PG',
-    action:
-        'pulls up from deep at the buzzer -- good! End of the quarter.',
+    action: _phrase(
+      _PhraseCategory.clockMilking,
+      playerTag: _tag('Vasquez', 11, 'SG', _homeTeam.abbreviation),
+      team: _homeTeam.abbreviation,
+    ),
+    clockSeconds: 461,
+  ),
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.arc,
+    chipIndex: 4,
+    passFromZone: _Zone.arc,
+    passFromChipIndex: 2,
+    isPass: true,
+    action: _phrase(
+      _PhraseCategory.assist,
+      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
+      player2Tag: _tag('Marsh', 23, 'SF', _homeTeam.abbreviation),
+    ),
+    clockSeconds: 454,
+  ),
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.arc,
+    chipIndex: 4,
+    action: _phrase(
+      _PhraseCategory.threePointMake,
+      playerTag: _tag('Marsh', 23, 'SF', _homeTeam.abbreviation),
+    ),
     highlight: _Highlight.threePointer,
+    isShotAttempt: true,
+    shotMade: true,
+    deltaHome: 3,
+    clockSeconds: 440,
+  ),
+  _LabBeat(
+    team: _Team.away,
+    zone: _Zone.arc,
+    chipIndex: 3,
+    passFromZone: _Zone.arc,
+    passFromChipIndex: 1,
+    isPass: true,
+    action: _phrase(
+      _PhraseCategory.assist,
+      playerTag: _tag('Reyes', 3, 'PG', _awayTeam.abbreviation),
+      player2Tag: _tag('Chen', 8, 'SG', _awayTeam.abbreviation),
+    ),
+    clockSeconds: 425,
+  ),
+  _LabBeat(
+    team: _Team.away,
+    zone: _Zone.arc,
+    chipIndex: 3,
+    action: _phrase(
+      _PhraseCategory.threePointMake,
+      playerTag: _tag('Chen', 8, 'SG', _awayTeam.abbreviation),
+    ),
+    highlight: _Highlight.threePointer,
+    isShotAttempt: true,
+    shotMade: true,
+    deltaAway: 3,
+    clockSeconds: 410,
+  ),
+  _LabBeat(
+    team: _Team.home,
+    action: _phrase(
+      _PhraseCategory.perimeterNoName,
+      team: _homeTeam.abbreviation,
+    ),
+    clockSeconds: 402,
+  ),
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.paint,
+    chipIndex: 2,
+    action: _phrase(
+      _PhraseCategory.twoPointMake,
+      playerTag: _tag('Okonkwo', 21, 'PF', _homeTeam.abbreviation),
+    ),
+    highlight: _Highlight.twoPointer,
+    isShotAttempt: true,
+    shotMade: true,
+    deltaHome: 2,
+    clockSeconds: 392,
+  ),
+  // Another filler pass -- "just noting a pass somewhere and showing the
+  // animation... doesn't have to lead to anything" (2026-08-17, the same
+  // GM ask). Uses the exact same isPass/ball-travel machinery an assist
+  // does; the only difference is no shot beat follows it.
+  _LabBeat(
+    team: _Team.away,
+    zone: _Zone.paint,
+    chipIndex: 1,
+    passFromZone: _Zone.arc,
+    passFromChipIndex: 0,
+    isPass: true,
+    action: _phrase(
+      _PhraseCategory.midcourtAdvance,
+      playerTag: _tag('Reyes', 3, 'PG', _awayTeam.abbreviation),
+      player2Tag: _tag('Tuiasosopo', 32, 'PF', _awayTeam.abbreviation),
+    ),
+    clockSeconds: 383,
+  ),
+  _LabBeat(
+    team: _Team.away,
+    zone: _Zone.paint,
+    chipIndex: 0,
+    action: _phrase(
+      _PhraseCategory.twoPointMiss,
+      playerTag: _tag('Holloway', 14, 'SF', _awayTeam.abbreviation),
+    ),
+    isShotAttempt: true,
+    shotMade: false,
+    clockSeconds: 372,
+  ),
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.paint,
+    chipIndex: 3,
+    action: _phrase(
+      _PhraseCategory.defensiveRebound,
+      playerTag: _tag('Okonkwo', 21, 'PF', _homeTeam.abbreviation),
+      team: _homeTeam.abbreviation,
+    ),
+    clockSeconds: 368,
+  ),
+  // Free throws stay hidden by default, but this one qualifies -- under
+  // a minute, game within 3 -- so it'll actually show (see
+  // `_LiveGameLabScreenState._step`'s clutch check).
+  _LabBeat(
+    team: _Team.away,
+    zone: _Zone.paint,
+    chipIndex: 1,
+    action: _phrase(
+      _PhraseCategory.freeThrows,
+      playerTag: _tag('Petrov', 55, 'C', _awayTeam.abbreviation),
+    ),
+    isFreeThrow: true,
+    deltaAway: 2,
+    clockSeconds: 45,
+  ),
+  _LabBeat(
+    team: _Team.home,
+    zone: _Zone.arc,
+    chipIndex: 1,
+    action:
+        '${_phrase(_PhraseCategory.threePointMake, playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation))} '
+        'End of the quarter.',
+    highlight: _Highlight.threePointer,
+    isShotAttempt: true,
+    shotMade: true,
     deltaHome: 3,
     clockSeconds: 0,
     isBreak: true,
@@ -386,28 +714,56 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
     _step();
   }
 
+  /// [_Speed.step]'s "Next Play" action -- advances exactly one visible
+  /// beat, no timer at all. A direct GM ask (2026-08-17): "one play at a
+  /// time... the user has to click to see the next play."
+  void _stepOnce() {
+    if (_index >= _beats.length - 1) _reset();
+    _step();
+  }
+
   void _stop() {
     _timer?.cancel();
     _timer = null;
     if (mounted) setState(() => _playing = false);
   }
 
+  /// Whether a free throw is close/late enough to actually show --
+  /// checked against the score *entering* it, before its own delta.
+  /// "Under a minute, and the game is within 3 points" (2026-08-17, a
+  /// direct GM ask). Every other free throw still updates the score,
+  /// just silently, in the skip loop below.
+  bool _isClutchFreeThrow(_LabBeat beat) =>
+      beat.clockSeconds < 60 && (_home - _away).abs() <= 3;
+
   void _step() {
-    final nextIndex = _index + 1;
-    if (nextIndex >= _beats.length) {
-      _stop();
+    var index = _index;
+    while (true) {
+      index++;
+      if (index >= _beats.length) {
+        _stop();
+        return;
+      }
+      final beat = _beats[index];
+      if (beat.isFreeThrow && !_isClutchFreeThrow(beat)) {
+        // "Generally, I don't want to see free throws" -- apply the
+        // score change and keep scanning without ever surfacing this
+        // one as `current`.
+        _home += beat.deltaHome;
+        _away += beat.deltaAway;
+        continue;
+      }
+      setState(() {
+        _index = index;
+        _home += beat.deltaHome;
+        _away += beat.deltaAway;
+        _tickerLog.insert(0, beat);
+      });
+      if (beat.isBreak) {
+        _stop();
+        _openBreak(beat.breakLabel ?? 'COACHING BREAK');
+      }
       return;
-    }
-    final beat = _beats[nextIndex];
-    setState(() {
-      _index = nextIndex;
-      _home += beat.deltaHome;
-      _away += beat.deltaAway;
-      _tickerLog.insert(0, beat);
-    });
-    if (beat.isBreak) {
-      _stop();
-      _openBreak(beat.breakLabel ?? 'COACHING BREAK');
     }
   }
 
@@ -503,38 +859,58 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
                     child: _FullCourtPanel(
                       current: _currentBeat,
                       log: _tickerLog,
+                      intervalMs: _intervalMsFor(_speed),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                FilledButton.icon(
-                  onPressed: _playing ? _stop : _play,
-                  icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
-                  label: Text(_playing ? 'Pause' : 'Play'),
+            // Play/Next and the speed picker got their own rows (were
+            // sharing one) once a 4th segment (Step) joined Slow/Med/
+            // Fast -- 4 segments sharing a row with the play button
+            // wrapped "Step" onto 2 letter-per-line, even after
+            // shortening "Next Play" to "Next." Splitting them out gives
+            // the segmented control the full row width it actually
+            // needs.
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _speed == _Speed.step
+                    ? _stepOnce
+                    : (_playing ? _stop : _play),
+                icon: Icon(
+                  _speed == _Speed.step
+                      ? Icons.skip_next
+                      : (_playing ? Icons.pause : Icons.play_arrow),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: SegmentedButton<_Speed>(
-                    segments: const [
-                      ButtonSegment(value: _Speed.slow, label: Text('Slow')),
-                      ButtonSegment(value: _Speed.medium, label: Text('Med')),
-                      ButtonSegment(value: _Speed.fast, label: Text('Fast')),
-                    ],
-                    selected: {_speed},
-                    onSelectionChanged: (selection) {
-                      setState(() => _speed = selection.first);
-                      if (_playing) {
-                        _stop();
-                        _play();
-                      }
-                    },
-                  ),
+                label: Text(
+                  _speed == _Speed.step
+                      ? 'Next Play'
+                      : (_playing ? 'Pause' : 'Play'),
                 ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SegmentedButton<_Speed>(
+              segments: const [
+                ButtonSegment(value: _Speed.slow, label: Text('Slow')),
+                ButtonSegment(value: _Speed.medium, label: Text('Med')),
+                ButtonSegment(value: _Speed.fast, label: Text('Fast')),
+                ButtonSegment(value: _Speed.step, label: Text('Step')),
               ],
+              selected: {_speed},
+              onSelectionChanged: (selection) {
+                setState(() => _speed = selection.first);
+                // Step mode has no auto-timer at all -- just stop
+                // whatever was running rather than restarting it.
+                if (selection.first == _Speed.step) {
+                  _stop();
+                } else if (_playing) {
+                  _stop();
+                  _play();
+                }
+              },
             ),
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
@@ -702,10 +1078,20 @@ class _TeamDot extends StatelessWidget {
 /// scoreboard bug's own away-left/home-right order. [_blipAlignment] is
 /// the one place that convention lives.
 class _FullCourtPanel extends StatelessWidget {
-  const _FullCourtPanel({required this.current, required this.log});
+  const _FullCourtPanel({
+    required this.current,
+    required this.log,
+    required this.intervalMs,
+  });
 
   final _LabBeat? current;
   final List<_LabBeat> log;
+
+  /// The current playback speed's per-beat interval -- ball-travel
+  /// animations scale off it (capped at a sensible max) so a pass/shot
+  /// always finishes comfortably within its own beat's time slot,
+  /// however fast or slow that is.
+  final int intervalMs;
 
   /// How many of the last plays a blip stays visible for before fading
   /// out completely.
@@ -724,23 +1110,47 @@ class _FullCourtPanel extends StatelessWidget {
     return Alignment(x, y);
   }
 
+  /// Where a team's basket sits -- the ball-travel destination for every
+  /// shot attempt. Home's is near the right edge, away's near the left,
+  /// matching [_blipAlignment]'s own home-right/away-left convention.
+  static Alignment _basketAlignment(_Team team) =>
+      Alignment(team == _Team.home ? 0.95 : -0.95, 0.0);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final outline = isDark ? Colors.white : Colors.black;
-    // A nice woody pine/walnut floor in dark mode (a direct GM ask,
-    // 2026-08-17) -- light mode stays the plain floor from the
-    // court.svg reference; only dark mode asked for the wood look.
-    final floorColor = isDark ? const Color(0xFF4E3524) : null;
+    // A nice woody floor in both themes now -- dark walnut/pine for dark
+    // mode, a very pale pine for light mode (a direct GM follow-up,
+    // 2026-08-17: "maybe in light mode, the court becomes a super light
+    // wood color?"). Light mode started plain (matching the court.svg
+    // reference) before that ask.
+    final floorColor = isDark
+        ? const Color(0xFF4E3524)
+        : const Color(0xFFF3E4C8);
+    // Light mode's lines were the theme's default `outlineVariant` --
+    // too pale against the pale-pine floor. A direct GM ask (2026-08-17):
+    // "make the paint lines a bit darker. Doesn't need to be a full
+    // black or anything, but a few shades darker than they are now." A
+    // warm brown-grey (echoing the wood floor) rather than a cold grey.
     final lineColor = isDark
         ? const Color(0xFFE8D9C3)
-        : theme.colorScheme.outlineVariant;
+        : const Color(0xFF7D6C52);
     final zoned = log
         .where((b) => b.zone != null && b.team != null)
         .take(_blipLifetimePlays)
         .toList();
     final recent = log.take(3).toList();
+    final beat = current;
+    // Capped so a pass/shot always finishes within its own beat's slot,
+    // however fast or slow the current speed is.
+    final passDuration = Duration(
+      milliseconds: math.min(650, (intervalMs * 0.8).round()),
+    );
+    final shotDuration = Duration(
+      milliseconds: math.min(1000, (intervalMs * 0.85).round()),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -785,12 +1195,88 @@ class _FullCourtPanel extends StatelessWidget {
                       isNewest: i == 0,
                     ),
                   ),
+                // A basketball animating between two points -- "an
+                // animation between two points for an assist... a
+                // shooting animation of the ball... toward the basket"
+                // (2026-08-17, direct GM asks). Both key off the beat's
+                // own displayText, so a new beat always gets a fresh
+                // animation rather than resuming a stale one.
+                if (beat != null &&
+                    beat.isPass &&
+                    beat.team != null &&
+                    beat.passFromZone != null &&
+                    beat.passFromChipIndex != null &&
+                    beat.zone != null)
+                  _BallTravelOverlay(
+                    key: ValueKey('${beat.displayText}-pass'),
+                    from: _blipAlignment(
+                      beat.team!,
+                      beat.passFromZone!,
+                      beat.passFromChipIndex!,
+                    ),
+                    to: _blipAlignment(
+                      beat.team!,
+                      beat.zone!,
+                      beat.chipIndex ?? 0,
+                    ),
+                    duration: passDuration,
+                  ),
+                if (beat != null &&
+                    beat.isShotAttempt &&
+                    beat.team != null &&
+                    beat.zone != null) ...[
+                  _ShotBall(
+                    key: ValueKey('${beat.displayText}-shot'),
+                    from: _blipAlignment(
+                      beat.team!,
+                      beat.zone!,
+                      beat.chipIndex ?? 0,
+                    ),
+                    to: _basketAlignment(beat.badgeTeam),
+                    travelDuration: shotDuration,
+                    made: beat.shotMade == true,
+                  ),
+                  Align(
+                    alignment: _basketAlignment(beat.badgeTeam),
+                    child: _ShotResultPopup(
+                      key: ValueKey('${beat.displayText}-result'),
+                      pointsLabel: beat.shotMade != true
+                          ? '✕'
+                          : (beat.highlight == _Highlight.threePointer
+                                ? '+3'
+                                : '+2'),
+                      // A made-shot popup is white in dark mode -- a
+                      // direct GM catch (2026-08-17): "I'm looking at
+                      // dark mode and they're hard to see" (team colors
+                      // read dim against the dark wood floor). A miss's
+                      // theme-provided error red already handles both
+                      // themes fine on its own.
+                      color: beat.shotMade != true
+                          ? theme.colorScheme.error
+                          : (isDark
+                                ? Colors.white
+                                : (beat.badgeTeam == _Team.home
+                                      ? _homeColor
+                                      : _awayColor)),
+                      delay: shotDuration,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        _PlayHeadline(beat: current),
+        // A fixed height, not just whatever the content needs -- a
+        // direct GM catch, live on-device: "the whole court seems to
+        // keep resizing and moving around." The headline's actual
+        // height varies a lot beat to beat (a bold badge plus 2 lines
+        // vs. a bare 1-line action), and since the court above it is an
+        // Expanded inside this panel's own fixed-height box, every
+        // headline-height change was stealing from (or giving back)
+        // the court's share of that space, resizing the whole diagram
+        // every single beat.
+        SizedBox(height: 92, child: _PlayHeadline(beat: current)),
         const SizedBox(height: AppSpacing.xs),
         SizedBox(
           height: 62,
@@ -841,9 +1327,222 @@ class _FullCourtPanel extends StatelessWidget {
   }
 }
 
+/// A basketball animating from one court point to another over
+/// [duration] -- "no arc necessary, just have it travel" (2026-08-17, a
+/// direct GM ask). A plain [TweenAnimationBuilder], not a full
+/// [AnimationController]: keyed per-use by the caller (see
+/// [_FullCourtPanel]) so a new beat always starts a fresh tween from its
+/// own `from` rather than animating from wherever a stale one left off.
+class _BallTravelOverlay extends StatelessWidget {
+  const _BallTravelOverlay({
+    super.key,
+    required this.from,
+    required this.to,
+    required this.duration,
+  });
+
+  final Alignment from;
+  final Alignment to;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<Alignment>(
+      tween: AlignmentTween(begin: from, end: to),
+      duration: duration,
+      curve: Curves.easeInOut,
+      builder: (context, alignment, child) =>
+          Align(alignment: alignment, child: child),
+      child: const Text('🏀', style: TextStyle(fontSize: 20)),
+    );
+  }
+}
+
+/// A shot's ball -- travels from [from] to [to] over [travelDuration]
+/// exactly like [_BallTravelOverlay], then resolves: a make disappears
+/// (a quick fade in place), a miss bounces off in a random direction and
+/// fades quickly. A direct GM ask (2026-08-17): "once the ball reaches
+/// the basket in animation, it should disappear if it's a make, or
+/// bounce in a random direction (then disappear quickly) if it's a
+/// miss." Passes don't get this -- they just arrive and stay (see
+/// [_BallTravelOverlay]); only a shot's ball needs a post-arrival fate.
+class _ShotBall extends StatefulWidget {
+  const _ShotBall({
+    super.key,
+    required this.from,
+    required this.to,
+    required this.travelDuration,
+    required this.made,
+  });
+
+  final Alignment from;
+  final Alignment to;
+  final Duration travelDuration;
+  final bool made;
+
+  @override
+  State<_ShotBall> createState() => _ShotBallState();
+}
+
+class _ShotBallState extends State<_ShotBall>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Alignment _bounceTarget;
+  late final double _travelFraction;
+
+  static const _makeFadeMs = 200;
+  static const _missBounceMs = 450;
+
+  @override
+  void initState() {
+    super.initState();
+    final random = math.Random();
+    final angle = random.nextDouble() * 2 * math.pi;
+    final radius = 0.10 + random.nextDouble() * 0.08;
+    _bounceTarget = Alignment(
+      (widget.to.x + math.cos(angle) * radius).clamp(-1.0, 1.0),
+      (widget.to.y + math.sin(angle) * radius).clamp(-1.0, 1.0),
+    );
+    final postMs = widget.made ? _makeFadeMs : _missBounceMs;
+    final totalMs = widget.travelDuration.inMilliseconds + postMs;
+    _travelFraction = widget.travelDuration.inMilliseconds / totalMs;
+    _controller =
+        AnimationController(
+          vsync: this,
+          duration: Duration(milliseconds: totalMs),
+        )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        if (t <= _travelFraction) {
+          final localT = _travelFraction == 0 ? 1.0 : t / _travelFraction;
+          final alignment = Alignment.lerp(
+            widget.from,
+            widget.to,
+            Curves.easeInOut.transform(localT),
+          )!;
+          return Align(alignment: alignment, child: child);
+        }
+        final postT = ((t - _travelFraction) / (1 - _travelFraction)).clamp(
+          0.0,
+          1.0,
+        );
+        final alignment = widget.made
+            ? widget.to
+            : Alignment.lerp(
+                widget.to,
+                _bounceTarget,
+                Curves.easeOut.transform(postT),
+              )!;
+        return Align(
+          alignment: alignment,
+          child: Opacity(opacity: 1 - postT, child: child),
+        );
+      },
+      child: const Text('🏀', style: TextStyle(fontSize: 20)),
+    );
+  }
+}
+
+/// The made/miss result at the basket -- a brief flash-in then a
+/// float-up-and-fade, timed to appear once the ball's travel animation
+/// actually arrives (2026-08-17, a direct GM ask): "when it hits the
+/// basket, it pops up 2pts, 3pts, or a red X for a miss... if the text
+/// could float up and fade away I'd love that." [delay] is the shot's
+/// own travel duration -- the popup stays invisible until
+/// then, so it never appears to precede the ball's arrival.
+class _ShotResultPopup extends StatefulWidget {
+  const _ShotResultPopup({
+    super.key,
+    required this.pointsLabel,
+    required this.color,
+    required this.delay,
+  });
+
+  final String pointsLabel;
+  final Color color;
+  final Duration delay;
+
+  @override
+  State<_ShotResultPopup> createState() => _ShotResultPopupState();
+}
+
+class _ShotResultPopupState extends State<_ShotResultPopup>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Timer? _delayTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _delayTimer = Timer(widget.delay, () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _delayTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        // A quick flash in (first 15% of the animation), then float up
+        // while fading out over the rest.
+        final opacity = t < 0.15 ? t / 0.15 : (1 - (t - 0.15) / 0.85);
+        return Opacity(
+          opacity: opacity.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, -24 * t),
+            child: Transform.scale(
+              scale: t < 0.15 ? 0.7 + (0.3 * t / 0.15) : 1.0,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: Text(
+        widget.pointsLabel,
+        style: TextStyle(
+          color: widget.color,
+          fontWeight: FontWeight.w900,
+          fontSize: 22,
+          shadows: const [
+            Shadow(color: Colors.black45, blurRadius: 3),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// The current play's headline -- a colored keyword badge above the
 /// "#N Name (POS TEAM) action" line for a notable play
-/// ([_LabBeat.highlight] != none), or just the plain line otherwise.
+/// ([_LabBeat.highlight] != none), a plain (deliberately not bold --
+/// "Bold is reserved for steals and buckets, and blocks," 2026-08-17)
+/// "TEAM Pass" label for an assist's pass half, or just the plain line
+/// otherwise.
 class _PlayHeadline extends StatelessWidget {
   const _PlayHeadline({required this.beat});
 
@@ -866,12 +1565,27 @@ class _PlayHeadline extends StatelessWidget {
         if (label != null) ...[
           _HighlightBadge(team: current.badgeTeam, label: label),
           const SizedBox(height: 4),
+        ] else if (current.isPass) ...[
+          Text(
+            '${current.badgeTeam == _Team.home ? _homeTeam.abbreviation : _awayTeam.abbreviation} '
+            'Pass',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: _legibleTextColor(
+                current.badgeTeam == _Team.home ? _homeColor : _awayColor,
+                theme.brightness,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
         ],
         Text(
           current.displayText,
           style: theme.textTheme.bodyLarge?.copyWith(
             fontWeight: FontWeight.w600,
           ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
@@ -1158,10 +1872,15 @@ class _FullCourtPainter extends CustomPainter {
     _drawEnd(canvas, size, linePaint, onRight: true);
     _drawEnd(canvas, size, linePaint, onRight: false);
 
-    // A center-court "floor decal" -- a faint tinted disc plus a ring in
-    // the home team's color, doing double duty as the reference's plain
-    // half-court circle. Sized to comfortably frame the 3x-larger center
-    // emoji (see _FullCourtPanel) rather than the emoji overflowing it.
+    // A center-court "floor decal" -- a faint team-color tinted disc,
+    // doing double duty as the reference's plain half-court circle.
+    // Sized to comfortably frame the 3x-larger center emoji (see
+    // _FullCourtPanel) rather than the emoji overflowing it. The ring
+    // itself is drawn in the *court's own line color*, not the team
+    // color -- a direct GM catch in dark mode (2026-08-17): "I can't see
+    // the center circle... it's black, and it should probably match the
+    // rest of the paint." The team-color ring read fine in light mode
+    // but nearly vanished against the dark wood floor.
     final decalRadius = size.height * 0.24;
     canvas.drawCircle(
       center,
@@ -1172,7 +1891,7 @@ class _FullCourtPainter extends CustomPainter {
       center,
       decalRadius,
       Paint()
-        ..color = centerRingColor.withValues(alpha: 0.65)
+        ..color = lineColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5,
     );
