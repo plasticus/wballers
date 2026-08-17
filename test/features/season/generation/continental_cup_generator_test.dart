@@ -19,6 +19,7 @@ MatchResult _match({required int homeScore, required int awayScore}) {
     minutesPlayed: const {},
     personalFouls: const {},
     fouledOut: const {},
+    finalEnergy: const {},
   );
 }
 

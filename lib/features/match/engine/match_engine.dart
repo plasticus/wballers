@@ -6,6 +6,7 @@ import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/player.dart';
 import '../domain/match_event.dart';
 import '../domain/match_result.dart';
+import 'fatigue.dart';
 import 'possession_engine.dart';
 import 'substitution_policy.dart';
 import 'tip_off_resolver.dart';
@@ -78,8 +79,22 @@ String? _bestPlayerId(List<Player> roster) {
 ///   every game, so a tied game after Q4 doesn't just end tied.
 ///   [MatchResult.homeScoreByQuarter]/`awayScoreByQuarter` can run longer
 ///   than 4 entries when this happens.
-/// - **No energy/fatigue model yet** (`0B_Planned.md`'s stamina appendix)
-///   -- substitutions are driven purely by target minutes and foul-outs.
+/// - **Energy/fatigue** (`fatigue.dart`, `0B_Planned.md`'s stamina
+///   appendix, 2026-08-17, built and wired in for real) -- every rostered
+///   player's energy drains while on court and recovers while benched
+///   (plus a flat bump at halftime), surfaced on [MatchResult.finalEnergy]
+///   and validated against real rosters via `tool/fatigue_diagnostic.dart`
+///   both before and after a real-game-driven retune. The resulting
+///   [fatigueBonusFor] penalty is summed into every rating contest a
+///   fatigued player touches in `possession_engine.dart` (passing,
+///   shooting, free throws, blocking, rebounding, on both ends of the
+///   floor) via that file's `_fatigueBonus` helper, the same accumulator
+///   slot `OffenseShapeBonus`/`DefenseTacticBonus`/`coachMatchupBonus`
+///   already share. Substitutions still don't react to it, though --
+///   `pickOnCourt`/`targetMinutesFor` are driven purely by target minutes
+///   and foul-outs, with no energy-aware "sit the gassed starter" logic
+///   yet (that's the quarter-break coaching-options catalog's job,
+///   `TODO.md` item 8, still blocked on its own undesigned catalog).
 /// - **Blowout pace rubber-banding** (TODO.md item 5): whichever team is
 ///   ahead by `kBlowoutPaceMargin` or more slows its own possessions down
 ///   (`possession_engine.dart`'s `simulatePossession` `offenseMargin`
@@ -170,6 +185,11 @@ MatchResult simulateMatch(
   final minutesPlayed = <Player, double>{};
   final personalFouls = <Player, int>{};
   final fouledOut = <Player>{};
+  // All 24 rostered players, not just whoever's on court -- a benched
+  // player still needs an energy value to recover into (`fatigue.dart`).
+  final energy = <Player, double>{
+    for (final p in [...homeRoster, ...awayRoster]) p: kMaxEnergy,
+  };
 
   var homeScore = 0;
   var awayScore = 0;
@@ -251,6 +271,7 @@ MatchResult simulateMatch(
         defenseTargetPlayerId: offenseIsHome
             ? awayDefenseTargetId
             : homeDefenseTargetId,
+        energy: energy,
       );
       events.addAll(result.events);
       quarterClock -= result.secondsElapsed;
@@ -262,6 +283,43 @@ MatchResult simulateMatch(
       }
       for (final p in defense) {
         minutesPlayed[p] = (minutesPlayed[p] ?? 0) + minutesThisPossession;
+      }
+
+      // Fatigue (`fatigue.dart`): everyone on court this possession
+      // drains energy; everyone else on either bench recovers it. `offense`
+      // and `defense` together are exactly `homeOnCourt` + `awayOnCourt`
+      // (whichever side is which flips every possession, but the on-court
+      // set doesn't), so this covers all 10 on-court players regardless of
+      // which side is attacking.
+      for (final p in offense) {
+        energy[p] = (energy[p]! -
+                fatigueDrainPerMinute(p.ratings.stamina) *
+                    minutesThisPossession)
+            .clamp(0.0, kMaxEnergy)
+            .toDouble();
+      }
+      for (final p in defense) {
+        energy[p] = (energy[p]! -
+                fatigueDrainPerMinute(p.ratings.stamina) *
+                    minutesThisPossession)
+            .clamp(0.0, kMaxEnergy)
+            .toDouble();
+      }
+      for (final p in homeRoster) {
+        if (homeOnCourt.contains(p)) continue;
+        energy[p] = (energy[p]! +
+                fatigueRecoveryPerMinute(p.ratings.stamina) *
+                    minutesThisPossession)
+            .clamp(0.0, kMaxEnergy)
+            .toDouble();
+      }
+      for (final p in awayRoster) {
+        if (awayOnCourt.contains(p)) continue;
+        energy[p] = (energy[p]! +
+                fatigueRecoveryPerMinute(p.ratings.stamina) *
+                    minutesThisPossession)
+            .clamp(0.0, kMaxEnergy)
+            .toDouble();
       }
 
       if (offenseIsHome) {
@@ -330,6 +388,17 @@ MatchResult simulateMatch(
     homeScoreByQuarter.add(homeScore - homeScoreBeforeQuarter);
     awayScoreByQuarter.add(awayScore - awayScoreBeforeQuarter);
     quarter++;
+    if (quarter == 3) {
+      // Halftime: a flat +10 energy bump for every rostered player
+      // (`fatigue.dart`'s kHalftimeEnergyBump), on top of the ordinary
+      // bench-recovery trickle already applied above -- independent of
+      // who's on court right at this instant.
+      for (final p in [...homeRoster, ...awayRoster]) {
+        energy[p] = (energy[p]! + kHalftimeEnergyBump)
+            .clamp(0.0, kMaxEnergy)
+            .toDouble();
+      }
+    }
   }
 
   return MatchResult(
@@ -341,5 +410,6 @@ MatchResult simulateMatch(
     minutesPlayed: minutesPlayed,
     personalFouls: personalFouls,
     fouledOut: fouledOut,
+    finalEnergy: energy,
   );
 }

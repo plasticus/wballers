@@ -35,6 +35,7 @@ void main() {
         },
         personalFouls: const {},
         fouledOut: const {},
+        finalEnergy: const {},
       );
     }
 
@@ -212,6 +213,7 @@ void main() {
         },
         personalFouls: const {},
         fouledOut: const {},
+        finalEnergy: const {},
       );
       final recoveredByOtherTeam = MatchResult(
         homeScore: 0,
@@ -231,6 +233,7 @@ void main() {
         },
         personalFouls: const {},
         fouledOut: const {},
+        finalEnergy: const {},
       );
 
       final noTurnover = computeBoxScore(
@@ -315,6 +318,7 @@ void main() {
         minutesPlayed: {scorer: 12.0},
         personalFouls: const {},
         fouledOut: const {},
+        finalEnergy: const {},
       );
 
       final boxScores = computeBoxScore(

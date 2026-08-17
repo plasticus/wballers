@@ -110,6 +110,7 @@ class PlayedGame {
         minutesPlayed: const {},
         personalFouls: const {},
         fouledOut: const {},
+        finalEnergy: const {},
       ),
     );
   }

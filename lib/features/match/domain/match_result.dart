@@ -16,6 +16,7 @@ class MatchResult {
     required this.minutesPlayed,
     required this.personalFouls,
     required this.fouledOut,
+    required this.finalEnergy,
   });
 
   /// Never equal to [awayScore] -- `simulateMatch` plays overtime periods
@@ -39,4 +40,20 @@ class MatchResult {
   /// Players who reached 6 personal fouls and were substituted out for
   /// the rest of the game.
   final Set<Player> fouledOut;
+
+  /// Each of the 24 rostered players' energy (`fatigue.dart`) at the
+  /// final buzzer, 0-100 -- tracked for the whole game (not just whoever
+  /// finished on court). The in-game fatigue penalty itself is already
+  /// real (`possession_engine.dart`'s `_fatigueBonus`) whether or not
+  /// anything ever reads this field; it exists on `MatchResult` (not
+  /// just as an internal engine detail) specifically so a *post-game*
+  /// consumer can too -- e.g. a future "most tired players" callout to
+  /// help the GM see who to rest more (a direct GM ask, 2026-08-17), or
+  /// a rotation-slot suggestion off of it. No such consumer exists yet.
+  /// Same transient-window lifetime as [events]/[minutesPlayed] today
+  /// (`GameResultScreen`'s own doc comment: once that screen is gone,
+  /// only the lean `PlayedGame` survives in the save) -- never persisted,
+  /// never read past one `MatchResult`, matching the GM's own call that
+  /// fatigue doesn't carry between games either.
+  final Map<Player, double> finalEnergy;
 }

@@ -8,6 +8,7 @@ import '../../player/domain/trait.dart';
 import '../domain/match_event.dart';
 import '../domain/possession_result.dart';
 import 'contest_resolver.dart';
+import 'fatigue.dart';
 
 /// "No effect" defaults for [simulatePossession]'s `offenseBonus`/
 /// `defenseBonus` params -- every field zero, so omitting them (every
@@ -172,6 +173,19 @@ const kCoachMatchupBonusCap = 0.05;
 
 enum _BallHandlerChoice { pass, drive, jumper }
 
+/// [player]'s current fatigue penalty (`fatigue.dart`'s [fatigueBonusFor],
+/// 0 or negative), read out of [energy] -- missing from the map (a caller
+/// that doesn't track fatigue at all, e.g. most possession-level tests)
+/// reads as [kMaxEnergy], i.e. no penalty, same "opt-in only" posture
+/// every other bonus in this file already has. Meant to be summed into a
+/// call site's `bonus` expression exactly like [coachMatchupBonus]/
+/// `OffenseShapeBonus`/`DefenseTacticBonus` already are -- fatigue is
+/// symmetric (it costs the same at every rating a fatigued player is
+/// read for), so this one helper covers every call site rather than
+/// needing an offense/defense-specific variant.
+double _fatigueBonus(Map<Player, double> energy, Player player) =>
+    fatigueBonusFor(energy[player] ?? kMaxEnergy);
+
 /// Applies the home-court/trait bonuses above, plus [bonus] if given, to
 /// one of [player]'s raw ratings, ahead of any contest that reads it.
 /// [isHome] is which side of *this specific contest* [player] is playing
@@ -296,6 +310,11 @@ Player _randomOf(Random random, List<Player> players) =>
 /// if any) swaps [defenseBonus]'s `targetedBonus` in for its
 /// `spreadThinPenalty` specifically when the offensive rebounder being
 /// contested is the flagged player.
+///
+/// [energy] is each player's current fatigue energy (`fatigue.dart`) --
+/// defaults to empty (nobody fatigued), same opt-in posture as every
+/// other bonus here; folded into both rebounders' `bonus` via
+/// [_fatigueBonus].
 ({bool offensiveRebound, Player rebounder}) _resolveRebound(
   Random random,
   List<Player> offense,
@@ -306,6 +325,7 @@ Player _randomOf(Random random, List<Player> players) =>
   OffenseShapeBonus offenseBonus = _noOffenseBonus,
   DefenseTacticBonus defenseBonus = _noDefenseBonus,
   String? defenseTargetPlayerId,
+  Map<Player, double> energy = const {},
 }) {
   final offensiveRebounder = _randomOf(random, offense);
   final defensiveRebounder = _randomOf(random, defense);
@@ -316,7 +336,10 @@ Player _randomOf(Random random, List<Player> players) =>
       offensiveRebounder.ratings.strength,
       offensiveRebounder.ratings.interiorOffense,
       offenseIsHome,
-      bonus: offenseCoachBonus + offenseBonus.interior,
+      bonus:
+          offenseCoachBonus +
+          offenseBonus.interior +
+          _fatigueBonus(energy, offensiveRebounder),
     ),
     defenderRating: _averageEffectiveRating(
       defensiveRebounder,
@@ -329,7 +352,8 @@ Player _randomOf(Random random, List<Player> players) =>
             defenseBonus,
             offensiveRebounder,
             defenseTargetPlayerId,
-          ),
+          ) +
+          _fatigueBonus(energy, defensiveRebounder),
     ),
     floor: 0.05,
     ceiling: 0.6,
@@ -456,6 +480,15 @@ int _shootFreeThrows(
 /// basket, reusing the split those ratings were already built for. There's
 /// also no live rebound off a missed free throw -- the possession always
 /// ends once free throws are done, make or miss on the last one.
+///
+/// [energy] (2026-08-17, `fatigue.dart`) is every on-court player's
+/// current fatigue energy, keyed by [Player] -- defaults to empty, same
+/// opt-in posture as every other bonus here (a possession-level test that
+/// doesn't pass it gets the exact old behavior, nobody fatigued). Applied
+/// symmetrically at every rating lookup in this function via
+/// [_fatigueBonus] -- passing, shooting, free throws, blocking, and
+/// rebounding all cost a fatigued player the same penalty, on both
+/// offense and defense.
 PossessionResult simulatePossession(
   Random random, {
   required List<Player> offense,
@@ -468,6 +501,7 @@ PossessionResult simulatePossession(
   OffenseShapeBonus offenseBonus = _noOffenseBonus,
   DefenseTacticBonus defenseBonus = _noDefenseBonus,
   String? defenseTargetPlayerId,
+  Map<Player, double> energy = const {},
 }) {
   assert(offense.length == 5, 'offense must have exactly 5 players on court');
   assert(defense.length == 5, 'defense must have exactly 5 players on court');
@@ -523,7 +557,10 @@ PossessionResult simulatePossession(
           ballHandler.ratings.agility,
           ballHandler.ratings.passing,
           offenseIsHome,
-          bonus: offenseCoachBonus + offenseBonus.passing,
+          bonus:
+              offenseCoachBonus +
+              offenseBonus.passing +
+              _fatigueBonus(energy, ballHandler),
         ),
         defenderRating: _averageEffectiveRating(
           defender,
@@ -536,7 +573,8 @@ PossessionResult simulatePossession(
                 defenseBonus,
                 ballHandler,
                 defenseTargetPlayerId,
-              ),
+              ) +
+              _fatigueBonus(energy, defender),
         ),
         floor: _passCleanFloor,
         ceiling: _passCleanCeiling,
@@ -615,7 +653,10 @@ PossessionResult simulatePossession(
           ballHandler,
           2,
           shooterIsHome: offenseIsHome,
-          bonus: offenseCoachBonus + offenseBonus.perimeter,
+          bonus:
+              offenseCoachBonus +
+              offenseBonus.perimeter +
+              _fatigueBonus(energy, ballHandler),
         );
         return finish(
           freeThrowPoints > 0
@@ -639,20 +680,23 @@ PossessionResult simulatePossession(
     // sharing everything past "which two ratings contest each other."
     final isDrive = choice == _BallHandlerChoice.drive;
     final defender = _randomOf(random, defense);
+    final shooterFatigue = _fatigueBonus(energy, ballHandler);
+    final defenderFatigue = _fatigueBonus(energy, defender);
     final shooterRating = isDrive
         ? _averageEffectiveRating(
             ballHandler,
             ballHandler.ratings.strength,
             ballHandler.ratings.interiorOffense,
             offenseIsHome,
-            bonus: offenseCoachBonus + offenseBonus.interior,
+            bonus: offenseCoachBonus + offenseBonus.interior + shooterFatigue,
           )
         : _averageEffectiveRating(
             ballHandler,
             ballHandler.ratings.agility,
             ballHandler.ratings.perimeterOffense,
             offenseIsHome,
-            bonus: offenseCoachBonus + offenseBonus.perimeter,
+            bonus:
+                offenseCoachBonus + offenseBonus.perimeter + shooterFatigue,
           );
     final defenseTargetBonus = _defenseTargetBonus(
       defenseBonus,
@@ -665,14 +709,14 @@ PossessionResult simulatePossession(
             defender.ratings.strength,
             defender.ratings.interiorDefense,
             defenseIsHome,
-            bonus: defenseBonus.interior + defenseTargetBonus,
+            bonus: defenseBonus.interior + defenseTargetBonus + defenderFatigue,
           )
         : _averageEffectiveRating(
             defender,
             defender.ratings.agility,
             defender.ratings.perimeterDefense,
             defenseIsHome,
-            bonus: defenseBonus.perimeter + defenseTargetBonus,
+            bonus: defenseBonus.perimeter + defenseTargetBonus + defenderFatigue,
           );
 
     final isThree = !isDrive && random.nextDouble() < _threePointAttemptRate;
@@ -736,7 +780,7 @@ PossessionResult simulatePossession(
         ballHandler,
         freeThrowAttempts,
         shooterIsHome: offenseIsHome,
-        bonus: offenseCoachBonus + offenseBonus.perimeter,
+        bonus: offenseCoachBonus + offenseBonus.perimeter + shooterFatigue,
       );
       final totalPoints = (made ? attemptPoints : 0) + freeThrowPoints;
       return finish(
@@ -784,8 +828,9 @@ PossessionResult simulatePossession(
         defenseIsHome,
         // Blocking reads as rim protection regardless of shot type, so it
         // shares the drive/jumper defender's own interior bonus + target
-        // check rather than needing a third variant.
-        bonus: defenseBonus.interior + defenseTargetBonus,
+        // check rather than needing a third variant. defenderFatigue is
+        // the same `defender` as above -- reused, not re-derived.
+        bonus: defenseBonus.interior + defenseTargetBonus + defenderFatigue,
       ),
       // shooterRating is already boosted for offenseIsHome above -- reused
       // as-is rather than re-derived.
@@ -814,6 +859,7 @@ PossessionResult simulatePossession(
       offenseBonus: offenseBonus,
       defenseBonus: defenseBonus,
       defenseTargetPlayerId: defenseTargetPlayerId,
+      energy: energy,
     );
     events.add(
       MatchEvent(
