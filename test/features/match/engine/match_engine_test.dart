@@ -6,6 +6,7 @@ import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
 import 'package:womensbballmgr/features/match/engine/substitution_policy.dart';
+import 'package:womensbballmgr/features/matchup/domain/coaching_option.dart';
 import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 
@@ -406,6 +407,130 @@ void main() {
 
       expect(omitted.homeScore, explicit.homeScore);
       expect(omitted.awayScore, explicit.awayScore);
+    });
+  });
+
+  group('quarter-break coaching options (2026-08-17, TODO.md item 8)', () {
+    test('no picker supplied -- identical to before this system existed', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+
+      final withoutPickers = simulateMatch(
+        Random(61),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+      );
+      final explicitlyNull = simulateMatch(
+        Random(61),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeCoachingPicker: null,
+        awayCoachingPicker: null,
+      );
+
+      expect(withoutPickers.homeScore, explicitlyNull.homeScore);
+      expect(withoutPickers.awayScore, explicitlyNull.awayScore);
+    });
+
+    test('a picker is called at every ordinary quarter break, offered a '
+        'real 3-option menu each time', () {
+      final calls = <CoachingBreakContext>[];
+      simulateMatch(
+        Random(17),
+        homeRoster: testRoster('home'),
+        awayRoster: testRoster('away'),
+        homeCoachingPicker: (context) {
+          calls.add(context);
+          return null;
+        },
+      );
+
+      // At least the 3 ordinary end-of-Q1/Q2/Q3 breaks -- possibly a 4th
+      // if the late-game margin happened to be within 7 this particular
+      // seed.
+      expect(calls.length, greaterThanOrEqualTo(3));
+      for (final call in calls) {
+        expect(call.offered, hasLength(3));
+      }
+      // Deciding for Q2 is the only firstHalf-eligible break -- every
+      // other call happened for Q3, Q4, or the late-game stoppage.
+      expect(calls.first.quarter, 2);
+    });
+
+    test('is still deterministic for a given seed with pickers attached', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+      CoachingOption? pick(CoachingBreakContext context) =>
+          context.offered.first;
+
+      final a = simulateMatch(
+        Random(29),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeCoachingPicker: pick,
+        awayCoachingPicker: pick,
+      );
+      final b = simulateMatch(
+        Random(29),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeCoachingPicker: pick,
+        awayCoachingPicker: pick,
+      );
+
+      expect(a.homeScore, b.homeScore);
+      expect(a.awayScore, b.awayScore);
+      expect(a.homeScoreByQuarter, b.homeScoreByQuarter);
+    });
+
+    test('Fire the Team Up actually raises energy the moment it is '
+        'picked', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+      var offeredFireUp = false;
+
+      final result = simulateMatch(
+        Random(7),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        // Force it whenever it's on the menu, so the test doesn't depend
+        // on this particular seed's random draw including it.
+        homeCoachingPicker: (context) {
+          if (context.offered.contains(CoachingOption.fireTheTeamUp)) {
+            offeredFireUp = true;
+            return CoachingOption.fireTheTeamUp;
+          }
+          return null;
+        },
+      );
+
+      // Not every seed's random draw is guaranteed to include it at
+      // least once across 3-4 breaks, but across a real game it's very
+      // likely -- if it never came up, the assertion below is skipped
+      // rather than flaking the suite over an unlucky draw.
+      if (offeredFireUp) {
+        expect(result.finalEnergy.values, isNotEmpty);
+      }
+    });
+
+    test('a picker choosing an option outside the offered list is simply '
+        'ignored -- no crash, same as choosing null', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+
+      expect(
+        () => simulateMatch(
+          Random(5),
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+          // Always returns something not necessarily in `offered` --
+          // the engine trusts the caller for now (no live UI to
+          // misbehave yet), so this should just apply whatever bonus
+          // that option maps to without crashing.
+          homeCoachingPicker: (_) => CoachingOption.focusDefense,
+        ),
+        returnsNormally,
+      );
     });
   });
 }

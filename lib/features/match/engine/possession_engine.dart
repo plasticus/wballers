@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../../core/ratings/rating_scale.dart';
+import '../../matchup/domain/coaching_option.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/player.dart';
@@ -270,11 +271,27 @@ double coachMatchupBonus({
   return gap.clamp(-kCoachMatchupBonusCap, kCoachMatchupBonusCap);
 }
 
-double _rollActionSeconds(Random random, {bool isProtectingLead = false}) {
+/// [extraSeconds] (2026-08-17, the quarter-break coaching-options catalog
+/// -- `0B_Planned.md`'s quarter-break bullet) is a coach-picked pace
+/// nudge on top of [isProtectingLead]'s automatic one: whichever of
+/// [CoachingOptionBonus.ownPaceSecondsBonus]/`opponentPaceSecondsBonus`
+/// applies to *this* action, summed by the caller before this is called.
+/// Can be negative ([CoachingOption.pickUpThePace]) -- clamped so the
+/// result never drops below [_minActionSeconds], the same floor a plain
+/// unmodified roll already respects.
+double _rollActionSeconds(
+  Random random, {
+  bool isProtectingLead = false,
+  double extraSeconds = 0.0,
+}) {
   final base =
       _minActionSeconds +
       random.nextDouble() * (_maxActionSeconds - _minActionSeconds);
-  return isProtectingLead ? base + _kBlowoutPaceActionBonusSeconds : base;
+  final withBlowout = isProtectingLead
+      ? base + _kBlowoutPaceActionBonusSeconds
+      : base;
+  final withCoaching = withBlowout + extraSeconds;
+  return withCoaching < _minActionSeconds ? _minActionSeconds : withCoaching;
 }
 
 _BallHandlerChoice _chooseAction(Random random, double shotClockRemaining) {
@@ -326,6 +343,8 @@ Player _randomOf(Random random, List<Player> players) =>
   DefenseTacticBonus defenseBonus = _noDefenseBonus,
   String? defenseTargetPlayerId,
   Map<Player, double> energy = const {},
+  CoachingOptionBonus offenseCoachingBonus = kNoCoachingOptionBonus,
+  CoachingOptionBonus defenseCoachingBonus = kNoCoachingOptionBonus,
 }) {
   final offensiveRebounder = _randomOf(random, offense);
   final defensiveRebounder = _randomOf(random, defense);
@@ -339,6 +358,8 @@ Player _randomOf(Random random, List<Player> players) =>
       bonus:
           offenseCoachBonus +
           offenseBonus.interior +
+          offenseCoachingBonus.offenseBonus +
+          offenseCoachingBonus.reboundingBonus +
           _fatigueBonus(energy, offensiveRebounder),
     ),
     defenderRating: _averageEffectiveRating(
@@ -348,6 +369,8 @@ Player _randomOf(Random random, List<Player> players) =>
       defenseIsHome,
       bonus:
           defenseBonus.interior +
+          defenseCoachingBonus.defenseBonus +
+          defenseCoachingBonus.reboundingBonus +
           _defenseTargetBonus(
             defenseBonus,
             offensiveRebounder,
@@ -481,6 +504,17 @@ int _shootFreeThrows(
 /// also no live rebound off a missed free throw -- the possession always
 /// ends once free throws are done, make or miss on the last one.
 ///
+/// [offenseCoachingBonus]/[defenseCoachingBonus] (2026-08-17, the
+/// quarter-break coaching-options catalog -- `0B_Planned.md`'s
+/// quarter-break bullet) are whichever [CoachingOption] each side
+/// currently has active, resolved via `coaching_option.dart`'s
+/// `coachingBonusFor` -- both default to "no effect," same opt-in-only
+/// posture as every other bonus here. Unlike [offenseBonus]/[defenseBonus]
+/// (persistent for the whole game), these are transient -- the caller
+/// (`match_engine.dart`) is responsible for only passing a non-default
+/// value while that team's pick is still within its 1-quarter/final-2-
+/// minutes duration.
+///
 /// [energy] (2026-08-17, `fatigue.dart`) is every on-court player's
 /// current fatigue energy, keyed by [Player] -- defaults to empty, same
 /// opt-in posture as every other bonus here (a possession-level test that
@@ -502,10 +536,20 @@ PossessionResult simulatePossession(
   DefenseTacticBonus defenseBonus = _noDefenseBonus,
   String? defenseTargetPlayerId,
   Map<Player, double> energy = const {},
+  CoachingOptionBonus offenseCoachingBonus = kNoCoachingOptionBonus,
+  CoachingOptionBonus defenseCoachingBonus = kNoCoachingOptionBonus,
 }) {
   assert(offense.length == 5, 'offense must have exactly 5 players on court');
   assert(defense.length == 5, 'defense must have exactly 5 players on court');
   final isProtectingLead = offenseMargin >= kBlowoutPaceMargin;
+  // The offense's own pace pick (Park the Bus/Pace Yourself/Pick Up the
+  // Pace, applied while they have the ball) plus the defense's pick that
+  // targets *this* possession's ball-handler (Full-Court Press/Park the
+  // Bus/Pace Yourself) -- summed once per possession since every action
+  // within it belongs to the same offense/defense pairing.
+  final extraActionSeconds =
+      offenseCoachingBonus.ownPaceSecondsBonus +
+      defenseCoachingBonus.opponentPaceSecondsBonus;
 
   final events = <MatchEvent>[];
   var shotClock = _shotClockSeconds;
@@ -530,6 +574,7 @@ PossessionResult simulatePossession(
     final actionSeconds = _rollActionSeconds(
       random,
       isProtectingLead: isProtectingLead,
+      extraSeconds: extraActionSeconds,
     );
     if (actionSeconds >= shotClock) {
       totalElapsed += shotClock;
@@ -560,6 +605,7 @@ PossessionResult simulatePossession(
           bonus:
               offenseCoachBonus +
               offenseBonus.passing +
+              offenseCoachingBonus.offenseBonus +
               _fatigueBonus(energy, ballHandler),
         ),
         defenderRating: _averageEffectiveRating(
@@ -569,6 +615,8 @@ PossessionResult simulatePossession(
           defenseIsHome,
           bonus:
               defenseBonus.disruption +
+              defenseCoachingBonus.defenseBonus +
+              defenseCoachingBonus.disruptionBonus +
               _defenseTargetBonus(
                 defenseBonus,
                 ballHandler,
@@ -656,6 +704,7 @@ PossessionResult simulatePossession(
           bonus:
               offenseCoachBonus +
               offenseBonus.perimeter +
+              offenseCoachingBonus.offenseBonus +
               _fatigueBonus(energy, ballHandler),
         );
         return finish(
@@ -688,7 +737,11 @@ PossessionResult simulatePossession(
             ballHandler.ratings.strength,
             ballHandler.ratings.interiorOffense,
             offenseIsHome,
-            bonus: offenseCoachBonus + offenseBonus.interior + shooterFatigue,
+            bonus:
+                offenseCoachBonus +
+                offenseBonus.interior +
+                offenseCoachingBonus.offenseBonus +
+                shooterFatigue,
           )
         : _averageEffectiveRating(
             ballHandler,
@@ -696,7 +749,10 @@ PossessionResult simulatePossession(
             ballHandler.ratings.perimeterOffense,
             offenseIsHome,
             bonus:
-                offenseCoachBonus + offenseBonus.perimeter + shooterFatigue,
+                offenseCoachBonus +
+                offenseBonus.perimeter +
+                offenseCoachingBonus.offenseBonus +
+                shooterFatigue,
           );
     final defenseTargetBonus = _defenseTargetBonus(
       defenseBonus,
@@ -709,14 +765,23 @@ PossessionResult simulatePossession(
             defender.ratings.strength,
             defender.ratings.interiorDefense,
             defenseIsHome,
-            bonus: defenseBonus.interior + defenseTargetBonus + defenderFatigue,
+            bonus:
+                defenseBonus.interior +
+                defenseCoachingBonus.defenseBonus +
+                defenseTargetBonus +
+                defenderFatigue,
           )
         : _averageEffectiveRating(
             defender,
             defender.ratings.agility,
             defender.ratings.perimeterDefense,
             defenseIsHome,
-            bonus: defenseBonus.perimeter + defenseTargetBonus + defenderFatigue,
+            bonus:
+                defenseBonus.perimeter +
+                defenseCoachingBonus.defenseBonus +
+                defenseCoachingBonus.perimeterDefenseBonus +
+                defenseTargetBonus +
+                defenderFatigue,
           );
 
     final isThree = !isDrive && random.nextDouble() < _threePointAttemptRate;
@@ -780,7 +845,11 @@ PossessionResult simulatePossession(
         ballHandler,
         freeThrowAttempts,
         shooterIsHome: offenseIsHome,
-        bonus: offenseCoachBonus + offenseBonus.perimeter + shooterFatigue,
+        bonus:
+            offenseCoachBonus +
+            offenseBonus.perimeter +
+            offenseCoachingBonus.offenseBonus +
+            shooterFatigue,
       );
       final totalPoints = (made ? attemptPoints : 0) + freeThrowPoints;
       return finish(
@@ -830,7 +899,11 @@ PossessionResult simulatePossession(
         // shares the drive/jumper defender's own interior bonus + target
         // check rather than needing a third variant. defenderFatigue is
         // the same `defender` as above -- reused, not re-derived.
-        bonus: defenseBonus.interior + defenseTargetBonus + defenderFatigue,
+        bonus:
+            defenseBonus.interior +
+            defenseCoachingBonus.defenseBonus +
+            defenseTargetBonus +
+            defenderFatigue,
       ),
       // shooterRating is already boosted for offenseIsHome above -- reused
       // as-is rather than re-derived.
@@ -860,6 +933,8 @@ PossessionResult simulatePossession(
       defenseBonus: defenseBonus,
       defenseTargetPlayerId: defenseTargetPlayerId,
       energy: energy,
+      offenseCoachingBonus: offenseCoachingBonus,
+      defenseCoachingBonus: defenseCoachingBonus,
     );
     events.add(
       MatchEvent(

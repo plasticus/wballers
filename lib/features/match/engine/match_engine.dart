@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../coach/domain/coach.dart';
+import '../../matchup/domain/coaching_option.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/player.dart';
@@ -24,6 +25,12 @@ const _teamFoulBonusThreshold = 5;
 
 /// Personal fouls at which a player fouls out and must be substituted.
 const _personalFoulOutLimit = 6;
+
+/// The extra Q4-only coaching break -- "one more in Q4 if the game is
+/// within 7 points... at the 2:00 mark" (`TODO.md` item 8, the recorded
+/// design-doc number). On top of the 3 ordinary end-of-quarter breaks.
+const _lateGameBreakClockSeconds = 120.0;
+const _lateGameBreakMargin = 7;
 
 /// How often on-court lineups get re-picked, in simulated seconds. Locking
 /// lineups only at quarter boundaries (600s) meant nobody with a target
@@ -141,6 +148,27 @@ String? _bestPlayerId(List<Player> roster) {
 ///   player on the *opposing* roster has the highest
 ///   `PlayerRatings.overall` (this game's fixed target for the whole
 ///   game, not re-evaluated possession to possession).
+/// - **Quarter-break coaching options** (2026-08-17, catalog + selection
+///   logic locked in `0B_Planned.md`'s quarter-break bullet, `TODO.md`
+///   item 8): [homeCoachingPicker]/[awayCoachingPicker] are optional --
+///   `null` (the default, same "AI always Balanced" posture
+///   [homeDefenseTactic]/[awayDefenseTactic] already established) means
+///   that side is never offered anything, so no existing caller's
+///   behavior changes without opting in. When supplied, a picker is
+///   called synchronously at each real break (end of Q1/Q2/Q3, plus the
+///   Q4 [_lateGameBreakClockSeconds]-mark stoppage if the game is within
+///   [_lateGameBreakMargin]) with an already-drawn 3-option menu
+///   (`coaching_option.dart`'s `offerCoachingOptions`) and returns
+///   whichever it picks (or `null` to skip). [CoachingOption.fireTheTeamUp]/
+///   [CoachingOption.restAPlayer] apply once, immediately; every other
+///   pick becomes that side's flat rating/pace/stamina bonus
+///   (`coachingBonusFor`) for the rest of its duration -- one quarter, or
+///   the remaining ~2 minutes at the late break -- via
+///   `possession_engine.dart`'s `offenseCoachingBonus`/
+///   `defenseCoachingBonus`. Synchronous on purpose, for now: there's no
+///   live, pause-for-a-human-tap game loop yet (this item's own
+///   still-unbuilt "Architecture flagged" note) -- this is the
+///   mechanical system made real, not the interactive UI around it.
 MatchResult simulateMatch(
   Random random, {
   required List<Player> homeRoster,
@@ -151,6 +179,8 @@ MatchResult simulateMatch(
   Coach? awayCoach,
   DefensiveTactic homeDefenseTactic = DefensiveTactic.balanced,
   DefensiveTactic awayDefenseTactic = DefensiveTactic.balanced,
+  CoachingOptionPicker? homeCoachingPicker,
+  CoachingOptionPicker? awayCoachingPicker,
 }) {
   assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
   assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
@@ -197,17 +227,37 @@ MatchResult simulateMatch(
   final awayScoreByQuarter = <int>[];
   final events = <MatchEvent>[];
 
+  // Quarter-break coaching options (2026-08-17, `0B_Planned.md`'s
+  // quarter-break bullet): each side's currently-active pick (`null` if
+  // none, or if that side has no picker at all), the flat bonus it
+  // resolves to (`coachingBonusFor`, recomputed only when the pick
+  // changes, not every possession), and who's currently sat by
+  // [CoachingOption.restAPlayer] -- all cleared at the top of every new
+  // quarter/period, since a pick's duration never outlives the stoppage
+  // that offered it. `homeUnansweredRun`/`awayUnansweredRun` track
+  // [CoachingOption.stopTheBleeding]'s trigger: however many points one
+  // side has scored, unanswered, right now -- reset to 0 for a side the
+  // instant the *other* side scores.
+  var homeCoachingBonus = kNoCoachingOptionBonus;
+  var awayCoachingBonus = kNoCoachingOptionBonus;
+  var homeRestedPlayers = <Player>{};
+  var awayRestedPlayers = <Player>{};
+  var homeUnansweredRun = 0;
+  var awayUnansweredRun = 0;
+
   var homeOnCourt = pickOnCourt(
     roster: homeRoster,
     targetMinutes: homeTargetMinutes,
     minutesPlayed: minutesPlayed,
     fouledOut: fouledOut,
+    rested: homeRestedPlayers,
   );
   var awayOnCourt = pickOnCourt(
     roster: awayRoster,
     targetMinutes: awayTargetMinutes,
     minutesPlayed: minutesPlayed,
     fouledOut: fouledOut,
+    rested: awayRestedPlayers,
   );
   final tipOffWinnerIsHome = resolveTipOff(
     random,
@@ -216,22 +266,98 @@ MatchResult simulateMatch(
   );
 
   var quarter = 1;
+
+  // Offers (if a picker is supplied) and applies a coaching-option pick
+  // for each side independently, right now, for the current [quarter].
+  // [CoachingOption.fireTheTeamUp]/[CoachingOption.restAPlayer] apply
+  // once, immediately; everything else becomes that side's flat bonus
+  // for the rest of its duration. A local closure (not a top-level
+  // function) since it reads/writes so much of this call's own local
+  // state -- pulling it out would mean threading 10+ params through.
+  void runCoachingBreak(CoachingBreakStoppage stoppage) {
+    if (homeCoachingPicker != null) {
+      final offered = offerCoachingOptions(
+        random,
+        stoppage: stoppage,
+        opponentUnansweredRun: awayUnansweredRun,
+      );
+      final picked = homeCoachingPicker((
+        quarter: quarter,
+        ownScore: homeScore,
+        opponentScore: awayScore,
+        opponentUnansweredRun: awayUnansweredRun,
+        offered: offered,
+      ));
+      if (picked == CoachingOption.fireTheTeamUp) {
+        energy.addAll(applyFireTheTeamUp(energy, homeRoster));
+      } else if (picked == CoachingOption.restAPlayer) {
+        final toRest = pickPlayerToRest(energy, homeOnCourt);
+        homeRestedPlayers = {?toRest};
+      } else {
+        homeCoachingBonus = coachingBonusFor(picked);
+      }
+    }
+    if (awayCoachingPicker != null) {
+      final offered = offerCoachingOptions(
+        random,
+        stoppage: stoppage,
+        opponentUnansweredRun: homeUnansweredRun,
+      );
+      final picked = awayCoachingPicker((
+        quarter: quarter,
+        ownScore: awayScore,
+        opponentScore: homeScore,
+        opponentUnansweredRun: homeUnansweredRun,
+        offered: offered,
+      ));
+      if (picked == CoachingOption.fireTheTeamUp) {
+        energy.addAll(applyFireTheTeamUp(energy, awayRoster));
+      } else if (picked == CoachingOption.restAPlayer) {
+        final toRest = pickPlayerToRest(energy, awayOnCourt);
+        awayRestedPlayers = {?toRest};
+      } else {
+        awayCoachingBonus = coachingBonusFor(picked);
+      }
+    }
+  }
+
   while (quarter <= _quarterCount || homeScore == awayScore) {
     final periodSeconds = quarter <= _quarterCount
         ? _quarterSeconds
         : _overtimeSeconds;
     if (quarter > 1) {
+      // A pick's duration never outlives the stoppage that offered it --
+      // clear everything before (maybe) offering a fresh one below, so a
+      // stale pick can never silently carry into a quarter (or overtime)
+      // nobody chose it for.
+      homeCoachingBonus = kNoCoachingOptionBonus;
+      awayCoachingBonus = kNoCoachingOptionBonus;
+      homeRestedPlayers = {};
+      awayRestedPlayers = {};
+      if (quarter <= _quarterCount) {
+        // Keyed off which quarter the pick is *for*, not which one just
+        // ended -- only the end-of-Q1 break (deciding Q2) is firstHalf;
+        // deciding Q3 or Q4 is secondHalf either way
+        // (`CoachingBreakStoppage`'s own doc comment).
+        runCoachingBreak(
+          quarter == 2
+              ? CoachingBreakStoppage.firstHalf
+              : CoachingBreakStoppage.secondHalf,
+        );
+      }
       homeOnCourt = pickOnCourt(
         roster: homeRoster,
         targetMinutes: homeTargetMinutes,
         minutesPlayed: minutesPlayed,
         fouledOut: fouledOut,
+        rested: homeRestedPlayers,
       );
       awayOnCourt = pickOnCourt(
         roster: awayRoster,
         targetMinutes: awayTargetMinutes,
         minutesPlayed: minutesPlayed,
         fouledOut: fouledOut,
+        rested: awayRestedPlayers,
       );
     }
 
@@ -239,6 +365,10 @@ MatchResult simulateMatch(
     var awayTeamFouls = 0;
     var quarterClock = periodSeconds;
     var secondsSinceSubCheck = 0.0;
+    // Only ever meaningful in Q4 (`_lateGameBreakClockSeconds` check
+    // below), but declared fresh every quarter/period so it's never
+    // accidentally left `true` from a prior quarter.
+    var lateBreakFired = false;
     var offenseIsHome = quarter.isOdd
         ? tipOffWinnerIsHome
         : !tipOffWinnerIsHome;
@@ -272,6 +402,12 @@ MatchResult simulateMatch(
             ? awayDefenseTargetId
             : homeDefenseTargetId,
         energy: energy,
+        offenseCoachingBonus: offenseIsHome
+            ? homeCoachingBonus
+            : awayCoachingBonus,
+        defenseCoachingBonus: offenseIsHome
+            ? awayCoachingBonus
+            : homeCoachingBonus,
       );
       events.addAll(result.events);
       quarterClock -= result.secondsElapsed;
@@ -290,42 +426,115 @@ MatchResult simulateMatch(
       // and `defense` together are exactly `homeOnCourt` + `awayOnCourt`
       // (whichever side is which flips every possession, but the on-court
       // set doesn't), so this covers all 10 on-court players regardless of
-      // which side is attacking.
+      // which side is attacking. `staminaDrainMultiplier` (2026-08-17,
+      // `CoachingOption.fullCourtPress`/`pickUpThePace`/`paceYourself`)
+      // applies by *roster* membership, not offense/defense -- a team's
+      // pace pick costs (or saves) stamina the same whether they're
+      // currently attacking or defending.
       for (final p in offense) {
-        energy[p] = (energy[p]! -
-                fatigueDrainPerMinute(p.ratings.stamina) *
-                    minutesThisPossession)
-            .clamp(0.0, kMaxEnergy)
-            .toDouble();
+        final multiplier = homeRoster.contains(p)
+            ? homeCoachingBonus.staminaDrainMultiplier
+            : awayCoachingBonus.staminaDrainMultiplier;
+        energy[p] =
+            (energy[p]! -
+                    fatigueDrainPerMinute(p.ratings.stamina) *
+                        multiplier *
+                        minutesThisPossession)
+                .clamp(0.0, kMaxEnergy)
+                .toDouble();
       }
       for (final p in defense) {
-        energy[p] = (energy[p]! -
-                fatigueDrainPerMinute(p.ratings.stamina) *
-                    minutesThisPossession)
-            .clamp(0.0, kMaxEnergy)
-            .toDouble();
+        final multiplier = homeRoster.contains(p)
+            ? homeCoachingBonus.staminaDrainMultiplier
+            : awayCoachingBonus.staminaDrainMultiplier;
+        energy[p] =
+            (energy[p]! -
+                    fatigueDrainPerMinute(p.ratings.stamina) *
+                        multiplier *
+                        minutesThisPossession)
+                .clamp(0.0, kMaxEnergy)
+                .toDouble();
       }
+      // `CoachingOption.restAPlayer`'s pick gets a bigger recovery bump
+      // than the ordinary bench trickle -- "a bigger-than-usual energy
+      // recovery bump" (2026-08-17).
       for (final p in homeRoster) {
         if (homeOnCourt.contains(p)) continue;
-        energy[p] = (energy[p]! +
-                fatigueRecoveryPerMinute(p.ratings.stamina) *
-                    minutesThisPossession)
-            .clamp(0.0, kMaxEnergy)
-            .toDouble();
+        final multiplier = homeRestedPlayers.contains(p)
+            ? kRestAPlayerRecoveryMultiplier
+            : 1.0;
+        energy[p] =
+            (energy[p]! +
+                    fatigueRecoveryPerMinute(p.ratings.stamina) *
+                        multiplier *
+                        minutesThisPossession)
+                .clamp(0.0, kMaxEnergy)
+                .toDouble();
       }
       for (final p in awayRoster) {
         if (awayOnCourt.contains(p)) continue;
-        energy[p] = (energy[p]! +
-                fatigueRecoveryPerMinute(p.ratings.stamina) *
-                    minutesThisPossession)
-            .clamp(0.0, kMaxEnergy)
-            .toDouble();
+        final multiplier = awayRestedPlayers.contains(p)
+            ? kRestAPlayerRecoveryMultiplier
+            : 1.0;
+        energy[p] =
+            (energy[p]! +
+                    fatigueRecoveryPerMinute(p.ratings.stamina) *
+                        multiplier *
+                        minutesThisPossession)
+                .clamp(0.0, kMaxEnergy)
+                .toDouble();
       }
 
       if (offenseIsHome) {
         homeScore += result.pointsScored;
       } else {
         awayScore += result.pointsScored;
+      }
+
+      // `CoachingOption.stopTheBleeding`'s trigger: however many points
+      // the *current* possession's team has scored, unanswered, right
+      // now. A score resets the *other* side's run to 0 -- it doesn't
+      // touch this side's own (a 0-point possession doesn't end a run
+      // either, only the other team actually scoring does).
+      if (result.pointsScored > 0) {
+        if (offenseIsHome) {
+          homeUnansweredRun += result.pointsScored;
+          awayUnansweredRun = 0;
+        } else {
+          awayUnansweredRun += result.pointsScored;
+          homeUnansweredRun = 0;
+        }
+      }
+
+      // The extra Q4-only coaching break, once per game -- "one more in
+      // Q4 if the game is within 7 points... at the 2:00 mark" (`TODO.md`
+      // item 8). Checked possession-by-possession like the ordinary
+      // substitution-check timer, since there's no other mid-quarter
+      // breakpoint in this loop.
+      if (quarter == _quarterCount &&
+          !lateBreakFired &&
+          quarterClock <= _lateGameBreakClockSeconds &&
+          (homeScore - awayScore).abs() <= _lateGameBreakMargin) {
+        lateBreakFired = true;
+        homeCoachingBonus = kNoCoachingOptionBonus;
+        awayCoachingBonus = kNoCoachingOptionBonus;
+        homeRestedPlayers = {};
+        awayRestedPlayers = {};
+        runCoachingBreak(CoachingBreakStoppage.secondHalf);
+        homeOnCourt = pickOnCourt(
+          roster: homeRoster,
+          targetMinutes: homeTargetMinutes,
+          minutesPlayed: minutesPlayed,
+          fouledOut: fouledOut,
+          rested: homeRestedPlayers,
+        );
+        awayOnCourt = pickOnCourt(
+          roster: awayRoster,
+          targetMinutes: awayTargetMinutes,
+          minutesPlayed: minutesPlayed,
+          fouledOut: fouledOut,
+          rested: awayRestedPlayers,
+        );
       }
 
       for (final event in result.events) {
@@ -352,6 +561,7 @@ MatchResult simulateMatch(
               targetMinutes: homeTargetMinutes,
               minutesPlayed: minutesPlayed,
               fouledOut: fouledOut,
+              rested: homeRestedPlayers,
             );
           } else {
             awayOnCourt = substituteForFoulOut(
@@ -361,6 +571,7 @@ MatchResult simulateMatch(
               targetMinutes: awayTargetMinutes,
               minutesPlayed: minutesPlayed,
               fouledOut: fouledOut,
+              rested: awayRestedPlayers,
             );
           }
         }
@@ -373,12 +584,14 @@ MatchResult simulateMatch(
           targetMinutes: homeTargetMinutes,
           minutesPlayed: minutesPlayed,
           fouledOut: fouledOut,
+          rested: homeRestedPlayers,
         );
         awayOnCourt = pickOnCourt(
           roster: awayRoster,
           targetMinutes: awayTargetMinutes,
           minutesPlayed: minutesPlayed,
           fouledOut: fouledOut,
+          rested: awayRestedPlayers,
         );
       }
 

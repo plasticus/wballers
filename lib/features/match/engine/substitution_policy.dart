@@ -124,12 +124,10 @@ List<Player> _withBalancedTopFive(List<Player> sortedByOverall) {
       break;
     }
     final promoteIndex = benchCandidateIndices.reduce(
-      (a, b) =>
-          roster[a].ratings.overall >= roster[b].ratings.overall ? a : b,
+      (a, b) => roster[a].ratings.overall >= roster[b].ratings.overall ? a : b,
     );
     final displaceIndex = duplicateStarterIndices.reduce(
-      (a, b) =>
-          roster[a].ratings.overall <= roster[b].ratings.overall ? a : b,
+      (a, b) => roster[a].ratings.overall <= roster[b].ratings.overall ? a : b,
     );
 
     // Swap the two players' list positions directly, then re-sort each
@@ -182,28 +180,44 @@ int Function(Player, Player) _byMostBehindSchedule(
 
 /// Picks the 5 players who should be on court right now: whoever is
 /// furthest behind their target minutes relative to what they've actually
-/// played so far, excluding anyone in [fouledOut]. Locks in per quarter
-/// rather than modeling live in-quarter checks -- a simpler approximation
-/// of real substitution patterns (which cluster at dead-ball stoppages
-/// anyway) than tracking exact in/out timing.
+/// played so far, excluding anyone in [fouledOut] or [rested]. Locks in
+/// per quarter rather than modeling live in-quarter checks -- a simpler
+/// approximation of real substitution patterns (which cluster at
+/// dead-ball stoppages anyway) than tracking exact in/out timing.
+///
+/// [rested] (2026-08-17, the quarter-break coaching-options catalog's
+/// "Rest a Player" -- `0B_Planned.md`'s quarter-break bullet) is whoever
+/// the coach has explicitly sat for the current stretch, on top of the
+/// ordinary target-minutes rotation -- defaults to empty, same opt-in
+/// posture as every other bonus in this engine. `match_engine.dart` is
+/// responsible for clearing it once that pick's duration (1 quarter, or
+/// the final ~2 minutes) is over.
 List<Player> pickOnCourt({
   required List<Player> roster,
   required Map<Player, int> targetMinutes,
   required Map<Player, double> minutesPlayed,
   required Set<Player> fouledOut,
+  Set<Player> rested = const {},
 }) {
-  final available = roster.where((p) => !fouledOut.contains(p)).toList()
-    ..sort(_byMostBehindSchedule(targetMinutes, minutesPlayed));
+  final available =
+      roster
+          .where((p) => !fouledOut.contains(p) && !rested.contains(p))
+          .toList()
+        ..sort(_byMostBehindSchedule(targetMinutes, minutesPlayed));
   assert(
     available.length >= 5,
-    'fewer than 5 available (non-fouled-out) players remain on the roster',
+    'fewer than 5 available (non-fouled-out, non-rested) players remain '
+    'on the roster',
   );
   return available.take(5).toList();
 }
 
 /// Replaces [foulingPlayer] in [onCourt] with the best available bench
 /// player (same "furthest behind schedule" rule as [pickOnCourt]), for a
-/// player who just fouled out mid-quarter.
+/// player who just fouled out mid-quarter. [rested] (2026-08-17,
+/// `CoachingOption.restAPlayer`) is excluded from consideration same as
+/// [pickOnCourt] -- a coach's rest call shouldn't get quietly overridden
+/// by a teammate's foul trouble.
 List<Player> substituteForFoulOut({
   required Player foulingPlayer,
   required List<Player> onCourt,
@@ -211,10 +225,16 @@ List<Player> substituteForFoulOut({
   required Map<Player, int> targetMinutes,
   required Map<Player, double> minutesPlayed,
   required Set<Player> fouledOut,
+  Set<Player> rested = const {},
 }) {
   final bench =
       roster
-          .where((p) => !onCourt.contains(p) && !fouledOut.contains(p))
+          .where(
+            (p) =>
+                !onCourt.contains(p) &&
+                !fouledOut.contains(p) &&
+                !rested.contains(p),
+          )
           .toList()
         ..sort(_byMostBehindSchedule(targetMinutes, minutesPlayed));
   assert(bench.isNotEmpty, 'no bench player available to replace a foul-out');

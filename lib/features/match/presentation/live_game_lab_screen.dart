@@ -7,7 +7,7 @@ import '../../../app/app_spacing.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/onboarding/quick_start_teams.dart';
-import '../../matchup/domain/defensive_tactic.dart';
+import '../../matchup/domain/coaching_option.dart';
 import 'play_by_play_phrases.dart';
 
 /// Which team (if any) a [_LabBeat] belongs to -- `null` for a neutral
@@ -662,7 +662,10 @@ final _beats = <_LabBeat>[
 /// removed outright rather than left dead/hidden, matching this repo's
 /// usual "delete, don't comment out" convention.
 ///
-/// The coaching-break sheet (a single real [DefensiveTactic] re-pick,
+/// The coaching-break sheet (2026-08-17: now the real, locked
+/// [CoachingOption] catalog + [offerCoachingOptions] selection logic --
+/// `0B_Planned.md`'s quarter-break bullet -- replacing the earlier
+/// DefensiveTactic-re-pick placeholder now that the real catalog exists;
 /// hard-stop, no auto-continue) still layers on top at the scripted
 /// quarter break or on demand via Preview.
 class LiveGameLabScreen extends StatefulWidget {
@@ -761,13 +764,24 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
       });
       if (beat.isBreak) {
         _stop();
-        _openBreak(beat.breakLabel ?? 'COACHING BREAK');
+        // The lab's only scripted break is the end-of-Q1 one (deciding
+        // for Q2) -- always firstHalf. A real live game would pass
+        // whichever stoppage actually applies (`CoachingBreakStoppage`'s
+        // own doc comment); the lab has no 2nd/3rd-quarter break
+        // scripted yet to demonstrate Park the Bus's secondHalf gate.
+        _openBreak(
+          beat.breakLabel ?? 'COACHING BREAK',
+          stoppage: CoachingBreakStoppage.firstHalf,
+        );
       }
       return;
     }
   }
 
-  Future<void> _openBreak(String label) async {
+  Future<void> _openBreak(
+    String label, {
+    required CoachingBreakStoppage stoppage,
+  }) async {
     // showModalBottomSheet attaches to the nearest Navigator's Overlay --
     // the app's root one, outside this screen's local Theme override --
     // so the sheet needs its own explicit Theme wrap to pick up whichever
@@ -779,7 +793,7 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
     // (near-invisible, light-colored) text. `backgroundColor` covers the
     // outer surface; the inner Theme covers everything drawn inside it.
     final themeData = _previewDark ? AppTheme.dark() : AppTheme.light();
-    await showModalBottomSheet<DefensiveTactic>(
+    await showModalBottomSheet<CoachingOption>(
       context: context,
       backgroundColor: themeData.colorScheme.surface,
       isDismissible: false,
@@ -793,12 +807,13 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
           awayAbbreviation: _awayTeam.abbreviation,
           homeScore: _home,
           awayScore: _away,
+          stoppage: stoppage,
         ),
       ),
     );
-    // The picked tactic is discarded here -- this lab has no live match
-    // to resume into. A real implementation would feed it back into the
-    // resumed segment's DefensiveTactic param (`match_engine.dart`).
+    // The pick is discarded here -- this lab has no live match to resume
+    // into. A real implementation would feed it into `match_engine.dart`'s
+    // `homeCoachingPicker`/`awayCoachingPicker` for the resumed segment.
   }
 
   @override
@@ -916,7 +931,10 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => _openBreak('PREVIEW'),
+                onPressed: () => _openBreak(
+                  'PREVIEW',
+                  stoppage: CoachingBreakStoppage.firstHalf,
+                ),
                 child: const Text('Preview Coaching Break'),
               ),
             ),
@@ -935,24 +953,28 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
             Text('What I need your read on', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             const _QuestionItem(
-              text: 'Highlight badges -- team-color background, computed '
+              text:
+                  'Highlight badges -- team-color background, computed '
                   'black/white text for guaranteed contrast. Toggle '
                   'Light/Dark above: does DSM green / KCY navy hold up '
                   'in both, or does the badge itself need a theme-aware '
                   'tint (not just the text)?',
             ),
             const _QuestionItem(
-              text: 'The wood floor is dark-mode-only right now (light '
+              text:
+                  'The wood floor is dark-mode-only right now (light '
                   'mode stays plain, matching the court.svg reference) '
                   '-- want it in light mode too, or does the plain floor '
                   'read better there?',
             ),
             const _QuestionItem(
-              text: 'Slow/Med/Fast are now 3.0s/2.0s/0.75s per beat -- '
+              text:
+                  'Slow/Med/Fast are now 3.0s/2.0s/0.75s per beat -- '
                   'right range now, or still needs a slide?',
             ),
             const _QuestionItem(
-              text: 'The break sheet itself -- right height/weight for a '
+              text:
+                  'The break sheet itself -- right height/weight for a '
                   'hard stop you\'ll see 4+ times a game, every game?',
             ),
           ],
@@ -1173,10 +1195,7 @@ class _FullCourtPanel extends StatelessWidget {
                   alignment: Alignment.center,
                   // 3x the original size (2026-08-17, a direct GM ask) --
                   // the center-court ring below is sized to match.
-                  child: Text(
-                    _homeEmoji,
-                    style: const TextStyle(fontSize: 66),
-                  ),
+                  child: Text(_homeEmoji, style: const TextStyle(fontSize: 66)),
                 ),
                 for (var i = 0; i < zoned.length; i++)
                   Align(
@@ -1406,11 +1425,10 @@ class _ShotBallState extends State<_ShotBall>
     final postMs = widget.made ? _makeFadeMs : _missBounceMs;
     final totalMs = widget.travelDuration.inMilliseconds + postMs;
     _travelFraction = widget.travelDuration.inMilliseconds / totalMs;
-    _controller =
-        AnimationController(
-          vsync: this,
-          duration: Duration(milliseconds: totalMs),
-        )..forward();
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: totalMs),
+    )..forward();
   }
 
   @override
@@ -1528,9 +1546,7 @@ class _ShotResultPopupState extends State<_ShotResultPopup>
           color: widget.color,
           fontWeight: FontWeight.w900,
           fontSize: 22,
-          shadows: const [
-            Shadow(color: Colors.black45, blurRadius: 3),
-          ],
+          shadows: const [Shadow(color: Colors.black45, blurRadius: 3)],
         ),
       ),
     );
@@ -1787,7 +1803,12 @@ class _FullCourtPainter extends CustomPainter {
             laneWidth,
             laneHeight,
           )
-        : Rect.fromLTWH(4, (size.height - laneHeight) / 2, laneWidth, laneHeight);
+        : Rect.fromLTWH(
+            4,
+            (size.height - laneHeight) / 2,
+            laneWidth,
+            laneHeight,
+          );
     canvas.drawRect(laneRect, linePaint);
 
     final ftCircleCenter = Offset(
@@ -1825,7 +1846,10 @@ class _FullCourtPainter extends CustomPainter {
     final halfSpan = math.asin(dy / threePointRadius);
     final startAngle = onRight ? math.pi - halfSpan : -halfSpan;
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(basketX, size.height / 2), radius: threePointRadius),
+      Rect.fromCircle(
+        center: Offset(basketX, size.height / 2),
+        radius: threePointRadius,
+      ),
       startAngle,
       2 * halfSpan,
       false,
@@ -1904,10 +1928,13 @@ class _FullCourtPainter extends CustomPainter {
       oldDelegate.floorColor != floorColor;
 }
 
-/// The coaching-break sheet -- a real [DefensiveTactic] re-pick (the one
-/// lever already wired into the engine), hard-stop (`isDismissible:
-/// false`, `enableDrag: false`) so it always waits for an explicit
-/// "Resume Game" tap.
+/// The coaching-break sheet -- the real, locked [CoachingOption] catalog
+/// (2026-08-17, `0B_Planned.md`'s quarter-break bullet), a real 3-option
+/// draw via [offerCoachingOptions] rather than a hand-picked list, and a
+/// hard stop (`isDismissible: false`, `enableDrag: false`) so it always
+/// waits for an explicit "Resume Game" tap. Replaces the earlier
+/// DefensiveTactic-re-pick placeholder that stood in for this before the
+/// catalog existed.
 class _CoachingBreakSheet extends StatefulWidget {
   const _CoachingBreakSheet({
     required this.label,
@@ -1915,6 +1942,7 @@ class _CoachingBreakSheet extends StatefulWidget {
     required this.awayAbbreviation,
     required this.homeScore,
     required this.awayScore,
+    required this.stoppage,
   });
 
   final String label;
@@ -1922,13 +1950,23 @@ class _CoachingBreakSheet extends StatefulWidget {
   final String awayAbbreviation;
   final int homeScore;
   final int awayScore;
+  final CoachingBreakStoppage stoppage;
 
   @override
   State<_CoachingBreakSheet> createState() => _CoachingBreakSheetState();
 }
 
 class _CoachingBreakSheetState extends State<_CoachingBreakSheet> {
-  var _tactic = DefensiveTactic.balanced;
+  late final List<CoachingOption> _offered = offerCoachingOptions(
+    math.Random(),
+    stoppage: widget.stoppage,
+    // The lab doesn't track real recent-scoring history the way a live
+    // game would -- Stop the Bleeding's trigger (`0B_Planned.md`'s
+    // quarter-break bullet) is exercised directly in
+    // `coaching_option_test.dart` instead of here.
+    opponentUnansweredRun: 0,
+  );
+  CoachingOption? _picked;
 
   @override
   Widget build(BuildContext context) {
@@ -1974,28 +2012,29 @@ class _CoachingBreakSheetState extends State<_CoachingBreakSheet> {
             Text('Coaching Adjustment', style: theme.textTheme.titleLarge),
             const SizedBox(height: 2),
             Text(
-              'Defensive Tactic -- the one lever already wired into the '
-              'engine. The fuller catalog (fatigue-aware rest calls, '
-              'momentum plays, pace changes) is its own design pass, '
-              'once this shell is settled.',
+              "A nudge for the team, not a full gameplan change -- one "
+              "quarter's worth (or the final ~2 minutes, at a late-game "
+              'break).',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            for (final tactic in DefensiveTactic.values) ...[
-              if (tactic != DefensiveTactic.values.first)
+            for (final option in _offered) ...[
+              if (option != _offered.first)
                 const SizedBox(height: AppSpacing.xs),
-              _LabTacticOption(
-                tactic: tactic,
-                isSelected: tactic == _tactic,
-                onTap: () => setState(() => _tactic = tactic),
+              _LabCoachingOption(
+                option: option,
+                isSelected: option == _picked,
+                onTap: () => setState(() => _picked = option),
               ),
             ],
             const SizedBox(height: AppSpacing.md),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(_tactic),
-              child: const Text('Resume Game'),
+              onPressed: () => Navigator.of(context).pop(_picked),
+              child: Text(
+                _picked == null ? 'Resume Game (no pick)' : 'Resume Game',
+              ),
             ),
           ],
         ),
@@ -2004,14 +2043,14 @@ class _CoachingBreakSheetState extends State<_CoachingBreakSheet> {
   }
 }
 
-class _LabTacticOption extends StatelessWidget {
-  const _LabTacticOption({
-    required this.tactic,
+class _LabCoachingOption extends StatelessWidget {
+  const _LabCoachingOption({
+    required this.option,
     required this.isSelected,
     required this.onTap,
   });
 
-  final DefensiveTactic tactic;
+  final CoachingOption option;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -2053,14 +2092,14 @@ class _LabTacticOption extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tactic.label,
+                    option.label,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    tactic.shorthand,
+                    option.shorthand,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
