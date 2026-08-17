@@ -125,7 +125,7 @@ anything for the presentation layer or end-of-season systems to show.
   | Focus Defense | Defense +5%, offense -2.5% |
   | Focus Offense | Offense +5%, defense -2.5% |
   | Full-Court Press | Defense +5%, own stamina drain up (~1.4x), opponent's own possessions take ~2x as long |
-  | Park the Bus | Both teams' possessions take longer -- clock-drain only, no rating change |
+  | Park the Bus | Both teams' possessions take longer -- clock-drain only, no rating change. 2nd-half-only eligible (Q3-end and the Q4 2:00-mark break) -- doesn't make sense as an early-game option. |
   | Pace Yourself | Both teams' possessions take longer, plus a small stamina-drain reduction |
   | Pick Up the Pace | Own possessions take less time, own stamina drain up a bit, Disruption +5% -- this is the comeback push |
   | Fire the Team Up! | +5 energy, whole roster, immediately |
@@ -135,7 +135,10 @@ anything for the presentation layer or end-of-season systems to show.
 
   **Mechanically grounded, not a new system.** The 4 pace options (Full-Court Press/Park the Bus/Pace Yourself/Pick Up the Pace) all reuse the *existing* per-team possession-duration lever `possession_engine.dart` already has for blowout-pace rubber-banding (`kBlowoutPaceMargin`/`offenseMargin` slowing a possession's `secondsElapsed`) -- a coach-picked trigger alongside the automatic score-margin one, not a new mechanic. Full-Court Press's stamina bump reuses `fatigue.dart`'s existing `fatigueDrainPerMinute` formula shape (a ~1.4x multiplier scales off each player's own Stamina rating, rather than one flat number hitting a 99-Stamina and a 50-Stamina player identically).
 
-  **Still open**: the situational selection logic for which ~3 of these 10 options actually get shown at a given break. Stop the Bleeding is the one option with a real trigger condition so far; the other 9 are presumably always-eligible, which is more than "~3 at a time" can show without some further selection rule. Not designed yet.
+  **Selection logic: locked (2026-08-17).** Mostly random, not situational -- a direct GM call ("I pretty much assume it'll be random-ish, not situational"), with exactly 2 eligibility gates layered on top of the randomness rather than a fuller game-state-driven picker:
+  1. If Stop the Bleeding is eligible (opponent mid an 8+ unanswered run), it's *guaranteed* one of the 3 slots, not just added to the random pool -- "the free pass is earned by the situation."
+  2. Park the Bus only enters the eligible pool at a 2nd-half break (Q3-end or the Q4 2:00-mark stoppage).
+  3. Whatever slots remain (3, or 2 if Stop the Bleeding filled one) are filled with a random, non-repeating draw from whatever's left of the other 9 (8 at a 1st-half break, since Park the Bus is excluded).
 - **Timeout system specifics** (count per game, what a "special play" modifies) — parked, deliberately not designed yet. Get the quarter-break check-ins working first.
 - **Stamina & fatigue formulas**, captured as a starting design intent, not yet vetted or built. **Promoted to a blocker (2026-08-17):** planning the quarter-break coaching-options build surfaced that several sketched options ("reduce stamina drain," the halftime energy bump) have no underlying system to act on — `match_engine.dart` still lists "no energy/fatigue model" as a known simplification. Build this first, before the quarter-break/live-visual work below.
   - **Formulas locked and built (2026-08-17)** — real code now, `lib/features/match/engine/fatigue.dart`, tracked inside `simulateMatch` (`match_engine.dart`) and surfaced on `MatchResult.finalEnergy`. Validated two ways before locking in: hand-checked against `substitution_policy.dart`'s target-minutes table first (`TODO.md` item 8's sub-note), then re-validated with `tool/fatigue_diagnostic.dart` — 20 real games, real generated rosters, real possession-by-possession engine noise, not just hand-picked scenarios. One retune happened off that diagnostic's first real-game run (see below).
