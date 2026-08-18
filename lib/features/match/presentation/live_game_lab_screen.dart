@@ -418,6 +418,11 @@ final _beats = <_LabBeat>[
     action: _phrase(
       _PhraseCategory.inboundAfterMake,
       playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
+      // One of this category's phrases names a specific teammate
+      // receiving the inbound pass ("...bounces it in to {player2}") --
+      // omitting this left a literal unresolved "{player2}" on screen
+      // whenever that phrase got drawn (a direct GM catch, 2026-08-18).
+      player2Tag: _tag('Marsh', 23, 'SF', _homeTeam.abbreviation),
       team: _homeTeam.abbreviation,
       opponent: _awayTeam.abbreviation,
     ),
@@ -1154,6 +1159,15 @@ class _FullCourtPanel extends StatelessWidget {
   /// out completely.
   static const _blipLifetimePlays = 5;
 
+  /// Opacity per trail position (0 = newest) -- a steep initial drop
+  /// rather than a straight linear ramp, so the 2nd-newest blip reads as
+  /// unmistakably older at a glance. A direct GM catch (2026-08-18):
+  /// "because of color changes, sometimes I'm not sure which is the
+  /// latest" -- a flat `1 - i/lifetime` ramp only dimmed the very next
+  /// blip by 20%, not enough of a break from full brightness once a
+  /// different team's color was involved too.
+  static const _blipOpacities = [1.0, 0.42, 0.26, 0.14, 0.05];
+
   /// y-offset per [_LabBeat.chipIndex] (0-4), spreading blips up/down
   /// within whichever zone they land in rather than stacking on one
   /// point.
@@ -1175,7 +1189,13 @@ class _FullCourtPanel extends StatelessWidget {
         : _yOffsets[chipIndex % _yOffsets.length];
     final magnitude = switch (zone) {
       _Zone.paint => 0.86,
-      _Zone.midcourt => 0.5,
+      // 0.5 -> 0.2 (2026-08-18, a direct GM follow-up): "it keeps
+      // showing the player within the 3pt arc, which would never
+      // happen." 0.5 sat past the arc's own boundary (max ~0.42 at the
+      // widest chip position) on paper, but not with enough daylight to
+      // read as unambiguously "near mid-court" at a glance -- this
+      // leaves real clearance instead of a close call.
+      _Zone.midcourt => 0.2,
       _Zone.threePoint => _threePointBlipMagnitude(chipIndex),
       _Zone.freeThrowLine => _freeThrowLineMagnitude,
       _Zone.centerCourt => 0.0, // unreachable, handled above
@@ -1229,13 +1249,23 @@ class _FullCourtPanel extends StatelessWidget {
     return (lineX - widthCenter) / widthCenter;
   }
 
-  /// Where a team's basket sits -- the ball-travel destination for every
-  /// shot attempt, and (2026-08-18) an inbound blip's destination too,
-  /// via [_opposingTeam]. Home's is near the right edge, away's near the
-  /// left, matching [_blipAlignment]'s own home-right/away-left
-  /// convention.
+  /// Where a team's basket (the rim itself) sits -- the ball-travel
+  /// destination for every shot attempt. Home's is near the right edge,
+  /// away's near the left, matching [_blipAlignment]'s own
+  /// home-right/away-left convention.
   static Alignment _basketAlignment(_Team team) =>
       Alignment(team == _Team.home ? 0.95 : -0.95, 0.0);
+
+  /// Where an inbound blip sits -- pushed further out than the rim
+  /// itself ([_basketAlignment]'s 0.95), right up against the court's
+  /// own drawn edge. A direct GM follow-up (2026-08-18): "put the blip
+  /// as far to the side as you can. Ideally it'd be a blip out of
+  /// bounds under the basket, but if it's just really close to the out
+  /// of bounds underneath the basket, I'm cool with that" -- 0.97 is as
+  /// close to the edge as it can go without the dot itself starting to
+  /// clip off the panel.
+  static Alignment _inboundAlignment(_Team team) =>
+      Alignment(team == _Team.home ? 0.97 : -0.97, 0.0);
 
   /// The other team -- used to place an inbound blip at the *opposing*
   /// team's basket (`_LabBeat.isInbound`'s own doc comment explains why
@@ -1311,8 +1341,9 @@ class _FullCourtPanel extends StatelessWidget {
                         // An inbound blip sits behind the *opposing*
                         // team's basket -- see `_LabBeat.isInbound`'s own
                         // doc comment for why that's actually this
-                        // team's own end.
-                        ? _basketAlignment(_opposingTeam(zoned[i].team!))
+                        // team's own end -- and further out than the rim
+                        // itself, see `_inboundAlignment`.
+                        ? _inboundAlignment(_opposingTeam(zoned[i].team!))
                         : _blipAlignment(
                             zoned[i].team!,
                             zoned[i].zone!,
@@ -1324,7 +1355,7 @@ class _FullCourtPanel extends StatelessWidget {
                           ? _homeColor
                           : _awayColor,
                       outlineColor: outline,
-                      opacity: (1 - i / _blipLifetimePlays).clamp(0.0, 1.0),
+                      opacity: _blipOpacities[i],
                       isNewest: i == 0,
                     ),
                   ),
