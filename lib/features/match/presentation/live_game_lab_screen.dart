@@ -15,8 +15,36 @@ import 'play_by_play_phrases.dart';
 enum _Team { home, away }
 
 /// Which zone (if any) a [_LabBeat]'s action happened in -- drives where
-/// a blip lands. `null` for a non-shot beat.
-enum _Zone { paint, arc }
+/// a blip lands. `null` for a beat with no blip at all (team-level
+/// flavor). Split out of a single flat `arc` zone (2026-08-18, a direct
+/// GM catch): "not all of the 3 pointers are coming in from outside the
+/// 3pt arc" -- a single magnitude tuned for one perimeter position
+/// landed inside the drawn line at another, and separately, general
+/// perimeter ball-handling ("the PG calling up a play") needed to read
+/// as "near the halfway mark," not hugging the 3pt line itself. See
+/// [_FullCourtPanel._blipAlignment] for exactly where each one lands.
+enum _Zone {
+  paint,
+
+  /// Deep midcourt/backcourt ball-handling -- bringing it up, clock
+  /// milking, a steal in the open floor. Reads as "near halfcourt, this
+  /// team's offensive side," not tied to the 3pt line's actual geometry.
+  midcourt,
+
+  /// An actual three-point attempt -- positioned via
+  /// [_FullCourtPanel._threePointBlipMagnitude], which mirrors
+  /// `_FullCourtPainter`'s own real measurements so the blip always
+  /// lands safely beyond the drawn arc, at every chip position.
+  threePoint,
+
+  /// The free-throw line specifically -- a direct GM ask (2026-08-18):
+  /// "if you're gonna call foul shots, there should be a blip at the
+  /// appropriate foul line."
+  freeThrowLine,
+
+  /// Center court -- the tip-off's own spot, and nothing else.
+  centerCourt,
+}
 
 /// Playback speed for the scripted beat sequence -- a `SegmentedButton`
 /// picker (2026-08-17, a direct GM ask), same pattern the Settings theme
@@ -156,6 +184,7 @@ class _LabBeat {
     this.creditTeam,
     required this.action,
     this.highlight = _Highlight.none,
+    this.isInbound = false,
     this.isPass = false,
     this.passFromZone,
     this.passFromChipIndex,
@@ -170,8 +199,7 @@ class _LabBeat {
   });
 
   /// Whose attacking end this happened at -- drives the blip's
-  /// left/right position. `null` only for the tip-off, which has no
-  /// attacking end yet.
+  /// left/right position.
   final _Team? team;
   final _Zone? zone;
 
@@ -195,6 +223,17 @@ class _LabBeat {
   /// [displayText] below no longer needs to prepend anything.
   final String action;
   final _Highlight highlight;
+
+  /// True for an inbound beat -- overrides the blip's position entirely
+  /// to sit right behind the *opposing* team's basket, ignoring [zone]/
+  /// [chipIndex] for placement (see [_FullCourtPanel]'s blip-positioning
+  /// logic). A direct GM catch (2026-08-18): "I can't tell where the
+  /// check-ins are coming from... it should be from behind their own
+  /// basket. Ie, the same basket that the opposing team just scored on."
+  /// [team] here is still the *inbounding* team (the one now taking it
+  /// out) -- their own basket is the opponent's attacking end, which is
+  /// exactly where the ball physically is after a made shot.
+  final bool isInbound;
 
   /// True for an assist's pass half -- a direct GM ask (2026-08-17):
   /// "I think Bold is reserved for steals and buckets, and blocks," so a
@@ -295,8 +334,14 @@ final _beats = <_LabBeat>[
   // PF." Home's roster has a Center (Whitfield), so no PF fallback
   // needed here.
   _LabBeat(
-    team: null,
+    // team is home here (not null) specifically so the tip-off gets a
+    // real blip -- "on the tipoff, put a blip at center court" (a direct
+    // GM ask, 2026-08-18). centerCourt ignores team/chipIndex for
+    // positioning either way (`_FullCourtPanel._blipAlignment`), so this
+    // only matters for the `zoned` filter and the blip's color.
+    team: _Team.home,
     creditTeam: _Team.home,
+    zone: _Zone.centerCourt,
     action: _phrase(
       _PhraseCategory.tipOff,
       playerTag: _tag('Whitfield', 0, 'C', _homeTeam.abbreviation),
@@ -312,7 +357,7 @@ final _beats = <_LabBeat>[
   // Castellano is DSM's PG.
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
+    zone: _Zone.midcourt,
     chipIndex: 2,
     action: _phrase(
       _PhraseCategory.backcourtBringup,
@@ -347,7 +392,7 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.away,
-    zone: _Zone.arc,
+    zone: _Zone.threePoint,
     chipIndex: 4,
     action: _phrase(
       _PhraseCategory.threePointMake,
@@ -362,11 +407,14 @@ final _beats = <_LabBeat>[
   // Inbound after a made basket -- reserved for "a big play" (a three,
   // here), not fired after every score -- a direct GM ask (2026-08-17):
   // "inbounding doesn't need to be called EVERY time... definitely after
-  // a big offensive play, so the game doesn't feel so stale."
+  // a big offensive play, so the game doesn't feel so stale." isInbound
+  // (2026-08-18, a follow-up catch) puts the blip behind the *opposing*
+  // team's basket -- the one KCY just scored on -- not wherever zone/
+  // chipIndex would otherwise place it.
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
-    chipIndex: 3,
+    zone: _Zone.midcourt,
+    isInbound: true,
     action: _phrase(
       _PhraseCategory.inboundAfterMake,
       playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
@@ -389,8 +437,7 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 0,
+    zone: _Zone.freeThrowLine,
     action: _phrase(
       _PhraseCategory.freeThrows,
       playerTag: _tag('Holloway', 14, 'SF', _awayTeam.abbreviation),
@@ -415,7 +462,7 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.away,
-    zone: _Zone.arc,
+    zone: _Zone.threePoint,
     chipIndex: 1,
     action: _phrase(
       _PhraseCategory.threePointMiss,
@@ -456,11 +503,12 @@ final _beats = <_LabBeat>[
   _LabBeat(
     team: _Team.away,
     creditTeam: _Team.home,
-    zone: _Zone.arc,
+    zone: _Zone.midcourt,
     chipIndex: 1,
     action: _phrase(
       _PhraseCategory.steal,
       playerTag: _tag('Vasquez', 11, 'SG', _homeTeam.abbreviation),
+      player2Tag: _tag('Reyes', 3, 'PG', _awayTeam.abbreviation),
     ),
     highlight: _Highlight.steal,
     clockSeconds: 478,
@@ -478,10 +526,13 @@ final _beats = <_LabBeat>[
     ),
     clockSeconds: 472,
   ),
-  // ...and the resulting dead-ball inbound.
+  // ...and the resulting dead-ball inbound. Not a basket-anchored spot
+  // like inboundAfterMake above -- a foul stoppage restarts wherever it
+  // happened, not "behind a basket" -- so this stays a normal midcourt
+  // position rather than using isInbound.
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
+    zone: _Zone.midcourt,
     chipIndex: 2,
     action: _phrase(
       _PhraseCategory.inboundAfterDeadball,
@@ -492,7 +543,7 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
+    zone: _Zone.midcourt,
     chipIndex: 1,
     action: _phrase(
       _PhraseCategory.clockMilking,
@@ -503,9 +554,9 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
+    zone: _Zone.threePoint,
     chipIndex: 4,
-    passFromZone: _Zone.arc,
+    passFromZone: _Zone.midcourt,
     passFromChipIndex: 2,
     isPass: true,
     action: _phrase(
@@ -517,7 +568,7 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
+    zone: _Zone.threePoint,
     chipIndex: 4,
     action: _phrase(
       _PhraseCategory.threePointMake,
@@ -531,9 +582,9 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.away,
-    zone: _Zone.arc,
+    zone: _Zone.threePoint,
     chipIndex: 3,
-    passFromZone: _Zone.arc,
+    passFromZone: _Zone.midcourt,
     passFromChipIndex: 1,
     isPass: true,
     action: _phrase(
@@ -545,7 +596,7 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.away,
-    zone: _Zone.arc,
+    zone: _Zone.threePoint,
     chipIndex: 3,
     action: _phrase(
       _PhraseCategory.threePointMake,
@@ -587,7 +638,7 @@ final _beats = <_LabBeat>[
     team: _Team.away,
     zone: _Zone.paint,
     chipIndex: 1,
-    passFromZone: _Zone.arc,
+    passFromZone: _Zone.midcourt,
     passFromChipIndex: 0,
     isPass: true,
     action: _phrase(
@@ -625,8 +676,7 @@ final _beats = <_LabBeat>[
   // `_LiveGameLabScreenState._step`'s clutch check).
   _LabBeat(
     team: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 1,
+    zone: _Zone.freeThrowLine,
     action: _phrase(
       _PhraseCategory.freeThrows,
       playerTag: _tag('Petrov', 55, 'C', _awayTeam.abbreviation),
@@ -637,7 +687,7 @@ final _beats = <_LabBeat>[
   ),
   _LabBeat(
     team: _Team.home,
-    zone: _Zone.arc,
+    zone: _Zone.threePoint,
     chipIndex: 1,
     action:
         '${_phrase(_PhraseCategory.threePointMake, playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation))} '
@@ -866,7 +916,6 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
                     homeScore: _home,
                     awayScore: _away,
                     clockLabel: _clockLabel,
-                    possessionTeam: _currentBeat?.team,
                   ),
                   const Divider(height: AppSpacing.lg),
                   SizedBox(
@@ -989,17 +1038,11 @@ class _ScoreBug extends StatelessWidget {
     required this.homeScore,
     required this.awayScore,
     required this.clockLabel,
-    required this.possessionTeam,
   });
 
   final int homeScore;
   final int awayScore;
   final String clockLabel;
-
-  /// Who currently has the ball -- a direct GM ask (2026-08-17): "can we
-  /// have an emoji for who has the ball currently?" `null` before the
-  /// tip-off resolves.
-  final _Team? possessionTeam;
 
   @override
   Widget build(BuildContext context) {
@@ -1022,10 +1065,6 @@ class _ScoreBug extends StatelessWidget {
                   color: _legibleTextColor(_awayColor, theme.brightness),
                 ),
               ),
-              if (possessionTeam == _Team.away) ...[
-                const SizedBox(width: 3),
-                const Text('🏀', style: TextStyle(fontSize: 14)),
-              ],
               const SizedBox(width: AppSpacing.xs),
               Text('$awayScore', style: scoreStyle),
             ],
@@ -1057,10 +1096,6 @@ class _ScoreBug extends StatelessWidget {
             children: [
               Text('$homeScore', style: scoreStyle),
               const SizedBox(width: AppSpacing.xs),
-              if (possessionTeam == _Team.home) ...[
-                const Text('🏀', style: TextStyle(fontSize: 14)),
-                const SizedBox(width: 3),
-              ],
               Text(
                 _homeTeam.abbreviation,
                 style: theme.textTheme.labelLarge?.copyWith(
@@ -1124,19 +1159,89 @@ class _FullCourtPanel extends StatelessWidget {
   /// point.
   static const _yOffsets = [-0.55, -0.22, 0.0, 0.22, 0.55];
 
+  /// Matches the court diagram's own `AspectRatio` below -- needed here
+  /// too since [_threePointBlipMagnitude]/[_freeThrowLineMagnitude]
+  /// derive an Alignment fraction (relative to the panel's actual box)
+  /// from `_FullCourtPainter`'s real feet-based measurements (relative
+  /// to its actual pixel `Size`) -- the aspect ratio is the fixed bridge
+  /// between those two coordinate spaces, since neither ever sees the
+  /// other's units directly.
+  static const _courtAspectRatio = 1.7;
+
   static Alignment _blipAlignment(_Team team, _Zone zone, int chipIndex) {
-    final y = _yOffsets[chipIndex % _yOffsets.length];
-    final magnitude = zone == _Zone.paint ? 0.86 : 0.42;
+    if (zone == _Zone.centerCourt) return Alignment.center;
+    final y = zone == _Zone.freeThrowLine
+        ? 0.0
+        : _yOffsets[chipIndex % _yOffsets.length];
+    final magnitude = switch (zone) {
+      _Zone.paint => 0.86,
+      _Zone.midcourt => 0.5,
+      _Zone.threePoint => _threePointBlipMagnitude(chipIndex),
+      _Zone.freeThrowLine => _freeThrowLineMagnitude,
+      _Zone.centerCourt => 0.0, // unreachable, handled above
+    };
     // Home attacks the right (positive x), away attacks the left.
     final x = team == _Team.home ? magnitude : -magnitude;
     return Alignment(x, y);
   }
 
+  /// How far a 3pt attempt's blip sits from center court, by
+  /// [_LabBeat.chipIndex] -- derived from `_FullCourtPainter`'s own real
+  /// measurements (not eyeballed) so it always lands just beyond the
+  /// drawn arc, at every vertical chip position. A single flat magnitude
+  /// couldn't do that: the arc sits noticeably closer to the basket at
+  /// the top of the key (chipIndex 2, straight out from the rim) than it
+  /// does out at the wings (chipIndex 0/4) -- a direct GM catch
+  /// (2026-08-18): "not all of the 3 pointers are coming in from outside
+  /// the 3pt arc."
+  ///
+  /// Math mirrors `_FullCourtPainter._drawEnd`'s own arc, just carried
+  /// out symbolically in units where the court box's height is 1 (so the
+  /// result is a size-independent Alignment fraction) rather than an
+  /// actual pixel `Size` -- valid because [_courtAspectRatio] is fixed,
+  /// so the ratio between width and height never changes at any
+  /// rendered size.
+  static double _threePointBlipMagnitude(int chipIndex) {
+    const courtWidthFt = _FullCourtPainter._courtWidthFt;
+    const radiusFt = _FullCourtPainter._threePointRadiusFt;
+    const basketInsetFt = _FullCourtPainter._basketInsetFt;
+    const safetyMarginAlignment = 0.04;
+
+    final dyFt =
+        _yOffsets[chipIndex % _yOffsets.length].abs() * (courtWidthFt / 2);
+    final dxFt = math.sqrt(math.max(0.0, radiusFt * radiusFt - dyFt * dyFt));
+    final basketX = _courtAspectRatio - basketInsetFt / courtWidthFt;
+    final widthCenter = _courtAspectRatio / 2;
+    final boundary =
+        (basketX - dxFt / courtWidthFt - widthCenter) / widthCenter;
+    return boundary - safetyMarginAlignment;
+  }
+
+  /// The free-throw line's own Alignment magnitude -- same
+  /// symbolic-units derivation as [_threePointBlipMagnitude], off
+  /// `_FullCourtPainter`'s lane depth (the free-throw line sits at the
+  /// top of the lane, farthest from the baseline).
+  static double get _freeThrowLineMagnitude {
+    const courtWidthFt = _FullCourtPainter._courtWidthFt;
+    const laneDepthFt = _FullCourtPainter._laneDepthFt;
+    final lineX = _courtAspectRatio - laneDepthFt / courtWidthFt;
+    final widthCenter = _courtAspectRatio / 2;
+    return (lineX - widthCenter) / widthCenter;
+  }
+
   /// Where a team's basket sits -- the ball-travel destination for every
-  /// shot attempt. Home's is near the right edge, away's near the left,
-  /// matching [_blipAlignment]'s own home-right/away-left convention.
+  /// shot attempt, and (2026-08-18) an inbound blip's destination too,
+  /// via [_opposingTeam]. Home's is near the right edge, away's near the
+  /// left, matching [_blipAlignment]'s own home-right/away-left
+  /// convention.
   static Alignment _basketAlignment(_Team team) =>
       Alignment(team == _Team.home ? 0.95 : -0.95, 0.0);
+
+  /// The other team -- used to place an inbound blip at the *opposing*
+  /// team's basket (`_LabBeat.isInbound`'s own doc comment explains why
+  /// that's the inbounding team's own end).
+  static _Team _opposingTeam(_Team team) =>
+      team == _Team.home ? _Team.away : _Team.home;
 
   @override
   Widget build(BuildContext context) {
@@ -1193,17 +1298,26 @@ class _FullCourtPanel extends StatelessWidget {
                 ),
                 Align(
                   alignment: Alignment.center,
-                  // 3x the original size (2026-08-17, a direct GM ask) --
-                  // the center-court ring below is sized to match.
-                  child: Text(_homeEmoji, style: const TextStyle(fontSize: 66)),
+                  // 3x the original size, then trimmed back down 25%
+                  // (2026-08-18, a direct GM follow-up) -- the
+                  // center-court ring below was sized to frame the
+                  // original 3x size, so it's left a little roomier
+                  // around the emoji now rather than resized to match.
+                  child: Text(_homeEmoji, style: const TextStyle(fontSize: 50)),
                 ),
                 for (var i = 0; i < zoned.length; i++)
                   Align(
-                    alignment: _blipAlignment(
-                      zoned[i].team!,
-                      zoned[i].zone!,
-                      zoned[i].chipIndex ?? 0,
-                    ),
+                    alignment: zoned[i].isInbound
+                        // An inbound blip sits behind the *opposing*
+                        // team's basket -- see `_LabBeat.isInbound`'s own
+                        // doc comment for why that's actually this
+                        // team's own end.
+                        ? _basketAlignment(_opposingTeam(zoned[i].team!))
+                        : _blipAlignment(
+                            zoned[i].team!,
+                            zoned[i].zone!,
+                            zoned[i].chipIndex ?? 0,
+                          ),
                     child: _BlipDot(
                       key: ValueKey(zoned[i].displayText),
                       color: zoned[i].badgeTeam == _Team.home
@@ -1289,13 +1403,14 @@ class _FullCourtPanel extends StatelessWidget {
         // A fixed height, not just whatever the content needs -- a
         // direct GM catch, live on-device: "the whole court seems to
         // keep resizing and moving around." The headline's actual
-        // height varies a lot beat to beat (a bold badge plus 2 lines
-        // vs. a bare 1-line action), and since the court above it is an
-        // Expanded inside this panel's own fixed-height box, every
+        // height varies a lot beat to beat (a bold badge plus up to 3
+        // lines vs. a bare 1-line action), and since the court above it
+        // is an Expanded inside this panel's own fixed-height box, every
         // headline-height change was stealing from (or giving back)
         // the court's share of that space, resizing the whole diagram
-        // every single beat.
-        SizedBox(height: 92, child: _PlayHeadline(beat: current)),
+        // every single beat. Bumped from 92 to 116 (2026-08-18) to fit
+        // a 3rd line -- longer player tags were ellipsizing at 2.
+        SizedBox(height: 116, child: _PlayHeadline(beat: current)),
         const SizedBox(height: AppSpacing.xs),
         SizedBox(
           height: 62,
@@ -1600,7 +1715,11 @@ class _PlayHeadline extends StatelessWidget {
           style: theme.textTheme.bodyLarge?.copyWith(
             fontWeight: FontWeight.w600,
           ),
-          maxLines: 2,
+          // 2 -> 3 (2026-08-18, a direct GM catch): longer player tags
+          // ("#N Name (POS TEAM)") plus a full-sentence phrase were
+          // ellipsizing at 2 lines. See the SizedBox above for the
+          // matching fixed-height bump.
+          maxLines: 3,
           overflow: TextOverflow.ellipsis,
         ),
       ],

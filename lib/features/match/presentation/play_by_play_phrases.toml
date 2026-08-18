@@ -131,7 +131,10 @@ phrases = [
   "{player} pulls up from the elbow -- good.",
   "{player} gets to her spot and knocks it down.",
   "{player} slices through the lane for an easy bucket.",
-  "{player} with the fadeaway... it's good."
+  "{player} with the fadeaway... it's good.",
+  "{player} beats her defender backdoor for an easy layup.",
+  "{player} scoops in a reverse layup.",
+  "{player} lays it in off the glass.",
 ]
 
 [twopt_miss]
@@ -147,6 +150,8 @@ phrases = [
   "No good on {player}'s attempt.",
   "{player}'s shot clangs off the back iron.",
   "{player}'s shot is looking good... nope, it bounces out.",
+  "{player}'s layup rolls off the rim.",
+  "{player} misses the layup off the glass.",
 ]
 
 [threept_make]
@@ -215,13 +220,18 @@ phrases = [
 ]
 
 [steal]
-# Position: PG/SG primarily, SF occasionally.
+# Position: PG/SG primarily, SF occasionally. {player2} is optional here
+# (2026-08-18, a direct GM ask) -- naming who got stripped/mishandled it
+# reads better sometimes, but not every phrase needs the callout.
 phrases = [
   "{player} tips the pass away!",
   "{player} jumps the passing lane for the steal!",
   "{player} picks the pocket clean!",
   "{player} reads the pass and comes away with it!",
   "{player} strips the ball loose!",
+  "{player} strips it right out of {player2}'s hands!",
+  "{player} reads {player2}'s pass perfectly and comes away with it!",
+  "{player2} gets careless with it, and {player} pounces!",
 ]
 
 [defensive_rebound]

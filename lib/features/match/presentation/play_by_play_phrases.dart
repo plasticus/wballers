@@ -5,7 +5,7 @@
 // hand-editable copy), then re-run the script to refresh this file:
 //   python3 tool/generate_play_by_play_phrases.py
 
-// 118 phrases across 19 categories.
+// 126 phrases across 19 categories.
 const Map<String, List<String>> kPlayByPlayPhrases = {
   'tip_off': [
     '{player} wins the tip for {team}.',
@@ -79,6 +79,9 @@ const Map<String, List<String>> kPlayByPlayPhrases = {
     '{player} gets to her spot and knocks it down.',
     '{player} slices through the lane for an easy bucket.',
     '{player} with the fadeaway... it\'s good.',
+    '{player} beats her defender backdoor for an easy layup.',
+    '{player} scoops in a reverse layup.',
+    '{player} lays it in off the glass.',
   ],
   'twopt_miss': [
     '{player}\'s shot rims out.',
@@ -92,6 +95,8 @@ const Map<String, List<String>> kPlayByPlayPhrases = {
     'No good on {player}\'s attempt.',
     '{player}\'s shot clangs off the back iron.',
     '{player}\'s shot is looking good... nope, it bounces out.',
+    '{player}\'s layup rolls off the rim.',
+    '{player} misses the layup off the glass.',
   ],
   'threept_make': [
     '{player} buries the three off the catch!',
@@ -147,6 +152,9 @@ const Map<String, List<String>> kPlayByPlayPhrases = {
     '{player} picks the pocket clean!',
     '{player} reads the pass and comes away with it!',
     '{player} strips the ball loose!',
+    '{player} strips it right out of {player2}\'s hands!',
+    '{player} reads {player2}\'s pass perfectly and comes away with it!',
+    '{player2} gets careless with it, and {player} pounces!',
   ],
   'defensive_rebound': [
     '{player} pulls down the defensive rebound.',
