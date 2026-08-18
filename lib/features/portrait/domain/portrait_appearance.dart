@@ -86,6 +86,38 @@ class PortraitAppearance {
   /// Never generated for athletes (`portraits.md`).
   final String? facial;
 
+  /// A stable, content-based fingerprint of every field that actually
+  /// changes the rendered pixels -- [version] and [isCoach] deliberately
+  /// excluded, since neither is data the portrait editor lets the GM
+  /// change (version tracks the *renderer's* own revisions; isCoach is
+  /// fixed for a given owner). Used as part of the portrait cache key
+  /// (`portrait_service.dart`'s `portraitCacheKey`) so a real edit -- a
+  /// different hair style, a different skin tone, anything -- always
+  /// misses whatever PNG was cached for the *previous* look, instead of
+  /// silently reusing it. A real bug this exact gap caused (2026-08-18, a
+  /// direct GM report: "when I edit my coach's look, it doesn't seem
+  /// like it sticks... only saves on that editor page, never shows up
+  /// in actual usage"): the cache key used to be keyed on [version] and
+  /// the owner id alone, both of which stay identical across an edit --
+  /// every other screen kept reading the same cache entry the editor's
+  /// own preview had already moved past.
+  String get contentFingerprint => [
+    baseSprite,
+    skinTone,
+    hair,
+    hairColor,
+    topHairColor,
+    eyes,
+    eyebrows,
+    nose,
+    mouth,
+    accessories,
+    shoulders,
+    hat,
+    glasses,
+    facial,
+  ].join('|');
+
   /// Returns a copy with the given fields replaced. Nullable fields
   /// distinguish "leave unchanged" (the parameter's default,
   /// [_unsetSentinel]) from "explicitly set to null" (an actual `null`

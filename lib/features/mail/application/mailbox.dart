@@ -29,12 +29,23 @@ const kRosterCompleteMailId = 'assistant_gm_roster_complete';
 
 /// The GM's current inbox, freshly derived from [franchise] -- see
 /// [MailItem]'s doc comment for why nothing here is persisted directly.
-/// System messages ([kRosterGapMailId] while short a player, then
-/// [kRosterCompleteMailId] once that's fixed -- never both at once) and
-/// every [RetirementDecisionMailItem] sort first (both need real GM
-/// action). Everything else sorts newest-first by [_recencyWeek] -- the
-/// same "actionable before passive, then newest on top" priority the
-/// Dashboard's own card ordering already uses.
+/// [kRosterGapMailId] and every [RetirementDecisionMailItem] sort first --
+/// both are genuinely actionable (a signing/decision the GM still has to
+/// make). Everything else, [kRosterCompleteMailId] included, sorts
+/// newest-first by [_recencyWeek] -- the same "actionable before passive,
+/// then newest on top" priority the Dashboard's own card ordering already
+/// uses.
+///
+/// [kRosterCompleteMailId] used to share the pinned-forever bucket with
+/// [kRosterGapMailId] -- reasonable the moment it first arrives (right
+/// after the Day-0 signing, before a single game's been played), but with
+/// nothing to actually act on, it just sat glued to the top of the inbox
+/// forever afterward while every real week's mail piled up underneath it
+/// (2026-08-18, a direct GM report: "still clinging to the top of my
+/// inbox in perpetuity... I want new emails to push it down, like a real
+/// inbox"). [_recencyWeek] gives it a fixed, always-oldest week (-1, below
+/// even Week 0) instead, so it sorts and sinks exactly like any other
+/// piece of mail once there's anything newer to push it down with.
 ///
 /// (2026-08-11 originally had [kRosterCompleteMailId] drop out for good
 /// the instant it was read, meant to satisfy "the Roster Set email should
@@ -84,14 +95,13 @@ List<MailItem> mailboxFor(Franchise franchise) {
   ];
 
   items.sort((a, b) {
-    // Actionable before passive -- a retirement decision needs the GM to
-    // actually do something, same footing the system messages already
-    // have.
-    final aIsSystem =
-        a is AssistantGmMailItem || a is RetirementDecisionMailItem;
-    final bIsSystem =
-        b is AssistantGmMailItem || b is RetirementDecisionMailItem;
-    if (aIsSystem != bIsSystem) return aIsSystem ? -1 : 1;
+    // Actionable before passive -- a real signing decision or a
+    // retirement decision both need the GM to actually do something.
+    // [kRosterCompleteMailId] is deliberately *not* included here
+    // anymore -- see this function's own doc comment for why.
+    final aIsPinned = _isPinned(a);
+    final bIsPinned = _isPinned(b);
+    if (aIsPinned != bIsPinned) return aIsPinned ? -1 : 1;
     final aWeek = _recencyWeek(a);
     final bWeek = _recencyWeek(b);
     if (aWeek != null && bWeek != null) return bWeek.compareTo(aWeek);
@@ -100,17 +110,24 @@ List<MailItem> mailboxFor(Franchise franchise) {
   return items;
 }
 
+bool _isPinned(MailItem item) =>
+    item is RetirementDecisionMailItem ||
+    (item is AssistantGmMailItem && item.id == kRosterGapMailId);
+
 /// The season week a given [MailItem] is "about", for newest-first
-/// sorting -- `null` for the two actionable types ([AssistantGmMailItem],
-/// [RetirementDecisionMailItem]), which sort by the bucket rule above
-/// instead. Every report-like mail type is compared here, not just
+/// sorting -- `null` for [RetirementDecisionMailItem] and the genuinely
+/// pinned [kRosterGapMailId], which sort by the bucket rule above instead.
+/// Every report-like mail type is compared here, not just
 /// [TrainingReportMailItem], so e.g. a Week 10 Skills Competition result
 /// correctly outranks a Week 8 Training Report instead of falling back to
 /// build-order (2026-08-15, a direct GM ask: "new emails at the top").
+/// [kRosterCompleteMailId] gets a fixed, always-oldest week (below even
+/// Week 0) rather than `null` -- see [mailboxFor]'s own doc comment.
 int? _recencyWeek(MailItem item) => switch (item) {
   TrainingReportMailItem(:final report) => report.week,
   SkillsCompetitionMailItem(:final result) => result.week,
   AllStarGameMailItem(:final playedGame) => playedGame.game.week,
+  AssistantGmMailItem(id: kRosterCompleteMailId) => -1,
   AssistantGmMailItem() || RetirementDecisionMailItem() => null,
 };
 

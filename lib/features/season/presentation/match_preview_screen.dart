@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_preferences.dart';
 import '../../../app/app_spacing.dart';
+import '../../../core/widgets/ad_banner_placeholder.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
@@ -226,7 +227,15 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const _AdBannerPlaceholder(),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.sm,
+                0,
+              ),
+              child: AdBannerPlaceholder(),
+            ),
             _MatchupHeader(game: game),
             Expanded(
               child: SingleChildScrollView(
@@ -394,34 +403,6 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
 /// Just a placeholder -- no ad SDK wired in yet (a direct GM call: "for
 /// now, just a placeholder"). Fixed at the very top, above the header,
 /// never part of the scrolling body below it.
-class _AdBannerPlaceholder extends StatelessWidget {
-  const _AdBannerPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      height: 40,
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.sm,
-        AppSpacing.sm,
-        AppSpacing.sm,
-        0,
-      ),
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        'Ad · 320×50 placeholder',
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
 
 /// "Matchup Analysis" plus the game's type/week/date -- fixed, above the
 /// scrolling body. Bold and accent-colored when [ScheduledGame.type]

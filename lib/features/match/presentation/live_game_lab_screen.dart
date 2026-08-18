@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../app/app_theme.dart';
+import '../../../core/widgets/ad_banner_placeholder.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
@@ -159,9 +160,54 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
   var _previewDark = false;
   var _gameStarted = false;
   var _gameOver = false;
-  var _beatsShown = 0;
-  _LabBeat? _currentBeat;
-  final _tickerLog = <_LabBeat>[];
+
+  /// Every beat actually shown so far, oldest first -- append-only, never
+  /// trimmed (2026-08-18, a direct GM ask: "instant replay style" stepping
+  /// backward through the game). [_viewIndex] is where the GM is currently
+  /// looking within this list; the engine itself has no notion of
+  /// "current position" at all -- it only ever moves forward, one beat at
+  /// a time, exactly as before. Replaces the old `_tickerLog` (insert-at-0
+  /// list) and `_currentBeat` field outright -- both are now just views
+  /// over this one real history instead of separately hand-maintained.
+  final _beatHistory = <_LabBeat>[];
+
+  /// Index into [_beatHistory] the GM is currently viewing. `-1` before
+  /// the first beat ever arrives. Equal to `_beatHistory.length - 1`
+  /// whenever "live" (auto-play, or Step sitting at the tip); anything
+  /// less means the GM stepped backward to re-watch an earlier beat, and
+  /// [_stepOnce]'s first job is to walk back *forward* through history
+  /// already on hand before ever asking the engine for something new.
+  var _viewIndex = -1;
+
+  _LabBeat? get _currentBeat =>
+      (_viewIndex >= 0 && _viewIndex < _beatHistory.length)
+      ? _beatHistory[_viewIndex]
+      : null;
+
+  /// The last few beats *up through whatever [_viewIndex] is currently
+  /// showing* -- not always the live tip, so scrubbing backward rewinds
+  /// the blip trail and mini-log together with the headline, not just the
+  /// headline alone.
+  List<_LabBeat> get _recentLog =>
+      _beatHistory.sublist(0, _viewIndex + 1).reversed.toList();
+
+  /// Mid-seek to the next notable play ([_seekToNextHighlight]) -- while
+  /// true, [_waitForAdvance] auto-resolves every beat that isn't one
+  /// itself instead of actually pausing on it, so the engine races ahead
+  /// silently until it produces one.
+  var _seekingHighlight = false;
+
+  /// A "point scored, steal, or block" -- what [_seekToNextHighlight]
+  /// jumps to (2026-08-18, a direct GM ask: "advances to the next point
+  /// scored... push them through Points, Steals, Blocks"). Highlight
+  /// already flags the shot-scoring/steal/block cases; a made free throw
+  /// has no highlight of its own (it's not dramatic enough to earn a
+  /// badge) but is still a real point, so it's checked separately via the
+  /// score delta rather than folded into [LiveHighlight].
+  static bool _isHighlightBeat(_LabBeat beat) =>
+      beat.highlight != _Highlight.none ||
+      beat.deltaHome > 0 ||
+      beat.deltaAway > 0;
 
   /// A fresh 12-player roster per side, generated the same way any
   /// AI-vs-AI league game gets one when [LiveGameLabScreen.isReal] is
@@ -286,9 +332,9 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
     setState(() {
       _home = 0;
       _away = 0;
-      _currentBeat = null;
-      _tickerLog.clear();
-      _beatsShown = 0;
+      _beatHistory.clear();
+      _viewIndex = -1;
+      _seekingHighlight = false;
       _gameStarted = true;
       _gameOver = false;
       _playing = true;
@@ -425,11 +471,10 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
         continue;
       }
       setState(() {
-        _currentBeat = beat;
+        _beatHistory.add(beat);
+        _viewIndex = _beatHistory.length - 1;
         _home += beat.deltaHome;
         _away += beat.deltaAway;
-        _tickerLog.insert(0, beat);
-        _beatsShown++;
       });
       await _waitForAdvance();
       if (!mounted) return;
@@ -439,7 +484,20 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
   Future<void> _waitForAdvance() {
     final completer = Completer<void>();
     _advanceCompleter = completer;
-    if (_speed != _Speed.step) {
+    if (_seekingHighlight) {
+      // Mid-[_seekToNextHighlight]: every beat that isn't itself a
+      // highlight resolves immediately, no pause at all -- the engine
+      // races ahead silently (still going through _onSegmentComplete's
+      // normal setState/history-append per beat, so scrubbing back
+      // through whatever got skipped still works) until it produces one
+      // worth actually stopping on.
+      final beat = _currentBeat;
+      if (beat != null && _isHighlightBeat(beat)) {
+        _seekingHighlight = false;
+      } else {
+        completer.complete();
+      }
+    } else if (_speed != _Speed.step) {
       // A shot attempt's own +2/+3/miss-X result needs real time on
       // screen to actually be readable -- a direct GM catch (2026-08-18):
       // "it's up there for a split second, can't read it" at Fast's own
@@ -482,11 +540,52 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
 
   /// [_Speed.step]'s "Next Play" action -- a direct GM ask (2026-08-17):
   /// "one play at a time... the user has to click to see the next play."
+  /// Walks forward through already-buffered history first (2026-08-18,
+  /// the GM stepping backward via [_stepBack] doesn't erase anything --
+  /// there's real, already-computed future to step back *into*), only
+  /// ever asking the live engine for something new once [_viewIndex] is
+  /// caught up to the tip.
   void _stepOnce() {
     if (!_gameStarted || _gameOver) {
       _startGame();
       return;
     }
+    if (_viewIndex < _beatHistory.length - 1) {
+      setState(() => _viewIndex++);
+      return;
+    }
+    _completePendingAdvance();
+  }
+
+  /// "Instant replay style" (2026-08-18, a direct GM ask) -- steps back
+  /// to re-look at an already-shown beat. Never touches the live engine
+  /// at all: it's still sitting exactly where it was, paused mid-`await`,
+  /// unaware the GM is even browsing. Only meaningful once at least 2
+  /// beats exist; a no-op at the very first one.
+  void _stepBack() {
+    if (_viewIndex <= 0) return;
+    setState(() => _viewIndex--);
+  }
+
+  /// Jumps straight to the next point/steal/block (2026-08-18, a direct
+  /// GM ask: "push them through Points, Steals, Blocks" -- Step mode's
+  /// own highlight-reel shortcut). Checks already-buffered history first
+  /// (in case the GM stepped backward and there's a highlight between
+  /// here and the tip already on hand) before ever asking the live engine
+  /// to race ahead via [_seekingHighlight].
+  void _seekToNextHighlight() {
+    if (!_gameStarted || _gameOver) {
+      _startGame();
+      return;
+    }
+    for (var i = _viewIndex + 1; i < _beatHistory.length; i++) {
+      if (_isHighlightBeat(_beatHistory[i])) {
+        setState(() => _viewIndex = i);
+        return;
+      }
+    }
+    setState(() => _viewIndex = _beatHistory.length - 1);
+    _seekingHighlight = true;
     _completePendingAdvance();
   }
 
@@ -578,13 +677,11 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
-            Text(
-              'A real, simulated game -- the same engine every AI-vs-AI '
-              'league game runs through, just watched live.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+            // Replaces the old "A real, simulated game..." explainer
+            // paragraph (2026-08-18, a direct GM ask: "just axe it")
+            // -- no ad SDK wired in yet, same placeholder-only posture
+            // `AdBannerPlaceholder`'s own doc comment covers.
+            const AdBannerPlaceholder(),
             if (!widget.isReal) ...[
               const SizedBox(height: AppSpacing.md),
               SegmentedButton<bool>(
@@ -618,7 +715,7 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
                     height: 360,
                     child: _FullCourtPanel(
                       current: _currentBeat,
-                      log: _tickerLog,
+                      log: _recentLog,
                       intervalMs: _intervalMsFor(_speed),
                       homeAbbreviation: _homeAbbreviation,
                       awayAbbreviation: _awayAbbreviation,
@@ -638,24 +735,52 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
             // shortening "Next Play" to "Next." Splitting them out gives
             // the segmented control the full row width it actually
             // needs.
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _speed == _Speed.step
-                    ? _stepOnce
-                    : (_playing ? _onPausePressed : _onPlayPressed),
-                icon: Icon(
-                  _speed == _Speed.step
-                      ? Icons.skip_next
-                      : (_playing ? Icons.pause : Icons.play_arrow),
-                ),
-                label: Text(
-                  _speed == _Speed.step
-                      ? 'Next Play'
-                      : (_playing ? 'Pause' : 'Play'),
+            //
+            // Step mode gets 3 buttons instead of 1 (2026-08-18, direct GM
+            // asks): Prev ("instant replay style" -- steps back through
+            // already-shown beats, never touching the live engine) and
+            // Highlight (jumps straight to the next point/steal/block,
+            // same "push them through Points, Steals, Blocks" ask) flank
+            // the original Next Play. Every other speed keeps the single
+            // Play/Pause button -- neither backward nor highlight-seeking
+            // means anything while auto-playing.
+            if (_speed == _Speed.step)
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _viewIndex > 0 ? _stepBack : null,
+                      icon: const Icon(Icons.skip_previous),
+                      label: const Text('Prev'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _seekToNextHighlight,
+                      icon: const Icon(Icons.bolt),
+                      label: const Text('Highlight'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _stepOnce,
+                      icon: const Icon(Icons.skip_next),
+                      label: const Text('Next'),
+                    ),
+                  ),
+                ],
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _playing ? _onPausePressed : _onPlayPressed,
+                  icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
+                  label: Text(_playing ? 'Pause' : 'Play'),
                 ),
               ),
-            ),
             const SizedBox(height: AppSpacing.sm),
             SegmentedButton<_Speed>(
               segments: const [
@@ -667,13 +792,25 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
               selected: {_speed},
               onSelectionChanged: (selection) {
                 final wasStep = _speed == _Speed.step;
-                setState(() => _speed = selection.first);
+                final leavingStep = wasStep && selection.first != _Speed.step;
+                setState(() {
+                  _speed = selection.first;
+                  // Leaving Step while browsing backward (or mid a
+                  // highlight seek) snaps the view back to the live tip
+                  // first -- an auto-play speed has no concept of
+                  // "currently reviewing an old beat," it just keeps
+                  // going from wherever the engine actually is.
+                  if (leavingStep) {
+                    _seekingHighlight = false;
+                    _viewIndex = _beatHistory.length - 1;
+                  }
+                });
                 // A pending wait created under Step mode has no timer at
                 // all -- switching to an auto speed while playing would
                 // otherwise strand it forever, so kick it forward right
                 // away instead of waiting for a tap that's no longer
                 // coming.
-                if (wasStep && selection.first != _Speed.step && _playing) {
+                if (leavingStep && _playing) {
                   _completePendingAdvance();
                 }
               },
@@ -695,18 +832,6 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              !_gameStarted
-                  ? 'Ready -- tap Play to start a real simulated game.'
-                  : (_gameOver
-                        ? 'Final -- $_beatsShown beats shown.'
-                        : 'Beat $_beatsShown so far...'),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
             if (!widget.isReal) ...[
               const SizedBox(height: AppSpacing.xl),
               Text(

@@ -93,8 +93,7 @@ void main() {
       expect(reportItems.map((i) => i.report.week), [3, 2, 1]);
     });
 
-    test('sorts training reports newest-first, after the roster-complete '
-        'system message', () {
+    test('sorts training reports newest-first', () {
       final franchise = _withTrainingReports(
         withFullActiveRoster(_franchise()),
         [1, 3, 2],
@@ -108,6 +107,27 @@ void main() {
       );
       final reportItems = items.whereType<TrainingReportMailItem>().toList();
       expect(reportItems.map((i) => i.report.week), [3, 2, 1]);
+    });
+
+    test('the roster-complete message sinks below real mail once there is '
+        'any -- unlike the roster-gap message, it isn\'t pinned forever '
+        '(2026-08-18, a direct GM report: "Roster Set" was "clinging to '
+        'the top of my inbox in perpetuity")', () {
+      final franchise = _withTrainingReports(
+        withFullActiveRoster(_franchise()),
+        [1],
+      );
+
+      final items = mailboxFor(franchise);
+
+      final rosterCompleteIndex = items.indexWhere(
+        (item) =>
+            item is AssistantGmMailItem && item.id == kRosterCompleteMailId,
+      );
+      final reportIndex = items.indexWhere(
+        (item) => item is TrainingReportMailItem,
+      );
+      expect(reportIndex, lessThan(rosterCompleteIndex));
     });
   });
 
@@ -183,25 +203,26 @@ void main() {
     test('a later-week SkillsCompetitionMailItem sorts above an '
         'earlier-week TrainingReportMailItem -- newest mail on top '
         'regardless of type (2026-08-15, a direct GM ask)', () {
-      final franchise = _withTrainingReports(_franchise(), [1]).copyWithSkillsCompetitionResult(
-        SkillsCompetitionResult(
-          week: 5,
-          squads: {
-            Conference.atlantic: List.generate(10, (i) => 'atl-$i'),
-            Conference.pacific: List.generate(10, (i) => 'pac-$i'),
-          },
-          events: [
-            for (final event in SkillsEvent.values)
-              SkillsEventResult(
-                event: event,
-                standings: const [
-                  SkillsEventStanding(playerId: 'atl-0', score: 90),
-                  SkillsEventStanding(playerId: 'pac-0', score: 80),
-                ],
-              ),
-          ],
-        ),
-      );
+      final franchise = _withTrainingReports(_franchise(), [1])
+          .copyWithSkillsCompetitionResult(
+            SkillsCompetitionResult(
+              week: 5,
+              squads: {
+                Conference.atlantic: List.generate(10, (i) => 'atl-$i'),
+                Conference.pacific: List.generate(10, (i) => 'pac-$i'),
+              },
+              events: [
+                for (final event in SkillsEvent.values)
+                  SkillsEventResult(
+                    event: event,
+                    standings: const [
+                      SkillsEventStanding(playerId: 'atl-0', score: 90),
+                      SkillsEventStanding(playerId: 'pac-0', score: 80),
+                    ],
+                  ),
+              ],
+            ),
+          );
 
       final items = mailboxFor(franchise);
       final reportlike = items
@@ -241,7 +262,9 @@ void main() {
       );
     });
 
-    test('sorts alongside the system message, before training reports', () {
+    test('sorts before training reports -- genuinely actionable, unlike the '
+        'roster-complete message (which is *not* pinned; see mailboxFor\'s '
+        'own doc comment)', () {
       final base = _withTrainingReports(withFullActiveRoster(_franchise()), [
         1,
       ]);
@@ -255,14 +278,13 @@ void main() {
 
       final items = mailboxFor(franchise);
 
-      final lastActionableIndex = items.lastIndexWhere(
-        (item) =>
-            item is AssistantGmMailItem || item is RetirementDecisionMailItem,
+      final retirementIndex = items.indexWhere(
+        (item) => item is RetirementDecisionMailItem,
       );
       final firstReportIndex = items.indexWhere(
         (item) => item is TrainingReportMailItem,
       );
-      expect(lastActionableIndex, lessThan(firstReportIndex));
+      expect(retirementIndex, lessThan(firstReportIndex));
     });
   });
 

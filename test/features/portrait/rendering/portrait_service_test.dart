@@ -155,6 +155,32 @@ void main() {
         expect(v2, isNotEmpty);
       },
     );
+
+    test('editing the appearance itself (same owner, same version) forces a '
+        'fresh render too -- a real bug (2026-08-18, a direct GM report): '
+        '"when I edit my coach\'s look, it doesn\'t seem like it sticks... '
+        'only saves on that editor page, never shows up in actual usage" '
+        '-- the cache key used to be keyed on version and owner id alone, '
+        'both unchanged by an edit, so every screen kept reading the old '
+        'cached PNG forever', () async {
+      final cache = _InMemoryPortraitCache();
+
+      await resolvePortraitPng(
+        cache: cache,
+        saveId: 'franchise-1',
+        ownerId: 'coach-1',
+        appearance: _appearance,
+      );
+      final edited = await resolvePortraitPng(
+        cache: cache,
+        saveId: 'franchise-1',
+        ownerId: 'coach-1',
+        appearance: _appearance.copyWith(skinTone: 'deep'),
+      );
+
+      expect(cache.writeCount, 2);
+      expect(edited, isNotEmpty);
+    });
   });
 
   test(

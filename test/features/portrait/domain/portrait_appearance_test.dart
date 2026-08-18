@@ -112,4 +112,41 @@ void main() {
       expect(stillHasHair.hair, 'hair_afro');
     });
   });
+
+  group('contentFingerprint (2026-08-18, the portrait cache key bug -- see '
+      'portrait_service.dart\'s own doc comment)', () {
+    test('differs when any visible field differs, even with version and '
+        'owner id unchanged -- the exact gap that let an edited look keep '
+        'showing the stale cached portrait everywhere but the editor', () {
+      final original = _athlete();
+
+      expect(
+        original.copyWith(skinTone: 'deep').contentFingerprint,
+        isNot(original.contentFingerprint),
+      );
+      expect(
+        original.copyWith(hair: 'hair_afro').contentFingerprint,
+        isNot(original.contentFingerprint),
+      );
+      expect(
+        original.copyWith(hairColor: 'red').contentFingerprint,
+        isNot(original.contentFingerprint),
+      );
+    });
+
+    test('is stable for the same visible fields', () {
+      final a = _athlete();
+      final b = _athlete();
+
+      expect(a.contentFingerprint, b.contentFingerprint);
+    });
+
+    test('does not change just from a version bump -- version is the '
+        'renderer\'s own revision, tracked separately in the cache key', () {
+      final v1 = _athlete();
+      final v2 = v1.copyWith(version: 2);
+
+      expect(v1.contentFingerprint, v2.contentFingerprint);
+    });
+  });
 }

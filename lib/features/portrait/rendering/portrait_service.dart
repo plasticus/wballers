@@ -5,19 +5,22 @@ import '../domain/portrait_appearance.dart';
 import 'portrait_colors.dart';
 import 'portrait_renderer.dart';
 
-/// Builds the cache key `portraits.md`'s invalidation rules require: both
-/// [appearance]'s version and [jersey] change the rendered bytes, so a
-/// stale cache hit on either would show the wrong portrait, not just an
-/// error -- both have to be part of the key.
+/// Builds the cache key `portraits.md`'s invalidation rules require: the
+/// appearance's own [version], [contentFingerprint] (2026-08-18 -- see
+/// [PortraitAppearance.contentFingerprint]'s own doc comment for the real
+/// bug this closes), and [jersey] all change the rendered bytes, so a
+/// stale cache hit on any of them would show the wrong portrait, not just
+/// an error -- all 3 have to be part of the key.
 String portraitCacheKey({
   required String ownerId,
   required int version,
+  String contentFingerprint = '',
   RgbColor? jersey,
 }) {
   final jerseyKey = jersey == null
       ? 'nojersey'
       : '${jersey.r}_${jersey.g}_${jersey.b}';
-  return '$ownerId-v$version-$jerseyKey';
+  return '$ownerId-v$version-$contentFingerprint-$jerseyKey';
 }
 
 /// Returns [appearance]'s rendered PNG, reading from [cache] when possible
@@ -35,6 +38,7 @@ Future<Uint8List> resolvePortraitPng({
   final key = portraitCacheKey(
     ownerId: ownerId,
     version: appearance.version,
+    contentFingerprint: appearance.contentFingerprint,
     jersey: jersey,
   );
 
