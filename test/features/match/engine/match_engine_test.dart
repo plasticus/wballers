@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
+import 'package:womensbballmgr/features/match/domain/match_event.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
 import 'package:womensbballmgr/features/match/engine/substitution_policy.dart';
 import 'package:womensbballmgr/features/matchup/domain/coaching_option.dart';
@@ -531,6 +532,131 @@ void main() {
         ),
         returnsNormally,
       );
+    });
+  });
+
+  group('simulateMatchLive (2026-08-18, TODO.md item 8 -- live-game '
+      'architecture stage 2)', () {
+    test('produces the same shape of result as simulateMatch -- same '
+        'seed, no pickers on either path', () async {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+
+      final sync = simulateMatch(
+        Random(11),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+      );
+      final live = await simulateMatchLive(
+        Random(11),
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        onSegmentComplete: (_) async {},
+      );
+
+      expect(live.homeScore, sync.homeScore);
+      expect(live.awayScore, sync.awayScore);
+      expect(live.homeScoreByQuarter, sync.homeScoreByQuarter);
+      expect(live.awayScoreByQuarter, sync.awayScoreByQuarter);
+      expect(live.events.length, sync.events.length);
+    });
+
+    test('onSegmentComplete is called at least once per quarter, and the '
+        'concatenation of every segment equals the final event log '
+        'exactly -- no event missed, none duplicated', () async {
+      final segments = <List<MatchEvent>>[];
+      final result = await simulateMatchLive(
+        Random(23),
+        homeRoster: testRoster('home'),
+        awayRoster: testRoster('away'),
+        onSegmentComplete: (events) async {
+          segments.add(events);
+        },
+      );
+
+      expect(segments.length, greaterThanOrEqualTo(4));
+      final concatenated = segments.expand((s) => s).toList();
+      expect(concatenated.length, result.events.length);
+      expect(concatenated, orderedEquals(result.events));
+    });
+
+    test(
+      'a live picker is actually awaited, and its pick takes effect',
+      () async {
+        var callCount = 0;
+        final result = await simulateMatchLive(
+          Random(5),
+          homeRoster: testRoster('home'),
+          awayRoster: testRoster('away'),
+          homeLiveCoachingPicker: (context) async {
+            callCount++;
+            // Force it whenever offered, so this doesn't depend on this
+            // particular seed's random draw including it.
+            if (context.offered.contains(CoachingOption.fireTheTeamUp)) {
+              return CoachingOption.fireTheTeamUp;
+            }
+            return null;
+          },
+          onSegmentComplete: (_) async {},
+        );
+
+        expect(callCount, greaterThanOrEqualTo(3));
+        expect(result.finalEnergy.values, isNotEmpty);
+      },
+    );
+
+    test(
+      'is deterministic for a given seed with live pickers attached',
+      () async {
+        final homeRoster = testRoster('home');
+        final awayRoster = testRoster('away');
+        Future<CoachingOption?> pick(CoachingBreakContext context) async =>
+            context.offered.first;
+
+        final a = await simulateMatchLive(
+          Random(31),
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+          homeLiveCoachingPicker: pick,
+          awayLiveCoachingPicker: pick,
+          onSegmentComplete: (_) async {},
+        );
+        final b = await simulateMatchLive(
+          Random(31),
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+          homeLiveCoachingPicker: pick,
+          awayLiveCoachingPicker: pick,
+          onSegmentComplete: (_) async {},
+        );
+
+        expect(a.homeScore, b.homeScore);
+        expect(a.awayScore, b.awayScore);
+        expect(a.homeScoreByQuarter, b.homeScoreByQuarter);
+      },
+    );
+
+    test('no pickers supplied -- identical to simulateMatch with none '
+        'either, across many seeds', () async {
+      for (var seed = 0; seed < 15; seed++) {
+        final homeRoster = testRoster('home');
+        final awayRoster = testRoster('away');
+
+        final sync = simulateMatch(
+          Random(seed),
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+        );
+        final live = await simulateMatchLive(
+          Random(seed),
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+          onSegmentComplete: (_) async {},
+        );
+
+        expect(live.homeScore, sync.homeScore, reason: 'seed $seed');
+        expect(live.awayScore, sync.awayScore, reason: 'seed $seed');
+      }
     });
   });
 }

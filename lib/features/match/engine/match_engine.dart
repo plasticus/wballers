@@ -71,7 +71,9 @@ String? _bestPlayerId(List<Player> roster) {
 /// instead of inline here (2026-08-18, `TODO.md` item 8's live-game
 /// architecture work). This function's own signature and behavior are
 /// completely unchanged by that split -- every one of its ~35 existing
-/// callers keeps working exactly as before.
+/// callers keeps working exactly as before. [simulateMatchLive] (bottom
+/// of this file) is the real, awaitable sibling for the one game an
+/// actual human ever watches live.
 ///
 /// Simplifications, all deliberate and worth revisiting later:
 /// - **Lineups re-pick every `_substitutionCheckSeconds`** (plus
@@ -172,10 +174,10 @@ String? _bestPlayerId(List<Player> roster) {
 ///   (`coachingBonusFor`) for the rest of its duration -- one quarter, or
 ///   the remaining ~2 minutes at the late break -- via
 ///   `possession_engine.dart`'s `offenseCoachingBonus`/
-///   `defenseCoachingBonus`. Synchronous on purpose, for now: there's no
-///   live, pause-for-a-human-tap game loop yet (this item's own
-///   still-unbuilt "Architecture flagged" note) -- this is the
-///   mechanical system made real, not the interactive UI around it.
+///   `defenseCoachingBonus`. Synchronous here on purpose -- this is the
+///   path every AI-vs-AI game and the season simulator run through, and
+///   nobody's watching those. [simulateMatchLive] is the real,
+///   pause-for-a-human-tap sibling.
 MatchResult simulateMatch(
   Random random, {
   required List<Player> homeRoster,
@@ -213,9 +215,85 @@ MatchResult simulateMatch(
   return sim.toMatchResult();
 }
 
+/// The live, human-watched sibling of [simulateMatch] -- the one path in
+/// this whole engine that's actually `async` (2026-08-18, `TODO.md` item
+/// 8's live-game architecture work). Drives the exact same
+/// [_GameSimulation] logic [simulateMatch] uses, quarter by quarter, but
+/// stops after each quarter (and the Q4 late-game break, mid-quarter) to
+/// hand that segment's events to [onSegmentComplete] and await whatever
+/// it returns before continuing -- there's nothing time-gated about the
+/// simulation itself; every quarter still computes instantly, same as
+/// always. A live screen's own implementation of [onSegmentComplete] is
+/// where the actual watching experience lives: replay the events at
+/// whatever speed the GM picked, then return.
+///
+/// [homeLiveCoachingPicker]/[awayLiveCoachingPicker] mirror
+/// [simulateMatch]'s own [CoachingOptionPicker] params, just awaitable --
+/// only ever supplied for whichever side is the GM's own team (`TODO.md`
+/// item 8's "GM's own scheduled game only" scope); the AI opponent's side
+/// stays `null`, same "no picker, no offer" posture [simulateMatch]
+/// already established. A picker is only ever actually awaited at a real
+/// break (end of Q1/Q2/Q3, or the Q4 late-game stoppage) -- most quarter
+/// boundaries in a real game won't offer one to every side, exactly like
+/// today.
+Future<MatchResult> simulateMatchLive(
+  Random random, {
+  required List<Player> homeRoster,
+  required List<Player> awayRoster,
+  Map<Player, int>? homeTargetMinutes,
+  Map<Player, int>? awayTargetMinutes,
+  Coach? homeCoach,
+  Coach? awayCoach,
+  DefensiveTactic homeDefenseTactic = DefensiveTactic.balanced,
+  DefensiveTactic awayDefenseTactic = DefensiveTactic.balanced,
+  LiveCoachingPicker? homeLiveCoachingPicker,
+  LiveCoachingPicker? awayLiveCoachingPicker,
+  required Future<void> Function(List<MatchEvent> segmentEvents)
+  onSegmentComplete,
+}) async {
+  assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
+  assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
+
+  final sim = _GameSimulation(
+    random,
+    homeRoster: homeRoster,
+    awayRoster: awayRoster,
+    homeTargetMinutes: homeTargetMinutes ?? targetMinutesFor(homeRoster),
+    awayTargetMinutes: awayTargetMinutes ?? targetMinutesFor(awayRoster),
+    homeCoach: homeCoach,
+    awayCoach: awayCoach,
+    homeDefenseTactic: homeDefenseTactic,
+    awayDefenseTactic: awayDefenseTactic,
+    homeLiveCoachingPicker: homeLiveCoachingPicker,
+    awayLiveCoachingPicker: awayLiveCoachingPicker,
+  );
+
+  var eventsHandedOff = 0;
+  Future<void> flushEvents() async {
+    final segment = sim.events.sublist(eventsHandedOff);
+    eventsHandedOff = sim.events.length;
+    await onSegmentComplete(segment);
+  }
+
+  while (!sim.isComplete) {
+    if (sim.quarter > 1) {
+      await sim.prepareQuarterLive();
+    }
+    sim.startQuarterClock();
+    while (true) {
+      final pausedForLateBreak = sim.runSegment();
+      await flushEvents();
+      if (!pausedForLateBreak) break;
+      await sim.resolveLateGameBreakLive();
+    }
+    sim.wrapUpQuarter();
+  }
+  return sim.toMatchResult();
+}
+
 /// The full mutable state and step-by-step logic for one game -- split out
 /// of `simulateMatch`'s own body (2026-08-18, `TODO.md` item 8's live-game
-/// architecture item) so a second, async driver can run the exact same
+/// architecture item) so [simulateMatchLive] can run the exact same
 /// quarter-by-quarter logic one segment at a time (computing a quarter,
 /// handing it to a live UI to show, awaiting a real coaching pick, then
 /// continuing) instead of all the way through in one synchronous call, the
@@ -223,14 +301,14 @@ MatchResult simulateMatch(
 /// AI-vs-AI game, the season simulator, and everything else that doesn't
 /// need a human watching.
 ///
-/// [simulateMatch] is a thin wrapper around this class: construct it, spin
-/// [isComplete] into an ordinary loop calling [prepareQuarter] (skipped for
-/// quarter 1, which is already set up by the constructor),
-/// [runPossessions], and [wrapUpQuarter] each time around, then read the
-/// result off [toMatchResult]. That loop -- not this class's internals --
-/// is the whole public contract; every field and method below is private
-/// precisely because the eventual live driver is the only other caller
-/// that will ever need this level of control, and it doesn't exist yet.
+/// [simulateMatch] and [simulateMatchLive] are both thin wrappers around
+/// this class -- construct it, then drive it quarter by quarter with
+/// [prepareQuarter]/[runPossessions]/[wrapUpQuarter] (sync) or
+/// [prepareQuarterLive]/[startQuarterClock]/[runSegment]/
+/// [resolveLateGameBreakLive]/[wrapUpQuarter] (live) until [isComplete],
+/// then read the result off [toMatchResult]. Every field and most methods
+/// are private precisely because those two functions are the only
+/// callers this class is meant to have.
 class _GameSimulation {
   _GameSimulation(
     this._random, {
@@ -244,6 +322,8 @@ class _GameSimulation {
     required DefensiveTactic awayDefenseTactic,
     this.homeCoachingPicker,
     this.awayCoachingPicker,
+    this.homeLiveCoachingPicker,
+    this.awayLiveCoachingPicker,
   }) : homeOffenseCoachBonus = homeCoach == null || awayCoach == null
            ? 0.0
            : coachMatchupBonus(
@@ -314,10 +394,13 @@ class _GameSimulation {
   final String? awayDefenseTargetId;
   final CoachingOptionPicker? homeCoachingPicker;
   final CoachingOptionPicker? awayCoachingPicker;
+  final LiveCoachingPicker? homeLiveCoachingPicker;
+  final LiveCoachingPicker? awayLiveCoachingPicker;
   late final bool tipOffWinnerIsHome;
 
   // Game state -- mutated quarter to quarter and possession to
-  // possession by [prepareQuarter]/[runPossessions]/[wrapUpQuarter].
+  // possession by [prepareQuarter]/[runPossessions]/[wrapUpQuarter] (or
+  // their live equivalents).
   var quarter = 1;
   var homeScore = 0;
   var awayScore = 0;
@@ -349,90 +432,40 @@ class _GameSimulation {
   var homeUnansweredRun = 0;
   var awayUnansweredRun = 0;
 
+  // Per-quarter possession-loop state -- lives across possessions within
+  // a single quarter, and (only ever relevant to [simulateMatchLive])
+  // across a mid-quarter pause at the Q4 late-game break, since
+  // [runSegment] can return control to its caller without this quarter
+  // being over. [runPossessions] (the sync path) never sees that pause --
+  // it resolves the break inline and keeps going within the same call --
+  // but shares this same state and the same [_processOnePossession] step
+  // logic rather than duplicating it.
+  var _quarterClock = 0.0;
+  var _secondsSinceSubCheck = 0.0;
+  var _homeTeamFouls = 0;
+  var _awayTeamFouls = 0;
+  var _lateBreakFired = false;
+  var _offenseIsHome = false;
+  var _homeScoreBeforeQuarter = 0;
+  var _awayScoreBeforeQuarter = 0;
+
   /// Whether the whole game (regulation plus however many overtime
   /// periods it took) is over -- the exact condition `simulateMatch`'s
   /// old `while` loop used to keep going.
   bool get isComplete => quarter > _quarterCount && homeScore != awayScore;
 
-  /// Offers (if a picker is supplied) and applies a coaching-option pick
-  /// for each side independently, right now, for the current [quarter].
-  /// [CoachingOption.fireTheTeamUp]/[CoachingOption.restAPlayer] apply
-  /// once, immediately; everything else becomes that side's flat bonus
-  /// for the rest of its duration. Synchronous -- see [simulateMatch]'s
-  /// own doc comment on why that's still fine for now.
-  void _runCoachingBreak(CoachingBreakStoppage stoppage) {
-    if (homeCoachingPicker != null) {
-      final offered = offerCoachingOptions(
-        _random,
-        stoppage: stoppage,
-        opponentUnansweredRun: awayUnansweredRun,
-      );
-      final picked = homeCoachingPicker!((
-        quarter: quarter,
-        ownScore: homeScore,
-        opponentScore: awayScore,
-        opponentUnansweredRun: awayUnansweredRun,
-        offered: offered,
-      ));
-      if (picked == CoachingOption.fireTheTeamUp) {
-        energy.addAll(applyFireTheTeamUp(energy, homeRoster));
-      } else if (picked == CoachingOption.restAPlayer) {
-        final toRest = pickPlayerToRest(energy, homeOnCourt);
-        homeRestedPlayers = {?toRest};
-      } else {
-        homeCoachingBonus = coachingBonusFor(picked);
-      }
-    }
-    if (awayCoachingPicker != null) {
-      final offered = offerCoachingOptions(
-        _random,
-        stoppage: stoppage,
-        opponentUnansweredRun: homeUnansweredRun,
-      );
-      final picked = awayCoachingPicker!((
-        quarter: quarter,
-        ownScore: awayScore,
-        opponentScore: homeScore,
-        opponentUnansweredRun: homeUnansweredRun,
-        offered: offered,
-      ));
-      if (picked == CoachingOption.fireTheTeamUp) {
-        energy.addAll(applyFireTheTeamUp(energy, awayRoster));
-      } else if (picked == CoachingOption.restAPlayer) {
-        final toRest = pickPlayerToRest(energy, awayOnCourt);
-        awayRestedPlayers = {?toRest};
-      } else {
-        awayCoachingBonus = coachingBonusFor(picked);
-      }
-    }
-  }
+  /// Whether the Q4 late-game coaching break is due right now -- "one
+  /// more in Q4 if the game is within 7 points... at the 2:00 mark"
+  /// (`TODO.md` item 8). Checked after every possession, same as the
+  /// ordinary substitution-check timer, since there's no other
+  /// mid-quarter breakpoint in this loop.
+  bool get _isLateBreakDue =>
+      quarter == _quarterCount &&
+      !_lateBreakFired &&
+      _quarterClock <= _lateGameBreakClockSeconds &&
+      (homeScore - awayScore).abs() <= _lateGameBreakMargin;
 
-  /// Everything that happens *between* quarters, for whichever quarter is
-  /// about to start (i.e. the current [quarter], already incremented by
-  /// the previous [wrapUpQuarter] call) -- offering a coaching break (for
-  /// quarters 2-4 only; there's no break before overtime) and re-picking
-  /// each side's on-court five. Not called for quarter 1, which the
-  /// constructor already sets up.
-  void prepareQuarter() {
-    // A pick's duration never outlives the stoppage that offered it --
-    // clear everything before (maybe) offering a fresh one below, so a
-    // stale pick can never silently carry into a quarter (or overtime)
-    // nobody chose it for.
-    homeCoachingBonus = kNoCoachingOptionBonus;
-    awayCoachingBonus = kNoCoachingOptionBonus;
-    homeRestedPlayers = {};
-    awayRestedPlayers = {};
-    if (quarter <= _quarterCount) {
-      // Keyed off which quarter the pick is *for*, not which one just
-      // ended -- only the end-of-Q1 break (deciding Q2) is firstHalf;
-      // deciding Q3 or Q4 is secondHalf either way
-      // (`CoachingBreakStoppage`'s own doc comment).
-      _runCoachingBreak(
-        quarter == 2
-            ? CoachingBreakStoppage.firstHalf
-            : CoachingBreakStoppage.secondHalf,
-      );
-    }
+  void _repickOnCourt() {
     homeOnCourt = pickOnCourt(
       roster: homeRoster,
       targetMinutes: homeTargetMinutes,
@@ -449,262 +482,433 @@ class _GameSimulation {
     );
   }
 
-  /// Simulates every possession of the current [quarter], start to finish
-  /// -- fouls, substitutions, fatigue, the coaching-option bonuses
-  /// already set for this quarter by [prepareQuarter] (or the
-  /// constructor, for quarter 1), and the extra Q4 late-game coaching
-  /// break if this happens to be that quarter.
-  void runPossessions() {
-    final periodSeconds = quarter <= _quarterCount
+  /// Applies whichever [CoachingOption] one side just picked (or `null`,
+  /// a no-op) -- shared by the sync and live coaching-break paths, since
+  /// this part (unlike *deciding* what got picked) never needs to await
+  /// anything. [CoachingOption.fireTheTeamUp]/[CoachingOption.restAPlayer]
+  /// apply once, immediately; everything else becomes that side's flat
+  /// bonus for the rest of its duration.
+  void _applyCoachingPick(bool isHome, CoachingOption? picked) {
+    if (picked == CoachingOption.fireTheTeamUp) {
+      final roster = isHome ? homeRoster : awayRoster;
+      energy.addAll(applyFireTheTeamUp(energy, roster));
+    } else if (picked == CoachingOption.restAPlayer) {
+      final onCourt = isHome ? homeOnCourt : awayOnCourt;
+      final toRest = pickPlayerToRest(energy, onCourt);
+      if (isHome) {
+        homeRestedPlayers = {?toRest};
+      } else {
+        awayRestedPlayers = {?toRest};
+      }
+    } else if (isHome) {
+      homeCoachingBonus = coachingBonusFor(picked);
+    } else {
+      awayCoachingBonus = coachingBonusFor(picked);
+    }
+  }
+
+  /// Offers (if a picker is supplied) and applies a coaching-option pick
+  /// for each side independently, right now, for the current [quarter] --
+  /// the synchronous path, for [homeCoachingPicker]/[awayCoachingPicker].
+  void _runCoachingBreak(CoachingBreakStoppage stoppage) {
+    if (homeCoachingPicker != null) {
+      final offered = offerCoachingOptions(
+        _random,
+        stoppage: stoppage,
+        opponentUnansweredRun: awayUnansweredRun,
+      );
+      final picked = homeCoachingPicker!((
+        quarter: quarter,
+        ownScore: homeScore,
+        opponentScore: awayScore,
+        opponentUnansweredRun: awayUnansweredRun,
+        offered: offered,
+      ));
+      _applyCoachingPick(true, picked);
+    }
+    if (awayCoachingPicker != null) {
+      final offered = offerCoachingOptions(
+        _random,
+        stoppage: stoppage,
+        opponentUnansweredRun: homeUnansweredRun,
+      );
+      final picked = awayCoachingPicker!((
+        quarter: quarter,
+        ownScore: awayScore,
+        opponentScore: homeScore,
+        opponentUnansweredRun: homeUnansweredRun,
+        offered: offered,
+      ));
+      _applyCoachingPick(false, picked);
+    }
+  }
+
+  /// [_runCoachingBreak]'s awaited twin, for
+  /// [homeLiveCoachingPicker]/[awayLiveCoachingPicker].
+  Future<void> _runCoachingBreakLive(CoachingBreakStoppage stoppage) async {
+    if (homeLiveCoachingPicker != null) {
+      final offered = offerCoachingOptions(
+        _random,
+        stoppage: stoppage,
+        opponentUnansweredRun: awayUnansweredRun,
+      );
+      final picked = await homeLiveCoachingPicker!((
+        quarter: quarter,
+        ownScore: homeScore,
+        opponentScore: awayScore,
+        opponentUnansweredRun: awayUnansweredRun,
+        offered: offered,
+      ));
+      _applyCoachingPick(true, picked);
+    }
+    if (awayLiveCoachingPicker != null) {
+      final offered = offerCoachingOptions(
+        _random,
+        stoppage: stoppage,
+        opponentUnansweredRun: homeUnansweredRun,
+      );
+      final picked = await awayLiveCoachingPicker!((
+        quarter: quarter,
+        ownScore: awayScore,
+        opponentScore: homeScore,
+        opponentUnansweredRun: homeUnansweredRun,
+        offered: offered,
+      ));
+      _applyCoachingPick(false, picked);
+    }
+  }
+
+  /// Clears both sides' active coaching state (a pick's duration never
+  /// outlives the stoppage that offered it), offers+applies a fresh pick
+  /// via [_runCoachingBreak], and re-picks both sides' on-court five to
+  /// reflect it -- the common "resolve a break" sequence shared by
+  /// [prepareQuarter] and the sync Q4 late-game break inside
+  /// [runPossessions].
+  void _resolveBreakSync(CoachingBreakStoppage stoppage) {
+    homeCoachingBonus = kNoCoachingOptionBonus;
+    awayCoachingBonus = kNoCoachingOptionBonus;
+    homeRestedPlayers = {};
+    awayRestedPlayers = {};
+    _runCoachingBreak(stoppage);
+    _repickOnCourt();
+  }
+
+  /// [_resolveBreakSync]'s awaited twin, via [_runCoachingBreakLive].
+  Future<void> _resolveBreakLive(CoachingBreakStoppage stoppage) async {
+    homeCoachingBonus = kNoCoachingOptionBonus;
+    awayCoachingBonus = kNoCoachingOptionBonus;
+    homeRestedPlayers = {};
+    awayRestedPlayers = {};
+    await _runCoachingBreakLive(stoppage);
+    _repickOnCourt();
+  }
+
+  /// Everything that happens *between* quarters, for whichever quarter is
+  /// about to start (i.e. the current [quarter], already incremented by
+  /// the previous [wrapUpQuarter] call) -- offering a coaching break (for
+  /// quarters 2-4 only; there's no break before overtime) and re-picking
+  /// each side's on-court five. Not called for quarter 1, which the
+  /// constructor already sets up. The sync path, for [simulateMatch].
+  void prepareQuarter() {
+    if (quarter <= _quarterCount) {
+      // Keyed off which quarter the pick is *for*, not which one just
+      // ended -- only the end-of-Q1 break (deciding Q2) is firstHalf;
+      // deciding Q3 or Q4 is secondHalf either way
+      // (`CoachingBreakStoppage`'s own doc comment).
+      _resolveBreakSync(
+        quarter == 2
+            ? CoachingBreakStoppage.firstHalf
+            : CoachingBreakStoppage.secondHalf,
+      );
+    } else {
+      // Overtime: no break offered, but a stale pick from Q4 still
+      // shouldn't carry in, and the on-court five still needs a fresh
+      // pick for the new period.
+      homeCoachingBonus = kNoCoachingOptionBonus;
+      awayCoachingBonus = kNoCoachingOptionBonus;
+      homeRestedPlayers = {};
+      awayRestedPlayers = {};
+      _repickOnCourt();
+    }
+  }
+
+  /// [prepareQuarter]'s awaited twin, for [simulateMatchLive].
+  Future<void> prepareQuarterLive() async {
+    if (quarter <= _quarterCount) {
+      await _resolveBreakLive(
+        quarter == 2
+            ? CoachingBreakStoppage.firstHalf
+            : CoachingBreakStoppage.secondHalf,
+      );
+    } else {
+      homeCoachingBonus = kNoCoachingOptionBonus;
+      awayCoachingBonus = kNoCoachingOptionBonus;
+      homeRestedPlayers = {};
+      awayRestedPlayers = {};
+      _repickOnCourt();
+    }
+  }
+
+  /// Resets the per-quarter possession-loop state for a fresh quarter --
+  /// called once per quarter, before the first [runPossessions] or
+  /// [runSegment] call for it.
+  void startQuarterClock() {
+    _quarterClock = quarter <= _quarterCount
         ? _quarterSeconds
         : _overtimeSeconds;
-    var homeTeamFouls = 0;
-    var awayTeamFouls = 0;
-    var quarterClock = periodSeconds;
-    var secondsSinceSubCheck = 0.0;
-    // Only ever meaningful in Q4 (`_lateGameBreakClockSeconds` check
-    // below), but declared fresh every quarter/period so it's never
-    // accidentally left `true` from a prior quarter.
-    var lateBreakFired = false;
-    var offenseIsHome = quarter.isOdd
-        ? tipOffWinnerIsHome
-        : !tipOffWinnerIsHome;
-    final homeScoreBeforeQuarter = homeScore;
-    final awayScoreBeforeQuarter = awayScore;
+    _secondsSinceSubCheck = 0;
+    _homeTeamFouls = 0;
+    _awayTeamFouls = 0;
+    _lateBreakFired = false;
+    _offenseIsHome = quarter.isOdd ? tipOffWinnerIsHome : !tipOffWinnerIsHome;
+    _homeScoreBeforeQuarter = homeScore;
+    _awayScoreBeforeQuarter = awayScore;
+  }
 
-    while (quarterClock > 0) {
-      final offense = offenseIsHome ? homeOnCourt : awayOnCourt;
-      final defense = offenseIsHome ? awayOnCourt : homeOnCourt;
-      final defenseInBonus = offenseIsHome
-          ? awayTeamFouls >= _teamFoulBonusThreshold
-          : homeTeamFouls >= _teamFoulBonusThreshold;
-      final offenseMargin = offenseIsHome
-          ? homeScore - awayScore
-          : awayScore - homeScore;
+  /// Records the just-finished quarter's score delta -- shared tail end
+  /// of both [runPossessions] and [runSegment] once the quarter's clock
+  /// actually reaches 0.
+  void _finishQuarterScoring() {
+    homeScoreByQuarter.add(homeScore - _homeScoreBeforeQuarter);
+    awayScoreByQuarter.add(awayScore - _awayScoreBeforeQuarter);
+  }
 
-      final result = simulatePossession(
-        _random,
-        offense: offense,
-        defense: defense,
-        defenseInBonus: defenseInBonus,
-        offenseMargin: offenseMargin,
-        offenseIsHome: offenseIsHome,
-        defenseIsHome: !offenseIsHome,
-        offenseCoachBonus: offenseIsHome
-            ? homeOffenseCoachBonus
-            : awayOffenseCoachBonus,
-        offenseBonus: offenseIsHome ? homeOffenseBonus : awayOffenseBonus,
-        defenseBonus: offenseIsHome ? awayDefenseBonus : homeDefenseBonus,
-        defenseTargetPlayerId: offenseIsHome
-            ? awayDefenseTargetId
-            : homeDefenseTargetId,
-        energy: energy,
-        offenseCoachingBonus: offenseIsHome
-            ? homeCoachingBonus
-            : awayCoachingBonus,
-        defenseCoachingBonus: offenseIsHome
-            ? awayCoachingBonus
-            : homeCoachingBonus,
-      );
-      events.addAll(result.events);
-      quarterClock -= result.secondsElapsed;
-      secondsSinceSubCheck += result.secondsElapsed;
+  /// Simulates exactly one possession and applies all its bookkeeping --
+  /// score, minutes, fatigue, fouls/substitutions, the sub-check timer,
+  /// and flips whose ball it is next. Shared by [runPossessions] (the
+  /// sync path's uninterrupted loop) and [runSegment] (the live path's
+  /// resumable one) so the actual possession-handling logic only exists
+  /// once.
+  void _processOnePossession() {
+    final offense = _offenseIsHome ? homeOnCourt : awayOnCourt;
+    final defense = _offenseIsHome ? awayOnCourt : homeOnCourt;
+    final defenseInBonus = _offenseIsHome
+        ? _awayTeamFouls >= _teamFoulBonusThreshold
+        : _homeTeamFouls >= _teamFoulBonusThreshold;
+    final offenseMargin = _offenseIsHome
+        ? homeScore - awayScore
+        : awayScore - homeScore;
 
-      final minutesThisPossession = result.secondsElapsed / 60;
-      for (final p in offense) {
-        minutesPlayed[p] = (minutesPlayed[p] ?? 0) + minutesThisPossession;
-      }
-      for (final p in defense) {
-        minutesPlayed[p] = (minutesPlayed[p] ?? 0) + minutesThisPossession;
-      }
+    final result = simulatePossession(
+      _random,
+      offense: offense,
+      defense: defense,
+      defenseInBonus: defenseInBonus,
+      offenseMargin: offenseMargin,
+      offenseIsHome: _offenseIsHome,
+      defenseIsHome: !_offenseIsHome,
+      offenseCoachBonus: _offenseIsHome
+          ? homeOffenseCoachBonus
+          : awayOffenseCoachBonus,
+      offenseBonus: _offenseIsHome ? homeOffenseBonus : awayOffenseBonus,
+      defenseBonus: _offenseIsHome ? awayDefenseBonus : homeDefenseBonus,
+      defenseTargetPlayerId: _offenseIsHome
+          ? awayDefenseTargetId
+          : homeDefenseTargetId,
+      energy: energy,
+      offenseCoachingBonus: _offenseIsHome
+          ? homeCoachingBonus
+          : awayCoachingBonus,
+      defenseCoachingBonus: _offenseIsHome
+          ? awayCoachingBonus
+          : homeCoachingBonus,
+    );
+    events.addAll(result.events);
+    _quarterClock -= result.secondsElapsed;
+    _secondsSinceSubCheck += result.secondsElapsed;
 
-      // Fatigue (`fatigue.dart`): everyone on court this possession
-      // drains energy; everyone else on either bench recovers it. `offense`
-      // and `defense` together are exactly `homeOnCourt` + `awayOnCourt`
-      // (whichever side is which flips every possession, but the on-court
-      // set doesn't), so this covers all 10 on-court players regardless of
-      // which side is attacking. `staminaDrainMultiplier` (2026-08-17,
-      // `CoachingOption.fullCourtPress`/`pickUpThePace`/`paceYourself`)
-      // applies by *roster* membership, not offense/defense -- a team's
-      // pace pick costs (or saves) stamina the same whether they're
-      // currently attacking or defending.
-      for (final p in offense) {
-        final multiplier = homeRoster.contains(p)
-            ? homeCoachingBonus.staminaDrainMultiplier
-            : awayCoachingBonus.staminaDrainMultiplier;
-        energy[p] =
-            (energy[p]! -
-                    fatigueDrainPerMinute(p.ratings.stamina) *
-                        multiplier *
-                        minutesThisPossession)
-                .clamp(0.0, kMaxEnergy)
-                .toDouble();
-      }
-      for (final p in defense) {
-        final multiplier = homeRoster.contains(p)
-            ? homeCoachingBonus.staminaDrainMultiplier
-            : awayCoachingBonus.staminaDrainMultiplier;
-        energy[p] =
-            (energy[p]! -
-                    fatigueDrainPerMinute(p.ratings.stamina) *
-                        multiplier *
-                        minutesThisPossession)
-                .clamp(0.0, kMaxEnergy)
-                .toDouble();
-      }
-      // `CoachingOption.restAPlayer`'s pick gets a bigger recovery bump
-      // than the ordinary bench trickle -- "a bigger-than-usual energy
-      // recovery bump" (2026-08-17).
-      for (final p in homeRoster) {
-        if (homeOnCourt.contains(p)) continue;
-        final multiplier = homeRestedPlayers.contains(p)
-            ? kRestAPlayerRecoveryMultiplier
-            : 1.0;
-        energy[p] =
-            (energy[p]! +
-                    fatigueRecoveryPerMinute(p.ratings.stamina) *
-                        multiplier *
-                        minutesThisPossession)
-                .clamp(0.0, kMaxEnergy)
-                .toDouble();
-      }
-      for (final p in awayRoster) {
-        if (awayOnCourt.contains(p)) continue;
-        final multiplier = awayRestedPlayers.contains(p)
-            ? kRestAPlayerRecoveryMultiplier
-            : 1.0;
-        energy[p] =
-            (energy[p]! +
-                    fatigueRecoveryPerMinute(p.ratings.stamina) *
-                        multiplier *
-                        minutesThisPossession)
-                .clamp(0.0, kMaxEnergy)
-                .toDouble();
-      }
-
-      if (offenseIsHome) {
-        homeScore += result.pointsScored;
-      } else {
-        awayScore += result.pointsScored;
-      }
-
-      // `CoachingOption.stopTheBleeding`'s trigger: however many points
-      // the *current* possession's team has scored, unanswered, right
-      // now. A score resets the *other* side's run to 0 -- it doesn't
-      // touch this side's own (a 0-point possession doesn't end a run
-      // either, only the other team actually scoring does).
-      if (result.pointsScored > 0) {
-        if (offenseIsHome) {
-          homeUnansweredRun += result.pointsScored;
-          awayUnansweredRun = 0;
-        } else {
-          awayUnansweredRun += result.pointsScored;
-          homeUnansweredRun = 0;
-        }
-      }
-
-      // The extra Q4-only coaching break, once per game -- "one more in
-      // Q4 if the game is within 7 points... at the 2:00 mark" (`TODO.md`
-      // item 8). Checked possession-by-possession like the ordinary
-      // substitution-check timer, since there's no other mid-quarter
-      // breakpoint in this loop.
-      if (quarter == _quarterCount &&
-          !lateBreakFired &&
-          quarterClock <= _lateGameBreakClockSeconds &&
-          (homeScore - awayScore).abs() <= _lateGameBreakMargin) {
-        lateBreakFired = true;
-        homeCoachingBonus = kNoCoachingOptionBonus;
-        awayCoachingBonus = kNoCoachingOptionBonus;
-        homeRestedPlayers = {};
-        awayRestedPlayers = {};
-        _runCoachingBreak(CoachingBreakStoppage.secondHalf);
-        homeOnCourt = pickOnCourt(
-          roster: homeRoster,
-          targetMinutes: homeTargetMinutes,
-          minutesPlayed: minutesPlayed,
-          fouledOut: fouledOut,
-          rested: homeRestedPlayers,
-        );
-        awayOnCourt = pickOnCourt(
-          roster: awayRoster,
-          targetMinutes: awayTargetMinutes,
-          minutesPlayed: minutesPlayed,
-          fouledOut: fouledOut,
-          rested: awayRestedPlayers,
-        );
-      }
-
-      for (final event in result.events) {
-        if (event.type != MatchEventType.shootingFoul &&
-            event.type != MatchEventType.nonShootingFoul) {
-          continue;
-        }
-        final foulingPlayer = event.player!;
-        personalFouls[foulingPlayer] = (personalFouls[foulingPlayer] ?? 0) + 1;
-        final foulerIsHome = homeRoster.contains(foulingPlayer);
-        if (foulerIsHome) {
-          homeTeamFouls++;
-        } else {
-          awayTeamFouls++;
-        }
-
-        if (personalFouls[foulingPlayer]! >= _personalFoulOutLimit) {
-          fouledOut.add(foulingPlayer);
-          if (foulerIsHome) {
-            homeOnCourt = substituteForFoulOut(
-              foulingPlayer: foulingPlayer,
-              onCourt: homeOnCourt,
-              roster: homeRoster,
-              targetMinutes: homeTargetMinutes,
-              minutesPlayed: minutesPlayed,
-              fouledOut: fouledOut,
-              rested: homeRestedPlayers,
-            );
-          } else {
-            awayOnCourt = substituteForFoulOut(
-              foulingPlayer: foulingPlayer,
-              onCourt: awayOnCourt,
-              roster: awayRoster,
-              targetMinutes: awayTargetMinutes,
-              minutesPlayed: minutesPlayed,
-              fouledOut: fouledOut,
-              rested: awayRestedPlayers,
-            );
-          }
-        }
-      }
-
-      if (secondsSinceSubCheck >= _substitutionCheckSeconds) {
-        secondsSinceSubCheck = 0;
-        homeOnCourt = pickOnCourt(
-          roster: homeRoster,
-          targetMinutes: homeTargetMinutes,
-          minutesPlayed: minutesPlayed,
-          fouledOut: fouledOut,
-          rested: homeRestedPlayers,
-        );
-        awayOnCourt = pickOnCourt(
-          roster: awayRoster,
-          targetMinutes: awayTargetMinutes,
-          minutesPlayed: minutesPlayed,
-          fouledOut: fouledOut,
-          rested: awayRestedPlayers,
-        );
-      }
-
-      offenseIsHome = !offenseIsHome;
+    final minutesThisPossession = result.secondsElapsed / 60;
+    for (final p in offense) {
+      minutesPlayed[p] = (minutesPlayed[p] ?? 0) + minutesThisPossession;
+    }
+    for (final p in defense) {
+      minutesPlayed[p] = (minutesPlayed[p] ?? 0) + minutesThisPossession;
     }
 
-    homeScoreByQuarter.add(homeScore - homeScoreBeforeQuarter);
-    awayScoreByQuarter.add(awayScore - awayScoreBeforeQuarter);
+    // Fatigue (`fatigue.dart`): everyone on court this possession drains
+    // energy; everyone else on either bench recovers it. `offense` and
+    // `defense` together are exactly `homeOnCourt` + `awayOnCourt`
+    // (whichever side is which flips every possession, but the on-court
+    // set doesn't), so this covers all 10 on-court players regardless of
+    // which side is attacking. `staminaDrainMultiplier` (2026-08-17,
+    // `CoachingOption.fullCourtPress`/`pickUpThePace`/`paceYourself`)
+    // applies by *roster* membership, not offense/defense -- a team's
+    // pace pick costs (or saves) stamina the same whether they're
+    // currently attacking or defending.
+    for (final p in offense) {
+      final multiplier = homeRoster.contains(p)
+          ? homeCoachingBonus.staminaDrainMultiplier
+          : awayCoachingBonus.staminaDrainMultiplier;
+      energy[p] =
+          (energy[p]! -
+                  fatigueDrainPerMinute(p.ratings.stamina) *
+                      multiplier *
+                      minutesThisPossession)
+              .clamp(0.0, kMaxEnergy)
+              .toDouble();
+    }
+    for (final p in defense) {
+      final multiplier = homeRoster.contains(p)
+          ? homeCoachingBonus.staminaDrainMultiplier
+          : awayCoachingBonus.staminaDrainMultiplier;
+      energy[p] =
+          (energy[p]! -
+                  fatigueDrainPerMinute(p.ratings.stamina) *
+                      multiplier *
+                      minutesThisPossession)
+              .clamp(0.0, kMaxEnergy)
+              .toDouble();
+    }
+    // `CoachingOption.restAPlayer`'s pick gets a bigger recovery bump
+    // than the ordinary bench trickle -- "a bigger-than-usual energy
+    // recovery bump" (2026-08-17).
+    for (final p in homeRoster) {
+      if (homeOnCourt.contains(p)) continue;
+      final multiplier = homeRestedPlayers.contains(p)
+          ? kRestAPlayerRecoveryMultiplier
+          : 1.0;
+      energy[p] =
+          (energy[p]! +
+                  fatigueRecoveryPerMinute(p.ratings.stamina) *
+                      multiplier *
+                      minutesThisPossession)
+              .clamp(0.0, kMaxEnergy)
+              .toDouble();
+    }
+    for (final p in awayRoster) {
+      if (awayOnCourt.contains(p)) continue;
+      final multiplier = awayRestedPlayers.contains(p)
+          ? kRestAPlayerRecoveryMultiplier
+          : 1.0;
+      energy[p] =
+          (energy[p]! +
+                  fatigueRecoveryPerMinute(p.ratings.stamina) *
+                      multiplier *
+                      minutesThisPossession)
+              .clamp(0.0, kMaxEnergy)
+              .toDouble();
+    }
+
+    if (_offenseIsHome) {
+      homeScore += result.pointsScored;
+    } else {
+      awayScore += result.pointsScored;
+    }
+
+    // `CoachingOption.stopTheBleeding`'s trigger: however many points the
+    // *current* possession's team has scored, unanswered, right now. A
+    // score resets the *other* side's run to 0 -- it doesn't touch this
+    // side's own (a 0-point possession doesn't end a run either, only the
+    // other team actually scoring does).
+    if (result.pointsScored > 0) {
+      if (_offenseIsHome) {
+        homeUnansweredRun += result.pointsScored;
+        awayUnansweredRun = 0;
+      } else {
+        awayUnansweredRun += result.pointsScored;
+        homeUnansweredRun = 0;
+      }
+    }
+
+    for (final event in result.events) {
+      if (event.type != MatchEventType.shootingFoul &&
+          event.type != MatchEventType.nonShootingFoul) {
+        continue;
+      }
+      final foulingPlayer = event.player!;
+      personalFouls[foulingPlayer] = (personalFouls[foulingPlayer] ?? 0) + 1;
+      final foulerIsHome = homeRoster.contains(foulingPlayer);
+      if (foulerIsHome) {
+        _homeTeamFouls++;
+      } else {
+        _awayTeamFouls++;
+      }
+
+      if (personalFouls[foulingPlayer]! >= _personalFoulOutLimit) {
+        fouledOut.add(foulingPlayer);
+        if (foulerIsHome) {
+          homeOnCourt = substituteForFoulOut(
+            foulingPlayer: foulingPlayer,
+            onCourt: homeOnCourt,
+            roster: homeRoster,
+            targetMinutes: homeTargetMinutes,
+            minutesPlayed: minutesPlayed,
+            fouledOut: fouledOut,
+            rested: homeRestedPlayers,
+          );
+        } else {
+          awayOnCourt = substituteForFoulOut(
+            foulingPlayer: foulingPlayer,
+            onCourt: awayOnCourt,
+            roster: awayRoster,
+            targetMinutes: awayTargetMinutes,
+            minutesPlayed: minutesPlayed,
+            fouledOut: fouledOut,
+            rested: awayRestedPlayers,
+          );
+        }
+      }
+    }
+
+    if (_secondsSinceSubCheck >= _substitutionCheckSeconds) {
+      _secondsSinceSubCheck = 0;
+      _repickOnCourt();
+    }
+
+    _offenseIsHome = !_offenseIsHome;
   }
+
+  /// Simulates every possession of the current [quarter], start to finish
+  /// -- the sync path, for [simulateMatch]. The Q4 late-game coaching
+  /// break, when due, resolves synchronously inline via
+  /// [_resolveBreakSync], then possessions continue in the same call --
+  /// unlike [runSegment], which instead returns control so a real human
+  /// pick can be awaited.
+  void runPossessions() {
+    startQuarterClock();
+    while (_quarterClock > 0) {
+      _processOnePossession();
+      if (_isLateBreakDue) {
+        _lateBreakFired = true;
+        _resolveBreakSync(CoachingBreakStoppage.secondHalf);
+      }
+    }
+    _finishQuarterScoring();
+  }
+
+  /// The live path's per-quarter possession runner, for
+  /// [simulateMatchLive] -- like [runPossessions], but returns as soon as
+  /// the quarter naturally ends (`false`) *or* the Q4 late-game break
+  /// becomes due (`true`), instead of resolving that break inline.
+  /// Callers must have already called [startQuarterClock] once for this
+  /// quarter; calling this again after a `true` return resumes the *same*
+  /// quarter's remaining possessions (nothing here re-initializes the
+  /// clock), once whatever coaching pick applies has been.
+  bool runSegment() {
+    while (_quarterClock > 0) {
+      _processOnePossession();
+      if (_isLateBreakDue) {
+        _lateBreakFired = true;
+        return true;
+      }
+    }
+    _finishQuarterScoring();
+    return false;
+  }
+
+  /// Resolves the Q4 late-game break for [simulateMatchLive] -- the
+  /// awaited counterpart to what [runPossessions] does inline via
+  /// [_resolveBreakSync]. Only ever called after [runSegment] returns
+  /// `true`.
+  Future<void> resolveLateGameBreakLive() =>
+      _resolveBreakLive(CoachingBreakStoppage.secondHalf);
 
   /// Advances to the next quarter and applies the halftime energy bump if
   /// the quarter that just finished was Q2. Always called immediately
-  /// after [runPossessions] -- the two aren't merged into one method so a
-  /// future live driver can hand this quarter's [events] to a UI (reading
-  /// them off before the next quarter's possessions start appending to
-  /// the same list) between the two calls.
+  /// after [runPossessions] (or, on the live path, after [runSegment]
+  /// finally returns `false`) -- kept separate so a live driver can hand
+  /// this quarter's events to a UI before the next quarter's possessions
+  /// start appending to the same list.
   void wrapUpQuarter() {
     quarter++;
     if (quarter == 3) {

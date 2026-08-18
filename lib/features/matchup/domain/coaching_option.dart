@@ -390,14 +390,24 @@ typedef CoachingBreakContext = ({
 });
 
 /// A caller-supplied decision for one side's coaching break --
-/// `match_engine.dart`'s [MatchResult] callers pass one of these to opt
+/// `match_engine.dart`'s `simulateMatch` callers pass one of these to opt
 /// a team into real coaching-option picks; omitting it (the default)
 /// means that side never gets offered anything, same "AI always
 /// Balanced" posture `defensive_tactic.dart` already established for
-/// [DefensiveTactic]. Synchronous on purpose, for now -- there's no live,
-/// pause-for-a-human-tap game loop yet (`TODO.md` item 8's still-unbuilt
-/// "Architecture flagged" note), so this can only ever be answered
-/// immediately, not awaited. The natural seam for a real async picker
-/// once that architecture exists.
+/// [DefensiveTactic]. Synchronous -- answered immediately, not awaited --
+/// which is exactly right for every caller of `simulateMatch` itself
+/// (every AI-vs-AI game, the season simulator; nobody's watching, so
+/// there's nothing to pause for). [LiveCoachingPicker] below is the real,
+/// awaitable version, for `simulateMatchLive`'s one actual human-watched
+/// game (2026-08-18, `TODO.md` item 8's live-game architecture work).
 typedef CoachingOptionPicker =
     CoachingOption? Function(CoachingBreakContext context);
+
+/// [CoachingOptionPicker]'s async twin -- `match_engine.dart`'s
+/// `simulateMatchLive` awaits one of these at each real break instead of
+/// calling it synchronously, so a live screen can actually show the
+/// coaching-break sheet and wait for the GM's tap before the game
+/// continues. Same contract otherwise: choose one of [context]'s
+/// `offered` options, or resolve to `null` to skip the break entirely.
+typedef LiveCoachingPicker =
+    Future<CoachingOption?> Function(CoachingBreakContext context);
