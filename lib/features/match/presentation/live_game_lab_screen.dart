@@ -8,52 +8,45 @@ import '../../../app/app_theme.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/onboarding/quick_start_teams.dart';
 import '../../matchup/domain/coaching_option.dart';
-import 'play_by_play_phrases.dart';
+import '../../player/domain/player.dart';
+import '../../roster/generation/ai_roster_generator.dart';
+import '../domain/match_result.dart';
+import '../engine/match_engine.dart';
+import 'live_beat_translator.dart';
 
-/// Which team (if any) a [_LabBeat] belongs to -- `null` for a neutral
-/// beat like the opening tip-off.
-enum _Team { home, away }
+/// Which team (if any) a beat belongs to -- aliases the real, public
+/// [LiveTeam] (2026-08-18, `TODO.md` item 8's live-game architecture
+/// stage 4 -- this screen went from a hand-scripted demo to driving a
+/// real [simulateMatchLive] game). Kept as a private alias rather than a
+/// mass rename so every widget below built and verified against the old
+/// name (`_FullCourtPanel`'s geometry fixes, the blip/animation code)
+/// keeps compiling unchanged.
+typedef _Team = LiveTeam;
 
-/// Which zone (if any) a [_LabBeat]'s action happened in -- drives where
-/// a blip lands. `null` for a beat with no blip at all (team-level
-/// flavor). Split out of a single flat `arc` zone (2026-08-18, a direct
-/// GM catch): "not all of the 3 pointers are coming in from outside the
-/// 3pt arc" -- a single magnitude tuned for one perimeter position
-/// landed inside the drawn line at another, and separately, general
-/// perimeter ball-handling ("the PG calling up a play") needed to read
-/// as "near the halfway mark," not hugging the 3pt line itself. See
-/// [_FullCourtPanel._blipAlignment] for exactly where each one lands.
-enum _Zone {
-  paint,
+/// Aliases the real, public [LiveZone] -- see [_Team]'s own doc comment.
+typedef _Zone = LiveZone;
 
-  /// Deep midcourt/backcourt ball-handling -- bringing it up, clock
-  /// milking, a steal in the open floor. Reads as "near halfcourt, this
-  /// team's offensive side," not tied to the 3pt line's actual geometry.
-  midcourt,
+/// Aliases the real, public [LiveHighlight] -- see [_Team]'s own doc
+/// comment. [LiveHighlightLabel]'s `.label` getter (imported from
+/// `live_beat_translator.dart`) covers the same `.label` access this
+/// file's widgets already use; no local extension needed anymore.
+typedef _Highlight = LiveHighlight;
 
-  /// An actual three-point attempt -- positioned via
-  /// [_FullCourtPanel._threePointBlipMagnitude], which mirrors
-  /// `_FullCourtPainter`'s own real measurements so the blip always
-  /// lands safely beyond the drawn arc, at every chip position.
-  threePoint,
+/// Aliases the real, public [LiveBeat] -- see [_Team]'s own doc comment.
+/// Built by [LiveBeatTranslator] from a real [simulateMatchLive] game now,
+/// not a hand-authored script.
+typedef _LabBeat = LiveBeat;
 
-  /// The free-throw line specifically -- a direct GM ask (2026-08-18):
-  /// "if you're gonna call foul shots, there should be a blip at the
-  /// appropriate foul line."
-  freeThrowLine,
-
-  /// Center court -- the tip-off's own spot, and nothing else.
-  centerCourt,
-}
-
-/// Playback speed for the scripted beat sequence -- a `SegmentedButton`
-/// picker (2026-08-17, a direct GM ask), same pattern the Settings theme
-/// picker already uses. Intervals slid slower on a same-session
-/// follow-up ask ("let's slide those speed a little") -- the first pass
+/// Playback speed for the beat sequence -- a `SegmentedButton` picker
+/// (2026-08-17, a direct GM ask), same pattern the Settings theme picker
+/// already uses. Intervals slid slower on a same-session follow-up ask
+/// ("let's slide those speed a little") -- the first pass
 /// (1.8s/1.1s/0.55s) read as too fast to actually read a play. [step]
 /// added on a later follow-up ask ("one play at a time... the user has
 /// to click to see the next play") -- no auto-timer at all in that mode,
-/// see [_LiveGameLabScreenState._stepOnce].
+/// see [_LiveGameLabScreenState._stepOnce]. Governs how fast the screen
+/// *displays* beats a real game already computed instantly -- nothing
+/// about the simulation itself is gated on this.
 enum _Speed { slow, medium, fast, step }
 
 /// Only meaningful for the 3 auto-advancing speeds -- [_Speed.step] has
@@ -66,221 +59,6 @@ int _intervalMsFor(_Speed speed) => switch (speed) {
   _Speed.fast => 750,
   _Speed.step => 2000,
 };
-
-/// A notable play worth calling out with a colored keyword badge --
-/// "keywords that stand out" (2026-08-17, a direct GM ask). Every made
-/// basket gets one now (`twoPointer` added in the same-session follow-up
-/// on assists/shots: "I think Bold is reserved for steals and buckets,
-/// and blocks") -- a pass/assist beat is deliberately *not* one of
-/// these, see [_LabBeat.isPass]'s own doc comment for why that's a
-/// separate, plain-text treatment instead.
-enum _Highlight { none, twoPointer, threePointer, andOne, steal, block }
-
-extension on _Highlight {
-  String? get label => switch (this) {
-    _Highlight.none => null,
-    _Highlight.twoPointer => '2PTS',
-    _Highlight.threePointer => '3PTS',
-    _Highlight.andOne => 'AND-1',
-    _Highlight.steal => 'STEAL',
-    _Highlight.block => 'BLOCK',
-  };
-}
-
-/// Every category in `play_by_play_phrases.toml` (via the generated
-/// `play_by_play_phrases.dart`) -- one entry per `[section]` header.
-/// [tomlKey] is the bridge back to that file's `Map` keys; see
-/// `tool/generate_play_by_play_phrases.py` for how the TOML becomes that
-/// map.
-enum _PhraseCategory {
-  tipOff,
-  inboundAfterMake,
-  inboundAfterDeadball,
-  backcourtBringup,
-  midcourtAdvance,
-  perimeterNoName,
-  clockMilking,
-  foulNoFt,
-  twoPointMake,
-  twoPointMiss,
-  threePointMake,
-  threePointMiss,
-  andOne,
-  freeThrows,
-  putback,
-  block,
-  steal,
-  defensiveRebound,
-  assist,
-}
-
-extension on _PhraseCategory {
-  String get tomlKey => switch (this) {
-    _PhraseCategory.tipOff => 'tip_off',
-    _PhraseCategory.inboundAfterMake => 'inbound_after_make',
-    _PhraseCategory.inboundAfterDeadball => 'inbound_after_deadball',
-    _PhraseCategory.backcourtBringup => 'backcourt_bringup',
-    _PhraseCategory.midcourtAdvance => 'midcourt_advance',
-    _PhraseCategory.perimeterNoName => 'perimeter_no_name',
-    _PhraseCategory.clockMilking => 'clock_milking',
-    _PhraseCategory.foulNoFt => 'foul_no_ft',
-    _PhraseCategory.twoPointMake => 'twopt_make',
-    _PhraseCategory.twoPointMiss => 'twopt_miss',
-    _PhraseCategory.threePointMake => 'threept_make',
-    _PhraseCategory.threePointMiss => 'threept_miss',
-    _PhraseCategory.andOne => 'and_one',
-    _PhraseCategory.freeThrows => 'free_throws',
-    _PhraseCategory.putback => 'putback',
-    _PhraseCategory.block => 'block',
-    _PhraseCategory.steal => 'steal',
-    _PhraseCategory.defensiveRebound => 'defensive_rebound',
-    _PhraseCategory.assist => 'assist',
-  };
-}
-
-final _phraseRandom = math.Random();
-
-/// "#4 Castellano (PG DSM)" -- the same tag format the old hardcoded
-/// `displayText` used to build itself; now built once per player
-/// reference wherever a phrase template needs a `{player}`/`{player2}`.
-String _tag(String name, int number, String position, String team) =>
-    '#$number $name ($position $team)';
-
-/// Picks a random phrase from [category]'s bank and fills in its
-/// placeholders -- see the header comment in `play_by_play_phrases.toml`
-/// for the full placeholder contract. Called once per beat, at
-/// `_beats`-list-construction time (not per rebuild), so a beat's wording
-/// is picked fresh each time the lab reloads but stays stable for the
-/// rest of that session.
-String _phrase(
-  _PhraseCategory category, {
-  String? playerTag,
-  String? player2Tag,
-  String? team,
-  String? opponent,
-}) {
-  final options = kPlayByPlayPhrases[category.tomlKey]!;
-  final template = options[_phraseRandom.nextInt(options.length)];
-  var text = template;
-  if (playerTag != null) text = text.replaceAll('{player}', playerTag);
-  if (player2Tag != null) text = text.replaceAll('{player2}', player2Tag);
-  if (team != null) text = text.replaceAll('{team}', team);
-  if (opponent != null) text = text.replaceAll('{opponent}', opponent);
-  return text;
-}
-
-/// One scripted beat in the mock possession sequence -- hand-picked
-/// *categories* resolved to actual wording via [_phrase] against
-/// `play_by_play_phrases.toml`'s content bank, not real engine output,
-/// so pacing/structure can be tuned directly rather than filtered out of
-/// a much noisier real `MatchEvent` log. Wiring this to a real
-/// `simulateMatch` result is a natural follow-up once the visual itself
-/// is settled.
-class _LabBeat {
-  const _LabBeat({
-    required this.team,
-    this.zone,
-    this.chipIndex,
-    this.creditTeam,
-    required this.action,
-    this.highlight = _Highlight.none,
-    this.isInbound = false,
-    this.isPass = false,
-    this.passFromZone,
-    this.passFromChipIndex,
-    this.isShotAttempt = false,
-    this.shotMade,
-    this.isFreeThrow = false,
-    this.deltaHome = 0,
-    this.deltaAway = 0,
-    required this.clockSeconds,
-    this.isBreak = false,
-    this.breakLabel,
-  });
-
-  /// Whose attacking end this happened at -- drives the blip's
-  /// left/right position.
-  final _Team? team;
-  final _Zone? zone;
-
-  /// Which of 5 candidate slots within a zone the blip spawns at -- for
-  /// a pass beat, this is the *receiver's* spot (where the ball ends
-  /// up); for a shot beat, the shooter's spot the ball travels to the
-  /// basket from.
-  final int? chipIndex;
-
-  /// Who gets credit for this beat -- the badge, the blip's color, and
-  /// the "(POS TEAM)" tag all read off this. Defaults to [team]; only
-  /// ever overridden for a defensive highlight (a block/steal), where
-  /// the play still happens at the *offense's* end ([team]) but the
-  /// credited player is on the other side -- see [badgeTeam].
-  final _Team? creditTeam;
-
-  /// The fully-resolved play-by-play sentence -- built once, at
-  /// `_beats`-construction time, via [_phrase] against a
-  /// `play_by_play_phrases.toml` category. Already contains any
-  /// `{player}`/`{player2}`/`{team}`/`{opponent}` tags filled in, so
-  /// [displayText] below no longer needs to prepend anything.
-  final String action;
-  final _Highlight highlight;
-
-  /// True for an inbound beat -- overrides the blip's position entirely
-  /// to sit right behind the *opposing* team's basket, ignoring [zone]/
-  /// [chipIndex] for placement (see [_FullCourtPanel]'s blip-positioning
-  /// logic). A direct GM catch (2026-08-18): "I can't tell where the
-  /// check-ins are coming from... it should be from behind their own
-  /// basket. Ie, the same basket that the opposing team just scored on."
-  /// [team] here is still the *inbounding* team (the one now taking it
-  /// out) -- their own basket is the opponent's attacking end, which is
-  /// exactly where the ball physically is after a made shot.
-  final bool isInbound;
-
-  /// True for an assist's pass half -- a direct GM ask (2026-08-17):
-  /// "I think Bold is reserved for steals and buckets, and blocks," so a
-  /// pass gets the same "TEAM Label" headline shape as a highlight but
-  /// deliberately un-bold, plain text -- see [_PlayHeadline]. Also
-  /// drives the ball-travel animation from [passFromZone]/
-  /// [passFromChipIndex] (the passer's spot) to [zone]/[chipIndex] (the
-  /// receiver's spot) -- see [_FullCourtPanel].
-  final bool isPass;
-  final _Zone? passFromZone;
-  final int? passFromChipIndex;
-
-  /// True for a field-goal attempt (make or miss) -- drives the
-  /// ball-travel animation from [zone]/[chipIndex] (the shooter's spot)
-  /// to the shooting team's basket, then a flash/float result popup
-  /// (points made, or a red miss mark) once the ball arrives. [shotMade]
-  /// is only meaningful when this is true. Blocks/steals/fouls/rebounds
-  /// don't get this treatment -- their own badge already carries the
-  /// moment.
-  final bool isShotAttempt;
-  final bool? shotMade;
-
-  /// Routine free throws don't get shown at all by default -- a direct
-  /// GM ask (2026-08-17): "generally, I don't want to see free throws.
-  /// But... if it's under a minute, and the game is within 3 points, I'd
-  /// like to see them." Still applied to the score either way; only
-  /// whether this beat ever becomes `current` (and so visible) is
-  /// conditional -- see `_LiveGameLabScreenState._step`'s clutch check.
-  final bool isFreeThrow;
-
-  final int deltaHome;
-  final int deltaAway;
-  final int clockSeconds;
-  final bool isBreak;
-  final String? breakLabel;
-
-  _Team get badgeTeam => creditTeam ?? team ?? _Team.home;
-
-  /// "#4 Castellano (PG DSM) drives and scores." -- a direct GM ask
-  /// (2026-08-17): "when naming a player, instead of 'Castellano drives
-  /// and scores', it should be like '#42 Castellano (PF DSM) drives and
-  /// scores.'" Now just [action] verbatim -- the phrase templates
-  /// themselves place the `{player}` tag (a later GM ask, same date:
-  /// "every phrase is a complete sentence template," since some phrasing
-  /// puts the tag mid-sentence or uses two tags).
-  String get displayText => action;
-}
 
 /// Des Moines Dragons (home) vs. Kansas City Aviators (away) -- 2 of the
 /// app's real Quick Start club identities (`quick_start_teams.dart`),
@@ -315,397 +93,6 @@ Color _legibleTextColor(Color raw, Brightness brightness) {
   return hsl.withLightness(lightness.clamp(0.0, 1.0)).toColor();
 }
 
-/// A small invented roster (last name, number, position) for each team
-/// -- just enough identity to make the "#N Name (POS TEAM)" tag format
-/// feel real, not a placeholder like "Player 1." Home's Center (needed
-/// for the tip-off's positional rule below) is Whitfield -- previously
-/// only a name mentioned in flavor text for the block beat, promoted to
-/// a full roster spot once the tip-off actually needed a real Center to
-/// credit.
-///
-/// Not `const` anymore -- each beat's `action` is resolved by [_phrase]
-/// against the wording bank at list-construction time (a top-level
-/// `final` still only runs this once per app session, same cost as the
-/// old `const` literal in practice).
-final _beats = <_LabBeat>[
-  // Tip-off: must go to a Center (PF if the team has no Center) -- a
-  // direct GM ask (2026-08-17): "a PG winning a tip-off ain't happening.
-  // It's either the Center, or if they don't have a Center than it's a
-  // PF." Home's roster has a Center (Whitfield), so no PF fallback
-  // needed here.
-  _LabBeat(
-    // team is home here (not null) specifically so the tip-off gets a
-    // real blip -- "on the tipoff, put a blip at center court" (a direct
-    // GM ask, 2026-08-18). centerCourt ignores team/chipIndex for
-    // positioning either way (`_FullCourtPanel._blipAlignment`), so this
-    // only matters for the `zoned` filter and the blip's color.
-    team: _Team.home,
-    creditTeam: _Team.home,
-    zone: _Zone.centerCourt,
-    action: _phrase(
-      _PhraseCategory.tipOff,
-      playerTag: _tag('Whitfield', 0, 'C', _homeTeam.abbreviation),
-      team: _homeTeam.abbreviation,
-    ),
-    clockSeconds: 600,
-  ),
-  // A filler beat -- no score, no highlight, just atmosphere. A direct
-  // GM ask (2026-08-17): "some filler items every 3ish possessions...
-  // having some dull items in here will make the exciting moments feel
-  // MORE exciting." Sprinkled through the sequence, not batched.
-  // Soft PG bias for "setting up a play" (2026-08-17, a direct GM ask) --
-  // Castellano is DSM's PG.
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.midcourt,
-    chipIndex: 2,
-    action: _phrase(
-      _PhraseCategory.backcourtBringup,
-      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
-    ),
-    clockSeconds: 594,
-  ),
-  // Team-level flavor, no player, no blip -- "sometimes a sequence
-  // without even a player name where it just says that some team is
-  // passing it around the perimeter" (2026-08-17, a direct GM ask).
-  _LabBeat(
-    team: _Team.home,
-    action: _phrase(
-      _PhraseCategory.perimeterNoName,
-      team: _homeTeam.abbreviation,
-    ),
-    clockSeconds: 588,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.paint,
-    chipIndex: 0,
-    action: _phrase(
-      _PhraseCategory.twoPointMake,
-      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
-    ),
-    highlight: _Highlight.twoPointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaHome: 2,
-    clockSeconds: 580,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.threePoint,
-    chipIndex: 4,
-    action: _phrase(
-      _PhraseCategory.threePointMake,
-      playerTag: _tag('Chen', 8, 'SG', _awayTeam.abbreviation),
-    ),
-    highlight: _Highlight.threePointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaAway: 3,
-    clockSeconds: 566,
-  ),
-  // Inbound after a made basket -- reserved for "a big play" (a three,
-  // here), not fired after every score -- a direct GM ask (2026-08-17):
-  // "inbounding doesn't need to be called EVERY time... definitely after
-  // a big offensive play, so the game doesn't feel so stale." isInbound
-  // (2026-08-18, a follow-up catch) puts the blip behind the *opposing*
-  // team's basket -- the one KCY just scored on -- not wherever zone/
-  // chipIndex would otherwise place it.
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.midcourt,
-    isInbound: true,
-    action: _phrase(
-      _PhraseCategory.inboundAfterMake,
-      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
-      // One of this category's phrases names a specific teammate
-      // receiving the inbound pass ("...bounces it in to {player2}") --
-      // omitting this left a literal unresolved "{player2}" on screen
-      // whenever that phrase got drawn (a direct GM catch, 2026-08-18).
-      player2Tag: _tag('Marsh', 23, 'SF', _homeTeam.abbreviation),
-      team: _homeTeam.abbreviation,
-      opponent: _awayTeam.abbreviation,
-    ),
-    clockSeconds: 560,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    creditTeam: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 2,
-    action: _phrase(
-      _PhraseCategory.block,
-      playerTag: _tag('Petrov', 55, 'C', _awayTeam.abbreviation),
-    ),
-    highlight: _Highlight.block,
-    clockSeconds: 548,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.freeThrowLine,
-    action: _phrase(
-      _PhraseCategory.freeThrows,
-      playerTag: _tag('Holloway', 14, 'SF', _awayTeam.abbreviation),
-    ),
-    isFreeThrow: true,
-    deltaAway: 2,
-    clockSeconds: 540,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.paint,
-    chipIndex: 2,
-    action: _phrase(
-      _PhraseCategory.putback,
-      playerTag: _tag('Okonkwo', 21, 'PF', _homeTeam.abbreviation),
-    ),
-    highlight: _Highlight.twoPointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaHome: 2,
-    clockSeconds: 530,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.threePoint,
-    chipIndex: 1,
-    action: _phrase(
-      _PhraseCategory.threePointMiss,
-      playerTag: _tag('Tuiasosopo', 32, 'PF', _awayTeam.abbreviation),
-    ),
-    isShotAttempt: true,
-    shotMade: false,
-    clockSeconds: 515,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.paint,
-    chipIndex: 0,
-    action: _phrase(
-      _PhraseCategory.andOne,
-      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
-    ),
-    highlight: _Highlight.andOne,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaHome: 3,
-    clockSeconds: 502,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 2,
-    action: _phrase(
-      _PhraseCategory.twoPointMake,
-      playerTag: _tag('Petrov', 55, 'C', _awayTeam.abbreviation),
-    ),
-    highlight: _Highlight.twoPointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaAway: 2,
-    clockSeconds: 491,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    creditTeam: _Team.home,
-    zone: _Zone.midcourt,
-    chipIndex: 1,
-    action: _phrase(
-      _PhraseCategory.steal,
-      playerTag: _tag('Vasquez', 11, 'SG', _homeTeam.abbreviation),
-      player2Tag: _tag('Reyes', 3, 'PG', _awayTeam.abbreviation),
-    ),
-    highlight: _Highlight.steal,
-    clockSeconds: 478,
-  ),
-  // A dead-ball foul, not in the bonus -- credited to the defense.
-  _LabBeat(
-    team: _Team.home,
-    creditTeam: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 1,
-    action: _phrase(
-      _PhraseCategory.foulNoFt,
-      playerTag: _tag('Tuiasosopo', 32, 'PF', _awayTeam.abbreviation),
-      team: _awayTeam.abbreviation,
-    ),
-    clockSeconds: 472,
-  ),
-  // ...and the resulting dead-ball inbound. Not a basket-anchored spot
-  // like inboundAfterMake above -- a foul stoppage restarts wherever it
-  // happened, not "behind a basket" -- so this stays a normal midcourt
-  // position rather than using isInbound.
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.midcourt,
-    chipIndex: 2,
-    action: _phrase(
-      _PhraseCategory.inboundAfterDeadball,
-      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
-      team: _homeTeam.abbreviation,
-    ),
-    clockSeconds: 468,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.midcourt,
-    chipIndex: 1,
-    action: _phrase(
-      _PhraseCategory.clockMilking,
-      playerTag: _tag('Vasquez', 11, 'SG', _homeTeam.abbreviation),
-      team: _homeTeam.abbreviation,
-    ),
-    clockSeconds: 461,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.threePoint,
-    chipIndex: 4,
-    passFromZone: _Zone.midcourt,
-    passFromChipIndex: 2,
-    isPass: true,
-    action: _phrase(
-      _PhraseCategory.assist,
-      playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation),
-      player2Tag: _tag('Marsh', 23, 'SF', _homeTeam.abbreviation),
-    ),
-    clockSeconds: 454,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.threePoint,
-    chipIndex: 4,
-    action: _phrase(
-      _PhraseCategory.threePointMake,
-      playerTag: _tag('Marsh', 23, 'SF', _homeTeam.abbreviation),
-    ),
-    highlight: _Highlight.threePointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaHome: 3,
-    clockSeconds: 440,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.threePoint,
-    chipIndex: 3,
-    passFromZone: _Zone.midcourt,
-    passFromChipIndex: 1,
-    isPass: true,
-    action: _phrase(
-      _PhraseCategory.assist,
-      playerTag: _tag('Reyes', 3, 'PG', _awayTeam.abbreviation),
-      player2Tag: _tag('Chen', 8, 'SG', _awayTeam.abbreviation),
-    ),
-    clockSeconds: 425,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.threePoint,
-    chipIndex: 3,
-    action: _phrase(
-      _PhraseCategory.threePointMake,
-      playerTag: _tag('Chen', 8, 'SG', _awayTeam.abbreviation),
-    ),
-    highlight: _Highlight.threePointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaAway: 3,
-    clockSeconds: 410,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    action: _phrase(
-      _PhraseCategory.perimeterNoName,
-      team: _homeTeam.abbreviation,
-    ),
-    clockSeconds: 402,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.paint,
-    chipIndex: 2,
-    action: _phrase(
-      _PhraseCategory.twoPointMake,
-      playerTag: _tag('Okonkwo', 21, 'PF', _homeTeam.abbreviation),
-    ),
-    highlight: _Highlight.twoPointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaHome: 2,
-    clockSeconds: 392,
-  ),
-  // Another filler pass -- "just noting a pass somewhere and showing the
-  // animation... doesn't have to lead to anything" (2026-08-17, the same
-  // GM ask). Uses the exact same isPass/ball-travel machinery an assist
-  // does; the only difference is no shot beat follows it.
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 1,
-    passFromZone: _Zone.midcourt,
-    passFromChipIndex: 0,
-    isPass: true,
-    action: _phrase(
-      _PhraseCategory.midcourtAdvance,
-      playerTag: _tag('Reyes', 3, 'PG', _awayTeam.abbreviation),
-      player2Tag: _tag('Tuiasosopo', 32, 'PF', _awayTeam.abbreviation),
-    ),
-    clockSeconds: 383,
-  ),
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.paint,
-    chipIndex: 0,
-    action: _phrase(
-      _PhraseCategory.twoPointMiss,
-      playerTag: _tag('Holloway', 14, 'SF', _awayTeam.abbreviation),
-    ),
-    isShotAttempt: true,
-    shotMade: false,
-    clockSeconds: 372,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.paint,
-    chipIndex: 3,
-    action: _phrase(
-      _PhraseCategory.defensiveRebound,
-      playerTag: _tag('Okonkwo', 21, 'PF', _homeTeam.abbreviation),
-      team: _homeTeam.abbreviation,
-    ),
-    clockSeconds: 368,
-  ),
-  // Free throws stay hidden by default, but this one qualifies -- under
-  // a minute, game within 3 -- so it'll actually show (see
-  // `_LiveGameLabScreenState._step`'s clutch check).
-  _LabBeat(
-    team: _Team.away,
-    zone: _Zone.freeThrowLine,
-    action: _phrase(
-      _PhraseCategory.freeThrows,
-      playerTag: _tag('Petrov', 55, 'C', _awayTeam.abbreviation),
-    ),
-    isFreeThrow: true,
-    deltaAway: 2,
-    clockSeconds: 45,
-  ),
-  _LabBeat(
-    team: _Team.home,
-    zone: _Zone.threePoint,
-    chipIndex: 1,
-    action:
-        '${_phrase(_PhraseCategory.threePointMake, playerTag: _tag('Castellano', 4, 'PG', _homeTeam.abbreviation))} '
-        'End of the quarter.',
-    highlight: _Highlight.threePointer,
-    isShotAttempt: true,
-    shotMade: true,
-    deltaHome: 3,
-    clockSeconds: 0,
-    isBreak: true,
-    breakLabel: 'END OF Q1',
-  ),
-];
 
 /// A dev-only lab (reachable from Settings -- "a direct GM ask,
 /// 2026-08-17, following the stamina/fatigue system landing": "I want to
@@ -731,112 +118,192 @@ class LiveGameLabScreen extends StatefulWidget {
 }
 
 class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
-  var _index = -1;
   var _home = 0;
   var _away = 0;
   var _playing = false;
   var _speed = _Speed.medium;
   var _previewDark = false;
-  Timer? _timer;
+  var _gameStarted = false;
+  var _gameOver = false;
+  var _beatsShown = 0;
+  _LabBeat? _currentBeat;
   final _tickerLog = <_LabBeat>[];
 
+  /// A fresh 12-player roster per side, generated the same way any
+  /// AI-vs-AI league game gets one (2026-08-18, `TODO.md` item 8's
+  /// live-game architecture stage 4) -- real names/positions/jersey
+  /// numbers, not the earlier hand-invented mini-roster a hand-scripted
+  /// demo needed. Generated once per screen visit, in [initState];
+  /// replaying via [_startGame] reuses the same two rosters so a GM can
+  /// actually get to know these players across a few replays, while the
+  /// game itself is a fresh simulation every time.
+  late final List<Player> _homeRoster;
+  late final List<Player> _awayRoster;
+  late LiveBeatTranslator _translator;
+
+  /// Resolved by whatever advances the currently-displayed beat -- a
+  /// speed-driven [Timer] in auto-play, or a "Next Play" tap in
+  /// [_Speed.step]. [_onSegmentComplete] awaits this between every beat
+  /// it shows, which is also what lets `simulateMatchLive`'s own
+  /// computation stay paced to the GM's chosen speed even though the
+  /// engine itself finishes a whole segment instantly.
+  Completer<void>? _advanceCompleter;
+
   @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+  void initState() {
+    super.initState();
+    final random = math.Random();
+    _homeRoster = generateAiRoster(random).map((m) => m.player).toList();
+    _awayRoster = generateAiRoster(random).map((m) => m.player).toList();
   }
 
-  _LabBeat? get _currentBeat => _index >= 0 ? _beats[_index] : null;
-  int get _clockSeconds => _currentBeat?.clockSeconds ?? 600;
+  String get _quarterLabel {
+    final quarter = _currentBeat?.quarter ?? 1;
+    if (quarter <= 4) return 'Q$quarter';
+    final overtimeNumber = quarter - 4;
+    return overtimeNumber == 1 ? 'OT' : '${overtimeNumber}OT';
+  }
+
   String get _clockLabel {
-    final seconds = _clockSeconds;
+    final seconds = (_currentBeat?.clockSeconds ?? 600).round();
     return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
-  }
-
-  void _reset() {
-    setState(() {
-      _index = -1;
-      _home = 0;
-      _away = 0;
-      _tickerLog.clear();
-    });
-  }
-
-  void _play() {
-    if (_index >= _beats.length - 1) _reset();
-    setState(() => _playing = true);
-    _timer = Timer.periodic(
-      Duration(milliseconds: _intervalMsFor(_speed)),
-      (_) => _step(),
-    );
-    _step();
-  }
-
-  /// [_Speed.step]'s "Next Play" action -- advances exactly one visible
-  /// beat, no timer at all. A direct GM ask (2026-08-17): "one play at a
-  /// time... the user has to click to see the next play."
-  void _stepOnce() {
-    if (_index >= _beats.length - 1) _reset();
-    _step();
-  }
-
-  void _stop() {
-    _timer?.cancel();
-    _timer = null;
-    if (mounted) setState(() => _playing = false);
   }
 
   /// Whether a free throw is close/late enough to actually show --
   /// checked against the score *entering* it, before its own delta.
   /// "Under a minute, and the game is within 3 points" (2026-08-17, a
   /// direct GM ask). Every other free throw still updates the score,
-  /// just silently, in the skip loop below.
+  /// just silently, without ever becoming [_currentBeat].
   bool _isClutchFreeThrow(_LabBeat beat) =>
       beat.clockSeconds < 60 && (_home - _away).abs() <= 3;
 
-  void _step() {
-    var index = _index;
-    while (true) {
-      index++;
-      if (index >= _beats.length) {
-        _stop();
-        return;
-      }
-      final beat = _beats[index];
+  /// Kicks off a real [simulateMatchLive] game -- called the first time
+  /// Play/Next is tapped, and again any time either is tapped after the
+  /// previous game finished. [_onSegmentComplete] and
+  /// [_liveCoachingPicker] below are where the actual watching experience
+  /// and the real coaching-break sheet live; this just starts the engine
+  /// and resets the on-screen state to match a fresh game.
+  void _startGame() {
+    setState(() {
+      _home = 0;
+      _away = 0;
+      _currentBeat = null;
+      _tickerLog.clear();
+      _beatsShown = 0;
+      _gameStarted = true;
+      _gameOver = false;
+      _playing = true;
+    });
+    _translator = LiveBeatTranslator(
+      homeRoster: _homeRoster,
+      awayRoster: _awayRoster,
+      homeAbbreviation: _homeTeam.abbreviation,
+      awayAbbreviation: _awayTeam.abbreviation,
+    );
+    simulateMatchLive(
+      math.Random(),
+      homeRoster: _homeRoster,
+      awayRoster: _awayRoster,
+      // The GM's own team only (`TODO.md` item 8's "GM's own scheduled
+      // game only" scope) -- home (DSM) gets the real interactive
+      // picker; away (KCY, the AI opponent) gets none, same "no picker,
+      // no offer" posture `simulateMatch` itself already established.
+      homeLiveCoachingPicker: _liveCoachingPicker,
+      onSegmentComplete: _onSegmentComplete,
+    ).then((MatchResult result) {
+      if (!mounted) return;
+      setState(() {
+        _playing = false;
+        _gameOver = true;
+      });
+    });
+  }
+
+  /// `simulateMatchLive`'s per-segment handoff -- translates this
+  /// segment's real events into beats and shows them one at a time,
+  /// awaiting [_waitForAdvance] between each so the engine (which
+  /// computed all of this instantly) only moves on to the next segment
+  /// once the GM has actually seen this one at their chosen pace.
+  Future<void> _onSegmentComplete(LiveGameSegment segment) async {
+    for (final beat in _translator.translateSegment(segment)) {
+      if (!mounted) return;
       if (beat.isFreeThrow && !_isClutchFreeThrow(beat)) {
-        // "Generally, I don't want to see free throws" -- apply the
-        // score change and keep scanning without ever surfacing this
-        // one as `current`.
-        _home += beat.deltaHome;
-        _away += beat.deltaAway;
+        setState(() {
+          _home += beat.deltaHome;
+          _away += beat.deltaAway;
+        });
         continue;
       }
       setState(() {
-        _index = index;
+        _currentBeat = beat;
         _home += beat.deltaHome;
         _away += beat.deltaAway;
         _tickerLog.insert(0, beat);
+        _beatsShown++;
       });
-      if (beat.isBreak) {
-        _stop();
-        // The lab's only scripted break is the end-of-Q1 one (deciding
-        // for Q2) -- always firstHalf. A real live game would pass
-        // whichever stoppage actually applies (`CoachingBreakStoppage`'s
-        // own doc comment); the lab has no 2nd/3rd-quarter break
-        // scripted yet to demonstrate Park the Bus's secondHalf gate.
-        _openBreak(
-          beat.breakLabel ?? 'COACHING BREAK',
-          stoppage: CoachingBreakStoppage.firstHalf,
-        );
-      }
-      return;
+      await _waitForAdvance();
+      if (!mounted) return;
     }
   }
 
-  Future<void> _openBreak(
+  Future<void> _waitForAdvance() {
+    final completer = Completer<void>();
+    _advanceCompleter = completer;
+    if (_speed != _Speed.step) {
+      Timer(Duration(milliseconds: _intervalMsFor(_speed)), () {
+        if (_playing && !completer.isCompleted) completer.complete();
+      });
+    }
+    return completer.future;
+  }
+
+  void _completePendingAdvance() {
+    final completer = _advanceCompleter;
+    if (completer != null && !completer.isCompleted) completer.complete();
+  }
+
+  void _onPlayPressed() {
+    if (!_gameStarted || _gameOver) {
+      _startGame();
+      return;
+    }
+    setState(() => _playing = true);
+    // Resuming from pause advances right away rather than waiting out
+    // whatever was left of the paused beat's interval -- simple, and
+    // "Play" reads as "go" either way.
+    _completePendingAdvance();
+  }
+
+  void _onPausePressed() => setState(() => _playing = false);
+
+  /// [_Speed.step]'s "Next Play" action -- a direct GM ask (2026-08-17):
+  /// "one play at a time... the user has to click to see the next play."
+  void _stepOnce() {
+    if (!_gameStarted || _gameOver) {
+      _startGame();
+      return;
+    }
+    _completePendingAdvance();
+  }
+
+  /// The real coaching-break sheet -- awaited by `simulateMatchLive`
+  /// itself (via [_startGame]'s `homeLiveCoachingPicker`), so this is
+  /// called automatically at every real break, right after this
+  /// segment's beats have finished playing. [CoachingBreakContext.offered]
+  /// is the engine's own already-drawn 3-option menu
+  /// (`offerCoachingOptions`) -- this doesn't re-roll anything, just
+  /// shows it and returns whatever the GM picks.
+  Future<CoachingOption?> _liveCoachingPicker(
+    CoachingBreakContext context,
+  ) async {
+    if (!mounted) return null;
+    return _openBreak('Q${context.quarter} BREAK', offered: context.offered);
+  }
+
+  Future<CoachingOption?> _openBreak(
     String label, {
-    required CoachingBreakStoppage stoppage,
-  }) async {
+    required List<CoachingOption> offered,
+  }) {
     // showModalBottomSheet attaches to the nearest Navigator's Overlay --
     // the app's root one, outside this screen's local Theme override --
     // so the sheet needs its own explicit Theme wrap to pick up whichever
@@ -848,7 +315,7 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
     // (near-invisible, light-colored) text. `backgroundColor` covers the
     // outer surface; the inner Theme covers everything drawn inside it.
     final themeData = _previewDark ? AppTheme.dark() : AppTheme.light();
-    await showModalBottomSheet<CoachingOption>(
+    return showModalBottomSheet<CoachingOption>(
       context: context,
       backgroundColor: themeData.colorScheme.surface,
       isDismissible: false,
@@ -862,13 +329,10 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
           awayAbbreviation: _awayTeam.abbreviation,
           homeScore: _home,
           awayScore: _away,
-          stoppage: stoppage,
+          offered: offered,
         ),
       ),
     );
-    // The pick is discarded here -- this lab has no live match to resume
-    // into. A real implementation would feed it into `match_engine.dart`'s
-    // `homeCoachingPicker`/`awayCoachingPicker` for the resumed segment.
   }
 
   @override
@@ -894,9 +358,9 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             Text(
-              'A live, in-progress game -- one scripted possession '
-              'sequence. Hit play, and see how a coaching break lands '
-              'on top of it.',
+              'A real, simulated game -- the same engine every AI-vs-AI '
+              'league game runs through, just watched live. Hit play, '
+              'and see how a real coaching break lands on top of it.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -921,6 +385,7 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
                     homeScore: _home,
                     awayScore: _away,
                     clockLabel: _clockLabel,
+                    quarterLabel: _quarterLabel,
                   ),
                   const Divider(height: AppSpacing.lg),
                   SizedBox(
@@ -947,7 +412,7 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
               child: FilledButton.icon(
                 onPressed: _speed == _Speed.step
                     ? _stepOnce
-                    : (_playing ? _stop : _play),
+                    : (_playing ? _onPausePressed : _onPlayPressed),
                 icon: Icon(
                   _speed == _Speed.step
                       ? Icons.skip_next
@@ -970,14 +435,15 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
               ],
               selected: {_speed},
               onSelectionChanged: (selection) {
+                final wasStep = _speed == _Speed.step;
                 setState(() => _speed = selection.first);
-                // Step mode has no auto-timer at all -- just stop
-                // whatever was running rather than restarting it.
-                if (selection.first == _Speed.step) {
-                  _stop();
-                } else if (_playing) {
-                  _stop();
-                  _play();
+                // A pending wait created under Step mode has no timer at
+                // all -- switching to an auto speed while playing would
+                // otherwise strand it forever, so kick it forward right
+                // away instead of waiting for a tap that's no longer
+                // coming.
+                if (wasStep && selection.first != _Speed.step && _playing) {
+                  _completePendingAdvance();
                 }
               },
             ),
@@ -987,17 +453,22 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
               child: OutlinedButton(
                 onPressed: () => _openBreak(
                   'PREVIEW',
-                  stoppage: CoachingBreakStoppage.firstHalf,
+                  offered: offerCoachingOptions(
+                    math.Random(),
+                    stoppage: CoachingBreakStoppage.firstHalf,
+                    opponentUnansweredRun: 0,
+                  ),
                 ),
                 child: const Text('Preview Coaching Break'),
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              _index < 0
-                  ? 'Ready -- ${_beats.length} scripted beats.'
-                  : 'Beat ${_index + 1} of ${_beats.length}'
-                        '${_currentBeat?.isBreak == true ? ' -- quarter break' : ''}',
+              !_gameStarted
+                  ? 'Ready -- tap Play to start a real simulated game.'
+                  : (_gameOver
+                        ? 'Final -- $_beatsShown beats shown.'
+                        : 'Beat $_beatsShown so far...'),
               textAlign: TextAlign.center,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -1043,11 +514,17 @@ class _ScoreBug extends StatelessWidget {
     required this.homeScore,
     required this.awayScore,
     required this.clockLabel,
+    required this.quarterLabel,
   });
 
   final int homeScore;
   final int awayScore;
   final String clockLabel;
+
+  /// "Q1"/"Q4"/"OT"/"2OT" -- a real game can run past regulation
+  /// (`simulateMatchLive`'s own overtime handling), so this is no longer
+  /// the Lab's old hardcoded literal.
+  final String quarterLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1078,7 +555,7 @@ class _ScoreBug extends StatelessWidget {
         Column(
           children: [
             Text(
-              'Q1',
+              quarterLabel,
               style: theme.textTheme.labelSmall?.copyWith(
                 letterSpacing: 1.4,
                 fontWeight: FontWeight.bold,
@@ -2092,7 +1569,7 @@ class _CoachingBreakSheet extends StatefulWidget {
     required this.awayAbbreviation,
     required this.homeScore,
     required this.awayScore,
-    required this.stoppage,
+    required this.offered,
   });
 
   final String label;
@@ -2100,22 +1577,20 @@ class _CoachingBreakSheet extends StatefulWidget {
   final String awayAbbreviation;
   final int homeScore;
   final int awayScore;
-  final CoachingBreakStoppage stoppage;
+
+  /// The real, already-drawn 3-option menu (2026-08-18, real-game wiring
+  /// -- `TODO.md` item 8's live-game architecture stage 4) -- computed
+  /// once by whichever `CoachingOptionPicker`/`LiveCoachingPicker` opened
+  /// this sheet (`offerCoachingOptions`, applying the real stoppage/
+  /// unanswered-run state), not re-rolled here. This sheet just displays
+  /// it and returns a pick.
+  final List<CoachingOption> offered;
 
   @override
   State<_CoachingBreakSheet> createState() => _CoachingBreakSheetState();
 }
 
 class _CoachingBreakSheetState extends State<_CoachingBreakSheet> {
-  late final List<CoachingOption> _offered = offerCoachingOptions(
-    math.Random(),
-    stoppage: widget.stoppage,
-    // The lab doesn't track real recent-scoring history the way a live
-    // game would -- Stop the Bleeding's trigger (`0B_Planned.md`'s
-    // quarter-break bullet) is exercised directly in
-    // `coaching_option_test.dart` instead of here.
-    opponentUnansweredRun: 0,
-  );
   CoachingOption? _picked;
 
   @override
@@ -2170,8 +1645,8 @@ class _CoachingBreakSheetState extends State<_CoachingBreakSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            for (final option in _offered) ...[
-              if (option != _offered.first)
+            for (final option in widget.offered) ...[
+              if (option != widget.offered.first)
                 const SizedBox(height: AppSpacing.xs),
               _LabCoachingOption(
                 option: option,
