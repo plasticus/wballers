@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_preferences.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
+import '../../match/presentation/live_game_lab_screen.dart';
 import '../../matchup/domain/analyst.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../matchup/domain/matchup_analysis.dart';
@@ -296,18 +298,41 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
                 AppSpacing.sm,
                 AppSpacing.sm,
               ),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _isPlaying ? null : _playGame,
-                  child: _isPlaying
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Play Game'),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // "A per-game toggle... next to Play Game" (`TODO.md`
+                  // item 8's live-game architecture stage 5, a locked
+                  // design call) -- sits right above the button it governs,
+                  // in this same fixed (never-scrolling) area.
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Watch Live',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      Switch(
+                        value: ref.watch(watchLiveProvider),
+                        onChanged: _isPlaying
+                            ? null
+                            : (value) =>
+                                  ref.read(watchLiveProvider.notifier).state =
+                                      value,
+                      ),
+                    ],
+                  ),
+                  FilledButton(
+                    onPressed: _isPlaying ? null : _playGame,
+                    child: _isPlaying
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Play Game'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -317,6 +342,25 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
   }
 
   Future<void> _playGame() async {
+    // Watch Live hands off to its own screen entirely -- that screen
+    // drives `simulateMatchLive` itself, then folds the result into the
+    // rest of today's schedule and navigates to `GameResultScreen` on its
+    // own once the GM's own game actually finishes (`LiveGameLabScreen`'s
+    // own doc comment). This screen's `_isPlaying` spinner is only for the
+    // Sim Instantly path below, which resolves everything in one call.
+    if (ref.read(watchLiveProvider)) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => LiveGameLabScreen(
+            franchise: widget.franchise,
+            game: widget.game,
+            ownDefenseTactic: _tactic,
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isPlaying = true);
     final results = await ref
         .read(currentFranchiseProvider.notifier)
@@ -324,16 +368,7 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     if (!mounted) return;
 
     final ownAbbreviation = widget.franchise.team.abbreviation;
-    GameResult? ownGame;
-    if (results != null) {
-      for (final result in results) {
-        if (result.game.homeTeamAbbreviation == ownAbbreviation ||
-            result.game.awayTeamAbbreviation == ownAbbreviation) {
-          ownGame = result;
-          break;
-        }
-      }
-    }
+    final ownGame = ownGameResultFrom(results, ownAbbreviation);
 
     final updatedFranchise = ref.read(currentFranchiseProvider).value;
     if (!mounted) return;
@@ -350,7 +385,7 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) =>
-            GameResultScreen(franchise: updatedFranchise, result: ownGame!),
+            GameResultScreen(franchise: updatedFranchise, result: ownGame),
       ),
     );
   }

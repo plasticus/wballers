@@ -6,6 +6,7 @@ import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/presentation/main_menu_screen.dart';
 import '../../match/presentation/live_game_lab_screen.dart';
+import '../../training/presentation/coach_picker_lab_screen.dart';
 
 /// Settings, reachable from the top-right of every `AppShell` tab
 /// (2026-08-07, a direct GM ask: "let's also get a settings button going
@@ -130,6 +131,25 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     icon: const Icon(Icons.sports_basketball_outlined),
                     label: const Text('Live Game Lab'),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  // Moved here from the Training screen (2026-08-18, a
+                  // direct GM ask to hide it from that real gameplay
+                  // screen) -- a dev-facing comparison tool, not a real
+                  // setting; see `coach_picker_lab_screen.dart`'s own doc
+                  // comment (2026-08-10, TODO.md item 5). #3 "Stat Chips"
+                  // landed as the real picker on the Training screen
+                  // (2026-08-11); kept around here as a reference/
+                  // comparison tool, same posture as the Live Game Lab
+                  // above.
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const CoachPickerLabScreen(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.science_outlined),
+                    label: const Text('Coach Picker Lab'),
                   ),
                 ],
               ),

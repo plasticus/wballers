@@ -156,6 +156,13 @@ class LiveBeatTranslator {
   var _homeScore = 0;
   var _awayScore = 0;
 
+  /// Whether the *next* possession's first pass should read as an inbound
+  /// -- set at the end of [_translatePossession] based on how the
+  /// possession that just finished ended. `false` for the very first
+  /// possession of the game (the tip-off already establishes who has it,
+  /// no inbound needed).
+  var _nextPossessionIsInbound = false;
+
   /// Whether the game is currently "clutch" -- under a minute on the
   /// clock, score within 3 -- mirroring `live_game_lab_screen.dart`'s own
   /// `_isClutchFreeThrow` rule. The translator always returns a beat for
@@ -181,6 +188,17 @@ class LiveBeatTranslator {
       _clockSeconds = segment.quarter <= _quarterCount
           ? _quarterSeconds
           : _overtimeSeconds;
+      // Whoever starts a new quarter is decided independently
+      // (`match_engine.dart`'s `startQuarterClock`: tip-off winner and
+      // quarter parity, not "whoever didn't have the ball last") -- not
+      // guaranteed to be the *other* team from however the previous
+      // quarter happened to end. A real bug this exact mismatch caused
+      // (caught by this file's own test suite): carrying the inbound
+      // flag across a quarter break could credit the *same* team that
+      // just scored to end the old quarter with "inbounding" to start
+      // the new one, when the engine gave them the ball again by
+      // independent coincidence, not a stolen/incorrect possession.
+      _nextPossessionIsInbound = false;
     }
     final beats = <LiveBeat>[];
     for (final possession in segment.possessions) {
@@ -201,11 +219,18 @@ class LiveBeatTranslator {
         '(${player.primaryPosition.abbreviation} ${_abbreviationFor(player)})';
   }
 
-  /// A per-player, deterministic-but-arbitrary vertical spread (0-4) --
+  /// A vertical spread (0-4) within whichever zone a beat lands in --
   /// there's no real position data to derive this from (see this class's
-  /// own doc comment), so the same player at least tends to land in the
-  /// same spot rather than jittering randomly beat to beat.
-  int _chipIndexFor(Player player) => player.id.hashCode.abs() % 5;
+  /// own doc comment), so this is arbitrary either way; genuinely random
+  /// per beat, not keyed off the player, so the same player doesn't
+  /// always land in the exact same spot on the floor every time she
+  /// touches the ball. Was `player.id.hashCode.abs() % 5` (2026-08-18, a
+  /// direct GM catch): a real, felt bug -- "the ball moving from A -> B
+  /// -> C in the exact same spots on the floor every time a team has
+  /// offense" -- because a fixed per-player hash meant every single beat
+  /// a given player was ever involved in reused her one assigned slot,
+  /// game after game, possession after possession.
+  int _chipIndexFor(Player player) => _random.nextInt(5);
 
   String _phrase(
     String category, {
@@ -243,6 +268,15 @@ class LiveBeatTranslator {
     var ballZone = LiveZone.midcourt;
     int? ballChipIndex;
     var sawFirstPass = false;
+    // This possession's own first pass reads as an inbound (behind the
+    // *other* team's basket -- the one just scored on) if the *previous*
+    // possession ended in a made basket -- a direct GM catch (2026-08-18):
+    // watching a real game, a make immediately followed by the other team
+    // just "bringing it up" again read as if the scoring team still had
+    // the ball, since nothing on screen marked the change of possession.
+    // `_endsInMake` resets this for whichever possession comes next.
+    final isInboundPossession = _nextPossessionIsInbound;
+    _nextPossessionIsInbound = _endsInMake(events);
 
     for (var i = 0; i < events.length; i++) {
       final event = events[i];
@@ -253,6 +287,7 @@ class LiveBeatTranslator {
         i,
         isFirstPassOfPossession:
             !sawFirstPass && event.type == MatchEventType.passAttempt,
+        isInboundPossession: isInboundPossession,
         ballZone: ballZone,
         ballChipIndex: ballChipIndex,
       );
@@ -269,11 +304,40 @@ class LiveBeatTranslator {
     return beats;
   }
 
+  /// Whether [events] -- one whole possession -- actually ended with the
+  /// ball going through the hoop, i.e. the *next* possession's team will
+  /// need to inbound rather than just pick up a loose/rebounded ball
+  /// already live in play. Checks the *last* event (or the 2nd-to-last,
+  /// when the very last is an [MatchEventType.assist] trailing an
+  /// unfouled make -- `possession_engine.dart` always appends a scoring
+  /// assist right after its `shotMade`, with nothing else following) --
+  /// not whether a [MatchEventType.shotMade] appears *anywhere* in the
+  /// list, a real bug caught by this file's own test suite: an and-one's
+  /// free throws always end the possession outright in this engine
+  /// (`_shootFreeThrows`'s own caller calls `finish` unconditionally right
+  /// after), but a *missed* final free throw doesn't convert anything --
+  /// the earlier made field goal in the same list doesn't mean the
+  /// possession actually ended in a score. A missed final free throw is
+  /// deliberately not treated as ending in a make either, for the same
+  /// reason (its rebound is a genuinely live, not dead, ball).
+  bool _endsInMake(List<MatchEvent> events) {
+    if (events.isEmpty) return false;
+    final last = events.last.type;
+    if (last == MatchEventType.shotMade ||
+        last == MatchEventType.freeThrowMade) {
+      return true;
+    }
+    return last == MatchEventType.assist &&
+        events.length >= 2 &&
+        events[events.length - 2].type == MatchEventType.shotMade;
+  }
+
   LiveBeat? _translateEvent(
     MatchEvent event,
     List<MatchEvent> possessionEvents,
     int index, {
     required bool isFirstPassOfPossession,
+    required bool isInboundPossession,
     required LiveZone ballZone,
     int? ballChipIndex,
   }) {
@@ -303,19 +367,34 @@ class LiveBeatTranslator {
         // generic ball movement. A direct GM ask (2026-08-18) about a
         // PG "setting up the offense" specifically wanted this read as
         // near mid-court, not hugging the 3pt line -- see LiveZone's own
-        // `midcourt` case.
-        final displayText = isFirstPassOfPossession
-            ? _phrase('backcourt_bringup', playerTag: _tag(passer))
-            : _phrase(
-                'midcourt_advance',
+        // `midcourt` case. When the *previous* possession ended in a
+        // make, this specific first pass is an inbound instead -- its own
+        // wording and blip placement (behind the opposing basket, via
+        // `isInbound`), so the change of possession after a bucket is
+        // unmistakable rather than reading as the scoring team still
+        // holding the ball (2026-08-18, a direct GM catch).
+        final isInboundPass = isFirstPassOfPossession && isInboundPossession;
+        final displayText = isInboundPass
+            ? _phrase(
+                'inbound_after_make',
                 playerTag: _tag(passer),
                 player2Tag: _tag(receiver),
-              );
+                team: _abbreviationFor(passer),
+                opponent: _isHome(passer) ? awayAbbreviation : homeAbbreviation,
+              )
+            : (isFirstPassOfPossession
+                  ? _phrase('backcourt_bringup', playerTag: _tag(passer))
+                  : _phrase(
+                      'midcourt_advance',
+                      playerTag: _tag(passer),
+                      player2Tag: _tag(receiver),
+                    ));
         return LiveBeat(
           team: team,
           zone: LiveZone.midcourt,
           chipIndex: toChipIndex,
           displayText: displayText,
+          isInbound: isInboundPass,
           isPass: !isFirstPassOfPossession,
           passFromZone: isFirstPassOfPossession ? null : ballZone,
           passFromChipIndex: isFirstPassOfPossession ? null : ballChipIndex,

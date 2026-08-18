@@ -380,6 +380,12 @@ void main() {
       );
       await tester.pump();
 
+      // Watch Live defaults on (2026-08-18, `TODO.md` item 8's live-game
+      // architecture stage 5) -- this test is specifically about the Sim
+      // Instantly path's immediate hand-off, so it opts out first.
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+
       await tester.tap(find.text('Play Game'));
       await tester.pumpAndSettle();
 
@@ -392,6 +398,55 @@ void main() {
       );
       expect(savedFranchise.seasonProgress.nextGameDayIndex, 1);
       expect(savedFranchise.seasonProgress.playedGames, hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'Watch Live defaults on, and tapping Play Game hands off to the live '
+    'game screen instead of an instant result (2026-08-18, TODO.md item 8\'s '
+    'live-game architecture stage 5)',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final base = _newFranchise();
+      final opponent = base.league.aiTeams.first.team;
+      final franchise = _withOwnGameToday(base, opponent);
+      final game = franchise.seasonProgress.schedule.games.single;
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: MatchPreviewScreen(franchise: franchise, game: game),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // The toggle itself defaults on -- no tap needed before Play Game.
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+
+      await tester.tap(find.text('Play Game'));
+      // Deliberately not `pumpAndSettle` -- the live screen auto-starts a
+      // real game paced by real `Timer`s (its own speed picker's slowest
+      // setting is 3s/beat over a ~200-beat game), which would never
+      // actually settle within a test's patience. Pumping through just the
+      // route's own ~300ms push transition is enough to confirm the
+      // hand-off itself happened and the old screen is really gone.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        find.text(
+          '${game.awayTeamAbbreviation} @ ${game.homeTeamAbbreviation}',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Play Game'), findsNothing);
     },
   );
 

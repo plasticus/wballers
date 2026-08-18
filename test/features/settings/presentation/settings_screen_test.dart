@@ -132,4 +132,38 @@ void main() {
     expect(tile.enabled, isFalse);
     expect(find.text('Ad-Supported Play'), findsOneWidget);
   });
+
+  testWidgets(
+    'the Coach Picker Lab button opens CoachPickerLabScreen -- moved here '
+    'from the Training screen (2026-08-18, a direct GM ask to hide it from '
+    'that real gameplay screen)',
+    (tester) async {
+      // The Developer section (Live Game Lab, Coach Picker Lab) sits
+      // below Text Size/Theme/Ad placeholder in a ListView -- needs a
+      // taller surface to be on-screen and tap-hittable.
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: SettingsScreen()),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Coach Picker Lab'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1. Current Format (for reference)'), findsOneWidget);
+    },
+  );
 }

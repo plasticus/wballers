@@ -2,16 +2,27 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_spacing.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../franchise/application/current_franchise_provider.dart';
+import '../../franchise/domain/franchise.dart';
 import '../../franchise/onboarding/quick_start_teams.dart';
+import '../../league/domain/team.dart';
 import '../../matchup/domain/coaching_option.dart';
+import '../../matchup/domain/defensive_tactic.dart';
 import '../../player/domain/player.dart';
 import '../../roster/generation/ai_roster_generator.dart';
+import '../../season/application/franchise_rosters.dart';
+import '../../season/domain/game_result.dart';
+import '../../season/domain/scheduled_game.dart';
+import '../../season/generation/season_advancer.dart';
+import '../../season/presentation/game_result_screen.dart';
 import '../domain/match_result.dart';
 import '../engine/match_engine.dart';
+import '../engine/substitution_policy.dart';
 import 'live_beat_translator.dart';
 
 /// Which team (if any) a beat belongs to -- aliases the real, public
@@ -60,16 +71,6 @@ int _intervalMsFor(_Speed speed) => switch (speed) {
   _Speed.step => 2000,
 };
 
-/// Des Moines Dragons (home) vs. Kansas City Aviators (away) -- 2 of the
-/// app's real Quick Start club identities (`quick_start_teams.dart`),
-/// not invented placeholder teams, so the colors/names/emoji here are
-/// authentic to what a GM would actually see.
-const _homeTeam = kQuickStartDesMoinesDragons;
-const _awayTeam = kQuickStartKansasCityAviators;
-final _homeEmoji = _homeTeam.emoji;
-final _homeColor = _colorFromHex(_homeTeam.colors.primaryHex);
-final _awayColor = _colorFromHex(_awayTeam.colors.primaryHex);
-
 Color _colorFromHex(String hex) {
   final value = int.parse(hex.replaceFirst('#', ''), radix: 16);
   return Color(0xFF000000 | value);
@@ -93,10 +94,9 @@ Color _legibleTextColor(Color raw, Brightness brightness) {
   return hsl.withLightness(lightness.clamp(0.0, 1.0)).toColor();
 }
 
-
-/// A dev-only lab (reachable from Settings -- "a direct GM ask,
-/// 2026-08-17, following the stamina/fatigue system landing": "I want to
-/// see it in the app," not a design mockup elsewhere) for the live-game
+/// Started life as a dev-only lab (reachable from Settings -- "a direct GM
+/// ask, 2026-08-17, following the stamina/fatigue system landing": "I want
+/// to see it in the app," not a design mockup elsewhere) for the live-game
 /// visual half of `TODO.md` item 8. Started as 3 side-by-side options;
 /// narrowed to just the Full Court design once the GM settled on it
 /// ("we can drop/hide Ticker and Half-Court... I'm going to keep working
@@ -110,14 +110,48 @@ Color _legibleTextColor(Color raw, Brightness brightness) {
 /// DefensiveTactic-re-pick placeholder now that the real catalog exists;
 /// hard-stop, no auto-continue) still layers on top at the scripted
 /// quarter break or on demand via Preview.
-class LiveGameLabScreen extends StatefulWidget {
-  const LiveGameLabScreen({super.key});
+///
+/// Now does double duty (2026-08-18, `TODO.md` item 8's live-game
+/// architecture stage 5 -- "yep, in-place replacement plz" was the GM's
+/// own call at stage 4 for folding the real engine into this same screen
+/// rather than building a parallel one; stage 5 continues that same
+/// in-place approach rather than forking a second screen file). [franchise]
+/// and [game] both `null` (the default) keeps every bit of the original
+/// dev-lab behavior: 2 self-generated AI rosters wearing the Quick Start
+/// Dragons/Aviators identity, the Light/Dark preview toggle, and the
+/// "Preview Coaching Break"/GM-questions dev chrome. Given both, this
+/// drives the GM's own real scheduled game instead -- real bench-ordered
+/// rosters, real coach bonuses, the real picked [DefensiveTactic], no dev
+/// chrome, auto-starting immediately rather than waiting for a first Play
+/// tap (the GM already tapped Play Game to get here) -- and reports the
+/// finished [MatchResult] to [onGameComplete] instead of just sitting on
+/// the final score forever.
+class LiveGameLabScreen extends ConsumerStatefulWidget {
+  const LiveGameLabScreen({
+    super.key,
+    this.franchise,
+    this.game,
+    this.ownDefenseTactic,
+  }) : assert(
+         (franchise == null) == (game == null),
+         'franchise and game must both be given (real game) or both left '
+         'null (dev-lab demo)',
+       );
+
+  final Franchise? franchise;
+  final ScheduledGame? game;
+  final DefensiveTactic? ownDefenseTactic;
+
+  /// Whether this screen is driving the GM's own real game rather than the
+  /// dev-lab demo -- every other real-vs-demo branch below keys off this
+  /// rather than re-checking [franchise]/[game] separately.
+  bool get isReal => franchise != null;
 
   @override
-  State<LiveGameLabScreen> createState() => _LiveGameLabScreenState();
+  ConsumerState<LiveGameLabScreen> createState() => _LiveGameLabScreenState();
 }
 
-class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
+class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
   var _home = 0;
   var _away = 0;
   var _playing = false;
@@ -130,16 +164,31 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
   final _tickerLog = <_LabBeat>[];
 
   /// A fresh 12-player roster per side, generated the same way any
-  /// AI-vs-AI league game gets one (2026-08-18, `TODO.md` item 8's
-  /// live-game architecture stage 4) -- real names/positions/jersey
-  /// numbers, not the earlier hand-invented mini-roster a hand-scripted
-  /// demo needed. Generated once per screen visit, in [initState];
-  /// replaying via [_startGame] reuses the same two rosters so a GM can
-  /// actually get to know these players across a few replays, while the
-  /// game itself is a fresh simulation every time.
+  /// AI-vs-AI league game gets one when [LiveGameLabScreen.isReal] is
+  /// false (2026-08-18, `TODO.md` item 8's live-game architecture stage 4)
+  /// -- real names/positions/jersey numbers, not the earlier hand-invented
+  /// mini-roster a hand-scripted demo needed. Generated once per screen
+  /// visit, in [initState]; replaying via [_startGame] reuses the same two
+  /// rosters so a GM can actually get to know these players across a few
+  /// replays, while the game itself is a fresh simulation every time. When
+  /// [LiveGameLabScreen.isReal] is true, these are the GM's own real
+  /// scheduled game's 2 real rosters instead (still set once, in
+  /// [initState]).
   late final List<Player> _homeRoster;
   late final List<Player> _awayRoster;
   late LiveBeatTranslator _translator;
+
+  /// The 5 pieces of team identity every rendering widget below needs --
+  /// the Quick Start Dragons/Aviators' hardcoded look in the dev lab, or
+  /// the GM's own real opponent's real [Team] data for a real game. Used
+  /// to be 5 separate module-level constants (fine when this screen only
+  /// ever showed the same 2 demo teams); now instance fields set once in
+  /// [initState], since a real game's identity isn't known until then.
+  late final String _homeAbbreviation;
+  late final String _awayAbbreviation;
+  late final Color _homeColor;
+  late final Color _awayColor;
+  late final String _homeEmoji;
 
   /// Resolved by whatever advances the currently-displayed beat -- a
   /// speed-driven [Timer] in auto-play, or a "Next Play" tap in
@@ -149,12 +198,61 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
   /// engine itself finishes a whole segment instantly.
   Completer<void>? _advanceCompleter;
 
+  /// The pending timer behind [_advanceCompleter], if any -- cancelled in
+  /// [dispose] so backing out mid-game (a real live game, unlike the dev
+  /// lab, is reachable from a normal Navigator push a GM can back out of)
+  /// doesn't leak a live `Timer` that outlives this State. A real bug this
+  /// screen actually had until a widget test caught it: nothing here used
+  /// to store or cancel this at all.
+  Timer? _advanceTimer;
+
+  @override
+  void dispose() {
+    _advanceTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
-    final random = math.Random();
-    _homeRoster = generateAiRoster(random).map((m) => m.player).toList();
-    _awayRoster = generateAiRoster(random).map((m) => m.player).toList();
+    final franchise = widget.franchise;
+    final game = widget.game;
+    if (franchise != null && game != null) {
+      final rosters = rostersByAbbreviation(franchise);
+      _homeRoster = rosters[game.homeTeamAbbreviation]!;
+      _awayRoster = rosters[game.awayTeamAbbreviation]!;
+      _homeAbbreviation = game.homeTeamAbbreviation;
+      _awayAbbreviation = game.awayTeamAbbreviation;
+      _homeColor = teamByAbbreviation(
+        franchise,
+        game.homeTeamAbbreviation,
+      ).colors.primary;
+      _awayColor = teamByAbbreviation(
+        franchise,
+        game.awayTeamAbbreviation,
+      ).colors.primary;
+      _homeEmoji = teamByAbbreviation(
+        franchise,
+        game.homeTeamAbbreviation,
+      ).emoji;
+      // The GM already tapped Play Game on the Matchup Preview screen to
+      // get here -- a real game auto-starts rather than making them tap
+      // Play a 2nd, redundant time. Deferred a frame (rather than called
+      // directly here) since `_startGame` calls `setState`, which isn't
+      // safe before this widget's first build.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startGame());
+    } else {
+      final random = math.Random();
+      _homeRoster = generateAiRoster(random).map((m) => m.player).toList();
+      _awayRoster = generateAiRoster(random).map((m) => m.player).toList();
+      _homeAbbreviation = kQuickStartDesMoinesDragons.abbreviation;
+      _awayAbbreviation = kQuickStartKansasCityAviators.abbreviation;
+      _homeColor = _colorFromHex(kQuickStartDesMoinesDragons.colors.primaryHex);
+      _awayColor = _colorFromHex(
+        kQuickStartKansasCityAviators.colors.primaryHex,
+      );
+      _homeEmoji = kQuickStartDesMoinesDragons.emoji;
+    }
   }
 
   String get _quarterLabel {
@@ -178,11 +276,12 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
       beat.clockSeconds < 60 && (_home - _away).abs() <= 3;
 
   /// Kicks off a real [simulateMatchLive] game -- called the first time
-  /// Play/Next is tapped, and again any time either is tapped after the
-  /// previous game finished. [_onSegmentComplete] and
-  /// [_liveCoachingPicker] below are where the actual watching experience
-  /// and the real coaching-break sheet live; this just starts the engine
-  /// and resets the on-screen state to match a fresh game.
+  /// Play/Next is tapped in the dev lab (and again any time either is
+  /// tapped after the previous demo game finished), or automatically via
+  /// [initState]'s post-frame callback for a real game. [_onSegmentComplete]
+  /// and [_liveCoachingPicker] below are where the actual watching
+  /// experience and the real coaching-break sheet live; this just starts
+  /// the engine and resets the on-screen state to match a fresh game.
   void _startGame() {
     setState(() {
       _home = 0;
@@ -197,26 +296,99 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
     _translator = LiveBeatTranslator(
       homeRoster: _homeRoster,
       awayRoster: _awayRoster,
-      homeAbbreviation: _homeTeam.abbreviation,
-      awayAbbreviation: _awayTeam.abbreviation,
+      homeAbbreviation: _homeAbbreviation,
+      awayAbbreviation: _awayAbbreviation,
     );
+
+    final franchise = widget.franchise;
+    final game = widget.game;
+    final isReal = franchise != null && game != null;
+    // The GM's own team only (`TODO.md` item 8's "GM's own scheduled game
+    // only" scope) -- their side gets the real interactive picker; the AI
+    // opponent gets none, same "no picker, no offer" posture `simulateMatch`
+    // itself already established. In the dev lab, home (DSM) always stands
+    // in for "the GM's side."
+    final ownAbbreviation = isReal ? franchise.team.abbreviation : null;
+    final homeIsOwn = !isReal || _homeAbbreviation == ownAbbreviation;
+    final awayIsOwn = isReal && _awayAbbreviation == ownAbbreviation;
+    final coaches = isReal ? coachesByAbbreviation(franchise) : null;
+
     simulateMatchLive(
-      math.Random(),
+      isReal
+          ? math.Random(
+              franchise.seasonSeed +
+                  kSeasonAdvanceSeedOffset +
+                  franchise.seasonProgress.nextGameDayIndex,
+            )
+          : math.Random(),
       homeRoster: _homeRoster,
       awayRoster: _awayRoster,
-      // The GM's own team only (`TODO.md` item 8's "GM's own scheduled
-      // game only" scope) -- home (DSM) gets the real interactive
-      // picker; away (KCY, the AI opponent) gets none, same "no picker,
-      // no offer" posture `simulateMatch` itself already established.
-      homeLiveCoachingPicker: _liveCoachingPicker,
+      // Only the GM's own real side reads its real bench order --
+      // `_simulateOneGame`'s exact convention, mirrored here so a live
+      // game plays under the same rules an instant-sim of it would have.
+      homeTargetMinutes: homeIsOwn && isReal
+          ? targetMinutesForOrderedRoster(_homeRoster)
+          : null,
+      awayTargetMinutes: awayIsOwn
+          ? targetMinutesForOrderedRoster(_awayRoster)
+          : null,
+      homeCoach: coaches?[_homeAbbreviation],
+      awayCoach: coaches?[_awayAbbreviation],
+      homeDefenseTactic: homeIsOwn && isReal
+          ? (widget.ownDefenseTactic ?? DefensiveTactic.balanced)
+          : DefensiveTactic.balanced,
+      awayDefenseTactic: awayIsOwn
+          ? (widget.ownDefenseTactic ?? DefensiveTactic.balanced)
+          : DefensiveTactic.balanced,
+      homeLiveCoachingPicker: homeIsOwn ? _liveCoachingPicker : null,
+      awayLiveCoachingPicker: awayIsOwn ? _liveCoachingPicker : null,
       onSegmentComplete: _onSegmentComplete,
-    ).then((MatchResult result) {
+    ).then((MatchResult result) async {
       if (!mounted) return;
       setState(() {
         _playing = false;
         _gameOver = true;
       });
+      if (isReal) await _finishDayAndShowResult(franchise, result);
     });
+  }
+
+  /// Once the GM's own live game is fully resolved, folds it into the rest
+  /// of today's schedule -- every other game the GM didn't watch still
+  /// gets bulk-simulated the normal instant way here
+  /// (`advanceGameDayWithOwnResult`) -- then hands off to the same
+  /// [GameResultScreen] the Sim Instantly path already uses, so the two
+  /// paths converge on one identical post-game experience.
+  Future<void> _finishDayAndShowResult(
+    Franchise franchise,
+    MatchResult ownMatch,
+  ) async {
+    final results = await ref
+        .read(currentFranchiseProvider.notifier)
+        .advanceGameDayWithOwnResult(
+          ownMatch,
+          ownDefenseTactic: widget.ownDefenseTactic,
+        );
+    if (!mounted) return;
+
+    final ownGame = ownGameResultFrom(results, franchise.team.abbreviation);
+    final updatedFranchise = ref.read(currentFranchiseProvider).value;
+    if (!mounted) return;
+
+    if (updatedFranchise == null || ownGame == null) {
+      // Shouldn't normally happen -- this screen only ever gets pushed for
+      // a day the GM's own team was actually scheduled -- but fail safely
+      // back rather than leaving the final score frozen on screen forever.
+      Navigator.of(context).pop();
+      return;
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) =>
+            GameResultScreen(franchise: updatedFranchise, result: ownGame),
+      ),
+    );
   }
 
   /// `simulateMatchLive`'s per-segment handoff -- translates this
@@ -228,6 +400,24 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
     for (final beat in _translator.translateSegment(segment)) {
       if (!mounted) return;
       if (beat.isFreeThrow && !_isClutchFreeThrow(beat)) {
+        setState(() {
+          _home += beat.deltaHome;
+          _away += beat.deltaAway;
+        });
+        continue;
+      }
+      // Fast speed additionally skips every non-shot beat entirely --
+      // still applied (the score, if any) and still fed through the real
+      // engine/translator exactly the same either way, just never
+      // rendered or waited on. A direct GM ask (2026-08-18): with the
+      // real engine's genuine amount of ball movement now visible (far
+      // more passing than the Lab's old hand-scripted demo ever showed),
+      // Fast needs to blow through everything that isn't a shot attempt
+      // to actually feel fast -- "eliminate all plays that aren't shots
+      // ... just show shot attempts (misses and makes)." Free throws
+      // aren't touched by this check -- the clutch gate above already
+      // decides whether *any* speed shows a given one.
+      if (_speed == _Speed.fast && !beat.isShotAttempt && !beat.isFreeThrow) {
         setState(() {
           _home += beat.deltaHome;
           _away += beat.deltaAway;
@@ -250,7 +440,20 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
     final completer = Completer<void>();
     _advanceCompleter = completer;
     if (_speed != _Speed.step) {
-      Timer(Duration(milliseconds: _intervalMsFor(_speed)), () {
+      // A shot attempt's own +2/+3/miss-X result needs real time on
+      // screen to actually be readable -- a direct GM catch (2026-08-18):
+      // "it's up there for a split second, can't read it" at Fast's own
+      // 750ms base pace (barely longer than the ball's own travel
+      // animation). Quadrupled for exactly this one beat type, at Fast
+      // speed only -- every non-shot beat Fast still shows (assists,
+      // blocks, steals) keeps the normal brisk pace; only the shot result
+      // itself needs the extra room to breathe.
+      final baseMs = _intervalMsFor(_speed);
+      final beat = _currentBeat;
+      final ms = (_speed == _Speed.fast && beat != null && beat.isShotAttempt)
+          ? baseMs * 4
+          : baseMs;
+      _advanceTimer = Timer(Duration(milliseconds: ms), () {
         if (_playing && !completer.isCompleted) completer.complete();
       });
     }
@@ -258,6 +461,7 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
   }
 
   void _completePendingAdvance() {
+    _advanceTimer?.cancel();
     final completer = _advanceCompleter;
     if (completer != null && !completer.isCompleted) completer.complete();
   }
@@ -307,14 +511,18 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
     // showModalBottomSheet attaches to the nearest Navigator's Overlay --
     // the app's root one, outside this screen's local Theme override --
     // so the sheet needs its own explicit Theme wrap to pick up whichever
-    // brightness the Light/Dark toggle currently has selected. That
-    // alone wasn't enough, though: the *sheet's own Material surface* is
-    // painted by showModalBottomSheet's framework wrapper around the
-    // builder's return value, outside the Theme wrap too -- fixing only
-    // the inner Theme left light-background chrome around dark-themed
-    // (near-invisible, light-colored) text. `backgroundColor` covers the
-    // outer surface; the inner Theme covers everything drawn inside it.
-    final themeData = _previewDark ? AppTheme.dark() : AppTheme.light();
+    // brightness is actually in effect. That alone wasn't enough, though:
+    // the *sheet's own Material surface* is painted by
+    // showModalBottomSheet's framework wrapper around the builder's return
+    // value, outside the Theme wrap too -- fixing only the inner Theme left
+    // light-background chrome around dark-themed (near-invisible,
+    // light-colored) text. `backgroundColor` covers the outer surface; the
+    // inner Theme covers everything drawn inside it. A real game has no
+    // Light/Dark preview toggle of its own (see [build]) -- it just carries
+    // the ambient app theme through, same as every other real screen.
+    final themeData = widget.isReal
+        ? Theme.of(context)
+        : (_previewDark ? AppTheme.dark() : AppTheme.light());
     return showModalBottomSheet<CoachingOption>(
       context: context,
       backgroundColor: themeData.colorScheme.surface,
@@ -325,8 +533,8 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
         data: themeData,
         child: _CoachingBreakSheet(
           label: label,
-          homeAbbreviation: _homeTeam.abbreviation,
-          awayAbbreviation: _awayTeam.abbreviation,
+          homeAbbreviation: _homeAbbreviation,
+          awayAbbreviation: _awayAbbreviation,
           homeScore: _home,
           awayScore: _away,
           offered: offered,
@@ -337,44 +545,58 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // A local Light/Dark override (2026-08-17, a direct GM ask) -- team
-    // colors that read fine in one brightness can go unreadable in the
-    // other (a lime green washes out in light mode, a dark red vanishes
-    // in dark mode), so the lab needs to preview both without the GM
-    // leaving to flip the app's real theme in Settings. Wraps the real
-    // `AppTheme`, not a generic fallback, so the preview is authentic.
-    return Theme(
-      data: _previewDark ? AppTheme.dark() : AppTheme.light(),
-      child: Builder(builder: _buildScaffold),
-    );
+    // A local Light/Dark override, dev-lab only (2026-08-17, a direct GM
+    // ask) -- team colors that read fine in one brightness can go
+    // unreadable in the other (a lime green washes out in light mode, a
+    // dark red vanishes in dark mode), so the lab needs to preview both
+    // without the GM leaving to flip the app's real theme in Settings.
+    // Wraps the real `AppTheme`, not a generic fallback, so the preview is
+    // authentic. A real game has no such toggle -- it just renders under
+    // whatever theme the rest of the app is already in, like every other
+    // real screen (`_openBreak`'s own doc comment covers the sheet's own
+    // matching choice).
+    if (!widget.isReal) {
+      return Theme(
+        data: _previewDark ? AppTheme.dark() : AppTheme.light(),
+        child: Builder(builder: _buildScaffold),
+      );
+    }
+    return _buildScaffold(context);
   }
 
   Widget _buildScaffold(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Live Game Lab')),
+      appBar: AppBar(
+        title: Text(
+          widget.isReal
+              ? '$_awayAbbreviation @ $_homeAbbreviation'
+              : 'Live Game Lab',
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             Text(
               'A real, simulated game -- the same engine every AI-vs-AI '
-              'league game runs through, just watched live. Hit play, '
-              'and see how a real coaching break lands on top of it.',
+              'league game runs through, just watched live.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Light')),
-                ButtonSegment(value: true, label: Text('Dark')),
-              ],
-              selected: {_previewDark},
-              onSelectionChanged: (selection) =>
-                  setState(() => _previewDark = selection.first),
-            ),
+            if (!widget.isReal) ...[
+              const SizedBox(height: AppSpacing.md),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Light')),
+                  ButtonSegment(value: true, label: Text('Dark')),
+                ],
+                selected: {_previewDark},
+                onSelectionChanged: (selection) =>
+                    setState(() => _previewDark = selection.first),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             AppCard(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -386,6 +608,10 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
                     awayScore: _away,
                     clockLabel: _clockLabel,
                     quarterLabel: _quarterLabel,
+                    homeAbbreviation: _homeAbbreviation,
+                    awayAbbreviation: _awayAbbreviation,
+                    homeColor: _homeColor,
+                    awayColor: _awayColor,
                   ),
                   const Divider(height: AppSpacing.lg),
                   SizedBox(
@@ -394,6 +620,11 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
                       current: _currentBeat,
                       log: _tickerLog,
                       intervalMs: _intervalMsFor(_speed),
+                      homeAbbreviation: _homeAbbreviation,
+                      awayAbbreviation: _awayAbbreviation,
+                      homeColor: _homeColor,
+                      awayColor: _awayColor,
+                      homeEmoji: _homeEmoji,
                     ),
                   ),
                 ],
@@ -447,21 +678,23 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
                 }
               },
             ),
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => _openBreak(
-                  'PREVIEW',
-                  offered: offerCoachingOptions(
-                    math.Random(),
-                    stoppage: CoachingBreakStoppage.firstHalf,
-                    opponentUnansweredRun: 0,
+            if (!widget.isReal) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => _openBreak(
+                    'PREVIEW',
+                    offered: offerCoachingOptions(
+                      math.Random(),
+                      stoppage: CoachingBreakStoppage.firstHalf,
+                      opponentUnansweredRun: 0,
+                    ),
                   ),
+                  child: const Text('Preview Coaching Break'),
                 ),
-                child: const Text('Preview Coaching Break'),
               ),
-            ),
+            ],
             const SizedBox(height: AppSpacing.xs),
             Text(
               !_gameStarted
@@ -474,34 +707,39 @@ class _LiveGameLabScreenState extends State<LiveGameLabScreen> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            Text('What I need your read on', style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.sm),
-            const _QuestionItem(
-              text:
-                  'Highlight badges -- team-color background, computed '
-                  'black/white text for guaranteed contrast. Toggle '
-                  'Light/Dark above: does DSM green / KCY navy hold up '
-                  'in both, or does the badge itself need a theme-aware '
-                  'tint (not just the text)?',
-            ),
-            const _QuestionItem(
-              text:
-                  'The wood floor is dark-mode-only right now (light '
-                  'mode stays plain, matching the court.svg reference) '
-                  '-- want it in light mode too, or does the plain floor '
-                  'read better there?',
-            ),
-            const _QuestionItem(
-              text:
-                  'Slow/Med/Fast are now 3.0s/2.0s/0.75s per beat -- '
-                  'right range now, or still needs a slide?',
-            ),
-            const _QuestionItem(
-              text:
-                  'The break sheet itself -- right height/weight for a '
-                  'hard stop you\'ll see 4+ times a game, every game?',
-            ),
+            if (!widget.isReal) ...[
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                'What I need your read on',
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const _QuestionItem(
+                text:
+                    'Highlight badges -- team-color background, computed '
+                    'black/white text for guaranteed contrast. Toggle '
+                    'Light/Dark above: does DSM green / KCY navy hold up '
+                    'in both, or does the badge itself need a theme-aware '
+                    'tint (not just the text)?',
+              ),
+              const _QuestionItem(
+                text:
+                    'The wood floor is dark-mode-only right now (light '
+                    'mode stays plain, matching the court.svg reference) '
+                    '-- want it in light mode too, or does the plain floor '
+                    'read better there?',
+              ),
+              const _QuestionItem(
+                text:
+                    'Slow/Med/Fast are now 3.0s/2.0s/0.75s per beat -- '
+                    'right range now, or still needs a slide?',
+              ),
+              const _QuestionItem(
+                text:
+                    'The break sheet itself -- right height/weight for a '
+                    'hard stop you\'ll see 4+ times a game, every game?',
+              ),
+            ],
           ],
         ),
       ),
@@ -515,6 +753,10 @@ class _ScoreBug extends StatelessWidget {
     required this.awayScore,
     required this.clockLabel,
     required this.quarterLabel,
+    required this.homeAbbreviation,
+    required this.awayAbbreviation,
+    required this.homeColor,
+    required this.awayColor,
   });
 
   final int homeScore;
@@ -525,6 +767,11 @@ class _ScoreBug extends StatelessWidget {
   /// (`simulateMatchLive`'s own overtime handling), so this is no longer
   /// the Lab's old hardcoded literal.
   final String quarterLabel;
+
+  final String homeAbbreviation;
+  final String awayAbbreviation;
+  final Color homeColor;
+  final Color awayColor;
 
   @override
   Widget build(BuildContext context) {
@@ -538,13 +785,13 @@ class _ScoreBug extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
-              _TeamDot(color: _awayColor),
+              _TeamDot(color: awayColor),
               const SizedBox(width: AppSpacing.xs),
               Text(
-                _awayTeam.abbreviation,
+                awayAbbreviation,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: _legibleTextColor(_awayColor, theme.brightness),
+                  color: _legibleTextColor(awayColor, theme.brightness),
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
@@ -579,14 +826,14 @@ class _ScoreBug extends StatelessWidget {
               Text('$homeScore', style: scoreStyle),
               const SizedBox(width: AppSpacing.xs),
               Text(
-                _homeTeam.abbreviation,
+                homeAbbreviation,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: _legibleTextColor(_homeColor, theme.brightness),
+                  color: _legibleTextColor(homeColor, theme.brightness),
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
-              _TeamDot(color: _homeColor),
+              _TeamDot(color: homeColor),
             ],
           ),
         ),
@@ -621,6 +868,11 @@ class _FullCourtPanel extends StatelessWidget {
     required this.current,
     required this.log,
     required this.intervalMs,
+    required this.homeAbbreviation,
+    required this.awayAbbreviation,
+    required this.homeColor,
+    required this.awayColor,
+    required this.homeEmoji,
   });
 
   final _LabBeat? current;
@@ -631,6 +883,14 @@ class _FullCourtPanel extends StatelessWidget {
   /// always finishes comfortably within its own beat's time slot,
   /// however fast or slow that is.
   final int intervalMs;
+
+  /// Passed straight through to [_PlayHeadline] -- this panel itself only
+  /// reads [homeColor]/[awayColor]/[homeEmoji] directly.
+  final String homeAbbreviation;
+  final String awayAbbreviation;
+  final Color homeColor;
+  final Color awayColor;
+  final String homeEmoji;
 
   /// How many of the last plays a blip stays visible for before fading
   /// out completely.
@@ -798,7 +1058,7 @@ class _FullCourtPanel extends StatelessWidget {
                   child: CustomPaint(
                     painter: _FullCourtPainter(
                       lineColor: lineColor,
-                      centerRingColor: _homeColor,
+                      centerRingColor: homeColor,
                       floorColor: floorColor,
                     ),
                   ),
@@ -810,7 +1070,7 @@ class _FullCourtPanel extends StatelessWidget {
                   // center-court ring below was sized to frame the
                   // original 3x size, so it's left a little roomier
                   // around the emoji now rather than resized to match.
-                  child: Text(_homeEmoji, style: const TextStyle(fontSize: 50)),
+                  child: Text(homeEmoji, style: const TextStyle(fontSize: 50)),
                 ),
                 for (var i = 0; i < zoned.length; i++)
                   Align(
@@ -829,8 +1089,8 @@ class _FullCourtPanel extends StatelessWidget {
                     child: _BlipDot(
                       key: ValueKey(zoned[i].displayText),
                       color: zoned[i].badgeTeam == _Team.home
-                          ? _homeColor
-                          : _awayColor,
+                          ? homeColor
+                          : awayColor,
                       outlineColor: outline,
                       opacity: _blipOpacities[i],
                       isNewest: i == 0,
@@ -897,8 +1157,8 @@ class _FullCourtPanel extends StatelessWidget {
                           : (isDark
                                 ? Colors.white
                                 : (beat.badgeTeam == _Team.home
-                                      ? _homeColor
-                                      : _awayColor)),
+                                      ? homeColor
+                                      : awayColor)),
                       delay: shotDuration,
                     ),
                   ),
@@ -918,7 +1178,16 @@ class _FullCourtPanel extends StatelessWidget {
         // the court's share of that space, resizing the whole diagram
         // every single beat. Bumped from 92 to 116 (2026-08-18) to fit
         // a 3rd line -- longer player tags were ellipsizing at 2.
-        SizedBox(height: 116, child: _PlayHeadline(beat: current)),
+        SizedBox(
+          height: 116,
+          child: _PlayHeadline(
+            beat: current,
+            homeAbbreviation: homeAbbreviation,
+            awayAbbreviation: awayAbbreviation,
+            homeColor: homeColor,
+            awayColor: awayColor,
+          ),
+        ),
         const SizedBox(height: AppSpacing.xs),
         SizedBox(
           height: 62,
@@ -930,7 +1199,7 @@ class _FullCourtPanel extends StatelessWidget {
                   itemBuilder: (context, i) {
                     final beat = recent[i];
                     final color = _legibleTextColor(
-                      beat.badgeTeam == _Team.home ? _homeColor : _awayColor,
+                      beat.badgeTeam == _Team.home ? homeColor : awayColor,
                       theme.brightness,
                     );
                     return Row(
@@ -1183,9 +1452,19 @@ class _ShotResultPopupState extends State<_ShotResultPopup>
 /// "TEAM Pass" label for an assist's pass half, or just the plain line
 /// otherwise.
 class _PlayHeadline extends StatelessWidget {
-  const _PlayHeadline({required this.beat});
+  const _PlayHeadline({
+    required this.beat,
+    required this.homeAbbreviation,
+    required this.awayAbbreviation,
+    required this.homeColor,
+    required this.awayColor,
+  });
 
   final _LabBeat? beat;
+  final String homeAbbreviation;
+  final String awayAbbreviation;
+  final Color homeColor;
+  final Color awayColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1202,16 +1481,23 @@ class _PlayHeadline extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label != null) ...[
-          _HighlightBadge(team: current.badgeTeam, label: label),
+          _HighlightBadge(
+            team: current.badgeTeam,
+            label: label,
+            homeAbbreviation: homeAbbreviation,
+            awayAbbreviation: awayAbbreviation,
+            homeColor: homeColor,
+            awayColor: awayColor,
+          ),
           const SizedBox(height: 4),
         ] else if (current.isPass) ...[
           Text(
-            '${current.badgeTeam == _Team.home ? _homeTeam.abbreviation : _awayTeam.abbreviation} '
+            '${current.badgeTeam == _Team.home ? homeAbbreviation : awayAbbreviation} '
             'Pass',
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: _legibleTextColor(
-                current.badgeTeam == _Team.home ? _homeColor : _awayColor,
+                current.badgeTeam == _Team.home ? homeColor : awayColor,
                 theme.brightness,
               ),
             ),
@@ -1244,20 +1530,31 @@ class _PlayHeadline extends StatelessWidget {
 /// readable [on black]" -- as long as the badge itself provides the
 /// contrast, the team color underneath doesn't matter.
 class _HighlightBadge extends StatelessWidget {
-  const _HighlightBadge({required this.team, required this.label});
+  const _HighlightBadge({
+    required this.team,
+    required this.label,
+    required this.homeAbbreviation,
+    required this.awayAbbreviation,
+    required this.homeColor,
+    required this.awayColor,
+  });
 
   final _Team team;
   final String label;
+  final String homeAbbreviation;
+  final String awayAbbreviation;
+  final Color homeColor;
+  final Color awayColor;
 
   @override
   Widget build(BuildContext context) {
-    final background = team == _Team.home ? _homeColor : _awayColor;
+    final background = team == _Team.home ? homeColor : awayColor;
     final foreground = background.computeLuminance() > 0.55
         ? Colors.black
         : Colors.white;
     final abbreviation = team == _Team.home
-        ? _homeTeam.abbreviation
-        : _awayTeam.abbreviation;
+        ? homeAbbreviation
+        : awayAbbreviation;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(

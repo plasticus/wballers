@@ -16,6 +16,18 @@ final themeModeProvider = StateProvider((ref) => ThemeModePreference.system);
 
 enum ThemeModePreference { system, light, dark }
 
+/// Watch Live vs. Sim Instantly's last-used value (2026-08-18, `TODO.md`
+/// item 8's live-game architecture stage 5, a direct GM ask: "should be
+/// set at whatever you did last time") -- `MatchPreviewScreen`'s toggle
+/// reads and writes this instead of keeping its own local `State`, so
+/// flipping it off for one game keeps it off for the next without the GM
+/// having to redo it every time. Same in-memory-only, session-scoped
+/// persistence tier as [textScaleProvider]/[themeModeProvider] above (no
+/// disk persistence exists for any preference in this app yet) --
+/// defaults back to on (the feature's whole point) at the next app
+/// launch, not remembered forever.
+final watchLiveProvider = StateProvider<bool>((ref) => true);
+
 /// Combines the OS text-scale setting with the coach's in-app multiplier,
 /// then clamps the result. [systemScale] should come from
 /// `MediaQuery.textScalerOf(context).scale(1.0)`, which approximates a

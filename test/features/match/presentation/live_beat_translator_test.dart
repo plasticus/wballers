@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/match/domain/match_event.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
 import 'package:womensbballmgr/features/match/presentation/live_beat_translator.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
@@ -134,6 +135,91 @@ void main() {
         sawAndOne = beats.any((b) => b.highlight == LiveHighlight.andOne);
       }
       expect(sawAndOne, isTrue);
+    });
+
+    test('the possession right after a made basket reads as an inbound, '
+        'credited to the team that just got scored on -- not the team that '
+        'scored (2026-08-18, a direct GM catch: watching a real game, a '
+        'make immediately followed by what looked like the same team still '
+        'passing the ball around read as a possession bug)', () async {
+      var sawInbound = false;
+      for (var seed = 0; seed < 20 && !sawInbound; seed++) {
+        final beats = await _translateRealGame(
+          seed,
+          homeRoster: testRoster('home'),
+          awayRoster: testRoster('away'),
+        );
+        // Whichever team's score most recently ticked up (a made shot
+        // or a made free throw, tracked the same way the score-deltas
+        // test above already does) -- checked at the exact point of
+        // every inbound beat, rather than searching back for the
+        // nearest shot-attempt *beat*, which a made free throw (no
+        // `isShotAttempt` flag of its own) would silently skip past.
+        LiveTeam? lastScoringTeam;
+        for (final beat in beats) {
+          if (beat.deltaHome > 0) lastScoringTeam = LiveTeam.home;
+          if (beat.deltaAway > 0) lastScoringTeam = LiveTeam.away;
+          if (!beat.isInbound) continue;
+          sawInbound = true;
+          expect(lastScoringTeam, isNotNull, reason: 'seed $seed');
+          expect(
+            beat.team,
+            isNot(lastScoringTeam),
+            reason:
+                'seed $seed: the inbounding team must be whoever '
+                'just got scored on, not the scoring team',
+          );
+        }
+      }
+      expect(sawInbound, isTrue);
+    });
+
+    test('a hand-built home make immediately followed by away\'s first pass '
+        'reads as away inbounding -- isolates the inbound-team logic from '
+        'anything a real random game might coincidentally do', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+      final translator = LiveBeatTranslator(
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeAbbreviation: 'DSM',
+        awayAbbreviation: 'KCY',
+      );
+      final homeShooter = homeRoster.first;
+      final awayPasser = awayRoster.first;
+      final awayReceiver = awayRoster[1];
+
+      final segment = (
+        possessions: [
+          [
+            MatchEvent(
+              type: MatchEventType.shotMade,
+              secondsElapsed: 4,
+              player: homeShooter,
+              points: 2,
+              isThreePointAttempt: false,
+            ),
+          ],
+          [
+            MatchEvent(
+              type: MatchEventType.passAttempt,
+              secondsElapsed: 3,
+              player: awayPasser,
+              secondPlayer: awayReceiver,
+            ),
+          ],
+        ],
+        quarter: 1,
+        isEndOfQuarter: false,
+      );
+
+      final beats = translator.translateSegment(segment);
+
+      expect(beats, hasLength(2));
+      expect(beats[0].team, LiveTeam.home);
+      expect(beats[0].deltaHome, 2);
+      expect(beats[1].isInbound, isTrue);
+      expect(beats[1].team, LiveTeam.away);
     });
 
     test('isClutch tracks the real running score and clock', () async {

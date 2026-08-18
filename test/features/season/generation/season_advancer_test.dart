@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/match/domain/match_result.dart';
 import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
@@ -237,6 +238,75 @@ void main() {
     }
 
     expect(bbbScoreFaceGuarded, lessThan(bbbScoreBalanced));
+  });
+
+  test('ownGameAlreadyPlayed (2026-08-18, TODO.md item 8\'s live-game '
+      'architecture stage 5 -- Watch Live) slots a pre-computed result into '
+      'the GM\'s own game instead of simulating it, while every other of '
+      'today\'s games still gets bulk-simulated normally', () {
+    // A 2nd game on the same day as AAA-BBB, so there's a real "everyone
+    // else" to check wasn't also short-circuited.
+    const schedule = SeasonSchedule(
+      games: [
+        ScheduledGame(
+          week: 2,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: 'AAA',
+          awayTeamAbbreviation: 'BBB',
+          type: GameType.regularSeason,
+        ),
+        ScheduledGame(
+          week: 2,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: 'CCC',
+          awayTeamAbbreviation: 'DDD',
+          type: GameType.regularSeason,
+        ),
+      ],
+    );
+    final rosters = {
+      for (final abbr in ['AAA', 'BBB', 'CCC', 'DDD']) abbr: testRoster(abbr),
+    };
+    const progress = SeasonProgress(
+      schedule: schedule,
+      playedGames: [],
+      nextGameDayIndex: 0,
+    );
+    // An obviously-fabricated score `simulateMatch` would never itself
+    // produce -- the clearest possible signal that this exact object
+    // (not a fresh simulation) is what ends up in the result.
+    const fakeOwnMatch = MatchResult(
+      homeScore: 999,
+      awayScore: 1,
+      homeScoreByQuarter: [999],
+      awayScoreByQuarter: [1],
+      events: [],
+      minutesPlayed: {},
+      personalFouls: {},
+      fouledOut: {},
+      finalEnergy: {},
+    );
+
+    final result = advanceToNextGameDay(
+      Random(1),
+      progress,
+      rostersByAbbreviation: rosters,
+      ownTeamAbbreviation: 'AAA',
+      ownGameAlreadyPlayed: fakeOwnMatch,
+    );
+
+    expect(result.gamesPlayed.length, 2);
+    final ownResult = result.gamesPlayed.firstWhere(
+      (r) => r.game.homeTeamAbbreviation == 'AAA',
+    );
+    expect(identical(ownResult.match, fakeOwnMatch), isTrue);
+
+    final otherResult = result.gamesPlayed.firstWhere(
+      (r) => r.game.homeTeamAbbreviation == 'CCC',
+    );
+    expect(identical(otherResult.match, fakeOwnMatch), isFalse);
+    // A real simulated game -- never a 999-1 score.
+    expect(otherResult.match.homeScore, isNot(999));
   });
 
   group('Continental Cup round-chaining', () {

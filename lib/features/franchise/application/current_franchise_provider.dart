@@ -6,6 +6,7 @@ import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
 import '../../coach/generation/coach_free_agency_advancer.dart';
 import '../../draft/generation/draft_advancer.dart';
+import '../../match/domain/match_result.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../player/domain/player.dart';
 import '../../portrait/domain/portrait_appearance.dart';
@@ -400,6 +401,61 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       ownTeamAbbreviation: franchise.team.abbreviation,
       coachesByAbbreviation: coachesByAbbreviation(franchise),
       ownDefenseTactic: ownDefenseTactic,
+    );
+
+    final withTraining = _catchUpTraining(
+      franchise.copyWithSeasonProgress(advance.progress),
+    );
+    await _persist(withTraining);
+    return advance.gamesPlayed;
+  }
+
+  /// Same as [advanceGameDay], except the GM's own scheduled game for today
+  /// has *already* been played -- [ownMatch] is that real, already-computed
+  /// [MatchResult] (2026-08-18, `TODO.md` item 8's live-game architecture
+  /// stage 5, "Watch Live"): the GM watched it live, beat by beat, via
+  /// `simulateMatchLive` on its own screen (`LiveGameLabScreen`), rather
+  /// than having it bulk-simulated the instant way. Every other of today's
+  /// games still gets bulk-simulated here exactly as [advanceGameDay]
+  /// always does -- only the GM's own game is pulled from [ownMatch]
+  /// instead of a fresh `simulateMatch` call (`advanceToNextGameDay`'s own
+  /// `ownGameAlreadyPlayed` param, added for this).
+  ///
+  /// No new save-schema state exists for "a live game is in progress" --
+  /// a direct, locked design call (`TODO.md` item 8's "Interruption"
+  /// bullet, following the standing pre-release call to avoid save-schema
+  /// churn). Nothing from the live game
+  /// gets persisted until this call runs to completion with a real
+  /// [ownMatch] in hand -- if the app is backgrounded or closed mid-live-
+  /// game instead, [SeasonProgress.nextGameDayIndex] simply never moves,
+  /// and the GM re-lands on the same day's Matchup Preview next launch, as
+  /// if nothing had happened. That's deliberate, not a gap: it means this
+  /// method's caller only ever calls it with a real, fully-finished result.
+  Future<List<GameResult>?> advanceGameDayWithOwnResult(
+    MatchResult ownMatch, {
+    DefensiveTactic? ownDefenseTactic,
+  }) async {
+    final franchise = await future;
+    if (franchise == null || franchise.seasonProgress.isComplete) {
+      return null;
+    }
+    final activeCount = franchise.roster
+        .where((m) => m.status == RosterStatus.active)
+        .length;
+    if (activeCount < kActiveRosterSize) return null;
+
+    final advance = advanceToNextGameDay(
+      Random(
+        franchise.seasonSeed +
+            kSeasonAdvanceSeedOffset +
+            franchise.seasonProgress.nextGameDayIndex,
+      ),
+      franchise.seasonProgress,
+      rostersByAbbreviation: rostersByAbbreviation(franchise),
+      ownTeamAbbreviation: franchise.team.abbreviation,
+      coachesByAbbreviation: coachesByAbbreviation(franchise),
+      ownDefenseTactic: ownDefenseTactic,
+      ownGameAlreadyPlayed: ownMatch,
     );
 
     final withTraining = _catchUpTraining(

@@ -79,6 +79,10 @@ class PlayerGrowthCard extends StatelessWidget {
               ),
             ],
           ),
+          if (result.overallDelta != 0) ...[
+            const SizedBox(height: AppSpacing.xs),
+            _OverallChangeBanner(result: result),
+          ],
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.xs,
@@ -87,6 +91,57 @@ class PlayerGrowthCard extends StatelessWidget {
               for (final entry in _sortedFieldDeltas(result))
                 _FieldDeltaChip(field: entry.key, delta: entry.value),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A prominent callout for when the player's actual displayed OVR number
+/// -- not just the underlying field deltas already itemized below --
+/// ticked at least a whole point (2026-08-18, a direct GM ask: "I want to
+/// be notified if their OVR went up by 1 (eg, OVR 67 -> 68)"). Distinct
+/// from [totalPlayerGrowthDelta]'s headline number on purpose -- that's
+/// the raw field-delta sum (can be a real, felt "+5" week that still
+/// rounds to the same OVR), while this is [PlayerGrowthResult.overallDelta]
+/// specifically: the one number that actually moves on the player's own
+/// card/roster row. A whole-point OVR move is the milestone worth calling
+/// out on sight, not buried in the chip row underneath.
+class _OverallChangeBanner extends StatelessWidget {
+  const _OverallChangeBanner({required this.result});
+
+  final PlayerGrowthResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isGrowth = result.overallDelta > 0;
+    final color = isGrowth ? Colors.green.shade700 : Colors.red.shade700;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isGrowth ? Icons.arrow_circle_up : Icons.arrow_circle_down,
+            color: color,
+            size: 16,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            'OVR ${result.overallBefore} → ${result.overallAfter}',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

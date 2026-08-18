@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/match/domain/match_result.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
@@ -1140,6 +1141,95 @@ void main() {
           .advanceGameDay();
 
       expect(results, isNull);
+    });
+  });
+
+  group('advanceGameDayWithOwnResult', () {
+    // An obviously-fabricated score `simulateMatch` would never itself
+    // produce -- the clearest possible signal that this exact result (a
+    // real live-watched game, not a fresh instant simulation) is what
+    // actually gets persisted (2026-08-18, `TODO.md` item 8's live-game
+    // architecture stage 5 -- Watch Live).
+    const fakeOwnMatch = MatchResult(
+      homeScore: 999,
+      awayScore: 1,
+      homeScoreByQuarter: [999],
+      awayScoreByQuarter: [1],
+      events: [],
+      minutesPlayed: {},
+      personalFouls: {},
+      fouledOut: {},
+      finalEnergy: {},
+    );
+
+    test('returns null when there is no current franchise', () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(currentFranchiseProvider.future);
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDayWithOwnResult(fakeOwnMatch);
+
+      expect(results, isNull);
+    });
+
+    test('slots the given result into the GM\'s own game, persists a lean '
+        'SeasonProgress, and still bulk-simulates every other game the same '
+        'day for real', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDayWithOwnResult(fakeOwnMatch);
+
+      expect(results, isNotNull);
+      final ownAbbreviation = franchise.team.abbreviation;
+      final ownResult = results!.firstWhere(
+        (r) =>
+            r.game.homeTeamAbbreviation == ownAbbreviation ||
+            r.game.awayTeamAbbreviation == ownAbbreviation,
+      );
+      expect(identical(ownResult.match, fakeOwnMatch), isTrue);
+
+      // At least one other game that day -- a real, freshly-simulated
+      // result, not the GM's fabricated one.
+      final otherResults = results.where(
+        (r) =>
+            r.game.homeTeamAbbreviation != ownAbbreviation &&
+            r.game.awayTeamAbbreviation != ownAbbreviation,
+      );
+      expect(otherResults, isNotEmpty);
+      for (final other in otherResults) {
+        expect(identical(other.match, fakeOwnMatch), isFalse);
+      }
+
+      final updated = container.read(currentFranchiseProvider).value;
+      expect(updated!.seasonProgress.nextGameDayIndex, 1);
+      expect(updated.seasonProgress.playedGames.length, results.length);
     });
   });
 

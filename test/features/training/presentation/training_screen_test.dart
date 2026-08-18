@@ -103,26 +103,6 @@ void main() {
     expect(find.text('How Training Works'), findsOneWidget);
   });
 
-  testWidgets('the Coach Picker Lab button opens CoachPickerLabScreen '
-      '(2026-08-10, TODO.md item 5)', (tester) async {
-    final franchise = _franchiseWith();
-    final repository = await _seededRepository(franchise);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: MaterialApp(home: TrainingScreen(franchise: franchise)),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('Coach Picker Lab'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Coach Picker Lab'), findsOneWidget);
-    expect(find.text('1. Current Format (for reference)'), findsOneWidget);
-  });
-
   testWidgets('the Season To Date card\'s View Report button opens '
       'SeasonToDateReportScreen (2026-08-10, TODO.md item 5)', (tester) async {
     final franchise = _franchiseWith();

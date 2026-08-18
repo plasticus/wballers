@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../coach/domain/coach.dart';
+import '../../match/domain/match_result.dart';
 import '../../match/engine/match_engine.dart';
 import '../../match/engine/substitution_policy.dart';
 import '../../matchup/domain/defensive_tactic.dart';
@@ -98,6 +99,23 @@ class GameDayAdvance {
 /// "AI always Balanced, no exception" behavior applies to a franchise
 /// with no real pick made yet.
 ///
+/// [ownGameAlreadyPlayed] (2026-08-18, `TODO.md` item 8's live-game
+/// architecture stage 5 -- Watch Live), when given, is the GM's own
+/// scheduled game's real, already-computed [MatchResult] -- watched live
+/// beat by beat via `simulateMatchLive` on its own screen, rather than
+/// bulk-simulated here. Whichever of today's games has [ownTeamAbbreviation]
+/// on either side is resolved straight from this result instead of a fresh
+/// `_simulateOneGame` call -- it doesn't consume from [random] at all, so
+/// every other game this call still simulates draws from a different
+/// position in the stream than an ordinary instant-sim advance would have
+/// left them at. That's an accepted, one-time side effect of choosing
+/// Watch Live for a given day, not a determinism bug: nothing about this
+/// call's own reproducibility guarantee (a given day's `random` seed always
+/// produces the same result for *that* call) changes -- see
+/// `advanceGameDayWithOwnResult`'s own doc comment for why no save-schema
+/// state needs to track which path a day took. `null` (the default, every
+/// existing caller) leaves this function's behavior completely unchanged.
+///
 /// Continental Cup Rounds 2-5 aren't part of the schedule at franchise
 /// creation (each depends on the previous round's actual results), so
 /// this function grows [SeasonProgress.schedule] itself the moment a
@@ -116,6 +134,7 @@ GameDayAdvance advanceToNextGameDay(
   String? ownTeamAbbreviation,
   Map<String, Coach>? coachesByAbbreviation,
   DefensiveTactic? ownDefenseTactic,
+  MatchResult? ownGameAlreadyPlayed,
 }) {
   final gameDays = gameDaysInOrder(progress.schedule);
   assert(
@@ -129,7 +148,11 @@ GameDayAdvance advanceToNextGameDay(
 
   final results = [
     for (final game in todaysGames)
-      if (_simulatable(game, rostersByAbbreviation))
+      if (ownGameAlreadyPlayed != null &&
+          (game.homeTeamAbbreviation == ownTeamAbbreviation ||
+              game.awayTeamAbbreviation == ownTeamAbbreviation))
+        GameResult(game: game, match: ownGameAlreadyPlayed)
+      else if (_simulatable(game, rostersByAbbreviation))
         _simulateOneGame(
           random,
           game,

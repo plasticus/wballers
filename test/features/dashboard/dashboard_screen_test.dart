@@ -373,6 +373,12 @@ void main() {
       // generated schedule, not something worth pinning down here.
       final wentToPreview = find.text('Play Game').evaluate().isNotEmpty;
       if (wentToPreview) {
+        // Watch Live defaults on (2026-08-18, `TODO.md` item 8's live-game
+        // architecture stage 5) -- this test is about the day actually
+        // advancing and persisting, not watching a real game play out beat
+        // by beat in real time, so it opts out first.
+        await tester.tap(find.byType(Switch));
+        await tester.pump();
         await tester.tap(find.text('Play Game'));
         await tester.pumpAndSettle();
       }
