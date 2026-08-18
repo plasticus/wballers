@@ -561,23 +561,78 @@ void main() {
       expect(live.events.length, sync.events.length);
     });
 
-    test('onSegmentComplete is called at least once per quarter, and the '
-        'concatenation of every segment equals the final event log '
-        'exactly -- no event missed, none duplicated', () async {
-      final segments = <List<MatchEvent>>[];
-      final result = await simulateMatchLive(
-        Random(23),
+    test(
+      'onSegmentComplete is called at least once per quarter, and the '
+      'concatenation of every possession in every segment equals the '
+      'final event log exactly -- no event missed, none duplicated',
+      () async {
+        final segments = <LiveGameSegment>[];
+        final result = await simulateMatchLive(
+          Random(23),
+          homeRoster: testRoster('home'),
+          awayRoster: testRoster('away'),
+          onSegmentComplete: (segment) async {
+            segments.add(segment);
+          },
+        );
+
+        expect(segments.length, greaterThanOrEqualTo(4));
+        final concatenated = segments
+            .expand((segment) => segment.possessions)
+            .expand((events) => events)
+            .toList();
+        expect(concatenated.length, result.events.length);
+        expect(concatenated, orderedEquals(result.events));
+        // Every segment completes its quarter except a possible Q4
+        // late-game pause -- at most one `false` in the whole game.
+        expect(
+          segments.where((s) => !s.isEndOfQuarter).length,
+          lessThanOrEqualTo(1),
+        );
+      },
+    );
+
+    test('quarter and isEndOfQuarter track the real game state -- '
+        'quarters count up 1..4(+OT), and every segment completes its '
+        'quarter except a possible Q4 late-game pause', () async {
+      final segments = <LiveGameSegment>[];
+      await simulateMatchLive(
+        Random(41),
         homeRoster: testRoster('home'),
         awayRoster: testRoster('away'),
-        onSegmentComplete: (events) async {
-          segments.add(events);
+        onSegmentComplete: (segment) async {
+          segments.add(segment);
         },
       );
 
-      expect(segments.length, greaterThanOrEqualTo(4));
-      final concatenated = segments.expand((s) => s).toList();
-      expect(concatenated.length, result.events.length);
-      expect(concatenated, orderedEquals(result.events));
+      final quarters = segments.map((s) => s.quarter).toList();
+      expect(quarters, orderedEquals([...quarters]..sort()));
+      expect(quarters.first, 1);
+      for (final segment in segments) {
+        if (!segment.isEndOfQuarter) {
+          expect(segment.quarter, 4);
+        }
+      }
+    });
+
+    test('the tip-off is a real, translatable event -- the very first '
+        'possession, crediting whoever actually jumped', () async {
+      LiveGameSegment? firstSegment;
+      final result = await simulateMatchLive(
+        Random(9),
+        homeRoster: testRoster('home'),
+        awayRoster: testRoster('away'),
+        onSegmentComplete: (segment) async {
+          firstSegment ??= segment;
+        },
+      );
+
+      expect(firstSegment!.quarter, 1);
+      final tipOff = firstSegment!.possessions.first.first;
+      expect(tipOff.type, MatchEventType.tipOff);
+      expect(tipOff.player, isNotNull);
+      expect(tipOff.secondPlayer, isNotNull);
+      expect(result.events.first, tipOff);
     });
 
     test(

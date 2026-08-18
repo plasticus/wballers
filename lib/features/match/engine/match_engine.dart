@@ -215,17 +215,40 @@ MatchResult simulateMatch(
   return sim.toMatchResult();
 }
 
+/// One handoff from [simulateMatchLive] to its `onSegmentComplete`
+/// callback -- [possessions] is this segment's events, grouped (see
+/// [simulateMatchLive]'s own doc comment); [quarter] and [isEndOfQuarter]
+/// give a translator enough to track a running clock/quarter display
+/// without having to infer it from the events themselves.
+/// [isEndOfQuarter] is `false` for exactly one case: the Q4 late-game
+/// coaching break, which pauses mid-quarter rather than completing it --
+/// every other segment (every ordinary quarter, and the final one of the
+/// game, however many overtimes it took) completes its quarter.
+typedef LiveGameSegment = ({
+  List<List<MatchEvent>> possessions,
+  int quarter,
+  bool isEndOfQuarter,
+});
+
 /// The live, human-watched sibling of [simulateMatch] -- the one path in
 /// this whole engine that's actually `async` (2026-08-18, `TODO.md` item
 /// 8's live-game architecture work). Drives the exact same
 /// [_GameSimulation] logic [simulateMatch] uses, quarter by quarter, but
 /// stops after each quarter (and the Q4 late-game break, mid-quarter) to
-/// hand that segment's events to [onSegmentComplete] and await whatever
-/// it returns before continuing -- there's nothing time-gated about the
-/// simulation itself; every quarter still computes instantly, same as
-/// always. A live screen's own implementation of [onSegmentComplete] is
-/// where the actual watching experience lives: replay the events at
-/// whatever speed the GM picked, then return.
+/// hand that segment's possessions to [onSegmentComplete] and await
+/// whatever it returns before continuing -- there's nothing time-gated
+/// about the simulation itself; every quarter still computes instantly,
+/// same as always. A live screen's own implementation of
+/// [onSegmentComplete] is where the actual watching experience lives:
+/// translate the events into beats and replay them at whatever speed the
+/// GM picked, then return.
+///
+/// Each entry in [onSegmentComplete]'s `possessions` is one possession's
+/// worth of events (the tip-off counts as its own single-event
+/// "possession") -- grouped, not a flat list, so a translator can tell
+/// "the first pass of a new possession" (reads as bringing the ball up)
+/// apart from "a later pass in the same one" (reads as ball movement)
+/// without having to re-infer possession boundaries after the fact.
 ///
 /// [homeLiveCoachingPicker]/[awayLiveCoachingPicker] mirror
 /// [simulateMatch]'s own [CoachingOptionPicker] params, just awaitable --
@@ -248,8 +271,7 @@ Future<MatchResult> simulateMatchLive(
   DefensiveTactic awayDefenseTactic = DefensiveTactic.balanced,
   LiveCoachingPicker? homeLiveCoachingPicker,
   LiveCoachingPicker? awayLiveCoachingPicker,
-  required Future<void> Function(List<MatchEvent> segmentEvents)
-  onSegmentComplete,
+  required Future<void> Function(LiveGameSegment segment) onSegmentComplete,
 }) async {
   assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
   assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
@@ -268,11 +290,15 @@ Future<MatchResult> simulateMatchLive(
     awayLiveCoachingPicker: awayLiveCoachingPicker,
   );
 
-  var eventsHandedOff = 0;
-  Future<void> flushEvents() async {
-    final segment = sim.events.sublist(eventsHandedOff);
-    eventsHandedOff = sim.events.length;
-    await onSegmentComplete(segment);
+  var possessionsHandedOff = 0;
+  Future<void> flushEvents({required bool isEndOfQuarter}) async {
+    final segment = sim.possessions.sublist(possessionsHandedOff);
+    possessionsHandedOff = sim.possessions.length;
+    await onSegmentComplete((
+      possessions: segment,
+      quarter: sim.quarter,
+      isEndOfQuarter: isEndOfQuarter,
+    ));
   }
 
   while (!sim.isComplete) {
@@ -282,7 +308,7 @@ Future<MatchResult> simulateMatchLive(
     sim.startQuarterClock();
     while (true) {
       final pausedForLateBreak = sim.runSegment();
-      await flushEvents();
+      await flushEvents(isEndOfQuarter: !pausedForLateBreak);
       if (!pausedForLateBreak) break;
       await sim.resolveLateGameBreakLive();
     }
@@ -369,11 +395,21 @@ class _GameSimulation {
       fouledOut: fouledOut,
       rested: awayRestedPlayers,
     );
-    tipOffWinnerIsHome = resolveTipOff(
-      _random,
-      _tallest(homeOnCourt),
-      _tallest(awayOnCourt),
+    final homeJumper = _tallest(homeOnCourt);
+    final awayJumper = _tallest(awayOnCourt);
+    tipOffWinnerIsHome = resolveTipOff(_random, homeJumper, awayJumper);
+    // Surfaced as a real event (2026-08-18, TODO.md item 8's live-game
+    // architecture stage 3) so a live translator has something to credit
+    // the tip-off to -- previously resolved silently, with no MatchEvent
+    // at all despite MatchEventType.tipOff already existing in the enum.
+    final tipOffEvent = MatchEvent(
+      type: MatchEventType.tipOff,
+      secondsElapsed: 0,
+      player: tipOffWinnerIsHome ? homeJumper : awayJumper,
+      secondPlayer: tipOffWinnerIsHome ? awayJumper : homeJumper,
     );
+    events.add(tipOffEvent);
+    possessions.add([tipOffEvent]);
   }
 
   final Random _random;
@@ -407,6 +443,17 @@ class _GameSimulation {
   final homeScoreByQuarter = <int>[];
   final awayScoreByQuarter = <int>[];
   final events = <MatchEvent>[];
+
+  /// The same events as [events], grouped by possession (the tip-off
+  /// counts as its own single-event "possession") -- kept alongside the
+  /// flat list rather than instead of it, since [toMatchResult] and the
+  /// box score it feeds only ever wanted a flat log, while
+  /// [simulateMatchLive]'s translator (2026-08-18, `TODO.md` item 8's
+  /// live-game architecture stage 3) needs real possession boundaries to
+  /// tell "first pass of a new possession" (reads as bringing the ball
+  /// up) apart from "a later pass in the same one" (reads as ball
+  /// movement) -- a distinction the flat list alone can't make.
+  final possessions = <List<MatchEvent>>[];
   final minutesPlayed = <Player, double>{};
   final personalFouls = <Player, int>{};
   final fouledOut = <Player>{};
@@ -714,6 +761,7 @@ class _GameSimulation {
           : homeCoachingBonus,
     );
     events.addAll(result.events);
+    possessions.add(result.events);
     _quarterClock -= result.secondsElapsed;
     _secondsSinceSubCheck += result.secondsElapsed;
 

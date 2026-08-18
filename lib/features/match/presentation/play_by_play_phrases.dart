@@ -5,7 +5,7 @@
 // hand-editable copy), then re-run the script to refresh this file:
 //   python3 tool/generate_play_by_play_phrases.py
 
-// 126 phrases across 19 categories.
+// 141 phrases across 22 categories.
 const Map<String, List<String>> kPlayByPlayPhrases = {
   'tip_off': [
     '{player} wins the tip for {team}.',
@@ -170,5 +170,26 @@ const Map<String, List<String>> kPlayByPlayPhrases = {
     '{player} dishes it to {player2} for the open look.',
     '{player} threads a pass to {player2} in the paint.',
     '{player} swings it to {player2} on the wing.',
+  ],
+  'offensive_rebound': [
+    '{player} claws it away for the offensive rebound.',
+    '{player} taps it back out to keep the possession alive.',
+    '{player} out-hustles everyone for the extra chance.',
+    '{player} grabs her own team\'s miss.',
+    '{player} secures the offensive rebound.',
+  ],
+  'shot_clock_violation': [
+    'The shot clock expires on {team} -- turnover.',
+    '{team} can\'t get a shot up in time -- shot clock violation.',
+    'The horn sounds before {team} gets a shot away.',
+    '{team} holds it too long -- shot clock violation.',
+    'Turnover, {team} -- the shot clock runs out.',
+  ],
+  'shooting_foul_no_make': [
+    '{player} is fouled on the shot -- headed to the line.',
+    '{player} gets hacked on the attempt, two shots coming.',
+    'No good, but {player} draws the shooting foul.',
+    '{player} draws contact from {player2} on the attempt -- free throws.',
+    'The whistle blows on {player}\'s attempt -- she\'s shooting free throws.',
   ],
 };

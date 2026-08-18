@@ -254,3 +254,42 @@ phrases = [
   "{player} threads a pass to {player2} in the paint.",
   "{player} swings it to {player2} on the wing.",
 ]
+
+# The following 3 categories (2026-08-18) exist for the real live-game
+# translator (TODO.md item 8's stage 3), not the hand-scripted lab --
+# real MatchEvents this engine already produces with no matching wording
+# bank before now.
+
+[offensive_rebound]
+# A rebound that keeps the same team's possession alive -- distinct from
+# [putback] (a make immediately after this), this is just the board,
+# no score yet. Position: C/PF/SF primarily.
+phrases = [
+  "{player} claws it away for the offensive rebound.",
+  "{player} taps it back out to keep the possession alive.",
+  "{player} out-hustles everyone for the extra chance.",
+  "{player} grabs her own team's miss.",
+  "{player} secures the offensive rebound.",
+]
+
+[shot_clock_violation]
+phrases = [
+  "The shot clock expires on {team} -- turnover.",
+  "{team} can't get a shot up in time -- shot clock violation.",
+  "The horn sounds before {team} gets a shot away.",
+  "{team} holds it too long -- shot clock violation.",
+  "Turnover, {team} -- the shot clock runs out.",
+]
+
+[shooting_foul_no_make]
+# A missed shot that still drew a shooting foul -- free throws follow
+# separately (see [free_throws]). {player} is the shooter fouled
+# (matching [and_one]'s own convention); {player2} (optional) is the
+# defender who fouled her.
+phrases = [
+  "{player} is fouled on the shot -- headed to the line.",
+  "{player} gets hacked on the attempt, two shots coming.",
+  "No good, but {player} draws the shooting foul.",
+  "{player} draws contact from {player2} on the attempt -- free throws.",
+  "The whistle blows on {player}'s attempt -- she's shooting free throws.",
+]
