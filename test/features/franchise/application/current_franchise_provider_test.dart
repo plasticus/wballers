@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
+import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
@@ -2340,6 +2341,72 @@ void main() {
       final updated = container.read(currentFranchiseProvider).value!;
       expect(updated.resolvedTradeOfferIds, contains('some-offer-id'));
       expect(updated.roster.length, franchise.roster.length);
+    });
+  });
+
+  group('hireHeadCoach', () {
+    test('replaces the GM\'s own head coach outright', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      const newCoach = Coach(
+        name: 'Riley Sanchez',
+        stats: CoachStats(
+          offense: 45,
+          defense: 45,
+          development: 45,
+          motivation: 45,
+          management: 45,
+        ),
+        archetype: CoachArchetype.steadyHand,
+        age: 45,
+      );
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .hireHeadCoach(newCoach);
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.coach.name, 'Riley Sanchez');
+      expect(updated.coach.age, 45);
+      expect(updated.coach.stats.overall, 45);
+    });
+
+    test('does nothing when there is no current franchise', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .hireHeadCoach(
+            const Coach(
+              name: 'Riley Sanchez',
+              stats: CoachStats.neutral,
+              archetype: CoachArchetype.steadyHand,
+            ),
+          );
+
+      expect(container.read(currentFranchiseProvider).value, isNull);
     });
   });
 

@@ -44,7 +44,14 @@ class CoachStats {
   /// Simple unweighted average of the five stats, rounded to the nearest
   /// int, for a single-number summary (e.g. a coach list or detail header).
   int get overall {
-    return ((offense + defense + development + motivation + management) / 5)
-        .round();
+    return (skillTotal / 5).round();
   }
+
+  /// The five stats summed, not averaged -- what `coach_lifecycle.dart`'s
+  /// `coachSkillTotalForAge` targets at generation/growth time, same
+  /// "currency" role `PlayerRatings.skillPoints` plays for players (two
+  /// coaches can share the same rounded [overall] while genuinely
+  /// differing in total skill).
+  int get skillTotal =>
+      offense + defense + development + motivation + management;
 }

@@ -28,6 +28,7 @@ Map<String, dynamic> coachToJson(Coach coach) {
     'name': coach.name,
     'stats': coachStatsToJson(coach.stats),
     'archetype': coach.archetype.name,
+    'age': coach.age,
     'appearance': coach.appearance == null
         ? null
         : portraitAppearanceToJson(coach.appearance!),
@@ -41,6 +42,7 @@ Coach coachFromJson(Map<String, dynamic> json) {
     // No legacy-save fallback -- pre-release schema churn gets a fresh
     // save, not defensive parsing (0C_Vision_and_Ideas.md).
     archetype: CoachArchetype.values.byName(json['archetype'] as String),
+    age: json['age'] as int,
     appearance: json['appearance'] == null
         ? null
         : portraitAppearanceFromJson(

@@ -1,21 +1,21 @@
 import 'dart:math';
 
-import '../../../core/ratings/rating_scale.dart';
 import '../../player/generation/name_pools_by_country.dart';
 import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../portrait/generation/portrait_generator.dart';
 import '../domain/coach.dart';
 import '../domain/coach_archetype.dart';
+import '../domain/coach_lifecycle.dart';
 import '../domain/coach_stats.dart';
 
-/// Per-stat adjustments layered on top of a coach's random base value
-/// before clamping to the 1-99 scale -- same "archetype rolled first, then
-/// biases the stat block" shape `player_generator.dart` uses, just with no
-/// second bias source to combine (coaches have no position-equivalent
-/// concept). Magnitudes are the only thing separating one archetype from
-/// another, so they run a bit larger than a player archetype's on-top-of-
-/// position bias -- initial guess, not yet calibrated against anything.
+/// Per-stat weighting used when distributing a fixed total across the 5
+/// `CoachStats` fields (`_distributeStats`) -- same "archetype rolled
+/// first, then biases the stat block" shape `player_generator.dart`
+/// uses, just spent as *how likely this stat is to get the next point*
+/// rather than *how much to nudge an independent roll*, since generation
+/// is age-first now (`coach_lifecycle.dart`): the total is fixed by age,
+/// not free to vary with the bias.
 typedef _StatDeltas = ({
   int offense,
   int defense,
@@ -87,22 +87,89 @@ const Map<CoachArchetype, _StatDeltas> _archetypeBias = {
   CoachArchetype.steadyHand: _zeroDeltas,
 };
 
-int _generateStat(Random random, int qualityCenter, int spread, int bias) {
-  final jitter = random.nextInt(spread * 2 + 1) - spread;
-  return (qualityCenter + bias + jitter).clamp(kMinRating, kMaxRating);
+enum _Stat { offense, defense, development, motivation, management }
+
+/// Keeps every stat's pick-weight positive even at the single most
+/// negative bias any archetype defines today (-10, `fieryCompetitor`'s
+/// development) -- a stat that's actively biased *against* should still
+/// be pickable sometimes, just rarely, not literally impossible.
+const _kBaseWeight = 20;
+
+/// Distributes [age]'s [coachSkillTotalForAge] across the 5 `CoachStats`
+/// fields: every stat starts at [kCoachMinStat], then one point at a time
+/// (weighted by [bias] -- a stat gets picked roughly
+/// `(bias + _kBaseWeight)`-proportionally often, so a +14 archetype lean
+/// reads clearly without ever fully starving a -6/-10 one) goes to a
+/// randomly chosen stat that hasn't yet hit [kCoachMaxStat], until the
+/// full total is placed. Guarantees the exact total and every per-stat
+/// bound by construction -- no clamp-and-hope needed the way independent
+/// jitter rolls used to require. [coachSkillTotalForAge]'s real range
+/// (250-350) never gets close to forcing an impossible distribution: the
+/// floor (5×[kCoachMinStat] = 150) and ceiling (5×[kCoachMaxStat] = 395)
+/// both comfortably contain it.
+CoachStats _distributeStats(
+  Random random, {
+  required int age,
+  required _StatDeltas bias,
+}) {
+  final biasFor = {
+    _Stat.offense: bias.offense,
+    _Stat.defense: bias.defense,
+    _Stat.development: bias.development,
+    _Stat.motivation: bias.motivation,
+    _Stat.management: bias.management,
+  };
+  final values = {for (final stat in _Stat.values) stat: kCoachMinStat};
+
+  var remaining =
+      coachSkillTotalForAge(age) - kCoachMinStat * _Stat.values.length;
+  while (remaining > 0) {
+    final eligible = [
+      for (final stat in _Stat.values)
+        if (values[stat]! < kCoachMaxStat) stat,
+    ];
+    assert(
+      eligible.isNotEmpty,
+      'coachSkillTotalForAge($age) exceeds every stat maxed at kCoachMaxStat',
+    );
+    final weights = [
+      for (final stat in eligible) biasFor[stat]! + _kBaseWeight,
+    ];
+    final totalWeight = weights.fold(0, (sum, w) => sum + w);
+    var roll = random.nextInt(totalWeight);
+    var chosen = eligible.last;
+    for (var i = 0; i < eligible.length; i++) {
+      if (roll < weights[i]) {
+        chosen = eligible[i];
+        break;
+      }
+      roll -= weights[i];
+    }
+    values[chosen] = values[chosen]! + 1;
+    remaining--;
+  }
+
+  return CoachStats(
+    offense: values[_Stat.offense]!,
+    defense: values[_Stat.defense]!,
+    development: values[_Stat.development]!,
+    motivation: values[_Stat.motivation]!,
+    management: values[_Stat.management]!,
+  );
 }
 
-/// Generates a coach with a random name, a rolled [CoachArchetype], and
-/// jittered stats around [qualityCenter] biased to fit that archetype --
-/// a hired NPC, not a blank [CoachStats.neutral] clone, so a new
-/// franchise's starting coach feels like a distinct individual the same
-/// way a generated player does. Deterministic for a given [random] stream.
+/// Generates a coach with a random name, a rolled [CoachArchetype], a
+/// random age in [minAge]-[maxAge] inclusive, and stats distributed to
+/// hit that age's real [coachSkillTotalForAge] exactly
+/// (`_distributeStats`) -- a hired NPC, not a blank [CoachStats.neutral]
+/// clone, so a new franchise's starting coach feels like a distinct
+/// individual the same way a generated player does. Deterministic for a
+/// given [random] stream.
 ///
 /// [archetype] defaults to a random roll; pass one explicitly to force a
 /// specific style instead -- what [generateCoachCandidates] does to build
-/// a set of head-coach options the GM picks between at onboarding, each
-/// with a different, already-known philosophy rather than another random
-/// roll.
+/// a set of head-coach options the GM picks between, each with a
+/// different, already-known philosophy rather than another random roll.
 ///
 /// [portraitWeights] is optional, same contract as `generatePlayer`'s: omit
 /// it to leave [Coach.appearance] `null` without consuming any random
@@ -111,8 +178,8 @@ int _generateStat(Random random, int qualityCenter, int spread, int bias) {
 /// before a manifest was threaded through at all.
 Coach generateCoach(
   Random random, {
-  int qualityCenter = 50,
-  int qualitySpread = 15,
+  required int minAge,
+  required int maxAge,
   CoachArchetype? archetype,
   PortraitWeights? portraitWeights,
   PortraitManifest? portraitManifest,
@@ -121,6 +188,7 @@ Coach generateCoach(
       archetype ??
       CoachArchetype.values[random.nextInt(CoachArchetype.values.length)];
   final bias = _archetypeBias[resolvedArchetype] ?? _zeroDeltas;
+  final age = minAge + random.nextInt(maxAge - minAge + 1);
 
   final firstName = kAllGivenNames[random.nextInt(kAllGivenNames.length)];
   final lastName = kAllSurnames[random.nextInt(kAllSurnames.length)];
@@ -135,72 +203,70 @@ Coach generateCoach(
 
   return Coach(
     name: '$firstName $lastName',
-    stats: CoachStats(
-      offense: _generateStat(
-        random,
-        qualityCenter,
-        qualitySpread,
-        bias.offense,
-      ),
-      defense: _generateStat(
-        random,
-        qualityCenter,
-        qualitySpread,
-        bias.defense,
-      ),
-      development: _generateStat(
-        random,
-        qualityCenter,
-        qualitySpread,
-        bias.development,
-      ),
-      motivation: _generateStat(
-        random,
-        qualityCenter,
-        qualitySpread,
-        bias.motivation,
-      ),
-      management: _generateStat(
-        random,
-        qualityCenter,
-        qualitySpread,
-        bias.management,
-      ),
-    ),
+    stats: _distributeStats(random, age: age, bias: bias),
     archetype: resolvedArchetype,
+    age: age,
     appearance: appearance,
   );
 }
 
-/// A set of [count] head-coach candidates for the GM to choose between at
-/// onboarding, each a different, already-known [CoachArchetype] (a
-/// shuffle of [CoachArchetype.values], not [count] independent random
-/// rolls, so two candidates never duplicate a philosophy) -- one
-/// offense-minded, one defense-minded, one player-development-minded,
-/// whatever the shuffle happens to land on, "pull from the archetypes at
-/// random" per the GM's own framing. [qualitySpread] defaults tighter
-/// than [generateCoach]'s own default so the archetype's philosophy
-/// reads clearly rather than getting drowned out by jitter noise --
-/// candidates should feel "super comparable, just different goals," not
-/// randomly stronger or weaker than each other.
+/// A set of [count] head-coach candidates to choose between -- each a
+/// different, already-known [CoachArchetype] (a shuffle of
+/// [CoachArchetype.values], not [count] independent random rolls, so two
+/// candidates never duplicate a philosophy up to [CoachArchetype.values]'s
+/// own length, then genuinely random archetypes beyond that for a larger
+/// [count] like the Available Head Coaches screen's 10) -- "pull from the
+/// archetypes at random" per the GM's own framing for the original
+/// onboarding picker; the same shape now also powers
+/// `AvailableHeadCoachesScreen`'s later hiring pool, just with a wider
+/// [minAge]-[maxAge] band and a bigger [count].
 List<Coach> generateCoachCandidates(
   Random random, {
   int count = 3,
-  int qualityCenter = 50,
-  int qualitySpread = 6,
+  required int minAge,
+  required int maxAge,
   PortraitWeights? portraitWeights,
   PortraitManifest? portraitManifest,
 }) {
   final archetypes = [...CoachArchetype.values]..shuffle(random);
+  final resolvedArchetypes = [
+    for (var i = 0; i < count; i++) archetypes[i % archetypes.length],
+  ];
   return [
-    for (final archetype in archetypes.take(count))
+    for (final archetype in resolvedArchetypes)
       generateCoach(
         random,
-        qualityCenter: qualityCenter,
-        qualitySpread: qualitySpread,
+        minAge: minAge,
+        maxAge: maxAge,
         archetype: archetype,
         portraitWeights: portraitWeights,
         portraitManifest: portraitManifest,
       ),
   ];
+}
+
+/// One off-season's worth of aging for [coach] -- age +1, every one of
+/// the 5 `CoachStats` fields +1, each independently capped at
+/// [kCoachMaxStat] -- "a flat +1 per skill every off-season," a direct GM
+/// call, deliberately *not* a re-derivation from [coachSkillTotalForAge]
+/// (that formula only ever sets a *freshly generated* coach's starting
+/// total; growth afterward is purely additive). A stat that hits
+/// [kCoachMaxStat] before [coach] reaches [kCoachRetirementAge] simply
+/// stops growing on that one stat -- no overflow rollover to another
+/// stat, matching the flat, simple rule as given. Doesn't check
+/// retirement itself -- `coach_aging_advancer.dart`'s
+/// `resolveCoachAging` calls [coachHasReachedMandatoryRetirement] on the
+/// *result* of this to decide that separately.
+Coach growCoach(Coach coach) {
+  int grow(int stat) => stat >= kCoachMaxStat ? stat : stat + 1;
+  return coach.copyWithGrowth(
+    newAge: coach.age + 1,
+    newStats: CoachStats(
+      offense: grow(coach.stats.offense),
+      defense: grow(coach.stats.defense),
+      development: grow(coach.stats.development),
+      motivation: grow(coach.stats.motivation),
+      management: grow(coach.stats.management),
+    ),
+  );
 }

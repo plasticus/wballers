@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/portrait_cache_provider.dart';
 import 'package:womensbballmgr/core/persistence/save_envelope.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/coach/domain/coach.dart';
@@ -32,8 +33,10 @@ import 'package:womensbballmgr/features/season/generation/season_schedule_genera
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
+import '../../support/in_memory_portrait_cache.dart';
 import '../../support/in_memory_save_repository.dart';
 import '../../support/league_test_helpers.dart';
+import '../../support/portrait_test_helpers.dart';
 import '../../support/season_test_helpers.dart';
 import '../../support/training_test_helpers.dart';
 
@@ -843,6 +846,58 @@ void main() {
 
     expect(find.text('Season Recap'), findsOneWidget);
   });
+
+  testWidgets(
+    'once a champion is crowned, also offers "Available Head Coaches" '
+    '(2026-08-19, a direct GM ask: "During the offseason, maybe there\'s '
+    'a new button on the Dashboard")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final base = _franchiseWith();
+      final league = base.league;
+      final totalGameDays = gameDaysInOrder(
+        base.seasonProgress.schedule,
+      ).length;
+      final finals = ScheduledGame(
+        week: 24,
+        day: GameDay.thursday,
+        homeTeamAbbreviation: league.aiTeams[0].team.abbreviation,
+        awayTeamAbbreviation: league.aiTeams[1].team.abbreviation,
+        type: GameType.postseason,
+        postseasonRound: 3,
+      );
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: base.seasonProgress.schedule,
+          playedGames: [PlayedGame(game: finals, homeScore: 90, awayScore: 80)],
+          nextGameDayIndex: totalGameDays,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(repository),
+            portraitCacheProvider.overrideWithValue(InMemoryPortraitCache()),
+          ],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Available Head Coaches'), findsOneWidget);
+
+      await tester.tap(find.text('Available Head Coaches'));
+      await letPortraitAsyncWorkFinish(tester);
+
+      expect(find.text('Available Head Coaches'), findsWidgets);
+      expect(find.text('Hire'), findsWidgets);
+    },
+  );
 
   group('training-ready affordance', () {
     testWidgets('is not shown before a full training week has been played', (

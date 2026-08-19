@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
+import '../../coach/domain/coach.dart';
+import '../../coach/generation/coach_aging_advancer.dart';
 import '../../coach/generation/coach_free_agency_advancer.dart';
 import '../../draft/generation/draft_advancer.dart';
 import '../../league/domain/league.dart';
@@ -195,6 +197,22 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
             isDevelopmentalEligible(candidate),
       RosterStatus.reserveInactive => count < kMaxInactiveRosterSpots,
     };
+  }
+
+  /// Replaces the GM's own head coach with [newCoach] -- "the GM can
+  /// hire a new head coach every off-season, if they want," a direct GM
+  /// call (2026-08-19, `coach-lifecycle-notes.md`). Entirely voluntary
+  /// (no forced turnover the way a poor-record AI team gets fired) and
+  /// unconditional here -- `AvailableHeadCoachesScreen` is the only
+  /// caller, and only ever shows itself during the off-season window
+  /// (`isTradeWindowOpen`'s own "gate in the UI, not the provider" shape
+  /// applies here too), so nothing else needs to re-check that. The old
+  /// coach is discarded outright, same as a fired/retired AI coach --
+  /// no persisted "former coaches" list exists for anything to read.
+  Future<void> hireHeadCoach(Coach newCoach) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    await _persist(franchise.copyWithCoach(newCoach));
   }
 
   /// Sets (or, given `null`, clears) [Franchise.tradeBlockPlayerId] --
@@ -811,11 +829,20 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withAiTraining = agingAdvance.franchise.copyWithLeague(
       aiTrainingAdvance.league,
     );
-    final coachFreeAgencyAdvance = resolveCoachFreeAgency(
-      Random(withAiTraining.seasonSeed + kCoachFreeAgencySeedOffset),
+    // Every coach (GM's own + all 19 AI) ages a year and grows -- runs
+    // before the performance-based firing check below, so a same-turn
+    // mandatory-retirement replacement can't also get performance-fired
+    // this same off-season (its coachHiredSeason already resets here).
+    final coachAgingAdvance = resolveCoachAging(
+      Random(withAiTraining.seasonSeed + kCoachAgingSeedOffset),
       withAiTraining,
     );
-    final withCoachFreeAgency = withAiTraining.copyWithLeague(
+    final withCoachAging = coachAgingAdvance.franchise;
+    final coachFreeAgencyAdvance = resolveCoachFreeAgency(
+      Random(withCoachAging.seasonSeed + kCoachFreeAgencySeedOffset),
+      withCoachAging,
+    );
+    final withCoachFreeAgency = withCoachAging.copyWithLeague(
       coachFreeAgencyAdvance.league,
     );
     final aiAgingAdvance = resolveAiTeamSeasonEndAging(

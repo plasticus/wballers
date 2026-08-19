@@ -59,6 +59,9 @@ Franchise _sampleFranchise({
         management: 50,
       ),
       archetype: CoachArchetype.offensiveInnovator,
+      // Distinct from the 50 default, so the round-trip test below can't
+      // pass by accident.
+      age: 58,
     ),
     roster: roster,
     simulationSeed: 42,
@@ -109,6 +112,7 @@ void main() {
     expect(restored.coach.name, original.coach.name);
     expect(restored.coach.stats.overall, original.coach.stats.overall);
     expect(restored.coach.archetype, original.coach.archetype);
+    expect(restored.coach.age, original.coach.age);
 
     expect(
       restored.seasonProgress.schedule.games.length,

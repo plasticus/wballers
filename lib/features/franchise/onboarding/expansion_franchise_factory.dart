@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../coach/domain/coach.dart';
+import '../../coach/domain/coach_lifecycle.dart';
 import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
 import '../../league/generation/league_generator.dart';
@@ -258,6 +259,8 @@ Franchise createExpansionFranchise({
         coach ??
         generateCoach(
           Random(simulationSeed),
+          minAge: kCoachInitialLeagueMinAge,
+          maxAge: kCoachInitialLeagueMaxAge,
           portraitWeights: portraitWeights,
           portraitManifest: portraitManifest,
         ),

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../coach/domain/coach_lifecycle.dart';
 import '../../coach/generation/coach_generator.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../roster/generation/ai_roster_generator.dart';
@@ -47,7 +48,12 @@ League generateLeague({
       AiTeamRoster(
         team: team,
         roster: generateAiRoster(random, portraitWeights: portraitWeights),
-        coach: generateCoach(coachRandom, portraitWeights: portraitWeights),
+        coach: generateCoach(
+          coachRandom,
+          minAge: kCoachInitialLeagueMinAge,
+          maxAge: kCoachInitialLeagueMaxAge,
+          portraitWeights: portraitWeights,
+        ),
       ),
   ];
 

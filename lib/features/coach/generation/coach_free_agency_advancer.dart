@@ -5,6 +5,7 @@ import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/domain/season_progress.dart';
+import '../domain/coach_lifecycle.dart';
 import 'coach_generator.dart';
 
 /// Offset for the once-per-season coach free-agency resolution -- a
@@ -105,7 +106,11 @@ CoachFreeAgencyAdvance resolveCoachFreeAgency(
       firedTeamAbbreviations.add(aiTeam.team.abbreviation);
       newAiTeams.add(
         aiTeam.copyWithCoach(
-          newCoach: generateCoach(random),
+          newCoach: generateCoach(
+            random,
+            minAge: kCoachEntryMinAge,
+            maxAge: kCoachEntryMaxAge,
+          ),
           hiredSeason: franchise.season,
         ),
       );

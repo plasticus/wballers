@@ -8,6 +8,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../coach/domain/coach.dart';
 import '../../coach/domain/coach_archetype.dart';
+import '../../coach/domain/coach_lifecycle.dart';
 import '../../coach/generation/coach_generator.dart';
 import '../../league/domain/team.dart';
 import '../../portrait/domain/portrait_manifest.dart';
@@ -19,12 +20,22 @@ import 'expansion_franchise_factory.dart';
 
 /// Step 2 of onboarding: a real staffing decision, not an auto-assigned
 /// coach. Shows 3 head-coach candidates -- distinct archetypes, "super
-/// comparable, just different goals in mind" per the GM's own framing --
-/// generated deterministically from the identity step's `simulationSeed`
-/// (`generateCoachCandidates`). The GM's pick becomes the franchise's
-/// actual head coach; only then does the franchise actually get created.
-/// Re-hiring a different coach later is explicitly future (off-season)
-/// work, not built here.
+/// comparable, just different goals in mind" per the GM's own framing,
+/// each age 49-51 (`kCoachInitialLeagueMinAge`-`kCoachInitialLeagueMaxAge`,
+/// `coach_lifecycle.dart`) -- generated deterministically from the
+/// identity step's `simulationSeed` (`generateCoachCandidates`). The GM's
+/// pick becomes the franchise's actual head coach; only then does the
+/// franchise actually get created.
+///
+/// **Re-roll** (2026-08-19, a direct GM ask: "I'd love a re-roll button
+/// at the bottom too, in case someone is looking for like a high
+/// development coach or something") draws a fresh batch, still inside
+/// the same age band, off a bumped seed (`_rerollCount`) -- deterministic
+/// per press, not true randomness, same as every other generator in this
+/// codebase.
+///
+/// Re-hiring a different coach later, once the franchise already exists,
+/// is `AvailableHeadCoachesScreen`'s job, not this screen's.
 class CoachSelectionScreen extends ConsumerStatefulWidget {
   const CoachSelectionScreen({
     required this.gmName,
@@ -57,23 +68,40 @@ class CoachSelectionScreen extends ConsumerStatefulWidget {
 }
 
 class _CoachSelectionScreenState extends ConsumerState<CoachSelectionScreen> {
-  // Memoized the first time portrait data is ready, not regenerated on
-  // every rebuild (e.g. every time the GM taps a different candidate) --
-  // still fully deterministic for the seed either way, just avoids
+  // Memoized per _rerollCount, not regenerated on every rebuild (e.g.
+  // every time the GM taps a different candidate) -- still fully
+  // deterministic for (seed, _rerollCount) either way, just avoids
   // redoing 3 portrait generations on every selection tap.
   List<Coach>? _candidates;
+  var _rerollCount = 0;
   Coach? _selected;
   var _isSubmitting = false;
+
+  /// How far apart each reroll's own seed sits from the last -- large
+  /// enough that it can never collide with anything a single reroll's
+  /// own generation (a handful of `Random` draws per candidate) could
+  /// possibly consume.
+  static const _kRerollSeedStride = 10000;
 
   List<Coach> _candidatesFor(
     PortraitWeights weights,
     PortraitManifest manifest,
   ) {
     return _candidates ??= generateCoachCandidates(
-      Random(widget.simulationSeed),
+      Random(widget.simulationSeed + _rerollCount * _kRerollSeedStride),
+      minAge: kCoachInitialLeagueMinAge,
+      maxAge: kCoachInitialLeagueMaxAge,
       portraitWeights: weights,
       portraitManifest: manifest,
     );
+  }
+
+  void _reroll() {
+    setState(() {
+      _rerollCount++;
+      _candidates = null;
+      _selected = null;
+    });
   }
 
   Future<void> _createFranchise(
@@ -156,6 +184,12 @@ class _CoachSelectionScreenState extends ConsumerState<CoachSelectionScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
           ],
+          OutlinedButton.icon(
+            onPressed: _isSubmitting ? null : _reroll,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Re-roll Candidates'),
+          ),
+          const SizedBox(height: AppSpacing.md),
           FilledButton(
             onPressed: _selected == null || _isSubmitting
                 ? null
@@ -235,7 +269,7 @@ class _CoachCandidateCard extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        coach.archetype.label,
+                        '${coach.archetype.label} · Age ${coach.age}',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,

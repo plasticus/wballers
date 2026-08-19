@@ -6,6 +6,7 @@ import '../../core/widgets/ad_placement_placeholder.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/state_views.dart';
 import '../../core/widgets/wbl_logo.dart';
+import '../coach/presentation/available_head_coaches_screen.dart';
 import '../draft/presentation/draft_day_screen.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/domain/franchise.dart';
@@ -772,6 +773,22 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                 );
               },
               child: const Text('View Season Recap'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            // Off-season only -- gated the same way "View Season Recap"
+            // itself is, a champion crowned but the next season not yet
+            // begun (2026-08-19, a direct GM ask: "During the offseason,
+            // maybe there's a new button on the Dashboard").
+            OutlinedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AvailableHeadCoachesScreen(franchise: franchise),
+                  ),
+                );
+              },
+              child: const Text('Available Head Coaches'),
             ),
           ] else if (progress.isComplete) ...[
             const Text('Regular season complete.'),

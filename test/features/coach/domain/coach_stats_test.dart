@@ -25,6 +25,19 @@ void main() {
     expect(stats.overall, 60);
   });
 
+  test('skillTotal sums the five stats, unlike overall\'s average', () {
+    const stats = CoachStats(
+      offense: 80,
+      defense: 60,
+      development: 50,
+      motivation: 70,
+      management: 40,
+    );
+
+    expect(stats.skillTotal, 300);
+    expect(stats.overall, stats.skillTotal ~/ 5);
+  });
+
   test('overall rounds to the nearest int', () {
     const stats = CoachStats(
       offense: 99,

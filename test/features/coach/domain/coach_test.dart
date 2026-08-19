@@ -22,6 +22,7 @@ void main() {
       name: 'Jordan Ellis',
       stats: CoachStats.neutral,
       archetype: CoachArchetype.steadyHand,
+      age: 52,
     );
     const newAppearance = PortraitAppearance(
       baseSprite: kDefaultBaseSprite,
@@ -37,6 +38,40 @@ void main() {
 
     expect(updated.name, coach.name);
     expect(updated.stats.overall, coach.stats.overall);
+    expect(updated.age, coach.age);
     expect(updated.appearance, newAppearance);
+  });
+
+  test('age defaults to 50 for fixtures built before the field existed', () {
+    const coach = Coach(
+      name: 'Jordan Ellis',
+      stats: CoachStats.neutral,
+      archetype: CoachArchetype.steadyHand,
+    );
+    expect(coach.age, 50);
+  });
+
+  test('copyWithGrowth replaces age and stats, leaves everything else', () {
+    const coach = Coach(
+      name: 'Jordan Ellis',
+      stats: CoachStats.neutral,
+      archetype: CoachArchetype.steadyHand,
+      age: 52,
+    );
+    const grownStats = CoachStats(
+      offense: 51,
+      defense: 51,
+      development: 51,
+      motivation: 51,
+      management: 51,
+    );
+
+    final updated = coach.copyWithGrowth(newAge: 53, newStats: grownStats);
+
+    expect(updated.age, 53);
+    expect(updated.stats, grownStats);
+    expect(updated.name, coach.name);
+    expect(updated.archetype, coach.archetype);
+    expect(updated.appearance, coach.appearance);
   });
 }

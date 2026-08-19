@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../coach/domain/coach_archetype.dart';
 import '../../league/domain/team.dart';
 import '../../market/presentation/player_market_screen.dart';
 import '../../player/domain/archetype.dart';
@@ -315,6 +316,10 @@ class _CoachRow extends StatelessWidget {
                 children: [
                   Text('Head Coach', style: theme.textTheme.labelSmall),
                   Text(coach.name, style: theme.textTheme.bodyLarge),
+                  Text(
+                    '${coach.archetype.label} · Age ${coach.age}',
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ],
               ),
             ),
