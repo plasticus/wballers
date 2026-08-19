@@ -36,8 +36,6 @@ star_system.md only defines the top two tiers (90-99 = 5-star, 78-89 = 4-star) a
 
 - Want me to actually dig into the rebounding formula now and check whether it's a real bug, or keep this as "watch for now" until it recurs?
 
-## #16 — Coach attributes (informational, not a bug)
-
-Confirmed: only Development is wired in (feeds training growth). Offense/Defense/Motivation/Management are generated and shown but do nothing yet.
-
-- Worth scoping as a real feature soon, or stays on the shelf for now? If soon: any starting thoughts on what each stat should affect (e.g., Motivation → training bonus, Offense/Defense → in-game play-calling bias, Management → rest/rotation decisions)?
+(#16, coach attributes, moved to `coaching-stats-notes.md` 2026-08-19 --
+stale anyway by then, Offense/Defense/Motivation had all since gained
+real consumers this snapshot didn't know about.)
