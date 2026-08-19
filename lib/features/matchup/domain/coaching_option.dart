@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../../core/ratings/rating_scale.dart';
 import '../../match/engine/fatigue.dart' show kMaxEnergy;
 import '../../player/domain/player.dart';
 
@@ -131,6 +132,62 @@ const kNoCoachingOptionBonus = (
   opponentPaceSecondsBonus: 0.0,
   staminaDrainMultiplier: 1.0,
 );
+
+/// The scaling range [motivationBonusMultiplier] interpolates across,
+/// [kMinRating] (1) to [kMaxRating] (99) -- locked 2026-08-19, a direct
+/// GM ask ("let's make Motivation have an effect on in-game coaching...
+/// it pumps it up if it's above 50, lowers if below... I don't want it
+/// to ever double the bonus") after reviewing every other bonus already
+/// in this engine for headroom: at the max end, a coach's pick genuinely
+/// rivals `defensive_tactic.dart`'s Face-Guard the Star (a deliberate
+/// 9%-on-one-player outlier, the widest single bonus source that
+/// already exists) without ever reaching it exactly, let alone doubling
+/// the option's own standard number; at the min end, a bottomed-out
+/// coach's call barely moves anything, but is never actively harmful
+/// (the multiplier never goes negative).
+const kMotivationBonusMultiplierAtMin = 0.25;
+const kMotivationBonusMultiplierAtMax = 1.75;
+
+/// How much a coach's [CoachStats.motivation] scales the rating-
+/// percentage fields of whichever [CoachingOptionBonus] her pick
+/// resolves to -- see [applyMotivationToCoachingBonus]. Linear across
+/// [kMotivationBonusMultiplierAtMin]/[kMotivationBonusMultiplierAtMax],
+/// anchored so [kMinRating]/[kMaxRating]'s exact midpoint (50 -- "if the
+/// coach has 50 motivation, they just get the standard bonuses," the
+/// GM's own spec) lands at exactly `1.0`, i.e. no change at all from
+/// the option's own listed number.
+double motivationBonusMultiplier(int motivation) {
+  final t = (motivation - kMinRating) / (kMaxRating - kMinRating);
+  return kMotivationBonusMultiplierAtMin +
+      t * (kMotivationBonusMultiplierAtMax - kMotivationBonusMultiplierAtMin);
+}
+
+/// Scales [bonus]'s 5 rating-percentage fields (offense/defense/
+/// disruption/perimeter-defense/rebounding) by [multiplier] (a caller's
+/// already-computed [motivationBonusMultiplier] -- callers that simulate
+/// many possessions per game compute it once from the coach's stat
+/// rather than re-deriving it on every pick), both the "pro" and "con"
+/// side of a tradeoff option alike -- a fired-up team leans harder into
+/// whatever the coach called, upside and downside both, not just the
+/// upside. Deliberately leaves the pace-seconds and stamina-multiplier
+/// fields untouched -- those are a different *kind* of effect (tempo/
+/// energy, not a rating contest), out of scope for this pass; revisit
+/// if Motivation should reach those too.
+CoachingOptionBonus applyMotivationToCoachingBonus(
+  CoachingOptionBonus bonus,
+  double multiplier,
+) {
+  return (
+    offenseBonus: bonus.offenseBonus * multiplier,
+    defenseBonus: bonus.defenseBonus * multiplier,
+    disruptionBonus: bonus.disruptionBonus * multiplier,
+    perimeterDefenseBonus: bonus.perimeterDefenseBonus * multiplier,
+    reboundingBonus: bonus.reboundingBonus * multiplier,
+    ownPaceSecondsBonus: bonus.ownPaceSecondsBonus,
+    opponentPaceSecondsBonus: bonus.opponentPaceSecondsBonus,
+    staminaDrainMultiplier: bonus.staminaDrainMultiplier,
+  );
+}
 
 /// [CoachingOption.fullCourtPress]'s opponent-pace penalty -- "slows the
 /// clock ONLY for opponent (like if an event is currently every 3s, we

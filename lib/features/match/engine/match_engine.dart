@@ -362,6 +362,16 @@ class _GameSimulation {
                offenseCoachOffense: awayCoach.stats.offense,
                defenseCoachDefense: homeCoach.stats.defense,
              ),
+       // Unlike the coach-matchup bonus above, each side's own Motivation
+       // multiplier stands on its own -- it isn't a head-to-head
+       // comparison against the *other* side's coach, so it doesn't need
+       // both coaches present, only this side's own.
+       homeMotivationBonusMultiplier = motivationBonusMultiplier(
+         homeCoach?.stats.motivation ?? 50,
+       ),
+       awayMotivationBonusMultiplier = motivationBonusMultiplier(
+         awayCoach?.stats.motivation ?? 50,
+       ),
        homeOffenseBonus = offenseBonusFor(
          detectOffenseShape(startingFiveByMinutes(homeTargetMinutes)),
        ),
@@ -422,6 +432,17 @@ class _GameSimulation {
   final Map<Player, int> awayTargetMinutes;
   final double homeOffenseCoachBonus;
   final double awayOffenseCoachBonus;
+
+  /// Each side's own coach's Motivation, scaled into a multiplier once
+  /// up front (`coaching_option.dart`'s `motivationBonusMultiplier`) --
+  /// a coach with no `Coach` supplied at all reads as the neutral
+  /// midpoint (50 -> 1.0x, no change), same "opt-in only" default this
+  /// whole coaching-option system already has for everything else.
+  /// Applied only when that side's coaching-option pick actually
+  /// resolves to a real bonus (`_applyCoachingPick`) -- motivation with
+  /// no pick active has nothing to scale.
+  final double homeMotivationBonusMultiplier;
+  final double awayMotivationBonusMultiplier;
   final OffenseShapeBonus homeOffenseBonus;
   final OffenseShapeBonus awayOffenseBonus;
   final DefenseTacticBonus homeDefenseBonus;
@@ -548,9 +569,15 @@ class _GameSimulation {
         awayRestedPlayers = {?toRest};
       }
     } else if (isHome) {
-      homeCoachingBonus = coachingBonusFor(picked);
+      homeCoachingBonus = applyMotivationToCoachingBonus(
+        coachingBonusFor(picked),
+        homeMotivationBonusMultiplier,
+      );
     } else {
-      awayCoachingBonus = coachingBonusFor(picked);
+      awayCoachingBonus = applyMotivationToCoachingBonus(
+        coachingBonusFor(picked),
+        awayMotivationBonusMultiplier,
+      );
     }
   }
 

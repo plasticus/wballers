@@ -13,14 +13,18 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 
 import '../../../support/match_test_players.dart';
 
-Coach _coach({required int offense, required int defense}) {
+Coach _coach({
+  required int offense,
+  required int defense,
+  int motivation = 50,
+}) {
   return Coach(
     name: 'Coach',
     stats: CoachStats(
       offense: offense,
       defense: defense,
       development: 50,
-      motivation: 50,
+      motivation: motivation,
       management: 50,
     ),
     archetype: CoachArchetype.steadyHand,
@@ -531,6 +535,48 @@ void main() {
           homeCoachingPicker: (_) => CoachingOption.focusDefense,
         ),
         returnsNormally,
+      );
+    });
+
+    test('a high-Motivation coach\'s Focus Defense pick suppresses the '
+        'opponent\'s scoring more than a neutral-Motivation coach\'s same '
+        'pick (2026-08-19, a direct GM ask -- Motivation scaling the '
+        'coaching-option bonuses)', () {
+      final homeRoster = testRoster('home', baseRating: 50, step: 0);
+      final awayRoster = testRoster('away', baseRating: 50, step: 0);
+      CoachingOption? alwaysFocusDefense(CoachingBreakContext context) =>
+          CoachingOption.focusDefense;
+
+      const sampleSize = 150;
+      var awayScoreWithHighMotivation = 0;
+      var awayScoreWithNeutralMotivation = 0;
+
+      for (var i = 0; i < sampleSize; i++) {
+        final highMotivation = simulateMatch(
+          Random(100 + i),
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+          // No awayCoach -- keeps the separate, unrelated coach-matchup
+          // bonus (`coachMatchupBonus`) inactive, so only Motivation's
+          // effect on the coaching-option pick is under test here.
+          homeCoach: _coach(offense: 50, defense: 50, motivation: 99),
+          homeCoachingPicker: alwaysFocusDefense,
+        );
+        awayScoreWithHighMotivation += highMotivation.awayScore;
+
+        final neutralMotivation = simulateMatch(
+          Random(100 + i),
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+          homeCoach: _coach(offense: 50, defense: 50, motivation: 50),
+          homeCoachingPicker: alwaysFocusDefense,
+        );
+        awayScoreWithNeutralMotivation += neutralMotivation.awayScore;
+      }
+
+      expect(
+        awayScoreWithHighMotivation,
+        lessThan(awayScoreWithNeutralMotivation),
       );
     });
   });

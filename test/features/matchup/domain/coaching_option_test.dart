@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/ratings/rating_scale.dart';
 import 'package:womensbballmgr/features/match/engine/fatigue.dart';
 import 'package:womensbballmgr/features/matchup/domain/coaching_option.dart';
 
@@ -149,6 +150,91 @@ void main() {
           expect(value.abs(), lessThanOrEqualTo(0.05));
         }
       }
+    });
+  });
+
+  group('motivationBonusMultiplier', () {
+    test('the rating scale midpoint (50) is exactly 1.0x -- "the coach '
+        'has 50 motivation, they just get the standard bonuses"', () {
+      expect(motivationBonusMultiplier(50), 1.0);
+    });
+
+    test('the min/max ends land on the locked 0.25x/1.75x range '
+        '(2026-08-19, a direct GM ask)', () {
+      expect(
+        motivationBonusMultiplier(kMinRating),
+        kMotivationBonusMultiplierAtMin,
+      );
+      expect(
+        motivationBonusMultiplier(kMaxRating),
+        kMotivationBonusMultiplierAtMax,
+      );
+    });
+
+    test('never reaches or exceeds 2.0x -- "I don\'t want it to ever '
+        'double the bonus"', () {
+      for (
+        var motivation = kMinRating;
+        motivation <= kMaxRating;
+        motivation++
+      ) {
+        expect(motivationBonusMultiplier(motivation), lessThan(2.0));
+      }
+    });
+
+    test('never goes negative, even at the very bottom of the scale', () {
+      expect(motivationBonusMultiplier(kMinRating), greaterThan(0.0));
+    });
+
+    test('monotonically increasing with motivation', () {
+      var previous = motivationBonusMultiplier(kMinRating);
+      for (
+        var motivation = kMinRating + 1;
+        motivation <= kMaxRating;
+        motivation++
+      ) {
+        final current = motivationBonusMultiplier(motivation);
+        expect(current, greaterThan(previous));
+        previous = current;
+      }
+    });
+  });
+
+  group('applyMotivationToCoachingBonus', () {
+    test('a 1.0x multiplier (Motivation 50) leaves every field '
+        'unchanged', () {
+      final bonus = coachingBonusFor(CoachingOption.focusDefense);
+      expect(applyMotivationToCoachingBonus(bonus, 1.0), bonus);
+    });
+
+    test('scales the 5 rating-percentage fields, both the pro and con '
+        'side of a tradeoff', () {
+      final bonus = coachingBonusFor(CoachingOption.focusDefense);
+      final scaled = applyMotivationToCoachingBonus(bonus, 1.75);
+      expect(scaled.defenseBonus, closeTo(0.0875, 1e-9)); // 0.05 * 1.75
+      expect(scaled.offenseBonus, closeTo(-0.04375, 1e-9)); // -0.025 * 1.75
+    });
+
+    test('leaves pace-seconds and stamina-multiplier fields untouched -- '
+        'out of scope for this pass', () {
+      final bonus = coachingBonusFor(CoachingOption.fullCourtPress);
+      final scaled = applyMotivationToCoachingBonus(bonus, 1.75);
+      expect(scaled.opponentPaceSecondsBonus, bonus.opponentPaceSecondsBonus);
+      expect(scaled.ownPaceSecondsBonus, bonus.ownPaceSecondsBonus);
+      expect(scaled.staminaDrainMultiplier, bonus.staminaDrainMultiplier);
+    });
+
+    test('a below-50 multiplier shrinks the bonus toward zero without '
+        'ever flipping its sign', () {
+      final bonus = coachingBonusFor(CoachingOption.attackTheBoards);
+      final scaled = applyMotivationToCoachingBonus(bonus, 0.25);
+      expect(scaled.reboundingBonus, greaterThan(0.0));
+      expect(scaled.reboundingBonus, lessThan(bonus.reboundingBonus));
+      expect(scaled.perimeterDefenseBonus, lessThan(0.0));
+      expect(
+        scaled.perimeterDefenseBonus,
+        greaterThan(bonus.perimeterDefenseBonus),
+      );
     });
   });
 
