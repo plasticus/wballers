@@ -10,6 +10,7 @@ import '../domain/draft_in_progress.dart';
 import '../domain/draft_pick.dart';
 import '../domain/draft_prospect.dart';
 import 'draft_generator.dart';
+import 'hidden_gem.dart';
 
 /// Seed offset for [finalizeDraft]'s jersey-number assignment -- once per
 /// season, right after a real draft completes. Next free number after
@@ -26,7 +27,27 @@ List<DraftProspect> _availableProspects(
       .toList();
 }
 
-DraftInProgress _appendPick(DraftInProgress draft, DraftProspect selected) {
+/// Appends a pick for [draft.onTheClock] taking [selected] -- applies
+/// [managementByAbbreviation]'s Hidden Gems bonus (`hidden_gem.dart`) for
+/// that team's own coach first, so what actually lands on the roster
+/// (via [DraftPick.prospect]) already reflects it, not just what's shown
+/// on a pick announcement. `null`/a missing entry in
+/// [managementByAbbreviation] reads as no bonus at all (the neutral,
+/// no-Management-data-available default every other coach-driven system
+/// in this codebase already uses).
+DraftInProgress _appendPick(
+  DraftInProgress draft,
+  DraftProspect selected,
+  Map<String, int> managementByAbbreviation,
+) {
+  final management = managementByAbbreviation[draft.onTheClock] ?? 0;
+  final bonus = hiddenGemBonus(round: draft.nextRound, management: management);
+  final boosted = bonus <= 0
+      ? selected
+      : DraftProspect(
+          player: applyHiddenGemBonus(selected.player, bonus),
+          college: selected.college,
+        );
   return DraftInProgress(
     order: draft.order,
     rounds: draft.rounds,
@@ -36,7 +57,7 @@ DraftInProgress _appendPick(DraftInProgress draft, DraftProspect selected) {
         round: draft.nextRound,
         pickNumber: draft.nextOverallPick,
         teamAbbreviation: draft.onTheClock!,
-        prospect: selected,
+        prospect: boosted,
       ),
     ],
   );
@@ -48,7 +69,14 @@ DraftInProgress _appendPick(DraftInProgress draft, DraftProspect selected) {
 /// stopping the instant that team is [DraftInProgress.onTheClock] (or the
 /// draft is [DraftInProgress.isComplete]). No `Random` needed -- same as
 /// `simulateDraft`, "best player available" is a pure function of the
-/// remaining pool, nothing here rolls anything.
+/// remaining pool, nothing here rolls anything (Hidden Gems' own
+/// distribution is deterministic too -- see `hidden_gem.dart`).
+///
+/// [managementByAbbreviation] (2026-08-19, `hidden_gem.dart`) is each AI
+/// team's own head coach's `CoachStats.management` -- omitted entries
+/// (or the whole map omitted) read as no Hidden Gems bonus for that
+/// team, same neutral-default posture every other coach-driven system
+/// already has.
 ///
 /// Models draft day as "every AI pick between the GM's turns resolves
 /// instantly," rather than a fully turn-by-turn animated board -- with
@@ -60,6 +88,7 @@ DraftInProgress resolveAiPicksUntilOwnTurn({
   required DraftInProgress draft,
   required List<DraftProspect> draftClass,
   required String ownTeamAbbreviation,
+  Map<String, int> managementByAbbreviation = const {},
 }) {
   var current = draft;
   while (!current.isComplete && current.onTheClock != ownTeamAbbreviation) {
@@ -68,7 +97,7 @@ DraftInProgress resolveAiPicksUntilOwnTurn({
     final best = available.reduce(
       (a, b) => draftProspectValue(a) >= draftProspectValue(b) ? a : b,
     );
-    current = _appendPick(current, best);
+    current = _appendPick(current, best, managementByAbbreviation);
   }
   return current;
 }
@@ -78,12 +107,14 @@ DraftInProgress resolveAiPicksUntilOwnTurn({
 /// [ownTeamAbbreviation]'s turn -- both asserted, since the only caller
 /// (`current_franchise_provider.dart`'s draft methods) is expected to
 /// have already checked both before ever offering a prospect list to pick
-/// from.
+/// from. [ownCoachManagement] (2026-08-19, `hidden_gem.dart`) is the
+/// GM's own head coach's Management -- `0` (no bonus) if omitted.
 DraftInProgress makeOwnPick({
   required DraftInProgress draft,
   required List<DraftProspect> draftClass,
   required String ownTeamAbbreviation,
   required DraftProspect selected,
+  int ownCoachManagement = 0,
 }) {
   assert(!draft.isComplete, 'the draft is already complete');
   assert(
@@ -95,7 +126,9 @@ DraftInProgress makeOwnPick({
     available.any((p) => p.player.id == selected.player.id),
     'the selected prospect is not actually available',
   );
-  return _appendPick(draft, selected);
+  return _appendPick(draft, selected, {
+    ownTeamAbbreviation: ownCoachManagement,
+  });
 }
 
 /// Lands every pick in [franchise]'s (assumed complete)

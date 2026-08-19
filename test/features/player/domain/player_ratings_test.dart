@@ -63,6 +63,59 @@ void main() {
     expect(() => _ratingsWith(strength: 0), throwsA(isA<AssertionError>()));
   });
 
+  test('skillPoints is the raw sum overall rounds from -- 50 across all '
+      '12 fields sums to exactly 600', () {
+    expect(_ratingsWith().skillPoints, 600);
+  });
+
+  test('skillPoints excludes potential, same as overall', () {
+    final lowPotential = _ratingsWith(potential: 1);
+    final highPotential = _ratingsWith(potential: 99);
+    expect(lowPotential.skillPoints, highPotential.skillPoints);
+  });
+
+  test(
+    '2 players can share the same overall while having different '
+    'skillPoints -- the whole reason this getter exists (trade_value.dart)',
+    () {
+      // Deliberately construct 2 distinct totals that round to the same
+      // overall: 594 and 605 both round to 50 (594/12=49.5, 605/12=50.4).
+      final a = PlayerRatings(
+        speed: 49,
+        agility: 49,
+        strength: 49,
+        stamina: 49,
+        ballControl: 49,
+        passing: 50,
+        interiorOffense: 50,
+        perimeterOffense: 50,
+        perimeterDefense: 50,
+        interiorDefense: 50,
+        disruption: 50,
+        blocking: 49,
+        potential: 50,
+      );
+      final b = PlayerRatings(
+        speed: 51,
+        agility: 51,
+        strength: 51,
+        stamina: 51,
+        ballControl: 50,
+        passing: 50,
+        interiorOffense: 50,
+        perimeterOffense: 50,
+        perimeterDefense: 50,
+        interiorDefense: 50,
+        disruption: 50,
+        blocking: 50,
+        potential: 50,
+      );
+      expect(a.overall, 50);
+      expect(b.overall, 50);
+      expect(a.skillPoints, isNot(b.skillPoints));
+    },
+  );
+
   test('rejects a rating of 100', () {
     expect(() => _ratingsWith(strength: 100), throwsA(isA<AssertionError>()));
   });

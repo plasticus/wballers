@@ -717,6 +717,10 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       draft: draft,
       draftClass: next.draftClass,
       ownTeamAbbreviation: next.team.abbreviation,
+      managementByAbbreviation: {
+        for (final entry in coachesByAbbreviation(next).entries)
+          entry.key: entry.value.stats.management,
+      },
     );
     await _persist(next.copyWithDraftInProgress(resolved));
   }
@@ -754,11 +758,16 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       draftClass: franchise.draftClass,
       ownTeamAbbreviation: franchise.team.abbreviation,
       selected: selected,
+      ownCoachManagement: franchise.coach.stats.management,
     );
     final afterAiPicks = resolveAiPicksUntilOwnTurn(
       draft: afterOwnPick,
       draftClass: franchise.draftClass,
       ownTeamAbbreviation: franchise.team.abbreviation,
+      managementByAbbreviation: {
+        for (final entry in coachesByAbbreviation(franchise).entries)
+          entry.key: entry.value.stats.management,
+      },
     );
 
     final withDraft = franchise.copyWithDraftInProgress(afterAiPicks);

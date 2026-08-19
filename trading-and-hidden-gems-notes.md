@@ -1,0 +1,143 @@
+# Trading & Hidden Gems — locked design (2026-08-19)
+
+Both grew out of the same question -- what should the coach stat
+Management actually *do*? -- worked through by hand, one real scenario
+at a time, until the numbers held up across several deliberately
+different trade shapes. This doc is the distilled spec; the reasoning
+trail (why 290/150/50, why the swing curve, why 11 as a floor) lives in
+this session's chat history if it's ever worth re-deriving.
+
+## Hidden Gems (built, `lib/features/draft/generation/hidden_gem.dart`)
+
+A coach's Management occasionally finds real value in a draft pick
+nobody else saw.
+
+- **Currency:** skill points (`PlayerRatings.skillPoints`, the raw sum
+  of the 12 core ratings `overall` rounds down from) -- not a blunt OVR
+  bump. 12 skill points = 1 `overall` point.
+- **Floor:** Management ≤ 30 → **0 bonus, every round.** A below-average
+  coach doesn't find anything a blind draft wouldn't have. (30 is a
+  clean round number close to the real generation floor, 29.)
+- **Ceiling:** Management = 79 (the real generation ceiling —
+  `coach_generator.dart`: qualityCenter 50 + Program Builder's +14 bias
+  + max +15 jitter; no archetype/roll combination can exceed it) →
+  **Round 1 +12, Round 2 +24, Round 3 +36** skill points (1/2/3
+  OVR-equivalent). Finding a steal in round 3 is a bigger feat than
+  round 1, where the league already broadly agrees who's good.
+- **Shape:** linear between floor and ceiling, chosen over a concave
+  alternative that was also on the table — "if you went concave, you
+  only get a couple bonuses at specific times," a direct GM call
+  preferring a steadier payoff.
+- Applies to **every team's** draft picks, GM's own and all 19 AI
+  teams, each off their own head coach's real Management — not just
+  the GM's.
+- Distribution across the drafted player's 12 fields is a fixed,
+  deterministic round-robin (no `Random` needed) — simple on purpose,
+  matching `draft_advancer.dart`'s existing "nothing here rolls
+  anything" posture for every other pick-resolution step.
+
+## Trading — the value math (built, `lib/features/trade/domain/trade_value.dart`)
+
+This is **only** the objective math: given a set of assets on each
+side of a proposed trade, is it something a given coach's Management
+could actually pull off? It says nothing about *which* teams offer
+*what* to whom — that's the still-unbuilt Trade Board (below).
+
+- **Currency:** skill points, same as Hidden Gems. Two players who
+  display the same rounded OVR aren't necessarily equal value — a 900
+  and a 905 both read "75," but they aren't the same player.
+- **Assets:** players, valued at their current skill points, and draft
+  picks from the current season's class, valued on a **flat, hand-tuned
+  ladder** — deliberately *not* the real average generated outcome by
+  round (~889/803/754 skill points), which turned out to be nearly
+  useless for trading: too close together to ever offset a real
+  star-level gap via a round-swap, and too large to add to an ordinary
+  trade without swamping it (a full pick reads as almost a whole extra
+  player).
+
+  | Round | Trade value (skill points) |
+  |---|---|
+  | 1 | **290** |
+  | 2 | **150** |
+  | 3 | **50** |
+
+  Round 1→2 is a bigger jump (140) than round 2→3 (100) on purpose —
+  matches the real generated data's own shape (a 7.2-OVR gap vs. 4.0).
+
+- **Validity:** `|offeredValue − requestedValue| ≤ tradeSwing(management)`,
+  symmetric, using whichever coach is *extending* the offer's own
+  Management stat. Any mix of players/picks is legal on either side —
+  1-for-1, 2-for-1, 2-for-2, 2-for-3, whatever a real offer needs.
+- **Swing formula:** `tradeSwing(management) = max(11, round(management² / 104))`.
+  - **The floor (11) is exact, not a guess:** 11 is the maximum
+    possible skill-points gap between two players who display the
+    *same* rounded OVR (a band is 12 points wide). Guarantees even the
+    worst coach the game can generate (Management 29, the real floor)
+    can always make a same-OVR trade.
+  - **Concave, not linear** — chosen after comparing both against 3
+    reference points (Management 30/50/70) across 3 different trade
+    shapes: linear was too generous at the average (50), letting an
+    ordinary coach do things that should've needed real skill.
+  - Reference values: Management 30/50/70/79(ceiling) → swing
+    **11/24/47/60**.
+- **Age/potential:** deliberately **not** a separate adjustment layered
+  onto player value. A win-now trade (give up a young high-potential
+  piece for a proven star) or a rebuild trade (sell a declining star for
+  a dev-slot prospect) get resolved by **adding a draft pick** to
+  balance the ledger instead — the pick is the premium a team pays (or
+  the discount a seller accepts) for prioritizing timeline over pure
+  value. The math never pretends these trades are "fair" — it just
+  sizes how big a deliberate mismatch a given coach's Management can get
+  away with.
+
+### The 3 canonical cases (regression-tested, `trade_value_test.dart`)
+
+Worked by hand until all 3 held at once — good reference examples for
+any future tuning pass.
+
+**Case A — plain 1:1, no picks.** 900 vs. 924 (gap 24): works at
+Management 50 (swing 24, right at the edge), fails at 30 (swing 11).
+
+**Case B — a star-for-phenom pick-swap.** All-Star (1080) for Phenom
+(960), gap 120. Either a 1st-for-2nd swap (Δ140) or a 2nd-for-3rd swap
+(Δ100) closes it to within ±20 — clears at Management 50, fails at 30.
+Bump the star up further (1140) and even the best swap needs Management
+~65+ to clear.
+
+**Case C — a 2-for-2 sweetened with a pick.** Team A: 900 + 950 = 1850.
+Team B: 900 + 900 = 1800, +50 (an R3 pick) = 1850 — **exactly even**,
+clears at any Management level. A wider natural gap (1870 vs. 1760)
+doesn't close with either pick alone at Management 50, but the better
+one (R2) clears at 70.
+
+## Trade Board — still to design/build
+
+The screen and offer-generation logic that actually *produces* trade
+offers for the value math above to validate. Locked so far, not yet
+built:
+
+- **Accept/decline only** — no player-initiated trades. A real,
+  deliberate scope cut ("a whole can of worms I'm not sure I want to
+  touch").
+- **5 offers visible at a time**, from any teams around the league,
+  regenerated each "turn."
+- **Trade window:** opens after the draft, runs through 2 preseason
+  games + up to 12 regular-season turns (~15 total regenerations,
+  max). *Also still open: a trade deadline exists in real terms too —
+  floated "maybe around end of week 6" but never locked.*
+- **Intended 5-slot mix** (not yet built — the "which team wants what"
+  layer, distinct from the value math): 2 offers reflecting a team's
+  contention-window lean (needs a real signal — roster age average +
+  standings, not designed in detail), 2 "situational" (an occasional
+  win-now/sell-the-future roll on an otherwise ordinary offer), 1
+  "hairbrained" (a coach pushing right to the edge of their own swing
+  tolerance, pure value-math, no team-need story at all).
+- **Trade Block (2026-08-19, added mid-design):** the GM can flag
+  exactly **one** of their own players as available. Whenever a
+  trade-block player is set, the Trade Board should *try* to make **3
+  of the 5** offers involve that specific player — the other 2 stay
+  general. Not yet built.
+- **Roster-need-driven offer generation** (the 3rd flavor idea from
+  earlier in the conversation, using real per-position depth-chart
+  gaps) was considered and set aside — "not super into" it, per a
+  direct GM call. Parked, not dead.

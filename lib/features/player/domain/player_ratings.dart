@@ -108,25 +108,32 @@ class PlayerRatings {
     );
   }
 
+  /// The raw sum of the twelve stored current-ability ratings, before
+  /// [overall] averages and rounds it down to one display number --
+  /// exposed on its own (2026-08-19, the trading-system work) because
+  /// [overall] alone can't tell two players apart who happen to round to
+  /// the same displayed number: a 900 and a 905 both read as "75 OVR,"
+  /// but they aren't equally good, and a trade that swaps one for the
+  /// other isn't really the even deal it looks like. This is the
+  /// finer-grained currency `trade_value.dart` actually trades in.
+  int get skillPoints =>
+      speed +
+      agility +
+      strength +
+      stamina +
+      ballControl +
+      passing +
+      interiorOffense +
+      perimeterOffense +
+      perimeterDefense +
+      interiorDefense +
+      disruption +
+      blocking;
+
   /// Unweighted average of the twelve stored current-ability ratings.
   /// [potential] is excluded — it's a ceiling, not current ability.
   /// Position-aware weighting is future work once role fit exists.
-  int get overall {
-    final sum =
-        speed +
-        agility +
-        strength +
-        stamina +
-        ballControl +
-        passing +
-        interiorOffense +
-        perimeterOffense +
-        perimeterDefense +
-        interiorDefense +
-        disruption +
-        blocking;
-    return (sum / 12).round();
-  }
+  int get overall => (skillPoints / 12).round();
 
   /// Unweighted average of the four physical ratings -- a roster-screen
   /// summary number, not consumed by simulation (which uses the individual

@@ -127,6 +127,40 @@ void main() {
       // low: 60 + 45 = 105, high: 65 + 30 = 95 -- low should go first.
       expect(resolved.picks.first.prospect.player.id, 'low');
     });
+
+    test('applies a Hidden Gems bonus (hidden_gem.dart) using the '
+        'picking team\'s own coach Management, not any other team\'s', () {
+      final prospect = _prospect('p1', 60);
+      final before = prospect.player.ratings.skillPoints;
+      final draft = DraftInProgress(order: const ['AAA', 'ZZZ'], rounds: 3);
+
+      final resolved = resolveAiPicksUntilOwnTurn(
+        draft: draft,
+        draftClass: [prospect],
+        ownTeamAbbreviation: 'ZZZ',
+        managementByAbbreviation: const {'AAA': 79, 'BBB': 1},
+      );
+
+      final landed = resolved.picks.single.prospect.player.ratings.skillPoints;
+      expect(landed, before + 12); // round 1, Management 79 -> +12
+    });
+
+    test('a team missing from managementByAbbreviation gets no bonus at '
+        'all, not a crash', () {
+      final prospect = _prospect('p1', 60);
+      final before = prospect.player.ratings.skillPoints;
+      final draft = DraftInProgress(order: const ['AAA', 'ZZZ'], rounds: 1);
+
+      final resolved = resolveAiPicksUntilOwnTurn(
+        draft: draft,
+        draftClass: [prospect],
+        ownTeamAbbreviation: 'ZZZ',
+        // AAA deliberately absent.
+      );
+
+      final landed = resolved.picks.single.prospect.player.ratings.skillPoints;
+      expect(landed, before);
+    });
   });
 
   group('makeOwnPick', () {
@@ -187,6 +221,39 @@ void main() {
         ),
         throwsA(isA<AssertionError>()),
       );
+    });
+
+    test('applies a Hidden Gems bonus using ownCoachManagement', () {
+      final draftClass = [_prospect('p1', 60)];
+      final before = draftClass.single.player.ratings.skillPoints;
+      final draft = DraftInProgress(order: const ['OWN', 'BBB'], rounds: 3);
+
+      final updated = makeOwnPick(
+        draft: draft,
+        draftClass: draftClass,
+        ownTeamAbbreviation: 'OWN',
+        selected: draftClass.single,
+        ownCoachManagement: 79,
+      );
+
+      final landed = updated.picks.single.prospect.player.ratings.skillPoints;
+      expect(landed, before + 12); // round 1, Management 79 -> +12
+    });
+
+    test('ownCoachManagement omitted (default 0) applies no bonus at all', () {
+      final draftClass = [_prospect('p1', 60)];
+      final before = draftClass.single.player.ratings.skillPoints;
+      final draft = DraftInProgress(order: const ['OWN', 'BBB'], rounds: 1);
+
+      final updated = makeOwnPick(
+        draft: draft,
+        draftClass: draftClass,
+        ownTeamAbbreviation: 'OWN',
+        selected: draftClass.single,
+      );
+
+      final landed = updated.picks.single.prospect.player.ratings.skillPoints;
+      expect(landed, before);
     });
   });
 
