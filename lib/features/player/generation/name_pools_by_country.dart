@@ -2,15 +2,23 @@ import '../domain/country.dart';
 
 /// Country-specific given/surname name pools, transcribed from a
 /// GM-provided CSV (2026-08-10, `~/Downloads/wnba_names_final_v3.csv` --
-/// not itself part of this repo) covering all 20 [Country] values: 250
-/// given + 150 surnames for USA, ~25 given + ~25 surnames for every other
-/// country. Purely invented -- not drawn from any real athlete's name --
-/// combined at random by `player_generator.dart`, so any resemblance to a
-/// real person's full name is coincidental. Replaces the old flat
-/// `core/generation/name_pools.dart` pools for players (coaches still use
-/// those directly -- coaches have no country concept) specifically to fix
-/// same-surname roster collisions the old single shared 42-name pool kept
-/// producing (`TODO.md`'s player-name-pool item).
+/// not itself part of this repo) covering all 20 [Country] values: 271
+/// given + 182 surnames for USA (250/150 originally, plus the old
+/// coach-only pool folded in -- see [kAllGivenNames]'s own doc comment),
+/// ~25 given + ~25 surnames for every other country. Purely invented --
+/// not drawn from any real athlete's name -- combined at random by
+/// `player_generator.dart`, so any resemblance to a real person's full
+/// name is coincidental. Replaces the old flat `core/generation/
+/// name_pools.dart` pools, which originally covered players *and*
+/// coaches both, specifically to fix same-surname roster collisions the
+/// old single shared 42-name pool kept producing for players
+/// (`TODO.md`'s player-name-pool item) -- coach generation kept drawing
+/// from the old flat pool for a while after that split, on the reasoning
+/// that coaches have no [Country] of their own to key country-specific
+/// pools off, until a direct GM catch (2026-08-19) called that split
+/// itself out as arbitrary: "I didn't know they had a different pool
+/// than players?! That's dumb." [kAllGivenNames]/[kAllSurnames] (below)
+/// are what coach generation draws from now instead.
 const kGivenNamesByCountry = <Country, List<String>>{
   Country.australia: [
     'Lauren',
@@ -775,6 +783,32 @@ const kGivenNamesByCountry = <Country, List<String>>{
     'Summer',
     'Trinity',
     'Zoe',
+    // Folded in from the old coach-only flat pool (2026-08-19, a direct
+    // GM ask: "coach names... they should pull from the same pool" --
+    // see `kAllGivenNames`'s own doc comment below for the full story).
+    // Only the names not already present above -- 25 of the original 46
+    // were already duplicates of names already in this list.
+    'Chidinma',
+    'Fatima',
+    'Noor',
+    'Priya',
+    'Ingrid',
+    'Freya',
+    'Camila',
+    'Valentina',
+    'Amara',
+    'Nadia',
+    'Yuki',
+    'Hana',
+    'Mei',
+    'Aiko',
+    'Anh',
+    'Linh',
+    'Thandiwe',
+    'Zanele',
+    'Ngozi',
+    'Adaeze',
+    'Renee',
   ],
 };
 
@@ -1445,5 +1479,61 @@ const kSurnamesByCountry = <Country, List<String>>{
     'Tucker',
     'Porter',
     'Hunter',
+    // Folded in from the old coach-only flat pool -- see the matching
+    // note at the end of [kGivenNamesByCountry]'s own USA list above.
+    // Only the names not already present above -- 10 of the original 42
+    // were already duplicates of names already in this list.
+    'Okafor',
+    'Adeyemi',
+    'Mensah',
+    'Osei',
+    'Diallo',
+    'Traore',
+    'Kone',
+    'Nakamura',
+    'Watanabe',
+    'Kim',
+    'Park',
+    'Tran',
+    'Singh',
+    'Patel',
+    'Sharma',
+    'Kaur',
+    'Martinez',
+    'Hernandez',
+    'Lopez',
+    'Silva',
+    'Costa',
+    'Almeida',
+    'Petrov',
+    'Ivanova',
+    'Kowalski',
+    'Nowak',
+    'Novak',
+    'Andersson',
+    'Larsen',
+    'Johansson',
+    "O'Brien",
+    'Clarke',
   ],
 };
+
+/// Every given name across every country, flattened -- what
+/// [generateCoach]/[generateTrainingCoaches] draw from (2026-08-19, a
+/// direct GM ask: coaches used to have their own small separate 46-name
+/// flat pool, entirely disjoint from the player pools above -- "I didn't
+/// know they had a different pool than players?! That's dumb. They
+/// should pull from the same pool." Folded into the country pools above
+/// (Country.usa specifically, since these read as broadly diverse/
+/// American names rather than tied to any of the other 19 countries
+/// here) and flattened back out here for coach generation, which has no
+/// [Country] of its own to key off -- unlike a player, a coach's name
+/// doesn't need to correlate with a hometown or anything else generated.
+/// `final`, not `const`: built once, lazily, off the const maps above,
+/// not re-flattened on every call.
+final kAllGivenNames = [
+  for (final names in kGivenNamesByCountry.values) ...names,
+];
+
+/// See [kAllGivenNames]'s own doc comment -- same story, surnames.
+final kAllSurnames = [for (final names in kSurnamesByCountry.values) ...names];

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/ratings/rating_scale.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/generation/coach_generator.dart';
+import 'package:womensbballmgr/features/player/generation/name_pools_by_country.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_manifest.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
 
@@ -168,6 +169,21 @@ void main() {
       expect(coach.appearance!.shoulders, isNotNull);
     },
   );
+
+  test('draws from the same given/surname pools players use, not a '
+      'separate coach-only pool (2026-08-19, a direct GM catch: "I didn\'t '
+      'know they had a different pool than players?! That\'s dumb. They '
+      'should pull from the same pool")', () {
+    final random = Random(17);
+    for (var i = 0; i < 50; i++) {
+      final coach = generateCoach(random);
+      final parts = coach.name.split(' ');
+      final firstName = parts.first;
+      final lastName = parts.skip(1).join(' ');
+      expect(kAllGivenNames, contains(firstName), reason: coach.name);
+      expect(kAllSurnames, contains(lastName), reason: coach.name);
+    }
+  });
 
   test('an explicit archetype overrides the random roll', () {
     final random = Random(21);

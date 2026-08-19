@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import '../../../core/generation/name_pools.dart';
+import '../../player/generation/name_pools_by_country.dart';
 import '../domain/training_coach.dart';
 
 /// Seed offset for training-coach generation -- keeps this random stream
@@ -16,8 +16,8 @@ const kTrainingCoachSeedOffset = 7;
 /// name, last name) even though it once also rolled a development value.
 List<TrainingCoach> generateTrainingCoaches(Random random) {
   return List.generate(3, (_) {
-    final firstName = kFirstNames[random.nextInt(kFirstNames.length)];
-    final lastName = kLastNames[random.nextInt(kLastNames.length)];
+    final firstName = kAllGivenNames[random.nextInt(kAllGivenNames.length)];
+    final lastName = kAllSurnames[random.nextInt(kAllSurnames.length)];
     return TrainingCoach(name: '$firstName $lastName');
   });
 }

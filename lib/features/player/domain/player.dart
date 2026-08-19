@@ -195,10 +195,10 @@ class Player {
 
   /// The surname off of [name] ("Danielle Tran" -> "Tran") -- every
   /// generated name is "First Last" (`player_generator.dart`'s
-  /// `kFirstNames`/`kLastNames` pools, no multi-word entries in either),
-  /// so splitting on the last space is safe. Used anywhere a compact row
-  /// (bench order, box scores) wants just the surname rather than the
-  /// full name.
+  /// `kGivenNamesByCountry`/`kSurnamesByCountry` pools, no multi-word
+  /// entries in either), so splitting on the last space is safe. Used
+  /// anywhere a compact row (bench order, box scores) wants just the
+  /// surname rather than the full name.
   String get lastName => name.split(' ').last;
 
   /// Returns a copy with [newAppearance] replacing [appearance] -- the only

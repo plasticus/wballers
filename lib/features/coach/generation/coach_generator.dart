@@ -1,7 +1,7 @@
 import 'dart:math';
 
-import '../../../core/generation/name_pools.dart';
 import '../../../core/ratings/rating_scale.dart';
+import '../../player/generation/name_pools_by_country.dart';
 import '../../portrait/domain/portrait_manifest.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../portrait/generation/portrait_generator.dart';
@@ -122,8 +122,8 @@ Coach generateCoach(
       CoachArchetype.values[random.nextInt(CoachArchetype.values.length)];
   final bias = _archetypeBias[resolvedArchetype] ?? _zeroDeltas;
 
-  final firstName = kFirstNames[random.nextInt(kFirstNames.length)];
-  final lastName = kLastNames[random.nextInt(kLastNames.length)];
+  final firstName = kAllGivenNames[random.nextInt(kAllGivenNames.length)];
+  final lastName = kAllSurnames[random.nextInt(kAllSurnames.length)];
   final appearance = portraitWeights == null
       ? null
       : generatePortraitAppearance(

@@ -74,8 +74,8 @@ void main() {
   });
 
   testWidgets(
-    'Highlight jumps past ordinary beats straight to the next scoring '
-    'play',
+    'Highlight jumps past ordinary beats straight to the next notable '
+    'play -- a score, a steal, or a block',
     (tester) async {
       await pumpLab(tester);
       await switchToStep(tester);
@@ -91,16 +91,26 @@ void main() {
       // clear that delay at every speed this screen supports.
       await tester.pump(const Duration(seconds: 2));
 
-      // Whatever beat Highlight landed on scored points -- the score bug
-      // (top of the card) shows a nonzero total for at least one side.
-      final scoreTexts = tester
+      // Highlight stops on the first beat matching
+      // `_LiveGameLabScreenState._isHighlightBeat`: a scoring highlight
+      // (badge text, or the score bug showing a nonzero total once its
+      // own delay clears), a steal, or a block -- not necessarily a
+      // score every time (a real, unseeded dev-lab game -- this test was
+      // genuinely flaky before covering all 3 outcomes, not just the
+      // scoring one).
+      final allText = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.data)
           .whereType<String>()
+          .toList();
+      final sawScore = allText
           .where((t) => RegExp(r'^\d+$').hasMatch(t))
           .map(int.parse)
-          .toList();
-      expect(scoreTexts.any((s) => s > 0), isTrue);
+          .any((s) => s > 0);
+      final sawStealOrBlock = allText.any(
+        (t) => t == 'STEAL' || t == 'BLOCK',
+      );
+      expect(sawScore || sawStealOrBlock, isTrue, reason: '$allText');
     },
   );
 }

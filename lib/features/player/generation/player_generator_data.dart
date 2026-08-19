@@ -2,9 +2,10 @@ import '../domain/country.dart';
 
 /// Player-specific generation seed data (name pools moved to
 /// `name_pools_by_country.dart` once [Country] became the shared root of
-/// name/hometown/skin-tone generation -- coach generation still uses the
-/// old flat `core/generation/name_pools.dart` pools directly, since
-/// coaches have no country concept).
+/// name/hometown/skin-tone generation -- coach generation draws from
+/// those same pools too now, flattened via `kAllGivenNames`/
+/// `kAllSurnames`, since coaches have no [Country] of their own to key
+/// off).
 ///
 /// At least 4 cities per [Country] (a direct GM ask, 2026-08-10) so a
 /// roster of several players from the same country doesn't keep repeating
