@@ -199,6 +199,58 @@ void main() {
     );
   });
 
+  test('bye days are spread across the season, not back-loaded onto its '
+      'last couple of weeks (2026-08-19, a direct GM ask after watching a '
+      'real season end with 2 completely dead weeks)', () {
+    final teams = _leagueTeams();
+
+    for (var seed = 0; seed < 10; seed++) {
+      final schedule = generateSeasonSchedule(teams, Random(seed));
+      final regularSeasonGames = schedule.games
+          .where((g) => g.type == GameType.regularSeason)
+          .toList();
+
+      final gamesPerWeek = <int, int>{};
+      for (final game in regularSeasonGames) {
+        gamesPerWeek[game.week] = (gamesPerWeek[game.week] ?? 0) + 1;
+      }
+
+      // Every regular-season week has *some* real action -- the failure
+      // mode this guards against is a week (usually the last one or two)
+      // sitting at literal zero for the entire league, not merely having
+      // fewer games than average.
+      for (
+        var week = kRegularSeasonStartWeek;
+        week <= kRegularSeasonEndWeek;
+        week++
+      ) {
+        expect(
+          gamesPerWeek[week] ?? 0,
+          greaterThan(0),
+          reason:
+              'seed $seed: week $week has no regular-season games at '
+              'all',
+        );
+      }
+
+      // No week is left carrying dramatically more than its fair share
+      // either -- the old back-loaded shape had week 4 (a 1-day week,
+      // Thursday reserved for the Cup) as the only real outlier; every
+      // other week should land within a small band of the 280-game,
+      // 17-week average (~16.5/week).
+      final loadedWeeks = gamesPerWeek.entries.where(
+        (e) => e.key != kContinentalCupRound1Week,
+      );
+      for (final entry in loadedWeeks) {
+        expect(
+          entry.value,
+          inInclusiveRange(10, 20),
+          reason: 'seed $seed: week ${entry.key} has ${entry.value} games',
+        );
+      }
+    }
+  });
+
   test('the All-Star week has exactly 2 entries, and the Skills Competition '
       'resolves before the Game (2026-08-10, TODO.md items 5/6)', () {
     final teams = _leagueTeams();

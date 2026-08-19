@@ -33,15 +33,24 @@ Franchise _newFranchise() => createExpansionFranchise(
   simulationSeed: 1,
 );
 
-/// Advances until at least one regular-season game day has been played --
-/// the preseason's own 2 game days don't count toward any stat this
-/// screen shows (`computeLeagueLeaders`/`computeStandings` both exclude
-/// it), so a bare franchise with zero games advanced would show nothing
-/// but empty states.
+/// Advances until the GM's own club specifically has played a
+/// regular-season game -- the preseason's own 2 game days don't count
+/// toward any stat this screen shows (`computeLeagueLeaders`/
+/// `computeStandings` both exclude it), so a bare franchise with zero
+/// games advanced would show nothing but empty states. Waiting for *any*
+/// team's regular-season game (rather than the GM's own) used to be
+/// enough, back when the schedule packer always front-loaded everyone's
+/// games onto the earliest possible week/day -- since the schedule
+/// generator now spreads bye days across the season instead
+/// (2026-08-19), the GM's own club isn't guaranteed to be among the
+/// first teams to play, so several tests below that specifically check
+/// for the GM's own team/players (not just "some team, any team") need
+/// this stronger wait.
 Franchise _franchiseWithRegularSeasonGames() {
   var franchise = withFullActiveRoster(_newFranchise());
   var progress = franchise.seasonProgress;
-  for (var i = 0; i < 5; i++) {
+  final ownAbbreviation = franchise.team.abbreviation;
+  for (var i = 0; i < 40; i++) {
     final advance = advanceToNextGameDay(
       Random(franchise.simulationSeed + kSeasonAdvanceSeedOffset + i),
       progress,
@@ -49,7 +58,10 @@ Franchise _franchiseWithRegularSeasonGames() {
     );
     progress = advance.progress;
     if (progress.playedGames.any(
-      (g) => g.game.type == GameType.regularSeason,
+      (g) =>
+          g.game.type == GameType.regularSeason &&
+          (g.game.homeTeamAbbreviation == ownAbbreviation ||
+              g.game.awayTeamAbbreviation == ownAbbreviation),
     )) {
       break;
     }

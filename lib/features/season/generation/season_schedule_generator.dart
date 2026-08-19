@@ -59,11 +59,13 @@ const kContinentalCupGameDay = GameDay.thursday;
 ///   round-robin within each 10-team conference (18 games) plus a single
 ///   round-robin against the other conference (10 games) -- greedily
 ///   packed into (week, day) slots so no team is ever double-booked on the
-///   same day. Week/day assignment is a simple greedy pack, not a fully
-///   realistic pacing model (back-to-backs against the same opponent
-///   aren't specially avoided) -- outcome (right games, right counts,
-///   right week range) matters more than mechanism here, same as AI
-///   roster generation.
+///   same day, then smoothed with a rebalancing pass
+///   (`_spreadGamesAcrossWeeks`) so byes land spread across the season
+///   instead of piling up at the end. Week/day assignment still isn't a
+///   fully realistic pacing model (back-to-backs against the same
+///   opponent aren't specially avoided) -- outcome (right games, right
+///   counts, right week range, no week left completely empty) matters
+///   more than mechanism here, same as AI roster generation.
 /// - **Continental Cup Round 1** (week [kContinentalCupRound1Week]): all
 ///   20 teams randomly seeded into 10 games. Rounds 2-5 depend on results
 ///   that don't exist yet -- see the note on [SeasonSchedule].
@@ -203,6 +205,10 @@ List<ScheduledGame> _assignRegularSeasonWeeks(
         .add(day);
   }
 
+  void unbook(String abbreviation, int week, GameDay day) {
+    bookedDaysByTeamAndWeek[abbreviation]?[week]?.remove(day);
+  }
+
   // Every team plays a Continental Cup Round 1 game at this exact
   // (week, day) -- reserve it up front so the greedy pack below never
   // lands a regular-season game there too. 17 weeks x 2 days = 34
@@ -213,10 +219,28 @@ List<ScheduledGame> _assignRegularSeasonWeeks(
     book(team.abbreviation, kContinentalCupRound1Week, kContinentalCupGameDay);
   }
 
-  return [
+  final assigned = [
     for (final (home, away) in shuffledPairs)
       _assignOneGameWeekAndDay(home, away, bookedDaysFor, book),
   ];
+
+  // Earliest-fit above always finds *a* slot, but it finds the same
+  // *earliest* one for everybody, which back-loads every team's bye days
+  // onto the tail end of the season: with 34 team-slots (17 weeks x 2
+  // days) against 28 games/team, the pack always finishes well before
+  // week 18, so that week (and often 17 too) went completely empty for
+  // the whole league instead of byes landing anywhere in between
+  // (2026-08-19, a direct GM ask after watching a real season: "I don't
+  // want 2 full weeks of no games backloaded, spread the off days out").
+  // Smoothing it out at assignment time (e.g. preferring whichever valid
+  // week is currently lightest) was tried and reverted -- it can leave a
+  // *later* pair with zero valid weeks left at all, since which slots
+  // stay open downstream depends on every earlier pair's choice, not
+  // just this one's. Rebalancing after the fact instead only ever moves
+  // a game into a slot already double-checked as open for both teams, so
+  // the schedule can't regress from "valid" to "stuck" the way picking
+  // slots differently up front could.
+  return _spreadGamesAcrossWeeks(assigned, bookedDaysFor, book, unbook);
 }
 
 ScheduledGame _assignOneGameWeekAndDay(
@@ -259,6 +283,103 @@ ScheduledGame _assignOneGameWeekAndDay(
     awayTeamAbbreviation: away.abbreviation,
     type: GameType.regularSeason,
   );
+}
+
+/// Post-processing pass over an already-valid earliest-fit regular-season
+/// schedule: repeatedly finds the currently-heaviest week and, for each
+/// game booked there, looks for the currently-lightest week where both
+/// teams already happen to be free on one of its 2 game days -- if one
+/// exists and actually helps (the target is still lighter than the
+/// source once the move lands), relocates the game there instead.
+///
+/// Every candidate move is checked against [bookedDaysFor] before being
+/// taken, the same free/busy source [_assignOneGameWeekAndDay] itself
+/// trusts, so this can only ever move a game into a slot that was
+/// already genuinely open for both teams -- it can smooth the calendar
+/// out, but it can never invalidate it (no new double-booking, no game
+/// ever leaves the regular season's week range).
+List<ScheduledGame> _spreadGamesAcrossWeeks(
+  List<ScheduledGame> games,
+  Set<GameDay> Function(String abbreviation, int week) bookedDaysFor,
+  void Function(String abbreviation, int week, GameDay day) book,
+  void Function(String abbreviation, int week, GameDay day) unbook,
+) {
+  final byWeek = <int, int>{};
+  for (final game in games) {
+    byWeek[game.week] = (byWeek[game.week] ?? 0) + 1;
+  }
+
+  final result = List<ScheduledGame>.of(games);
+  final weeks = [
+    for (var w = kRegularSeasonStartWeek; w <= kRegularSeasonEndWeek; w++) w,
+  ];
+
+  // Bounded pass count -- each pass can only ever improve the spread (a
+  // move is only taken when it strictly narrows the heaviest/lightest
+  // gap), so this either converges well before the cap or the remaining
+  // imbalance genuinely can't be smoothed further without violating
+  // someone's booked days. Each pass re-targets the *single* currently
+  // heaviest week, but tries every lighter week (lightest first) and
+  // every game booked in it before giving up on that week entirely --
+  // trying only the single lightest week and stopping at the first game
+  // that can't move there (e.g. it's already Cup day for one side, or
+  // both teams already play the lightest week's other day) used to quit
+  // a whole pass over one blocked candidate, even when the very next
+  // game in the same heaviest week would've moved there just fine.
+  for (var pass = 0; pass < 200; pass++) {
+    weeks.sort((a, b) => (byWeek[b] ?? 0).compareTo(byWeek[a] ?? 0));
+    final heaviest = weeks.first;
+    final lightest = weeks.last;
+    if ((byWeek[heaviest] ?? 0) - (byWeek[lightest] ?? 0) <= 1) break;
+
+    final lighterWeeks = weeks
+        .where((w) => (byWeek[w] ?? 0) < (byWeek[heaviest] ?? 0) - 1)
+        .toList();
+
+    var movedThisPass = false;
+    for (var i = 0; i < result.length && !movedThisPass; i++) {
+      final game = result[i];
+      if (game.week != heaviest) continue;
+
+      for (final target in lighterWeeks) {
+        GameDay? openDay;
+        for (final day in _regularSeasonGameDays) {
+          final homeFree = !bookedDaysFor(
+            game.homeTeamAbbreviation,
+            target,
+          ).contains(day);
+          final awayFree = !bookedDaysFor(
+            game.awayTeamAbbreviation,
+            target,
+          ).contains(day);
+          if (homeFree && awayFree) {
+            openDay = day;
+            break;
+          }
+        }
+        if (openDay == null) continue;
+
+        book(game.homeTeamAbbreviation, target, openDay);
+        book(game.awayTeamAbbreviation, target, openDay);
+        unbook(game.homeTeamAbbreviation, heaviest, game.day);
+        unbook(game.awayTeamAbbreviation, heaviest, game.day);
+        byWeek[heaviest] = (byWeek[heaviest] ?? 0) - 1;
+        byWeek[target] = (byWeek[target] ?? 0) + 1;
+        result[i] = ScheduledGame(
+          week: target,
+          day: openDay,
+          homeTeamAbbreviation: game.homeTeamAbbreviation,
+          awayTeamAbbreviation: game.awayTeamAbbreviation,
+          type: GameType.regularSeason,
+        );
+        movedThisPass = true;
+        break;
+      }
+    }
+    if (!movedThisPass) break;
+  }
+
+  return result;
 }
 
 List<ScheduledGame> _generateContinentalCupRound1(
