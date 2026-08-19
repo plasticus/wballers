@@ -401,6 +401,23 @@ class LiveBeatTranslator {
         // unmistakable rather than reading as the scoring team still
         // holding the ball (2026-08-18, a direct GM catch).
         final isInboundPass = isFirstPassOfPossession && isInboundPossession;
+        // Every pass *after* the bring-up used to land at that exact same
+        // fixed near-center spot too, no matter how many more times the
+        // ball moved that possession -- a direct GM catch (2026-08-19):
+        // "still have minor complaints about the location of passes...
+        // really focused in one little area, all near the circle in
+        // center-court... The most likely place for just passing around
+        // to find an opening is around the 3pt perimeter line, and then
+        // even back a little bit towards mid-court." None of these are
+        // ever the scoring pass itself -- an assist gets its own beat,
+        // positioned at the shot -- so there's no accuracy to protect
+        // here, just spreading the "team's probing for an opening" beats
+        // across the same range the offense actually spaces out into.
+        // `chipIndex` (already random) covers top/bottom/center on its
+        // own at either zone.
+        final laterPassZone = _random.nextDouble() < 0.7
+            ? LiveZone.threePoint
+            : LiveZone.midcourt;
         final displayText = isInboundPass
             ? _phrase(
                 'inbound_after_make',
@@ -418,7 +435,7 @@ class LiveBeatTranslator {
                     ));
         return LiveBeat(
           team: team,
-          zone: LiveZone.midcourt,
+          zone: isFirstPassOfPossession ? LiveZone.midcourt : laterPassZone,
           chipIndex: toChipIndex,
           displayText: displayText,
           isInbound: isInboundPass,

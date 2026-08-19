@@ -222,6 +222,61 @@ void main() {
       expect(beats[1].team, LiveTeam.away);
     });
 
+    test('a possession\'s first pass always lands near midcourt (bringing '
+        'the ball up), but later passes in the same possession vary '
+        'between the 3pt line and midcourt instead of freezing at one '
+        'fixed spot -- a direct GM report (2026-08-19): "still have minor '
+        'complaints about the location of passes. They\'re really focused '
+        'in one little area, all near the circle in center-court... The '
+        'most likely place for just passing around to find an opening is '
+        'around the 3pt perimeter line, and then even back a little bit '
+        'towards mid-court"', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+      final passer = homeRoster.first;
+      final receiver = homeRoster[1];
+
+      // One possession: bring it up, then 4 more passes -- run through a
+      // fresh translator many times so the later passes' independent
+      // random draws actually show up.
+      List<MatchEvent> possession() => [
+        for (var i = 0; i < 5; i++)
+          MatchEvent(
+            type: MatchEventType.passAttempt,
+            secondsElapsed: 1,
+            player: passer,
+            secondPlayer: receiver,
+          ),
+      ];
+
+      final firstPassZones = <LiveZone?>{};
+      final laterPassZones = <LiveZone?>{};
+      for (var run = 0; run < 30; run++) {
+        final translator = LiveBeatTranslator(
+          homeRoster: homeRoster,
+          awayRoster: awayRoster,
+          homeAbbreviation: 'DSM',
+          awayAbbreviation: 'KCY',
+        );
+        final beats = translator.translateSegment((
+          possessions: [possession()],
+          quarter: 1,
+          isEndOfQuarter: false,
+        ));
+
+        firstPassZones.add(beats.first.zone);
+        for (final beat in beats.skip(1)) {
+          laterPassZones.add(beat.zone);
+        }
+      }
+
+      expect(firstPassZones, {LiveZone.midcourt});
+      expect(
+        laterPassZones,
+        containsAll([LiveZone.threePoint, LiveZone.midcourt]),
+      );
+    });
+
     test('a defensive rebound is positioned at the *shooting* team\'s end, '
         'credited to the rebounding team -- a real bug, live on-device '
         '(2026-08-19, a direct GM report): "WIC just shot and missed, so '
