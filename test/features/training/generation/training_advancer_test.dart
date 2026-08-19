@@ -352,7 +352,10 @@ void main() {
   });
 
   test('the developmental slot grows a player faster than the same '
-      'player active, all else equal', () {
+      'player active, all else equal, when both somehow get identical '
+      'real minutes (isolates the multiplier alone -- see the next test '
+      'for the realistic case, where a developmental player never '
+      'actually gets real minutes at all)', () {
     Player buildPlayer() =>
         _player(id: 'p1', age: 21, overall: 45, potential: 90);
 
@@ -388,6 +391,52 @@ void main() {
     final activeDelta = _totalFieldDelta(activeAdvance.report);
     final developmentalDelta = _totalFieldDelta(developmentalAdvance.report);
     expect(developmentalDelta, greaterThanOrEqualTo(activeDelta));
+  });
+
+  test('a developmental-slot player who never suits up for a real game '
+      '(the actual, only way this ever happens in a real save -- '
+      '`franchise_rosters.dart` excludes her from every game roster) '
+      'still trains meaningfully, not just the bare jitter floor an '
+      'honest 0 real minutes used to produce (2026-08-19, a direct GM '
+      'spec: "~40/week is perfect... better than having them in slot '
+      '#10, but costly")', () {
+    Player buildPlayer() =>
+        _player(id: 'p1', age: 21, overall: 45, potential: 90);
+
+    // Same seed, same week, same dummy game (the team itself played --
+    // this isn't a bye) -- the only difference is roster status, and
+    // whether 'p1' has a real minutes entry at all. An active player
+    // with no entry is a real benched scenario (already covered by "a
+    // young player with zero minutes barely grows," above); a
+    // developmental player with no entry is the *only* scenario that
+    // ever actually happens for her in a real game.
+    final activeNoMinutes = runTraining(
+      Random(3),
+      _franchiseWith(
+        roster: [
+          RosterMembership(player: buildPlayer(), status: RosterStatus.active),
+        ],
+        week: 2,
+        minutesByPlayerId: const {},
+      ),
+    )!;
+    final developmentalNoMinutes = runTraining(
+      Random(3),
+      _franchiseWith(
+        roster: [
+          RosterMembership(
+            player: buildPlayer(),
+            status: RosterStatus.developmental,
+          ),
+        ],
+        week: 2,
+        minutesByPlayerId: const {},
+      ),
+    )!;
+
+    final activeDelta = _totalFieldDelta(activeNoMinutes.report);
+    final developmentalDelta = _totalFieldDelta(developmentalNoMinutes.report);
+    expect(developmentalDelta, greaterThan(activeDelta));
   });
 
   test('an individually-coached slot grows a player faster than the same '

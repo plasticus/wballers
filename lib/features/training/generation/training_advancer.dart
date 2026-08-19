@@ -72,6 +72,24 @@ const _kJitterFloor = 0.15; // keeps an at-potential player from a hard 0.
 // deliberately modest "still got some run in practice" credit, not a
 // full game's worth.
 const _kAssumedByeWeekMinutes = 30.0;
+// A developmental-slot player never suits up for a real game at all
+// (`franchise_rosters.dart`'s `_activePlayers` filter) -- her real
+// minutes are always 0, which used to fully zero out growth's
+// minutes-gated term regardless of `_kDevelopmentalSlotMultiplier`
+// below (1.4 x 0 is still 0, so that multiplier was dead code in
+// practice, not just a smaller bonus than intended). Fixed the same
+// way `_kAssumedByeWeekMinutes` fixed the identical problem for a bye
+// week: credit assumed practice minutes instead of the always-zero
+// real ones. 40 (2026-08-19, a direct GM spec, after discussing the
+// engine's actual minutes scale): roughly a real bench rotation
+// player's per-game workload across a normal 2-games week, deliberately
+// short of `_kFullWeekMinutes` (50, a heavy-usage starter's week) --
+// "better than [bench] slot #10," genuinely good growth, but a real
+// prospect still develops faster actually starting. The GM's own
+// framing for why this is a real tradeoff, not a strictly-better
+// option: only `kMaxDevelopmentalRosterSpots` (2) exist, so eventually
+// a real prospect has to earn her way into the lineup instead.
+const _kAssumedDevelopmentalWeekMinutes = 40.0;
 // The one-time off-season lump's own scale (`resolveSeasonEndAging`) --
 // deliberately much bigger than `_kDeclineScale` since it's applied once a
 // season, not once a week. Whatever `_ageCurveFactor` returns for a given
@@ -202,7 +220,11 @@ class TrainingAdvance {
 /// season resolves as one lump instead. `RosterStatus.reserveInactive`
 /// players are skipped entirely (not part of team training activities);
 /// active and developmental players both train, with the developmental
-/// slot applying its own multiplier.
+/// slot applying its own multiplier and its own assumed practice-minutes
+/// credit (`_kAssumedDevelopmentalWeekMinutes`) -- until 2026-08-19 the
+/// multiplier alone was dead code in practice, since it only ever
+/// multiplied the always-zero real-minutes term a player who never
+/// suits up naturally produces.
 ///
 /// The growth/decline math itself (age curve, gap-to-potential, minutes,
 /// coach quality, traits, training focus) lives in this file's private
@@ -221,6 +243,10 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
     toWeekInclusive: week,
     teamAbbreviation: franchise.team.abbreviation,
     rosterPlayerIds: [for (final m in franchise.roster) m.player.id],
+    developmentalPlayerIds: {
+      for (final m in franchise.roster)
+        if (m.status == RosterStatus.developmental) m.player.id,
+    },
   );
 
   final newRoster = <RosterMembership>[];
@@ -500,6 +526,10 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
         toWeekInclusive: week,
         teamAbbreviation: aiTeam.team.abbreviation,
         rosterPlayerIds: [for (final m in roster) m.player.id],
+        developmentalPlayerIds: {
+          for (final m in roster)
+            if (m.status == RosterStatus.developmental) m.player.id,
+        },
       );
 
       final newRoster = <RosterMembership>[];
@@ -599,17 +629,28 @@ AiTeamAgingAdvance resolveAiTeamSeasonEndAging(
 ///
 /// Any week in range where the league played games but [teamAbbreviation]
 /// itself didn't (a bye -- see [_kAssumedByeWeekMinutes]'s own doc
-/// comment) still credits every id in [rosterPlayerIds]
+/// comment) credits every *non*-developmental id in [rosterPlayerIds]
 /// [_kAssumedByeWeekMinutes], on top of whatever real minutes they
 /// separately earned elsewhere in the range -- a team can't be "on bye"
 /// for part of a multi-week range and have real minutes for the rest, so
 /// this only ever adds to, never overrides, the real sum above.
+///
+/// [developmentalPlayerIds] (a subset of [rosterPlayerIds]) instead get
+/// [_kAssumedDevelopmentalWeekMinutes] every league-training-eligible
+/// week in range, bye or not -- see that constant's own doc comment for
+/// why a developmental player's *real* minutes are always exactly 0
+/// regardless (she never suits up either way), and never both credits
+/// in the same week (developmental status, where it applies, always
+/// wins over the plain bye credit -- a developmental player isn't
+/// "extra" on top of ordinary bye-week practice, she trains this way
+/// every week she's slotted).
 Map<String, double> _minutesInWeekRange(
   List<PlayedGame> playedGames, {
   required int fromWeekInclusive,
   required int toWeekInclusive,
   required String teamAbbreviation,
   required Iterable<String> rosterPlayerIds,
+  required Set<String> developmentalPlayerIds,
 }) {
   final totals = <String, double>{};
   final leagueWeeksWithGames = <int>{};
@@ -630,12 +671,15 @@ Map<String, double> _minutesInWeekRange(
   }
 
   for (var week = fromWeekInclusive; week <= toWeekInclusive; week++) {
-    if (!leagueWeeksWithGames.contains(week) ||
-        weeksTeamPlayed.contains(week)) {
-      continue;
-    }
+    if (!leagueWeeksWithGames.contains(week)) continue;
+    final isBye = !weeksTeamPlayed.contains(week);
     for (final playerId in rosterPlayerIds) {
-      totals[playerId] = (totals[playerId] ?? 0) + _kAssumedByeWeekMinutes;
+      if (developmentalPlayerIds.contains(playerId)) {
+        totals[playerId] =
+            (totals[playerId] ?? 0) + _kAssumedDevelopmentalWeekMinutes;
+      } else if (isBye) {
+        totals[playerId] = (totals[playerId] ?? 0) + _kAssumedByeWeekMinutes;
+      }
     }
   }
 
