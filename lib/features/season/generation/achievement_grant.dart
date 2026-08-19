@@ -21,7 +21,12 @@ import '../../roster/domain/roster_membership.dart';
 /// auto-applied here regardless of whose player it is -- there's no
 /// nickname-review UI yet to hold it for approval, so auto-applying
 /// everywhere is the honest current behavior, not a design decision
-/// this function is making on its own.
+/// this function is making on its own. Which of `kNicknamePools`'s 25
+/// candidates gets suggested depends on how many times [playerId] has
+/// already won [achievement] before now -- read off [Player.achievements]
+/// *before* this grant appends to it, so the very first win always draws
+/// candidate 0 of that player's own shuffled order (see
+/// `nickname_generator.dart`'s `suggestNickname`).
 ///
 /// If this is that player's *second* [Achievement] ever (any type), also
 /// auto-assigns a random neon hair color and unlocks the neon palette
@@ -41,13 +46,16 @@ Franchise applyAchievementGrant(
   required Achievement achievement,
   required int season,
 }) {
-  final grant = grantAchievement(
-    random,
-    achievement: achievement,
-    season: season,
-  );
-
   Player apply(Player player) {
+    final occurrenceIndex = player.achievements
+        .where((record) => record.achievement == achievement)
+        .length;
+    final grant = grantAchievement(
+      achievement: achievement,
+      season: season,
+      playerId: player.id,
+      occurrenceIndex: occurrenceIndex,
+    );
     var updated = player
         .copyWithAchievement(grant.record)
         .copyWithNickname(grant.suggestedNickname);
