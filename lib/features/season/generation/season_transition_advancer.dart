@@ -5,6 +5,7 @@ import '../../draft/generation/draft_generator.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../../roster/generation/free_agent_pool_generator.dart';
+import '../../trade/domain/pick_ownership.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
@@ -53,10 +54,11 @@ bool seasonIsOver(Franchise franchise) {
 /// [DraftInProgress] built from that order -- `draft_advancer.dart`'s
 /// `resolveAiPicksUntilOwnTurn`/`makeOwnPick`/`finalizeDraft` are what
 /// actually resolve it from here. Whatever [Franchise.pickOwnershipOverrides]
-/// accumulated over the season that just ended (real draft-pick trades,
-/// 2026-08-19) gets baked into that fresh [DraftInProgress] as a frozen
-/// snapshot, then reset back to empty -- the new trade window starts
-/// with nothing traded yet.
+/// accumulated for *this* draft specifically (real draft-pick trades,
+/// 2026-08-19) gets sliced out and baked into that fresh [DraftInProgress]
+/// as a frozen snapshot; any other season's entries (further-out future
+/// picks, `pick_ownership.dart`'s `tradeableDraftSeasons`) carry forward
+/// into the new trade window untouched, rather than resetting.
 ///
 /// Also snapshots every current player's overall rating into
 /// [Franchise.seasonStartOverallByPlayerId] -- taken right here, before
@@ -122,6 +124,17 @@ Franchise beginNextSeason(
         membership.player.id: membership.player.ratings.overall,
   };
 
+  // Only this draft's own slice of the live, multi-season overrides gets
+  // baked into its DraftInProgress and removed -- every other season's
+  // entries (still further out, `pick_ownership.dart`'s
+  // tradeableDraftSeasons) carry forward untouched into the new trade
+  // window, rather than resetting.
+  final overridesForThisDraft =
+      franchise.pickOwnershipOverrides[newSeason] ?? const {};
+  final remainingPickOwnershipOverrides = FuturePickOwnershipOverrides.of(
+    franchise.pickOwnershipOverrides,
+  )..remove(newSeason);
+
   return franchise
       .copyWithNewSeason(
         newSeason: newSeason,
@@ -137,9 +150,9 @@ Franchise beginNextSeason(
         DraftInProgress(
           order: draftOrder,
           rounds: kDraftRounds,
-          pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+          pickOwnershipOverrides: overridesForThisDraft,
         ),
       )
-      .copyWithPickOwnershipOverrides(const {})
+      .copyWithPickOwnershipOverrides(remainingPickOwnershipOverrides)
       .copyWithSeasonStartOverallByPlayerId(seasonStartSnapshot);
 }

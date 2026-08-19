@@ -3,7 +3,15 @@ import 'package:womensbballmgr/features/trade/domain/pick_ownership.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
 
 void main() {
-  group('currentPickOwner', () {
+  group('tradeableDraftSeasons', () {
+    test('is the next draft plus one more out, matching '
+        'kTradeablePickHorizonSeasons', () {
+      expect(tradeableDraftSeasons(0), [1, 2]);
+      expect(tradeableDraftSeasons(4), [5, 6]);
+    });
+  });
+
+  group('currentPickOwner (one draft)', () {
     test('an untraded pick belongs to its own natal team', () {
       expect(currentPickOwner(const {}, 2, 'AAA'), 'AAA');
     });
@@ -23,7 +31,7 @@ void main() {
     });
   });
 
-  group('transferPickOwnership', () {
+  group('transferPickOwnership (one draft)', () {
     test('records a new owner for a previously-untraded pick', () {
       final updated = transferPickOwnership(
         const {},
@@ -82,54 +90,204 @@ void main() {
     });
   });
 
+  group(
+    'currentFuturePickOwner / transferFuturePickOwnership (multi-season)',
+    () {
+      test('an untraded pick belongs to its own natal team, any season', () {
+        expect(
+          currentFuturePickOwner(
+            const {},
+            draftSeason: 3,
+            round: 1,
+            originalTeamAbbreviation: 'AAA',
+          ),
+          'AAA',
+        );
+      });
+
+      test('a transfer only applies to its own draft season', () {
+        final updated = transferFuturePickOwnership(
+          const {},
+          draftSeason: 2,
+          round: 1,
+          originalTeamAbbreviation: 'AAA',
+          newOwnerAbbreviation: 'BBB',
+        );
+        expect(
+          currentFuturePickOwner(
+            updated,
+            draftSeason: 2,
+            round: 1,
+            originalTeamAbbreviation: 'AAA',
+          ),
+          'BBB',
+        );
+        // Season 3's copy of the same round/team pick is untouched.
+        expect(
+          currentFuturePickOwner(
+            updated,
+            draftSeason: 3,
+            round: 1,
+            originalTeamAbbreviation: 'AAA',
+          ),
+          'AAA',
+        );
+      });
+
+      test('a pick can trade hands more than once, across different calls', () {
+        final onceTraded = transferFuturePickOwnership(
+          const {},
+          draftSeason: 2,
+          round: 1,
+          originalTeamAbbreviation: 'AAA',
+          newOwnerAbbreviation: 'BBB',
+        );
+        final twiceTraded = transferFuturePickOwnership(
+          onceTraded,
+          draftSeason: 2,
+          round: 1,
+          originalTeamAbbreviation: 'AAA',
+          newOwnerAbbreviation: 'CCC',
+        );
+        expect(
+          currentFuturePickOwner(
+            twiceTraded,
+            draftSeason: 2,
+            round: 1,
+            originalTeamAbbreviation: 'AAA',
+          ),
+          'CCC',
+        );
+      });
+
+      test('trading a pick back to its natal owner removes that season\'s '
+          'entry entirely once nothing else in it is traded', () {
+        final traded = transferFuturePickOwnership(
+          const {},
+          draftSeason: 2,
+          round: 1,
+          originalTeamAbbreviation: 'AAA',
+          newOwnerAbbreviation: 'BBB',
+        );
+        final tradedBack = transferFuturePickOwnership(
+          traded,
+          draftSeason: 2,
+          round: 1,
+          originalTeamAbbreviation: 'AAA',
+          newOwnerAbbreviation: 'AAA',
+        );
+        expect(tradedBack, isEmpty);
+      });
+    },
+  );
+
   group('picksOwnedBy', () {
     const allTeams = ['AAA', 'BBB', 'CCC'];
 
-    test('with no trades, a team owns exactly its own natal picks', () {
-      final owned = picksOwnedBy('AAA', const {}, allTeams, rounds: 3);
-      expect(owned, hasLength(3));
+    test('with no trades, a team owns exactly its own natal picks, across '
+        'every tradeable draft season', () {
+      final owned = picksOwnedBy(
+        'AAA',
+        const {},
+        allTeams,
+        draftSeasons: [1, 2],
+        rounds: 3,
+      );
+      expect(owned, hasLength(6)); // 2 seasons x 3 rounds
       expect(
         owned,
         containsAll([
-          const PickTradeAsset(round: 1, originalTeamAbbreviation: 'AAA'),
-          const PickTradeAsset(round: 2, originalTeamAbbreviation: 'AAA'),
-          const PickTradeAsset(round: 3, originalTeamAbbreviation: 'AAA'),
+          const PickTradeAsset(
+            draftSeason: 1,
+            round: 1,
+            originalTeamAbbreviation: 'AAA',
+          ),
+          const PickTradeAsset(
+            draftSeason: 2,
+            round: 1,
+            originalTeamAbbreviation: 'AAA',
+          ),
         ]),
       );
     });
 
-    test('a team that traded away its own pick no longer owns it', () {
+    test('a team that traded away one season\'s pick still owns the other '
+        'season\'s copy of the same round', () {
       final overrides = {
-        2: {'AAA': 'BBB'},
+        2: {
+          1: {'AAA': 'BBB'},
+        },
       };
-      final owned = picksOwnedBy('AAA', overrides, allTeams, rounds: 3);
+      final owned = picksOwnedBy(
+        'AAA',
+        overrides,
+        allTeams,
+        draftSeasons: [1, 2],
+        rounds: 3,
+      );
+      expect(
+        owned,
+        contains(
+          const PickTradeAsset(
+            draftSeason: 1,
+            round: 1,
+            originalTeamAbbreviation: 'AAA',
+          ),
+        ),
+      );
       expect(
         owned,
         isNot(
           contains(
-            const PickTradeAsset(round: 2, originalTeamAbbreviation: 'AAA'),
+            const PickTradeAsset(
+              draftSeason: 2,
+              round: 1,
+              originalTeamAbbreviation: 'AAA',
+            ),
           ),
         ),
       );
-      expect(owned, hasLength(2));
     });
 
-    test(
-      'a team that acquired a pick can hold two picks in the same round',
-      () {
-        final overrides = {
+    test('a team that acquired a pick can hold two picks in the same round '
+        'and season', () {
+      final overrides = {
+        2: {
           2: {'CCC': 'AAA'},
-        };
-        final owned = picksOwnedBy('AAA', overrides, allTeams, rounds: 3);
-        expect(
-          owned.where((p) => p.round == 2),
-          containsAll([
-            const PickTradeAsset(round: 2, originalTeamAbbreviation: 'AAA'),
-            const PickTradeAsset(round: 2, originalTeamAbbreviation: 'CCC'),
-          ]),
-        );
-        expect(owned, hasLength(4));
-      },
-    );
+        },
+      };
+      final owned = picksOwnedBy(
+        'AAA',
+        overrides,
+        allTeams,
+        draftSeasons: [2],
+        rounds: 3,
+      );
+      expect(
+        owned,
+        containsAll([
+          const PickTradeAsset(
+            draftSeason: 2,
+            round: 2,
+            originalTeamAbbreviation: 'AAA',
+          ),
+          const PickTradeAsset(
+            draftSeason: 2,
+            round: 2,
+            originalTeamAbbreviation: 'CCC',
+          ),
+        ]),
+      );
+    });
+  });
+
+  group('pickHorizonLabel', () {
+    test('one season out reads as the next draft', () {
+      expect(pickHorizonLabel(3, 2), 'next draft');
+    });
+
+    test('two seasons out reads as the draft after', () {
+      expect(pickHorizonLabel(4, 2), 'the draft after');
+    });
   });
 }

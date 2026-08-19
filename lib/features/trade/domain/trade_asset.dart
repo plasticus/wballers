@@ -35,24 +35,36 @@ class PlayerTradeAsset extends TradeAsset {
 }
 
 /// A future draft pick, valued on the flat [draftPickTradeValue] ladder --
-/// [round] is 1-3, always next season's draft (there's no multi-year
-/// future-pick concept). [originalTeamAbbreviation] is whose *natal*
-/// pick this is -- the team that will actually earn this slot by
-/// standings (`DraftInProgress.order`) -- which may not be who currently
-/// holds it: a pick already traded once this season can be traded again
+/// [round] is 1-3. [draftSeason] is which draft this is (an absolute
+/// `Franchise.season` number -- the season the draft *stocks*, matching
+/// `pick_ownership.dart`'s `tradeableDraftSeasons`), always one of the
+/// [kTradeablePickHorizonSeasons] upcoming drafts -- there's no
+/// open-ended future-pick trading. [tradeValue] doesn't discount for how
+/// far out [draftSeason] is -- a deliberate simplification, same "keep
+/// the numbers few and legible" posture as the flat per-round ladder
+/// itself; nothing about *how far away* a pick is currently factors into
+/// its value.
+///
+/// [originalTeamAbbreviation] is whose *natal* pick this is -- the team
+/// that will actually earn this slot by standings (`DraftInProgress.order`,
+/// once that draft season actually arrives) -- which may not be who
+/// currently holds it: a pick already traded once can be traded again
 /// (`pick_ownership.dart`'s `picksOwnedBy` is what finds every pick a
-/// team currently actually has to offer). Real ownership: accepting a
-/// trade with one of these transfers it for real
-/// (`current_franchise_provider.dart`'s `acceptTradeOffer`,
-/// `pick_ownership.dart`'s `transferPickOwnership`), and it genuinely
-/// puts the acquiring team on the clock at the next draft
+/// team currently actually has to offer, across every tradeable
+/// [draftSeason]). Real ownership: accepting a trade with one of these
+/// transfers it for real (`current_franchise_provider.dart`'s
+/// `acceptTradeOffer`, `pick_ownership.dart`'s
+/// `transferFuturePickOwnership`), and once [draftSeason] actually
+/// arrives, it genuinely puts the acquiring team on the clock
 /// (`DraftInProgress.onTheClock`), not just a value-only IOU.
 class PickTradeAsset extends TradeAsset {
   const PickTradeAsset({
+    required this.draftSeason,
     required this.round,
     required this.originalTeamAbbreviation,
   });
 
+  final int draftSeason;
   final int round;
   final String originalTeamAbbreviation;
 
@@ -70,12 +82,13 @@ class PickTradeAsset extends TradeAsset {
   @override
   bool operator ==(Object other) =>
       other is PickTradeAsset &&
+      other.draftSeason == draftSeason &&
       other.round == round &&
       other.originalTeamAbbreviation == originalTeamAbbreviation;
 
   @override
   int get hashCode =>
-      Object.hash(PickTradeAsset, round, originalTeamAbbreviation);
+      Object.hash(PickTradeAsset, draftSeason, round, originalTeamAbbreviation);
 }
 
 /// The total [TradeAsset.tradeValue] across [assets].

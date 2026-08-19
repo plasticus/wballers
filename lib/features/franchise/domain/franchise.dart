@@ -327,16 +327,19 @@ class Franchise {
   /// the same deterministic id again.
   final Set<String> resolvedTradeOfferIds;
 
-  /// Which team currently owns each of next season's draft picks, if
-  /// any have been traded -- `pick_ownership.dart`'s
-  /// `PickOwnershipOverrides`. Empty for almost the whole game (most
-  /// picks never trade hands); `acceptTradeOffer` is the only writer
-  /// during a season, and `season_transition_advancer.dart`'s
-  /// `beginNextSeason` bakes whatever's accumulated into the fresh
-  /// `DraftInProgress` it builds, then resets this back to empty --
-  /// there's no multi-year future-pick tracking, so a new trade window
-  /// always starts with nothing traded yet.
-  final PickOwnershipOverrides pickOwnershipOverrides;
+  /// Which team currently owns each pick across every still-tradeable
+  /// future draft, if any have been traded -- `pick_ownership.dart`'s
+  /// `FuturePickOwnershipOverrides`, keyed by draft season
+  /// (`tradeableDraftSeasons`: the next draft plus one more out, "at
+  /// least one season out" per a direct GM call, 2026-08-19). Empty for
+  /// almost the whole game (most picks never trade hands);
+  /// `acceptTradeOffer` is the only writer during a season.
+  /// `season_transition_advancer.dart`'s `beginNextSeason` slices off
+  /// just the season *now* starting its draft into a frozen
+  /// `DraftInProgress.pickOwnershipOverrides` snapshot and removes that
+  /// slice here -- every other season's entries (the ones still further
+  /// out) carry forward untouched rather than resetting.
+  final FuturePickOwnershipOverrides pickOwnershipOverrides;
 
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
@@ -944,12 +947,13 @@ class Franchise {
   /// Returns a copy with [newPickOwnershipOverrides] replacing
   /// [pickOwnershipOverrides] -- `current_franchise_provider.dart`'s
   /// `acceptTradeOffer` is the only in-season writer (transferring one
-  /// pick at a time via `pick_ownership.dart`'s `transferPickOwnership`);
-  /// `season_transition_advancer.dart`'s `beginNextSeason` is the only
-  /// caller that resets it back to empty, right after baking the current
-  /// snapshot into the fresh `DraftInProgress` it builds.
+  /// pick at a time via `pick_ownership.dart`'s
+  /// `transferFuturePickOwnership`); `season_transition_advancer.dart`'s
+  /// `beginNextSeason` is the only caller that removes a season's worth
+  /// (the one whose draft it just baked into the fresh `DraftInProgress`
+  /// it builds) rather than adding one.
   Franchise copyWithPickOwnershipOverrides(
-    PickOwnershipOverrides newPickOwnershipOverrides,
+    FuturePickOwnershipOverrides newPickOwnershipOverrides,
   ) {
     return Franchise(
       id: id,

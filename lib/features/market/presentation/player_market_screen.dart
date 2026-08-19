@@ -15,6 +15,7 @@ import '../../player/presentation/trait_chip.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../trade/domain/pick_ownership.dart';
 import '../../trade/domain/trade_asset.dart';
 import '../../trade/domain/trade_offer.dart';
 import '../../trade/domain/trade_window.dart';
@@ -523,9 +524,17 @@ class _TradeOfferCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          _TradeAssetColumn(label: 'You Get', assets: offer.offeredToYou),
+          _TradeAssetColumn(
+            label: 'You Get',
+            assets: offer.offeredToYou,
+            currentSeason: franchise.season,
+          ),
           const SizedBox(height: AppSpacing.sm),
-          _TradeAssetColumn(label: 'You Give', assets: offer.askedFromYou),
+          _TradeAssetColumn(
+            label: 'You Give',
+            assets: offer.askedFromYou,
+            currentSeason: franchise.season,
+          ),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -558,10 +567,19 @@ class _TradeOfferCard extends StatelessWidget {
 
 /// "You Get"/"You Give", each a short label over one row per asset.
 class _TradeAssetColumn extends StatelessWidget {
-  const _TradeAssetColumn({required this.label, required this.assets});
+  const _TradeAssetColumn({
+    required this.label,
+    required this.assets,
+    required this.currentSeason,
+  });
 
   final String label;
   final List<TradeAsset> assets;
+
+  /// [Franchise.season] right now -- what [_TradeAssetTile] compares a
+  /// [PickTradeAsset.draftSeason] against to phrase "next draft" vs "the
+  /// draft after" (`pick_ownership.dart`'s `pickHorizonLabel`).
+  final int currentSeason;
 
   @override
   Widget build(BuildContext context) {
@@ -579,7 +597,7 @@ class _TradeAssetColumn extends StatelessWidget {
         for (final asset in assets)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
-            child: _TradeAssetTile(asset: asset),
+            child: _TradeAssetTile(asset: asset, currentSeason: currentSeason),
           ),
       ],
     );
@@ -588,11 +606,16 @@ class _TradeAssetColumn extends StatelessWidget {
 
 /// One [TradeAsset] row -- an OVR badge and identity line for a player,
 /// or a plain icon-and-label for a pick (there's no player underneath a
-/// pick to show a badge for).
+/// pick to show a badge for). A pick's row also names which of the
+/// [kTradeablePickHorizonSeasons] upcoming drafts it's for
+/// (`pick_ownership.dart`'s `pickHorizonLabel`, compared against
+/// [currentSeason]) -- "next draft" reads very differently from "the
+/// draft after" to a GM deciding whether to take one.
 class _TradeAssetTile extends StatelessWidget {
-  const _TradeAssetTile({required this.asset});
+  const _TradeAssetTile({required this.asset, required this.currentSeason});
 
   final TradeAsset asset;
+  final int currentSeason;
 
   @override
   Widget build(BuildContext context) {
@@ -626,7 +649,7 @@ class _TradeAssetTile extends StatelessWidget {
           ),
         ],
       ),
-      PickTradeAsset() => Row(
+      PickTradeAsset(:final draftSeason) => Row(
         children: [
           Icon(
             Icons.confirmation_number_outlined,
@@ -634,7 +657,12 @@ class _TradeAssetTile extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: AppSpacing.sm),
-          Text(asset.label, style: theme.textTheme.bodyMedium),
+          Expanded(
+            child: Text(
+              '${asset.label} (${pickHorizonLabel(draftSeason, currentSeason)})',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
         ],
       ),
     };

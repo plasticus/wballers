@@ -2603,12 +2603,14 @@ void main() {
                 offeringTeamAbbreviation: aiTeam.team.abbreviation,
                 offeredToYou: [
                   PickTradeAsset(
+                    draftSeason: 1,
                     round: 1,
                     originalTeamAbbreviation: aiTeam.team.abbreviation,
                   ),
                 ],
                 askedFromYou: [
                   PickTradeAsset(
+                    draftSeason: 1,
                     round: 2,
                     originalTeamAbbreviation: franchise.team.abbreviation,
                   ),
@@ -2620,19 +2622,21 @@ void main() {
         final updated = container.read(currentFranchiseProvider).value!;
         // The GM now owns the AI team's own 1st-round pick.
         expect(
-          currentPickOwner(
+          currentFuturePickOwner(
             updated.pickOwnershipOverrides,
-            1,
-            aiTeam.team.abbreviation,
+            draftSeason: 1,
+            round: 1,
+            originalTeamAbbreviation: aiTeam.team.abbreviation,
           ),
           franchise.team.abbreviation,
         );
         // And the AI team now owns the GM's own 2nd-round pick.
         expect(
-          currentPickOwner(
+          currentFuturePickOwner(
             updated.pickOwnershipOverrides,
-            2,
-            franchise.team.abbreviation,
+            draftSeason: 1,
+            round: 2,
+            originalTeamAbbreviation: franchise.team.abbreviation,
           ),
           aiTeam.team.abbreviation,
         );
@@ -2665,6 +2669,7 @@ void main() {
       final aiTeamA = franchise.league.aiTeams[0];
       final aiTeamB = franchise.league.aiTeams[1];
       final ownPickOffer = PickTradeAsset(
+        draftSeason: 1,
         round: 3,
         originalTeamAbbreviation: franchise.team.abbreviation,
       );
@@ -2678,6 +2683,7 @@ void main() {
               offeringTeamAbbreviation: aiTeamA.team.abbreviation,
               offeredToYou: [
                 PickTradeAsset(
+                  draftSeason: 1,
                   round: 3,
                   originalTeamAbbreviation: aiTeamA.team.abbreviation,
                 ),
@@ -2697,6 +2703,7 @@ void main() {
               offeringTeamAbbreviation: aiTeamB.team.abbreviation,
               offeredToYou: [
                 PickTradeAsset(
+                  draftSeason: 1,
                   round: 1,
                   originalTeamAbbreviation: aiTeamB.team.abbreviation,
                 ),
@@ -2709,19 +2716,21 @@ void main() {
       final updated = container.read(currentFranchiseProvider).value!;
       // Still owned by Team A -- the stale second offer never applied.
       expect(
-        currentPickOwner(
+        currentFuturePickOwner(
           updated.pickOwnershipOverrides,
-          3,
-          franchise.team.abbreviation,
+          draftSeason: 1,
+          round: 3,
+          originalTeamAbbreviation: franchise.team.abbreviation,
         ),
         aiTeamA.team.abbreviation,
       );
       // Team B never actually gave up its 1st-round pick.
       expect(
-        currentPickOwner(
+        currentFuturePickOwner(
           updated.pickOwnershipOverrides,
-          1,
-          aiTeamB.team.abbreviation,
+          draftSeason: 1,
+          round: 1,
+          originalTeamAbbreviation: aiTeamB.team.abbreviation,
         ),
         aiTeamB.team.abbreviation,
       );

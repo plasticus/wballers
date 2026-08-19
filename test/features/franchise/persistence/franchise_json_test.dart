@@ -410,18 +410,26 @@ void main() {
     });
   });
 
-  test('round-trips Franchise.pickOwnershipOverrides (2026-08-19, real '
-      'draft-pick ownership)', () {
+  test('round-trips Franchise.pickOwnershipOverrides, multiple draft '
+      'seasons included (2026-08-19, real draft-pick ownership)', () {
     final franchise = _sampleFranchise().copyWithPickOwnershipOverrides(const {
-      1: {'AAA': 'BBB'},
-      3: {'CCC': 'AAA'},
+      1: {
+        1: {'AAA': 'BBB'},
+      },
+      2: {
+        3: {'CCC': 'AAA'},
+      },
     });
 
     final restored = franchiseFromJson(franchiseToJson(franchise));
 
     expect(restored.pickOwnershipOverrides, {
-      1: {'AAA': 'BBB'},
-      3: {'CCC': 'AAA'},
+      1: {
+        1: {'AAA': 'BBB'},
+      },
+      2: {
+        3: {'CCC': 'AAA'},
+      },
     });
   });
 

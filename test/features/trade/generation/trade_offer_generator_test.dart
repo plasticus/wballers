@@ -136,10 +136,11 @@ void main() {
           if (asset case PickTradeAsset()) {
             sawAtLeastOnePick = true;
             expect(
-              currentPickOwner(
+              currentFuturePickOwner(
                 franchise.pickOwnershipOverrides,
-                asset.round,
-                asset.originalTeamAbbreviation,
+                draftSeason: asset.draftSeason,
+                round: asset.round,
+                originalTeamAbbreviation: asset.originalTeamAbbreviation,
               ),
               offer.offeringTeamAbbreviation,
             );
@@ -147,16 +148,21 @@ void main() {
               allTeamAbbreviations,
               contains(asset.originalTeamAbbreviation),
             );
+            expect(
+              tradeableDraftSeasons(franchise.season),
+              contains(asset.draftSeason),
+            );
           }
         }
         for (final asset in offer.askedFromYou) {
           if (asset case PickTradeAsset()) {
             sawAtLeastOnePick = true;
             expect(
-              currentPickOwner(
+              currentFuturePickOwner(
                 franchise.pickOwnershipOverrides,
-                asset.round,
-                asset.originalTeamAbbreviation,
+                draftSeason: asset.draftSeason,
+                round: asset.round,
+                originalTeamAbbreviation: asset.originalTeamAbbreviation,
               ),
               franchise.team.abbreviation,
             );
@@ -175,10 +181,13 @@ void main() {
       'again from the side that no longer holds it', () {
     final franchise = withFullActiveRoster(franchiseForPortraitTests());
     final aiAbbreviation = franchise.league.aiTeams.first.team.abbreviation;
-    // The GM's own round-1 pick already went to this AI team earlier
-    // this season.
+    final immediateDraftSeason = tradeableDraftSeasons(franchise.season).first;
+    // The GM's own round-1 pick for the immediately upcoming draft
+    // already went to this AI team earlier this season.
     final withATrade = franchise.copyWithPickOwnershipOverrides({
-      1: {franchise.team.abbreviation: aiAbbreviation},
+      immediateDraftSeason: {
+        1: {franchise.team.abbreviation: aiAbbreviation},
+      },
     });
 
     final offers = generateTradeOffers(withATrade);
@@ -186,11 +195,14 @@ void main() {
     for (final offer in offers) {
       for (final asset in offer.askedFromYou) {
         if (asset case PickTradeAsset(
+          draftSeason: final draftSeason,
           round: 1,
           originalTeamAbbreviation: final originalTeam,
         )) {
-          // The GM can no longer offer this specific pick away again.
-          expect(originalTeam == franchise.team.abbreviation, isFalse);
+          if (draftSeason == immediateDraftSeason) {
+            // The GM can no longer offer this specific pick away again.
+            expect(originalTeam == franchise.team.abbreviation, isFalse);
+          }
         }
       }
     }

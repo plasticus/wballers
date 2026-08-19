@@ -53,7 +53,11 @@ const _kCharacterAgeGapThreshold = 4;
 /// occasionally 2-for-2) -- picks only ever adjust *value*, never
 /// headcount, so accepting an offer can never leave either roster over
 /// or under [kActiveRosterSize] active players by surprise (see
-/// `current_franchise_provider.dart`'s `acceptTradeOffer`).
+/// `current_franchise_provider.dart`'s `acceptTradeOffer`). Any pick
+/// used to balance an offer is real, currently-held draft equity --
+/// either of the [tradeableDraftSeasons] horizon (2026-08-19, "at least
+/// one season out"), never conjured from thin air (`pick_ownership.dart`'s
+/// `picksOwnedBy`).
 List<TradeOffer> generateTradeOffers(Franchise franchise) {
   final random = Random(
     franchise.seasonSeed +
@@ -84,6 +88,7 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
     franchise.team.abbreviation,
     for (final aiTeam in franchise.league.aiTeams) aiTeam.team.abbreviation,
   ];
+  final draftSeasons = tradeableDraftSeasons(franchise.season);
 
   final offers = <TradeOffer>[];
   for (var slot = 0; slot < kTradeOfferCount; slot++) {
@@ -99,6 +104,7 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
       ownTeamAbbreviation: franchise.team.abbreviation,
       pickOwnershipOverrides: franchise.pickOwnershipOverrides,
       allTeamAbbreviations: allTeamAbbreviations,
+      draftSeasons: draftSeasons,
     );
     if (offer != null) offers.add(offer);
   }
@@ -119,8 +125,9 @@ TradeOffer? _tryBuildOffer(
   required Player? forcedTarget,
   required int slotIndex,
   required String ownTeamAbbreviation,
-  required PickOwnershipOverrides pickOwnershipOverrides,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
   required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
 }) {
   final aiActive = [
     for (final m in aiTeam.roster)
@@ -159,6 +166,7 @@ TradeOffer? _tryBuildOffer(
         aiTeamAbbreviation: aiTeam.team.abbreviation,
         pickOwnershipOverrides: pickOwnershipOverrides,
         allTeamAbbreviations: allTeamAbbreviations,
+        draftSeasons: draftSeasons,
       );
       if (balanced == null) continue;
       offered = balanced.offered;
@@ -199,8 +207,9 @@ TradeOffer? _tryBuildOffer(
   required int swing,
   required String ownTeamAbbreviation,
   required String aiTeamAbbreviation,
-  required PickOwnershipOverrides pickOwnershipOverrides,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
   required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
 }) {
   final gap = totalTradeValue(offered) - totalTradeValue(asked);
   if (gap < 0) {
@@ -210,6 +219,7 @@ TradeOffer? _tryBuildOffer(
       aiTeamAbbreviation,
       pickOwnershipOverrides,
       allTeamAbbreviations,
+      draftSeasons: draftSeasons,
       rounds: kDraftRounds,
     )) {
       final candidate = [...offered, pick];
@@ -226,6 +236,7 @@ TradeOffer? _tryBuildOffer(
       ownTeamAbbreviation,
       pickOwnershipOverrides,
       allTeamAbbreviations,
+      draftSeasons: draftSeasons,
       rounds: kDraftRounds,
     )) {
       final candidate = [...asked, pick];
@@ -293,8 +304,12 @@ String _offerId(
 ) {
   String assetKey(TradeAsset asset) => switch (asset) {
     PlayerTradeAsset(:final player) => 'p:${player.id}',
-    PickTradeAsset(:final round, :final originalTeamAbbreviation) =>
-      'r:$round:$originalTeamAbbreviation',
+    PickTradeAsset(
+      :final draftSeason,
+      :final round,
+      :final originalTeamAbbreviation,
+    ) =>
+      'r:$draftSeason:$round:$originalTeamAbbreviation',
   };
   final offeredKey = offered.map(assetKey).toList()..sort();
   final askedKey = asked.map(assetKey).toList()..sort();

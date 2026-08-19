@@ -234,9 +234,10 @@ void main() {
     );
   });
 
-  test('bakes whatever pickOwnershipOverrides accumulated this season into '
-      'the fresh draftInProgress, then resets the live field to empty '
-      '(2026-08-19, real draft-pick ownership)', () async {
+  test('bakes only the draft now starting\'s slice of pickOwnershipOverrides '
+      'into the fresh draftInProgress, and carries any further-out season '
+      'forward untouched rather than resetting (2026-08-19, real '
+      'draft-pick ownership, multi-season future picks)', () async {
     final base = withFullActiveRoster(
       createExpansionFranchise(
         gmName: 'Jordan Ellis',
@@ -250,18 +251,34 @@ void main() {
       ),
     );
     final aiAbbreviation = base.league.aiTeams.first.team.abbreviation;
-    final tradedThisSeason = {
+    // base.season is 0 -- beginNextSeason is about to start season 1's
+    // draft, so that's the slice that should get baked in and removed.
+    // Season 2's pick is one more season out still -- it should carry
+    // forward into the live field untouched.
+    final tradedThisDraft = {
       2: {base.team.abbreviation: aiAbbreviation},
     };
-    final withATrade = base.copyWithPickOwnershipOverrides(tradedThisSeason);
-    final playedOut = await _playedOutFranchise(withATrade);
-    expect(playedOut.pickOwnershipOverrides, tradedThisSeason);
+    final tradedNextDraftOut = {
+      1: {aiAbbreviation: base.team.abbreviation},
+    };
+    final withTrades = base.copyWithPickOwnershipOverrides({
+      1: tradedThisDraft,
+      2: tradedNextDraftOut,
+    });
+    final playedOut = await _playedOutFranchise(withTrades);
+    expect(playedOut.pickOwnershipOverrides, {
+      1: tradedThisDraft,
+      2: tradedNextDraftOut,
+    });
 
     final next = beginNextSeason(playedOut);
 
-    expect(next.draftInProgress!.pickOwnershipOverrides, tradedThisSeason);
-    // The live field resets -- the new trade window starts fresh.
-    expect(next.pickOwnershipOverrides, isEmpty);
+    // Season 1's slice (this draft) got baked into the frozen
+    // DraftInProgress snapshot.
+    expect(next.draftInProgress!.pickOwnershipOverrides, tradedThisDraft);
+    // Season 2's slice (still one more out) carries forward live,
+    // untouched -- not reset, and season 1's entry is gone (spent).
+    expect(next.pickOwnershipOverrides, {2: tradedNextDraftOut});
   });
 
   test('draftInProgress order is deterministic for the same played-out '

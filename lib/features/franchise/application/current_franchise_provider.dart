@@ -235,9 +235,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// does. Every [PickTradeAsset] on each side genuinely changes
   /// ownership too (2026-08-19, real draft-pick ownership --
   /// [Franchise.pickOwnershipOverrides], `pick_ownership.dart`'s
-  /// `transferPickOwnership`) -- the acquiring side is really who's on
-  /// the clock for it come next draft (`DraftInProgress.onTheClock`),
-  /// not just credited for it in this one offer's value math.
+  /// `transferFuturePickOwnership`), for whichever of the
+  /// `tradeableDraftSeasons` horizon [PickTradeAsset.draftSeason] names --
+  /// the acquiring side is really who's on the clock for it once that
+  /// draft actually arrives (`DraftInProgress.onTheClock`), not just
+  /// credited for it in this one offer's value math.
   ///
   /// A no-op (but still marks [offer] resolved, so a stale offer card
   /// doesn't linger) if either side no longer actually has everything
@@ -292,19 +294,21 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     );
     final ownOwnsEveryAskedPick = askedPicks.every(
       (pick) =>
-          currentPickOwner(
+          currentFuturePickOwner(
             franchise.pickOwnershipOverrides,
-            pick.round,
-            pick.originalTeamAbbreviation,
+            draftSeason: pick.draftSeason,
+            round: pick.round,
+            originalTeamAbbreviation: pick.originalTeamAbbreviation,
           ) ==
           franchise.team.abbreviation,
     );
     final aiOwnsEveryOfferedPick = offeredPicks.every(
       (pick) =>
-          currentPickOwner(
+          currentFuturePickOwner(
             franchise.pickOwnershipOverrides,
-            pick.round,
-            pick.originalTeamAbbreviation,
+            draftSeason: pick.draftSeason,
+            round: pick.round,
+            originalTeamAbbreviation: pick.originalTeamAbbreviation,
           ) ==
           aiTeam.team.abbreviation,
     );
@@ -342,16 +346,18 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
     var newPickOwnershipOverrides = franchise.pickOwnershipOverrides;
     for (final pick in askedPicks) {
-      newPickOwnershipOverrides = transferPickOwnership(
+      newPickOwnershipOverrides = transferFuturePickOwnership(
         newPickOwnershipOverrides,
+        draftSeason: pick.draftSeason,
         round: pick.round,
         originalTeamAbbreviation: pick.originalTeamAbbreviation,
         newOwnerAbbreviation: aiTeam.team.abbreviation,
       );
     }
     for (final pick in offeredPicks) {
-      newPickOwnershipOverrides = transferPickOwnership(
+      newPickOwnershipOverrides = transferFuturePickOwnership(
         newPickOwnershipOverrides,
+        draftSeason: pick.draftSeason,
         round: pick.round,
         originalTeamAbbreviation: pick.originalTeamAbbreviation,
         newOwnerAbbreviation: franchise.team.abbreviation,

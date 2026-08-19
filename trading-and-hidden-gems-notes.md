@@ -153,16 +153,29 @@ offers for the value math above to validate.
   earlier in the conversation, using real per-position depth-chart
   gaps) was considered and set aside — "not super into" it, per a
   direct GM call. Parked, not dead.
-- **Real draft-pick ownership (built 2026-08-19, `trade/domain/pick_ownership.dart`).**
-  A traded pick genuinely changes who's on the clock at the next draft —
-  not just a value-only IOU, the limitation this bullet used to flag.
-  `PickTradeAsset` now carries `originalTeamAbbreviation` (whose *natal*
-  pick it is, not necessarily who currently holds it — a pick can trade
-  hands more than once in a season). `Franchise.pickOwnershipOverrides`
-  accumulates real ownership changes over the trade window
-  (`acceptTradeOffer`); `season_transition_advancer.dart`'s
-  `beginNextSeason` bakes that snapshot into the fresh `DraftInProgress`
-  it builds (`DraftInProgress.onTheClock` resolves each slot's natal team
-  through it) and then resets the live field to empty. Still only ever
-  tracks the single upcoming draft — there's no multi-year future-pick
-  concept, same as before.
+- **Real draft-pick ownership, multi-season (built 2026-08-19, then
+  extended same day, `trade/domain/pick_ownership.dart`).** A traded pick
+  genuinely changes who's on the clock at that draft — not just a
+  value-only IOU. `PickTradeAsset` carries `originalTeamAbbreviation`
+  (whose *natal* pick it is, not necessarily who currently holds it — a
+  pick can trade hands more than once) and `draftSeason` (an absolute
+  `Franchise.season` number — the season the draft *stocks*).
+  `Franchise.pickOwnershipOverrides` accumulates real ownership changes
+  over the trade window (`acceptTradeOffer`, via
+  `transferFuturePickOwnership`); `season_transition_advancer.dart`'s
+  `beginNextSeason` slices off just the season *now* starting its draft
+  into the fresh `DraftInProgress`'s own frozen snapshot
+  (`DraftInProgress.onTheClock` resolves each slot's natal team through
+  it, unchanged from the single-season build) — every other season's
+  entries carry forward untouched.
+  - **How many seasons out (2026-08-19, direct GM call): "next + one
+    more" — `kTradeablePickHorizonSeasons = 2`.** A franchise's very
+    first season has no "own draft" to trade at all (that season's
+    roster and draft class are both already set at creation), so the
+    earliest tradeable draft is always the one that stocks the *next*
+    season (`tradeableDraftSeasons`). The Trade Board's offer generator
+    (`picksOwnedBy`) only ever offers a pick a team genuinely still
+    holds within that 2-season horizon; `player_market_screen.dart`
+    labels each pick "(next draft)" or "(the draft after)"
+    (`pickHorizonLabel`) rather than a raw season number, so a GM never
+    has to do the season-number math themselves.
