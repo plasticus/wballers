@@ -12,6 +12,7 @@ import '../franchise/domain/franchise.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
 import '../franchise/presentation/main_menu_screen.dart';
 import '../franchise/presentation/team_roster_screen.dart';
+import '../guide/presentation/guide_screen.dart';
 import '../league/domain/team.dart';
 import '../league/league_screen.dart';
 import '../mail/application/mailbox.dart';
@@ -91,6 +92,15 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
         title: Text(_titles[_selectedIndex]),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.menu_book_outlined),
+            tooltip: 'Game Guide',
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const GuideScreen()));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',

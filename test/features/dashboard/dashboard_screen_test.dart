@@ -907,6 +907,27 @@ void main() {
       expect(find.text('Text Size'), findsOneWidget);
     });
 
+    testWidgets('has a Game Guide button in the AppBar that opens '
+        'GuideScreen', (tester) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: AppShell()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.menu_book_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Game Guide'), findsOneWidget);
+      expect(find.text('Coaching'), findsOneWidget);
+      expect(find.text('How Training Works'), findsOneWidget);
+    });
+
     testWidgets(
       'shows a red unread badge on the Mail tab while the roster is short '
       'a player, and it clears once the inbox is opened',
