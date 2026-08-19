@@ -12,6 +12,9 @@ import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
+import 'package:womensbballmgr/features/season/domain/game_day.dart';
+import 'package:womensbballmgr/features/season/domain/played_game.dart';
+import 'package:womensbballmgr/features/season/domain/played_game_stat_line.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/stats/presentation/stats_screen.dart';
@@ -52,6 +55,60 @@ Franchise _franchiseWithRegularSeasonGames() {
     }
   }
   return franchise.copyWithSeasonProgress(progress);
+}
+
+/// A regular-season game whose box score is hand-built rather than
+/// simulated -- 5 AI scorers at 50/45/40/35/30 points fill Points Per
+/// Game's entire top 5, with the GM's own best scorer at a real 10, a
+/// deterministic, real 6th place. Every other stat category ties
+/// everyone at 0 (untouched -- irrelevant to what this fixture exists to
+/// exercise), same "just points" narrowness `_franchiseWithRegularSeasonGames`'s
+/// full simulation doesn't offer control over.
+Franchise _franchiseWithControlledLeaders({int ownScorerPoints = 10}) {
+  final franchise = withFullActiveRoster(_newFranchise());
+  final rosters = rostersByAbbreviation(franchise);
+  final ownPlayer = franchise.roster.first.player;
+  final aiTeam = franchise.league.aiTeams.first;
+  final aiScorers = rosters[aiTeam.team.abbreviation]!.take(5).toList();
+
+  PlayedGameStatLine line(int points) => PlayedGameStatLine(
+    minutesPlayed: 30,
+    points: points,
+    fieldGoalsMade: 0,
+    fieldGoalAttempts: 0,
+    threePointersMade: 0,
+    threePointAttempts: 0,
+    freeThrowsMade: 0,
+    freeThrowAttempts: 0,
+    offensiveRebounds: 0,
+    defensiveRebounds: 0,
+    assists: 0,
+    steals: 0,
+    blocks: 0,
+    turnovers: 0,
+    personalFouls: 0,
+  );
+
+  final playedGame = PlayedGame(
+    game: ScheduledGame(
+      week: 1,
+      day: GameDay.sunday,
+      homeTeamAbbreviation: franchise.team.abbreviation,
+      awayTeamAbbreviation: aiTeam.team.abbreviation,
+      type: GameType.regularSeason,
+    ),
+    homeScore: 80,
+    awayScore: 70,
+    boxScoreByPlayerId: {
+      ownPlayer.id: line(ownScorerPoints),
+      for (var i = 0; i < aiScorers.length; i++)
+        aiScorers[i].id: line(50 - i * 5),
+    },
+  );
+
+  return franchise.copyWithSeasonProgress(
+    franchise.seasonProgress.copyWithGameDayPlayed([playedGame]),
+  );
 }
 
 Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
@@ -167,6 +224,90 @@ void main() {
       // uses, rather than asserting the Stats screen's own text is gone.
       expect(find.text('This Season'), findsOneWidget);
       expect(find.text('Ratings'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a category leaderboard shows a 6th row for the GM\'s own best player, '
+    'with her real leaguewide rank, once she\'s fallen out of the top 5 '
+    '(2026-08-19, a direct GM ask: "show the top 5. If I don\'t have '
+    'anyone in the top 5, show my highest player in the sixth slot, '
+    'along with whatever their real rank is")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _franchiseWithControlledLeaders();
+      final ownPlayerName = franchise.roster.first.player.name;
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: StatsScreen())),
+        ),
+      );
+      await tester.pump();
+
+      // Scoped to the Points Per Game section specifically by walking the
+      // screen's own rendered text in order (`live_game_lab_screen_test
+      // .dart`'s "snapshot the whole tree" pattern, adapted) -- 5 AI
+      // scorers fill its whole top 5, so the GM's own scorer (10 points,
+      // dead last of the 6 players who played at all) only shows up via
+      // the 6th-row fallback, with her real rank (6), not omitted or
+      // mislabeled as if she belonged in the top 5.
+      final allText = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.data)
+          .whereType<String>()
+          .toList();
+      final sectionStart = allText.indexOf('Points Per Game');
+      expect(sectionStart, greaterThanOrEqualTo(0));
+      var sectionEnd = allText.indexOf('Rebounds Per Game', sectionStart);
+      if (sectionEnd == -1) sectionEnd = allText.length;
+      final section = allText.sublist(sectionStart, sectionEnd);
+
+      expect(section, contains('6'));
+      expect(section.any((t) => t.contains(ownPlayerName)), isTrue);
+    },
+  );
+
+  testWidgets(
+    'a category leaderboard shows no 6th row at all once the GM\'s own '
+    'best player is already somewhere in the top 5',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // Own scorer at 42 lands 3rd (50, 45, 42, 40, 35, ...) -- already
+      // inside the top 5, so there's nothing left for a 6th row to add.
+      final franchise = _franchiseWithControlledLeaders(ownScorerPoints: 42);
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: StatsScreen())),
+        ),
+      );
+      await tester.pump();
+
+      final allText = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.data)
+          .whereType<String>()
+          .toList();
+      final sectionStart = allText.indexOf('Points Per Game');
+      expect(sectionStart, greaterThanOrEqualTo(0));
+      var sectionEnd = allText.indexOf('Rebounds Per Game', sectionStart);
+      if (sectionEnd == -1) sectionEnd = allText.length;
+      final section = allText.sublist(sectionStart, sectionEnd);
+
+      // Exactly 5 ranks shown (1-5), never a 6th.
+      expect(section.where((t) => RegExp(r'^\d+$').hasMatch(t)), hasLength(5));
+      expect(section, isNot(contains('6')));
     },
   );
 

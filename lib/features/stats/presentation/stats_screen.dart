@@ -149,6 +149,32 @@ typedef _LeaderCategory = ({
   bool Function(PlayerSeasonTotals)? eligible,
 });
 
+/// One eligible player's totals, paired with her real, 1-based leaguewide
+/// rank in whatever category produced this list -- not just her position
+/// within a *truncated* top-5 slice, which [_LeaderSection] needs intact
+/// to label the GM's own best player correctly once she's fallen out of
+/// the top 5 (see [_LeaderSection]'s own doc comment).
+typedef _RankedTotals = ({PlayerSeasonTotals totals, int rank});
+
+/// Every eligible player in [leaders], ranked 1-based by [selector]
+/// descending -- the full ranking, not just a top-5 slice, so a caller
+/// can look past the top 5 for a specific player's real rank.
+List<_RankedTotals> _fullRanking(
+  Map<String, PlayerSeasonTotals> leaders,
+  double Function(PlayerSeasonTotals) selector, {
+  bool Function(PlayerSeasonTotals)? eligible,
+}) {
+  final sorted =
+      leaders.values
+          .where((t) => t.gamesPlayed > 0)
+          .where((t) => eligible?.call(t) ?? true)
+          .toList()
+        ..sort((a, b) => selector(b).compareTo(selector(a)));
+  return [
+    for (var i = 0; i < sorted.length; i++) (totals: sorted[i], rank: i + 1),
+  ];
+}
+
 String _oneDecimal(double v) => v.toStringAsFixed(1);
 String _percent(double v) => '${(v * 100).round()}%';
 
@@ -215,8 +241,7 @@ class _LeadersTab extends StatelessWidget {
       );
     }
 
-    final mvpRanking = [...leaders.values]
-      ..sort((a, b) => b.mvpScore.compareTo(a.mvpScore));
+    final mvpRanking = _fullRanking(leaders, (t) => t.mvpScore);
 
     // Vertical padding only -- AppShell's own body Padding
     // (`dashboard_screen.dart`) already surrounds every tab, Stats
@@ -233,7 +258,7 @@ class _LeadersTab extends StatelessWidget {
         _LeaderSection(
           franchise: franchise,
           title: 'MVP Race',
-          entries: mvpRanking.take(5).toList(),
+          ranking: mvpRanking,
           playerLookup: playerLookup,
           valueFor: (t) => t.mvpScore.toStringAsFixed(1),
         ),
@@ -242,7 +267,11 @@ class _LeadersTab extends StatelessWidget {
           _LeaderSection(
             franchise: franchise,
             title: category.label,
-            entries: _topFor(category),
+            ranking: _fullRanking(
+              leaders,
+              category.selector,
+              eligible: category.eligible,
+            ),
             playerLookup: playerLookup,
             valueFor: (t) => category.format(category.selector(t)),
           ),
@@ -250,60 +279,80 @@ class _LeadersTab extends StatelessWidget {
       ],
     );
   }
-
-  List<PlayerSeasonTotals> _topFor(_LeaderCategory category) {
-    final eligible =
-        leaders.values
-            .where((t) => t.gamesPlayed > 0)
-            .where((t) => category.eligible?.call(t) ?? true)
-            .toList()
-          ..sort(
-            (a, b) => category.selector(b).compareTo(category.selector(a)),
-          );
-    return eligible.take(5).toList();
-  }
 }
 
+/// One category's leaderboard -- the top 5 leaguewide, plus (2026-08-19,
+/// a direct GM ask: "show the top 5. If I don't have anyone in the top
+/// 5, show my highest player in the sixth slot, along with whatever
+/// their real rank is") a 6th row for the GM's own best player in this
+/// category, carrying her *real* leaguewide rank (e.g. "22", not a
+/// misleading "6") -- but only when her team isn't already represented
+/// somewhere in the top 5. [ranking] is the *full*, already-sorted
+/// leaguewide list (see [_fullRanking]), not a pre-truncated slice --
+/// this is the one place that decides how much of it to actually show.
 class _LeaderSection extends StatelessWidget {
   const _LeaderSection({
     required this.franchise,
     required this.title,
-    required this.entries,
+    required this.ranking,
     required this.playerLookup,
     required this.valueFor,
   });
 
   final Franchise franchise;
   final String title;
-  final List<PlayerSeasonTotals> entries;
+  final List<_RankedTotals> ranking;
   final Map<String, _Entry> playerLookup;
   final String Function(PlayerSeasonTotals) valueFor;
+
+  bool _isOwnTeam(String playerId) =>
+      playerLookup[playerId]?.team.abbreviation == franchise.team.abbreviation;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final top5 = ranking.take(5).toList();
+    final hasOwnInTop5 = top5.any((e) => _isOwnTeam(e.totals.playerId));
+    _RankedTotals? ownBest;
+    if (!hasOwnInTop5) {
+      for (final entry in ranking.skip(top5.length)) {
+        if (_isOwnTeam(entry.totals.playerId)) {
+          ownBest = entry;
+          break;
+        }
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: theme.textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
-        if (entries.isEmpty)
+        if (top5.isEmpty)
           const AppCard(child: Text('Not enough games played yet.'))
         else
           AppCard(
             child: Column(
               children: [
-                for (var i = 0; i < entries.length; i++) ...[
+                for (var i = 0; i < top5.length; i++) ...[
                   _LeaderRow(
                     franchise: franchise,
-                    rank: i + 1,
-                    totals: entries[i],
-                    entry: playerLookup[entries[i].playerId],
-                    value: valueFor(entries[i]),
+                    rank: top5[i].rank,
+                    totals: top5[i].totals,
+                    entry: playerLookup[top5[i].totals.playerId],
+                    value: valueFor(top5[i].totals),
                   ),
-                  if (i != entries.length - 1)
+                  if (i != top5.length - 1 || ownBest != null)
                     const Divider(height: AppSpacing.lg),
                 ],
+                if (ownBest != null)
+                  _LeaderRow(
+                    franchise: franchise,
+                    rank: ownBest.rank,
+                    totals: ownBest.totals,
+                    entry: playerLookup[ownBest.totals.playerId],
+                    value: valueFor(ownBest.totals),
+                  ),
               ],
             ),
           ),
@@ -344,8 +393,12 @@ class _LeaderRow extends StatelessWidget {
 
     final row = Row(
       children: [
+        // Wide enough for a real 2-3 digit leaguewide rank, not just 1-5
+        // -- the "own best player" fallback row (2026-08-19, a direct GM
+        // ask) can land well outside the top 5, e.g. "22 PG #5 Olivia
+        // Miles 19.1".
         SizedBox(
-          width: 24,
+          width: 32,
           child: Text(
             '$rank',
             style: theme.textTheme.titleSmall,

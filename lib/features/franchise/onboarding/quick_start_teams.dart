@@ -100,8 +100,14 @@ const kQuickStartKansasCityAviators = QuickStartTeam(
 /// Dallas, TX -- the one city in this set left to me to pick (a direct
 /// GM ask: "another midwest-ish or texas city we don't have"). Not
 /// already in `kLeagueTeamPool` (only Houston and Oklahoma City are).
-const kQuickStartDallasMustangs = QuickStartTeam(
-  clubName: 'Dallas Mustangs',
+/// Renamed from "Dallas Mustangs" (2026-08-19, a direct GM ask: "Change
+/// Dallas to the Dallas Dynamos [electricity emoji] -- if we're already
+/// using the electricity emoji, go Dallas Eagles"). `kLeagueTeamPool`
+/// already has both ⚡ (Seattle) and 🦅 (Toronto Talons), so Dynamos was
+/// out on the emoji alone and Eagles' own natural emoji was taken too --
+/// 🪶 keeps the bird-of-prey read without colliding with either.
+const kQuickStartDallasEagles = QuickStartTeam(
+  clubName: 'Dallas Eagles',
   homeCity: 'Dallas',
   homeState: 'TX',
   abbreviation: 'DAL',
@@ -110,7 +116,7 @@ const kQuickStartDallasMustangs = QuickStartTeam(
     secondaryHex: '#EF8354',
     accentHex: '#F4F1DE',
   ),
-  emoji: '🐎',
+  emoji: '🪶',
   gmNames: ['Reata Steele', 'Sierra Colton', 'Dusty Calloway'],
 );
 
@@ -119,5 +125,5 @@ const kQuickStartTeams = <QuickStartTeam>[
   kQuickStartWichitaWitches,
   kQuickStartOmahaBison,
   kQuickStartKansasCityAviators,
-  kQuickStartDallasMustangs,
+  kQuickStartDallasEagles,
 ];
