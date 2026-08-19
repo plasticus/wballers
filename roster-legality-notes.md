@@ -5,6 +5,23 @@ Everything scattered across `TODO.md`, `0A_Completed.md`,
 roster-legality enforcement, gathered in one place (2026-08-19, a direct
 GM ask: "I can't look at them at the same time").
 
+## Decision (2026-08-19): parked, blocked on Trades
+
+GM call: neither size of feature below (the small screen or the full
+designed flow) is worth building right now -- both assume trades are a
+real thing a GM/AI can act on, and they aren't (confirmed: the Trade
+Block tab is still explicitly preview-only, "there's no trade system
+yet... nothing here can actually be traded for," `player_market_screen.dart`).
+Revisit once a real trade system exists.
+
+One thing worth correcting while parking this: the GM's own suspicion
+that Developmental roster slots also need work first turned out not to
+be true -- checked directly, `RosterStatus.developmental` is already
+fully enforced today (capped at `kMaxDevelopmentalRosterSpots` (2),
+restricted to `isDevelopmentalEligible` players (≤3 years of service),
+checked the moment a GM actually moves/signs someone into one). Trades
+are the real, sole blocker here, not developmental slots.
+
 ## The rule itself (`star_system.md`)
 
 The star-tier system is the permanent salary-cap substitute — no money,
