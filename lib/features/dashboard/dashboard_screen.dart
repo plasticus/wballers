@@ -40,6 +40,7 @@ import '../season/presentation/season_recap_screen.dart';
 import '../season/presentation/skills_competition_result_screen.dart';
 import '../settings/presentation/settings_screen.dart';
 import '../stats/presentation/stats_screen.dart';
+import '../trade/domain/trade_window.dart';
 import '../training/domain/training_report.dart';
 import '../training/presentation/training_report_screen.dart';
 
@@ -1080,6 +1081,22 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
 /// The GM's next few games, not just the very next one -- date, home/away,
 /// opponent (with their own emoji, same "reads like a real scoreboard"
 /// spirit as [_FranchiseSummaryCard]'s crest), and their current record.
+/// One entry in [_UpcomingGamesList] -- a real [ScheduledGame], or the
+/// Trade Deadline milestone spliced in at its real chronological
+/// position (see that list's own doc comment).
+sealed class _UpcomingItem {
+  const _UpcomingItem();
+}
+
+class _UpcomingGameEntry extends _UpcomingItem {
+  const _UpcomingGameEntry(this.game);
+  final ScheduledGame game;
+}
+
+class _TradeDeadlineEntry extends _UpcomingItem {
+  const _TradeDeadlineEntry();
+}
+
 class _UpcomingGamesList extends StatelessWidget {
   const _UpcomingGamesList({required this.franchise});
 
@@ -1102,18 +1119,71 @@ class _UpcomingGamesList extends StatelessWidget {
     ];
     final standings = currentStandings(franchise.seasonProgress, leagueTeams);
 
+    // Splices the Trade Deadline milestone in right before the first
+    // visible Week 7+ game -- "the little dashboard calendar," a direct
+    // GM ask (2026-08-19) for the deadline to show up here too, not just
+    // the real Calendar screen. Only while the window's still genuinely
+    // open ([isTradeWindowOpen]) and the boundary actually falls inside
+    // this short "next 3" horizon -- once it's passed, or it's still too
+    // far out to be one of the next few games, nothing is spliced in.
+    final items = <_UpcomingItem>[];
+    var deadlineInserted = false;
+    final showDeadline = isTradeWindowOpen(franchise);
+    for (final game in games) {
+      if (showDeadline && !deadlineInserted && game.week > kTradeDeadlineWeek) {
+        items.add(const _TradeDeadlineEntry());
+        deadlineInserted = true;
+      }
+      items.add(_UpcomingGameEntry(game));
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Upcoming Games', style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.xs),
-        for (final game in games)
-          _UpcomingGameRow(
-            franchise: franchise,
-            game: game,
-            standings: standings,
-          ),
+        for (final item in items)
+          switch (item) {
+            _UpcomingGameEntry() => _UpcomingGameRow(
+              franchise: franchise,
+              game: item.game,
+              standings: standings,
+            ),
+            _TradeDeadlineEntry() => const _TradeDeadlineRow(),
+          },
       ],
+    );
+  }
+}
+
+/// A compact single line calling out the Trade Deadline, same visual
+/// weight as [_UpcomingGameRow] so it reads as part of the same list
+/// rather than a separate banner.
+class _TradeDeadlineRow extends StatelessWidget {
+  const _TradeDeadlineRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            Icons.lock_clock_outlined,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            'Trade Deadline -- end of Week $kTradeDeadlineWeek',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

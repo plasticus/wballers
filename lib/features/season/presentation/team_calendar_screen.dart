@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../trade/domain/trade_window.dart' show kTradeDeadlineWeek;
 import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/played_game.dart';
@@ -26,9 +27,10 @@ import '../generation/season_schedule_generator.dart'
 /// Every date that matters to the GM's own club, in one place -- games,
 /// bye days (and *why*, when it's a Cup elimination rather than just the
 /// schedule packer's own unevenness), the end of the regular season,
-/// postseason rounds, and the draft -- a direct GM ask (2026-08-15): "a
-/// Calendar available from my Team page... Games, Bye weeks... end of
-/// regular season date, draft date, everything relevant to my team."
+/// postseason rounds, the trade deadline, and the draft -- a direct GM
+/// ask (2026-08-15): "a Calendar available from my Team page... Games,
+/// Bye weeks... end of regular season date, draft date, everything
+/// relevant to my team."
 ///
 /// Unlike [ScheduleScreen] (which only ever lists real [ScheduledGame]s),
 /// this fills in the gaps a schedule-only view leaves: a day the league
@@ -54,11 +56,8 @@ class TeamCalendarScreen extends StatelessWidget {
                 itemCount: rows.length,
                 separatorBuilder: (_, _) =>
                     const SizedBox(height: AppSpacing.sm),
-                itemBuilder: (context, index) => _rowWidget(
-                  context,
-                  franchise: franchise,
-                  row: rows[index],
-                ),
+                itemBuilder: (context, index) =>
+                    _rowWidget(context, franchise: franchise, row: rows[index]),
               ),
       ),
     );
@@ -129,11 +128,8 @@ class _ByeRow extends _CalendarRow {
 }
 
 class _MilestoneRow extends _CalendarRow {
-  const _MilestoneRow({
-    required super.week,
-    required this.title,
-    this.subtitle,
-  }) : super(day: null);
+  const _MilestoneRow({required super.week, required this.title, this.subtitle})
+    : super(day: null);
 
   final String title;
   final String? subtitle;
@@ -190,9 +186,18 @@ List<_CalendarRow> _buildCalendarRows(Franchise franchise) {
 
   // Regular season end -- a real milestone, not a game of its own.
   rows.add(
-    _MilestoneRow(
-      week: kRegularSeasonEndWeek,
-      title: 'Regular Season Ends',
+    _MilestoneRow(week: kRegularSeasonEndWeek, title: 'Regular Season Ends'),
+  );
+
+  // Trade Deadline -- locked to the end of Week kTradeDeadlineWeek
+  // (2026-08-19, a direct GM call), sorted (via the `week`/`day: null`
+  // tie-break below) to the very end of that week's own rows, right
+  // before Week [kTradeDeadlineWeek + 1] begins.
+  rows.add(
+    const _MilestoneRow(
+      week: kTradeDeadlineWeek,
+      title: 'Trade Deadline',
+      subtitle: 'Trades close once Week ${kTradeDeadlineWeek + 1} begins',
     ),
   );
 

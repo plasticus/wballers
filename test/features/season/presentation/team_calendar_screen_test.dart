@@ -122,10 +122,7 @@ void main() {
     await pumpCalendar(tester);
 
     expect(find.text('Calendar'), findsOneWidget);
-    expect(
-      find.text('vs ${opponent.emoji} ${opponent.name}'),
-      findsOneWidget,
-    );
+    expect(find.text('vs ${opponent.emoji} ${opponent.name}'), findsOneWidget);
     expect(find.text('W 80-70'), findsOneWidget);
   });
 
@@ -172,19 +169,24 @@ void main() {
     },
   );
 
-  testWidgets(
-    'lists the regular-season-end, postseason, and draft milestones '
-    '(2026-08-15, a direct GM ask: "end of regular season date, draft '
-    'date, everything relevant to my team")',
-    (tester) async {
-      await pumpCalendar(tester);
+  testWidgets('lists the regular-season-end, postseason, and draft milestones '
+      '(2026-08-15, a direct GM ask: "end of regular season date, draft '
+      'date, everything relevant to my team")', (tester) async {
+    await pumpCalendar(tester);
 
-      expect(find.text('Regular Season Ends'), findsOneWidget);
-      expect(find.text('Postseason: First Round'), findsOneWidget);
-      expect(find.text('Postseason: Semifinals'), findsOneWidget);
-      expect(find.text('Postseason: Finals'), findsOneWidget);
-      expect(find.text('Draft'), findsOneWidget);
-      expect(find.text('Once the postseason wraps up'), findsOneWidget);
-    },
-  );
+    expect(find.text('Regular Season Ends'), findsOneWidget);
+    expect(find.text('Postseason: First Round'), findsOneWidget);
+    expect(find.text('Postseason: Semifinals'), findsOneWidget);
+    expect(find.text('Postseason: Finals'), findsOneWidget);
+    expect(find.text('Draft'), findsOneWidget);
+    expect(find.text('Once the postseason wraps up'), findsOneWidget);
+  });
+
+  testWidgets('lists the Trade Deadline milestone, locked to the end of Week 6 '
+      '(2026-08-19, a direct GM call)', (tester) async {
+    await pumpCalendar(tester);
+
+    expect(find.text('Trade Deadline'), findsOneWidget);
+    expect(find.text('Trades close once Week 7 begins'), findsOneWidget);
+  });
 }

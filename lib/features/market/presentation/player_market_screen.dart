@@ -291,11 +291,10 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
               ? 'Real offers from around the league -- accept or decline, '
                     'no negotiating. Every offer is already legal for that '
                     'team\'s own coaching staff, so what you see is what '
-                    'you\'d get.'
-              : 'The trade window is closed for the year -- it runs from '
-                    'right after the draft through your first '
-                    '${kTradeWindowGameDayCount - 2} regular-season games. '
-                    'Check back next season.',
+                    'you\'d get. The trade deadline is the end of Week '
+                    '$kTradeDeadlineWeek.'
+              : 'The trade deadline has passed -- it closed at the end of '
+                    'Week $kTradeDeadlineWeek. Check back next season.',
         ),
         _TradeBlockCard(
           franchise: franchise,

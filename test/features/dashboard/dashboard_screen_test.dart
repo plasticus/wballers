@@ -214,6 +214,127 @@ void main() {
   });
 
   testWidgets(
+    'splices a Trade Deadline row into Upcoming Games once the Week 6/7 '
+    'boundary is one of the next few games, while the window\'s still '
+    'open (2026-08-19, a direct GM call: "it\'ll show up on... the '
+    'little dashboard calendar, too")',
+    (tester) async {
+      final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+      final league = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: ownAbbreviation,
+      );
+      final opponent = league.aiTeams[0].team.abbreviation;
+      ScheduledGame ownGameAt(int week) => ScheduledGame(
+        week: week,
+        day: GameDay.sunday,
+        homeTeamAbbreviation: ownAbbreviation,
+        awayTeamAbbreviation: opponent,
+        type: GameType.regularSeason,
+      );
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [ownGameAt(5), ownGameAt(6), ownGameAt(7)],
+          ),
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Trade Deadline'), findsOneWidget);
+    },
+  );
+
+  testWidgets('never shows the Trade Deadline row once the window\'s already '
+      'closed', (tester) async {
+    final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+    final league = testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: ownAbbreviation,
+    );
+    final opponent = league.aiTeams[0].team.abbreviation;
+    final franchise = _franchiseWith(
+      seasonProgress: SeasonProgress(
+        schedule: SeasonSchedule(
+          games: [
+            ScheduledGame(
+              week: 7,
+              day: GameDay.sunday,
+              homeTeamAbbreviation: ownAbbreviation,
+              awayTeamAbbreviation: opponent,
+              type: GameType.regularSeason,
+            ),
+          ],
+        ),
+        playedGames: const [],
+        // Already on the clock for the Week 7 game itself.
+        nextGameDayIndex: 0,
+      ),
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Trade Deadline'), findsNothing);
+  });
+
+  testWidgets(
+    'doesn\'t show the Trade Deadline row while it\'s still further out '
+    'than the visible upcoming games',
+    (tester) async {
+      final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+      final league = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: ownAbbreviation,
+      );
+      final opponent = league.aiTeams[0].team.abbreviation;
+      ScheduledGame ownGameAt(int week) => ScheduledGame(
+        week: week,
+        day: GameDay.sunday,
+        homeTeamAbbreviation: ownAbbreviation,
+        awayTeamAbbreviation: opponent,
+        type: GameType.regularSeason,
+      );
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [ownGameAt(2), ownGameAt(3), ownGameAt(4)],
+          ),
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Trade Deadline'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'shows an Assistant GM mail card naming the pool\'s best prospect, and '
     'hides the advance button, while the roster is short a player',
     (tester) async {

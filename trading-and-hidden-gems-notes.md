@@ -125,12 +125,21 @@ offers for the value math above to validate.
   (`trade_offer_generator.dart`'s `generateTradeOffers`) — not
   persisted, same "recompute, don't store" posture the Player Market's
   other preview tabs already use.
-- **Trade window** (`trade_window.dart`): opens after the draft, runs
-  through 2 preseason games + up to 12 regular-season turns
-  (`kTradeWindowGameDayCount = 14`, ~15 total regenerations, max).
-  *Still open: a trade deadline in real narrative terms — floated
-  "maybe around end of week 6" but never locked, and not needed since
-  the window itself already caps things.*
+- **Trade window** (`trade_window.dart`): opens at the very start of a
+  season (preseason included) and runs through **the end of Week
+  `kTradeDeadlineWeek` (6)** — locked for real 2026-08-19, a direct GM
+  call ("definitively mark the Trade Deadline as End of Week 6"),
+  replacing the earlier flat ~15-turn game-day-count fudge. Checked
+  against whichever game day is genuinely up next
+  (`gameDaysInOrder`/`SeasonProgress.nextGameDayIndex`), not a raw turn
+  count — weeks don't all carry the same number of game days (byes, Cup
+  rounds, All-Star week), so only a real week comparison lands exactly
+  on "closed the instant the GM starts a Week 7 game." Shows up as a
+  real calendar entry in 2 places, not just an enforced cutoff:
+  `TeamCalendarScreen` (a `_MilestoneRow` sorted to the very end of Week
+  6, right before Week 7 begins) and the Dashboard's "Upcoming Games"
+  list (spliced in at its real chronological position, only while the
+  window's still open and the boundary is one of the next few games).
 - **5-slot mix — simplified from the original plan.** The original
   intent (2 contention-window / 2 situational / 1 hairbrained,
   targeted generation) needed a real per-team strategy signal that was
