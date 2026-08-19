@@ -31,14 +31,14 @@ the system that uses it" pattern player ratings themselves went through.
 | **Defense** | In-game tactical calls | ✅ Built — same mechanism as Offense, above. |
 | **Development** | Player growth speed | ✅ Built — training growth (the very first stat wired in). |
 | **Motivation** | Morale/chemistry + close-game resilience | ⚠️ Partially — see below. |
-| **Management** | Trade/draft shrewdness | ❌ Nothing — see below. |
+| **Management** | Trade/draft shrewdness | ❌ Nothing — see below. Blocked on the same "no trade system" gap as roster legality (`roster-legality-notes.md`). |
 
 Confirmed by grepping `lib/` directly (2026-08-19): no code path reads
 `CoachStats.management` for any decision at all. It's generated
 (`coach_generator.dart`), shown on the coach-selection screen, and
 persisted (`coach_json.dart`) — and that's the entire list.
 
-## Motivation — the one real hook it has
+## Motivation — 2 real hooks now
 
 `retirement_advancer.dart`'s `attemptRetirementPersuasion`: when a player
 on the GM's own roster is a pending retirement decision, the coach's
@@ -50,9 +50,25 @@ never *guarantee* a stay and a bottomed-out one can never make it
 of the 5 `CoachStats` to 'keep a veteran playing'" per that stat's own doc
 comment — an acknowledged imperfect thematic fit, not a real morale system.
 
+**In-game coaching, shipped 2026-08-19** — a direct GM ask, this file's
+own reason for existing: Motivation now scales the quarter-break
+coaching-option bonuses (`coaching_option.dart`'s `motivationBonusMultiplier`/
+`applyMotivationToCoachingBonus`, wired into `match_engine.dart`). Linear,
+0.25x at Motivation 1 up to 1.75x at 99, anchored so the scale's exact
+midpoint (50) is 1.0x — "the coach has 50 motivation, they just get the
+standard bonuses," the GM's own spec, verbatim. Applies to the 5 rating-
+percentage fields (offense/defense/disruption/perimeter-defense/
+rebounding) on whichever tradeoff option a coach's pick resolves to, both
+the pro and con side alike; deliberately leaves the pace-seconds/stamina-
+multiplier fields alone (a different kind of effect, out of scope for
+this pass). Verified end-to-end: a maxed-Motivation coach calling Focus
+Defense every break suppresses the opponent's scoring more, over 150
+sample games, than a neutral coach making the identical call.
+
 What's still missing from the original pitch: nothing about team-wide
-morale/chemistry exists, and nothing ties Motivation to close-game
-resilience (clutch performance, late-game execution).
+morale/chemistry exists as its own concept, and nothing ties Motivation
+to close-game resilience specifically (a clutch/late-game modifier,
+separate from the coaching-option system above).
 
 ## Management — a genuinely clean slate
 
@@ -90,7 +106,8 @@ question was framed, not as still-current status.)
    enforcement flow, see `roster-legality-notes.md`), or something else
    entirely (the old #16 question's own suggestion was rest/rotation
    decisions, which doesn't match the original written pitch at all).
-2. **Motivation's morale/chemistry half** — still completely unscoped.
-   Team-wide morale affecting what, exactly? And "close-game resilience"
-   — a clutch-performance modifier layered onto `possession_engine.dart`
-   the same way fatigue/coaching-option bonuses already stack?
+2. **Motivation's morale/chemistry half** — still completely unscoped
+   (the coaching-option half above is done). Team-wide morale affecting
+   what, exactly? And "close-game resilience" — a clutch-performance
+   modifier layered onto `possession_engine.dart` the same way fatigue/
+   coaching-option bonuses already stack?
