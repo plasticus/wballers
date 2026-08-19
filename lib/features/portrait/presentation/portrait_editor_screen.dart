@@ -96,6 +96,16 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
   late PortraitAppearance _draft;
   var _isSaving = false;
 
+  /// Only ever populated from an already-earned [Player.nickname] (see
+  /// `initState`) -- editable once she has one, but this screen never
+  /// offers a way to give a player who hasn't earned one a nickname from
+  /// scratch. Nicknames stay an earned-through-play thing
+  /// (`achievement_grant.dart`); this is a reword/retire control on an
+  /// existing one, not a free-assignment one (a direct GM ask,
+  /// 2026-08-19: "I don't want a separate screen for nicknames... if
+  /// they have a nickname, put it on [the portrait editor], editable").
+  late final TextEditingController _nicknameController;
+
   /// `null` when editing the coach -- achievements (`achievement.dart`)
   /// only players have.
   Player? get _targetPlayer {
@@ -117,10 +127,21 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
   bool get _specialColorsUnlocked =>
       _targetPlayer != null && _targetPlayer!.achievements.length >= 2;
 
+  bool get _hasNickname => _targetPlayer?.nickname != null;
+
   @override
   void initState() {
     super.initState();
     _draft = _existingAppearance() ?? _defaultAppearance();
+    _nicknameController = TextEditingController(
+      text: _targetPlayer?.nickname ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    super.dispose();
   }
 
   PortraitAppearance? _existingAppearance() {
@@ -160,6 +181,13 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
       await notifier.updateCoachAppearance(_draft);
     } else {
       await notifier.updatePlayerAppearance(widget.playerId!, _draft);
+      if (_hasNickname) {
+        final trimmed = _nicknameController.text.trim();
+        await notifier.updatePlayerNickname(
+          widget.playerId!,
+          trimmed.isEmpty ? null : trimmed,
+        );
+      }
     }
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -189,6 +217,24 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
           Expanded(
             child: ListView(
               children: [
+                if (_hasNickname) ...[
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Nickname', style: theme.textTheme.titleSmall),
+                        const SizedBox(height: AppSpacing.xs),
+                        TextField(
+                          controller: _nicknameController,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
