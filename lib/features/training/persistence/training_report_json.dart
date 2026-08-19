@@ -27,6 +27,7 @@ PlayerGrowthResult playerGrowthResultFromJson(Map<String, dynamic> json) {
 
 Map<String, dynamic> trainingReportToJson(TrainingReport report) {
   return {
+    'fromWeek': report.fromWeek,
     'week': report.week,
     'results': report.results.map(playerGrowthResultToJson).toList(),
   };
@@ -34,6 +35,7 @@ Map<String, dynamic> trainingReportToJson(TrainingReport report) {
 
 TrainingReport trainingReportFromJson(Map<String, dynamic> json) {
   return TrainingReport(
+    fromWeek: json['fromWeek'] as int,
     week: json['week'] as int,
     results: (json['results'] as List<dynamic>)
         .map(

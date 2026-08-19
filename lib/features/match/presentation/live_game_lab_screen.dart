@@ -473,9 +473,37 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
       setState(() {
         _beatHistory.add(beat);
         _viewIndex = _beatHistory.length - 1;
-        _home += beat.deltaHome;
-        _away += beat.deltaAway;
+        if (!(beat.isShotAttempt && beat.shotMade == true)) {
+          _home += beat.deltaHome;
+          _away += beat.deltaAway;
+        }
       });
+      // A made shot's own points wait for the ball to actually reach the
+      // rim -- matching the shot-result popup's own `delay: shotDuration`
+      // -- rather than jumping the instant the beat appears, while the
+      // ball is still mid-flight (2026-08-19, a direct GM question: "on a
+      // scoring play... does the scoreboard update until the ball hits
+      // the net?" It didn't; now it does). Every other beat type (passes,
+      // free throws, defense) has no ball-travel animation of its own, so
+      // there's nothing to wait for -- those still update immediately,
+      // above.
+      if (beat.isShotAttempt && beat.shotMade == true) {
+        final travelMs = _FullCourtPanel.shotTravelMs(_intervalMsFor(_speed));
+        Future.delayed(Duration(milliseconds: travelMs), () {
+          if (!mounted) return;
+          // The game could have been reset (or, in principle, another
+          // beat could have already superseded this one) before the
+          // ball's travel animation finished -- don't bump a score that's
+          // no longer this beat's own board.
+          if (_beatHistory.isEmpty || !identical(_beatHistory.last, beat)) {
+            return;
+          }
+          setState(() {
+            _home += beat.deltaHome;
+            _away += beat.deltaAway;
+          });
+        });
+      }
       await _waitForAdvance();
       if (!mounted) return;
     }
@@ -502,14 +530,20 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
       // screen to actually be readable -- a direct GM catch (2026-08-18):
       // "it's up there for a split second, can't read it" at Fast's own
       // 750ms base pace (barely longer than the ball's own travel
-      // animation). Quadrupled for exactly this one beat type, at Fast
-      // speed only -- every non-shot beat Fast still shows (assists,
-      // blocks, steals) keeps the normal brisk pace; only the shot result
-      // itself needs the extra room to breathe.
+      // animation). First fix quadrupled the whole wait for this beat
+      // type at Fast speed, but that left the result sitting through
+      // ~2.3s of genuine dead air *after* the ball's own travel animation
+      // had already finished -- a direct GM catch on the very next watch
+      // (2026-08-19): "I count a 2-second pause between the end of the
+      // animation... before the next play starts. Eliminate that 2
+      // seconds." A short fixed dwell measured from when the ball
+      // actually lands (not a multiple of the base interval) gives the
+      // result room to read without the hitch.
+      const fastShotResultDwellMs = 500;
       final baseMs = _intervalMsFor(_speed);
       final beat = _currentBeat;
       final ms = (_speed == _Speed.fast && beat != null && beat.isShotAttempt)
-          ? baseMs * 4
+          ? _FullCourtPanel.shotTravelMs(baseMs) + fastShotResultDwellMs
           : baseMs;
       _advanceTimer = Timer(Duration(milliseconds: ms), () {
         if (_playing && !completer.isCompleted) completer.complete();
@@ -755,11 +789,17 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.xs),
+                  // No icon here, unlike Prev/Next either side of it -- a
+                  // direct GM catch, live on-device (2026-08-19): "Highlight
+                  // is broken in two lines... maybe just get rid of the
+                  // emoji, then it'll fit." "Highlight" is the longest of
+                  // the 3 labels; dropping its icon (not shortening the
+                  // word, which is the whole point of the button) gives it
+                  // back the width Prev/Next's shorter labels don't need.
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: OutlinedButton(
                       onPressed: _seekToNextHighlight,
-                      icon: const Icon(Icons.bolt),
-                      label: const Text('Highlight'),
+                      child: const Text('Highlight'),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.xs),
@@ -793,6 +833,21 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
               onSelectionChanged: (selection) {
                 final wasStep = _speed == _Speed.step;
                 final leavingStep = wasStep && selection.first != _Speed.step;
+                final enteringStep = !wasStep && selection.first == _Speed.step;
+                if (enteringStep) {
+                  // A real bug, live on-device (2026-08-19, a direct GM
+                  // report): "hit step then start. Thought it'd be
+                  // tipoff, but it was one play beyond that." A real game
+                  // auto-starts on an auto-play speed before the GM can
+                  // touch anything, so switching to Step mid-timer left
+                  // that already-scheduled auto-advance ticking in the
+                  // background -- it fired once anyway, silently stepping
+                  // past the very beat the GM had just paused on, before
+                  // their first real Next tap. Cancelling the timer (not
+                  // completing it) is the whole fix: the current beat just
+                  // sits there, same as any other pause.
+                  _advanceTimer?.cancel();
+                }
                 setState(() {
                   _speed = selection.first;
                   // Leaving Step while browsing backward (or mid a
@@ -1017,6 +1072,14 @@ class _FullCourtPanel extends StatelessWidget {
   final Color awayColor;
   final String homeEmoji;
 
+  /// How long a shot's ball takes to travel from release to the rim, at a
+  /// given beat interval -- shared with [_LiveGameLabScreenState._waitForAdvance]
+  /// (2026-08-19) so the Fast-mode shot-result dwell it computes is always
+  /// measured from when the ball actually lands, not a guess duplicated in
+  /// two places.
+  static int shotTravelMs(int intervalMs) =>
+      math.min(1000, (intervalMs * 0.85).round());
+
   /// How many of the last plays a blip stays visible for before fading
   /// out completely.
   static const _blipLifetimePlays = 5;
@@ -1167,9 +1230,7 @@ class _FullCourtPanel extends StatelessWidget {
     final passDuration = Duration(
       milliseconds: math.min(650, (intervalMs * 0.8).round()),
     );
-    final shotDuration = Duration(
-      milliseconds: math.min(1000, (intervalMs * 0.85).round()),
-    );
+    final shotDuration = Duration(milliseconds: shotTravelMs(intervalMs));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1266,11 +1327,33 @@ class _FullCourtPanel extends StatelessWidget {
                     alignment: _basketAlignment(beat.badgeTeam),
                     child: _ShotResultPopup(
                       key: ValueKey('${beat.displayText}-result'),
+                      // A real bug (2026-08-19, a direct GM report): "I
+                      // see a lot of shots that should be 2pts, only
+                      // moving the scoreboard by 1! Just saw a pull-up
+                      // score for 3, despite it saying WIC 2 pts." The
+                      // running total was always right (score deltas
+                      // summed across every beat provably equal the real
+                      // final score -- see live_beat_translator_test.dart)
+                      // -- the popup itself was the lie: and-one always
+                      // read `_Highlight.andOne`, never `.threePointer`,
+                      // so a 3-point and-one showed the flat "+2" fallback
+                      // regardless of the shot's real value, and no
+                      // and-one ever warned a bonus free throw was still
+                      // coming (which is exactly what read as "only
+                      // moving by 1" once that FT landed with no popup of
+                      // its own). `beat.zone` -- not `.highlight`, which
+                      // and-one overwrites -- is what actually survives
+                      // that override, and the GM's own suggested fix:
+                      // "maybe a different display (2+1, or 3+1)."
                       pointsLabel: beat.shotMade != true
                           ? '✕'
-                          : (beat.highlight == _Highlight.threePointer
-                                ? '+3'
-                                : '+2'),
+                          : (beat.highlight == _Highlight.andOne
+                                ? (beat.zone == _Zone.threePoint
+                                      ? '3+1'
+                                      : '2+1')
+                                : (beat.zone == _Zone.threePoint
+                                      ? '+3'
+                                      : '+2')),
                       // A made-shot popup is white in dark mode -- a
                       // direct GM catch (2026-08-17): "I'm looking at
                       // dark mode and they're hard to see" (team colors

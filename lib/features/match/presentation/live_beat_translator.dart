@@ -278,6 +278,18 @@ class LiveBeatTranslator {
     final isInboundPossession = _nextPossessionIsInbound;
     _nextPossessionIsInbound = _endsInMake(events);
 
+    // Held when the shot just translated turns out to be a made basket
+    // immediately followed by its own assist (`possession_engine.dart`
+    // always records it in exactly that order, for its own box-score
+    // reducer's sake) -- appended right after the assist beat instead of
+    // before it, so the pass that actually set up the score narrates
+    // first. A real bug, live on-device, seen twice (2026-08-19, a direct
+    // GM report): "1. Bkn scores a 2  2. Bkn player passes to the scorer
+    // 3. WIC inbounds. So I think #2 was the assist, and it was just out
+    // of order." Every bit of bookkeeping below (clock, zone tracking,
+    // score) still runs in `events`' own real order regardless -- this
+    // only reorders which beat gets appended to the *display* list first.
+    LiveBeat? pendingShotBeat;
     for (var i = 0; i < events.length; i++) {
       final event = events[i];
       _clockSeconds = math.max(0, _clockSeconds - event.secondsElapsed);
@@ -293,13 +305,28 @@ class LiveBeatTranslator {
       );
       if (event.type == MatchEventType.passAttempt) sawFirstPass = true;
       if (beat == null) continue;
-      beats.add(beat);
       if (beat.zone != null) {
         ballZone = beat.zone!;
         ballChipIndex = beat.chipIndex;
       }
       if (beat.deltaHome != 0) _homeScore += beat.deltaHome;
       if (beat.deltaAway != 0) _awayScore += beat.deltaAway;
+
+      final assistFollows =
+          event.type == MatchEventType.shotMade &&
+          i + 1 < events.length &&
+          events[i + 1].type == MatchEventType.assist;
+      if (assistFollows) {
+        pendingShotBeat = beat;
+        continue;
+      }
+      if (event.type == MatchEventType.assist && pendingShotBeat != null) {
+        beats.add(beat);
+        beats.add(pendingShotBeat);
+        pendingShotBeat = null;
+        continue;
+      }
+      beats.add(beat);
     }
     return beats;
   }
@@ -529,19 +556,36 @@ class LiveBeatTranslator {
         }
 
       case MatchEventType.defensiveRebound:
-        final rebounder = event.player!;
-        return LiveBeat(
-          team: _isHome(rebounder) ? LiveTeam.home : LiveTeam.away,
-          zone: LiveZone.paint,
-          chipIndex: _chipIndexFor(rebounder),
-          displayText: _phrase(
-            'defensive_rebound',
-            playerTag: _tag(rebounder),
-            team: _abbreviationFor(rebounder),
-          ),
-          clockSeconds: _clockSeconds,
-          quarter: _lastQuarter,
-        );
+        {
+          final rebounder = event.player!;
+          final rebounderIsHome = _isHome(rebounder);
+          // The rebound itself happens where the miss just came down --
+          // the *shooting* team's own attacking end, not the rebounding
+          // (defensive) team's -- so `team` (the position [_blipAlignment]
+          // reads) is the opposite side from the rebounder, same
+          // credit-vs-position split [MatchEventType.shotBlocked] already
+          // uses. A real bug, live on-device (2026-08-19, a direct GM
+          // report): "WIC just shot and missed, so it's on the right side
+          // (WIC is home)... there's a defensive rebound by MTY. BUT the
+          // blip for the defensive rebound is on the left side. Defensive
+          // rebound should be on the right side, where the shot just
+          // bounced off the rim" -- this used to key position off the
+          // rebounder's own team, putting it at *their* attacking end
+          // (the wrong basket) instead of the shooter's.
+          return LiveBeat(
+            team: rebounderIsHome ? LiveTeam.away : LiveTeam.home,
+            creditTeam: rebounderIsHome ? LiveTeam.home : LiveTeam.away,
+            zone: LiveZone.paint,
+            chipIndex: _chipIndexFor(rebounder),
+            displayText: _phrase(
+              'defensive_rebound',
+              playerTag: _tag(rebounder),
+              team: _abbreviationFor(rebounder),
+            ),
+            clockSeconds: _clockSeconds,
+            quarter: _lastQuarter,
+          );
+        }
 
       case MatchEventType.shotClockViolation:
         final player = event.player!;

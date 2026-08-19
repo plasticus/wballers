@@ -222,6 +222,154 @@ void main() {
       expect(beats[1].team, LiveTeam.away);
     });
 
+    test('a defensive rebound is positioned at the *shooting* team\'s end, '
+        'credited to the rebounding team -- a real bug, live on-device '
+        '(2026-08-19, a direct GM report): "WIC just shot and missed, so '
+        'it\'s on the right side (WIC is home)... defensive rebound by '
+        'MTY. BUT the blip for the defensive rebound is on the left side. '
+        'Defensive rebound should be on the right side, where the shot '
+        'just bounced off the rim"', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+      final translator = LiveBeatTranslator(
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeAbbreviation: 'WIC',
+        awayAbbreviation: 'MTY',
+      );
+      final homeShooter = homeRoster.first;
+      final awayRebounder = awayRoster.first;
+
+      final segment = (
+        possessions: [
+          [
+            MatchEvent(
+              type: MatchEventType.shotMissed,
+              secondsElapsed: 4,
+              player: homeShooter,
+              isThreePointAttempt: false,
+            ),
+            MatchEvent(
+              type: MatchEventType.defensiveRebound,
+              secondsElapsed: 1,
+              player: awayRebounder,
+            ),
+          ],
+        ],
+        quarter: 1,
+        isEndOfQuarter: false,
+      );
+
+      final beats = translator.translateSegment(segment);
+
+      expect(beats, hasLength(2));
+      final rebound = beats[1];
+      // `team` (what `_blipAlignment` positions off) reads as the
+      // *shooter's* side -- away's rebounder recovered the ball at
+      // home's own attacking end, where the miss actually came down.
+      expect(rebound.team, LiveTeam.home);
+      // `badgeTeam` (color/credit) still correctly reads as the actual
+      // rebounding team.
+      expect(rebound.badgeTeam, LiveTeam.away);
+    });
+
+    test('the assist beat narrates before the shotMade it credits, even '
+        'though possession_engine.dart\'s own event list always records '
+        'the assist *after* the shot -- a real bug, live on-device, seen '
+        'twice (2026-08-19, a direct GM report): "1. Bkn scores a 2  2. '
+        'Bkn player passes to the scorer  3. WIC inbounds. So I think #2 '
+        'was the assist, and it was just out of order"', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+      final translator = LiveBeatTranslator(
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeAbbreviation: 'DSM',
+        awayAbbreviation: 'KCY',
+      );
+      final passer = homeRoster.first;
+      final scorer = homeRoster[1];
+
+      final segment = (
+        possessions: [
+          [
+            MatchEvent(
+              type: MatchEventType.shotMade,
+              secondsElapsed: 4,
+              player: scorer,
+              points: 2,
+              isThreePointAttempt: false,
+            ),
+            MatchEvent(
+              type: MatchEventType.assist,
+              secondsElapsed: 0,
+              player: passer,
+              secondPlayer: scorer,
+            ),
+          ],
+        ],
+        quarter: 1,
+        isEndOfQuarter: false,
+      );
+
+      final beats = translator.translateSegment(segment);
+
+      expect(beats, hasLength(2));
+      // The assist beat -- no score of its own -- comes first; the
+      // scoring beat, still carrying its real points, comes second.
+      expect(beats[0].deltaHome, 0);
+      expect(beats[0].deltaAway, 0);
+      expect(beats[1].deltaHome, 2);
+    });
+
+    test('an and-one on a three still reports zone == threePoint -- the '
+        'andOne highlight overwrites what would otherwise be '
+        '.threePointer, but the live-game screen\'s shot-result popup '
+        'needs zone (not highlight) to tell a 2-point and-one from a '
+        '3-point and-one and label it "2+1" vs "3+1" (2026-08-19, a '
+        'direct GM report: "Just saw a pull-up score for 3, despite it '
+        'saying WIC 2 pts")', () {
+      final homeRoster = testRoster('home');
+      final awayRoster = testRoster('away');
+      final translator = LiveBeatTranslator(
+        homeRoster: homeRoster,
+        awayRoster: awayRoster,
+        homeAbbreviation: 'DSM',
+        awayAbbreviation: 'KCY',
+      );
+      final shooter = homeRoster.first;
+      final defender = awayRoster.first;
+
+      final segment = (
+        possessions: [
+          [
+            MatchEvent(
+              type: MatchEventType.shotMade,
+              secondsElapsed: 4,
+              player: shooter,
+              points: 3,
+              isThreePointAttempt: true,
+            ),
+            MatchEvent(
+              type: MatchEventType.shootingFoul,
+              secondsElapsed: 0,
+              player: defender,
+              secondPlayer: shooter,
+            ),
+          ],
+        ],
+        quarter: 1,
+        isEndOfQuarter: false,
+      );
+
+      final beats = translator.translateSegment(segment);
+
+      final shotBeat = beats.singleWhere((b) => b.isShotAttempt);
+      expect(shotBeat.highlight, LiveHighlight.andOne);
+      expect(shotBeat.zone, LiveZone.threePoint);
+      expect(shotBeat.deltaHome, 3);
+    });
+
     test('isClutch tracks the real running score and clock', () async {
       final homeRoster = testRoster('home');
       final awayRoster = testRoster('away');

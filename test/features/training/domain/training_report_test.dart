@@ -17,6 +17,25 @@ PlayerGrowthResult _result({
 }
 
 void main() {
+  group('TrainingReport.weekRangeLabel (2026-08-19, a direct GM report: '
+      '"simulated the off-season, and only for one training report '
+      '(week24)... maybe give me an off-season training report that '
+      'covers weeks 20 through 24")', () {
+    test('reads as a single week when fromWeek is omitted (the ordinary, '
+        'single-week case every existing report construction still uses)', () {
+      const report = TrainingReport(week: 5, results: []);
+
+      expect(report.fromWeek, 5);
+      expect(report.weekRangeLabel, 'Week 5');
+    });
+
+    test('reads as a range once fromWeek differs from week', () {
+      const report = TrainingReport(fromWeek: 20, week: 24, results: []);
+
+      expect(report.weekRangeLabel, 'Weeks 20-24');
+    });
+  });
+
   group('aggregateSeasonGrowth', () {
     test('sums field deltas for the same player across multiple weekly '
         'reports', () {

@@ -326,7 +326,9 @@ void main() {
     var byeTotal = 0;
     var realZeroTotal = 0;
     for (var seed = 0; seed < 50; seed++) {
-      byeTotal += _totalFieldDelta(runTraining(Random(seed), byeFranchise)!.report);
+      byeTotal += _totalFieldDelta(
+        runTraining(Random(seed), byeFranchise)!.report,
+      );
       realZeroTotal += _totalFieldDelta(
         runTraining(Random(seed), realZeroFranchise)!.report,
       );
@@ -523,6 +525,44 @@ void main() {
       advance.report.results.map((r) => r.playerId),
       isNot(contains('p2')),
     );
+  });
+
+  test('a training cycle that jumps several real weeks at once (an '
+      'off-season gap, or any stretch nothing called runTraining in '
+      'between) reports the whole range it actually covers, not just the '
+      'ending week -- a real bug, live on-device (2026-08-19, a direct GM '
+      'report): "simulated the off-season, and only for one training '
+      'report (week24)... maybe give me an off-season training report '
+      'that covers weeks 20 through 24"', () {
+    final player = _player(id: 'p1', age: 21, overall: 45, potential: 90);
+    final franchise = _franchiseWith(
+      roster: [RosterMembership(player: player, status: RosterStatus.active)],
+      week: 24,
+      nextTrainingWeek: 20, // nothing trained since week 19
+      minutesByPlayerId: {'p1': 200},
+    );
+
+    final advance = runTraining(Random(1), franchise)!;
+
+    expect(advance.report.fromWeek, 20);
+    expect(advance.report.week, 24);
+    expect(advance.report.weekRangeLabel, 'Weeks 20-24');
+  });
+
+  test('an ordinary single-week cycle still just reports that one week', () {
+    final player = _player(id: 'p1', age: 21, overall: 45, potential: 90);
+    final franchise = _franchiseWith(
+      roster: [RosterMembership(player: player, status: RosterStatus.active)],
+      week: 5,
+      nextTrainingWeek: 5,
+      minutesByPlayerId: {'p1': 200},
+    );
+
+    final advance = runTraining(Random(1), franchise)!;
+
+    expect(advance.report.fromWeek, 5);
+    expect(advance.report.week, 5);
+    expect(advance.report.weekRangeLabel, 'Week 5');
   });
 
   test('advancing nextTrainingWeek makes the same week not re-trainable', () {

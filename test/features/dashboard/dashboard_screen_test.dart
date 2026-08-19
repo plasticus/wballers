@@ -9,6 +9,7 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/dashboard/dashboard_screen.dart';
+import 'package:womensbballmgr/features/draft/domain/draft_in_progress.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
@@ -87,6 +88,7 @@ Franchise _franchiseWith({
   bool includeTwelfthMember = true,
   List<Player> freeAgents = const [],
   Set<String> readMailIds = const {},
+  DraftInProgress? draftInProgress,
 }) {
   final roster = [
     ...generateStartingRoster(1),
@@ -121,6 +123,7 @@ Franchise _franchiseWith({
     nextTrainingWeek: 1,
     trainingReports: trainingReports,
     readMailIds: readMailIds,
+    draftInProgress: draftInProgress,
   );
 }
 
@@ -154,6 +157,42 @@ void main() {
     expect(find.text('Upcoming Games'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows a Return to Draft button instead of Advance to Next Game Day '
+    'while a draft is in progress, and it actually opens Draft Day -- a '
+    'real bug, live on-device (2026-08-19, a direct GM report): "I left '
+    'the draft to look at my roster. And now .. where did the draft go?! '
+    'No idea... During the draft, there should not be an advance to next '
+    'game day button -- there should just be a button to jump you back '
+    'into the draft"',
+    (tester) async {
+      final franchise = _franchiseWith(
+        draftInProgress: DraftInProgress(
+          order: [kLeagueTeamPool.first.abbreviation, 'ZZZ'],
+          rounds: 3,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Advance to Next Game Day'), findsNothing);
+      expect(find.text('Draft In Progress'), findsOneWidget);
+      expect(find.text('Return to Draft'), findsOneWidget);
+
+      await tester.tap(find.text('Return to Draft'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Draft Day'), findsOneWidget);
+    },
+  );
 
   testWidgets('shows the current fictional date and week on the Season card '
       '(2026-08-09, a direct GM ask)', (tester) async {

@@ -5,12 +5,24 @@ import '../domain/portrait_appearance.dart';
 import 'portrait_colors.dart';
 import 'portrait_renderer.dart';
 
+final _unsafeKeyChars = RegExp(r'[^A-Za-z0-9_-]');
+
 /// Builds the cache key `portraits.md`'s invalidation rules require: the
 /// appearance's own [version], [contentFingerprint] (2026-08-18 -- see
 /// [PortraitAppearance.contentFingerprint]'s own doc comment for the real
 /// bug this closes), and [jersey] all change the rendered bytes, so a
 /// stale cache hit on any of them would show the wrong portrait, not just
 /// an error -- all 3 have to be part of the key.
+///
+/// [contentFingerprint] is raw field values joined with `|` (it's meant to
+/// be *unique*, not filename-safe) and can contain a `.` from
+/// [PortraitAppearance.baseSprite]'s own `.png` extension -- both break
+/// [FilePortraitCache]'s alphanumeric-only key requirement. Sanitized here
+/// (2026-08-18, a real regression: this shipped without ever touching the
+/// real file cache in a test, only the in-memory double, so it threw on
+/// every real read/write and silently fell back to the default portrait
+/// icon everywhere -- a direct GM report: "something completely broke
+/// photos/avatars. They're all the default profile icon thing, now.")
 String portraitCacheKey({
   required String ownerId,
   required int version,
@@ -20,7 +32,8 @@ String portraitCacheKey({
   final jerseyKey = jersey == null
       ? 'nojersey'
       : '${jersey.r}_${jersey.g}_${jersey.b}';
-  return '$ownerId-v$version-$contentFingerprint-$jerseyKey';
+  final safeFingerprint = contentFingerprint.replaceAll(_unsafeKeyChars, '_');
+  return '$ownerId-v$version-$safeFingerprint-$jerseyKey';
 }
 
 /// Returns [appearance]'s rendered PNG, reading from [cache] when possible

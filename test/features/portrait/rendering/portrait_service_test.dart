@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/core/persistence/file_portrait_cache.dart';
 import 'package:womensbballmgr/core/persistence/portrait_cache.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
@@ -47,6 +49,24 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('portraitCacheKey', () {
+    test('is always a valid FilePortraitCache key -- a real regression '
+        '(2026-08-19, a direct GM report: "something completely broke '
+        'photos/avatars. They\'re all the default profile icon thing, '
+        'now."): contentFingerprint is raw field values joined with "|" '
+        'and can carry a "." from baseSprite\'s own ".png" extension, both '
+        'of which FilePortraitCache rejects as an unsafe filename -- the '
+        'in-memory cache double used everywhere else in this file doesn\'t '
+        'validate the key shape, so this only shows up against the real '
+        'file cache', () {
+      final key = portraitCacheKey(
+        ownerId: 'p1',
+        version: 1,
+        contentFingerprint: _appearance.contentFingerprint,
+      );
+
+      expect(RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(key), isTrue);
+    });
+
     test('differs when version differs', () {
       final a = portraitCacheKey(ownerId: 'p1', version: 1);
       final b = portraitCacheKey(ownerId: 'p1', version: 2);
@@ -180,6 +200,45 @@ void main() {
 
       expect(cache.writeCount, 2);
       expect(edited, isNotEmpty);
+    });
+  });
+
+  group('resolvePortraitPng against the real FilePortraitCache', () {
+    late Directory tempDir;
+    late FilePortraitCache fileCache;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp(
+        'wballers_portrait_service_test_',
+      );
+      fileCache = FilePortraitCache(resolveBaseDirectory: () async => tempDir);
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('round-trips through a real write and read without throwing -- the '
+        'in-memory double above never exercises FilePortraitCache\'s '
+        'filename-safety check, which is exactly what caught every real '
+        'portrait in the ".png"-in-the-key regression above', () async {
+      final first = await resolvePortraitPng(
+        cache: fileCache,
+        saveId: 'franchise-1',
+        ownerId: 'p1',
+        appearance: _appearance,
+      );
+      final second = await resolvePortraitPng(
+        cache: fileCache,
+        saveId: 'franchise-1',
+        ownerId: 'p1',
+        appearance: _appearance,
+      );
+
+      expect(first, isNotEmpty);
+      expect(second, first);
     });
   });
 

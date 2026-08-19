@@ -6,6 +6,7 @@ import '../../core/widgets/ad_placement_placeholder.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/state_views.dart';
 import '../../core/widgets/wbl_logo.dart';
+import '../draft/presentation/draft_day_screen.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/domain/franchise.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
@@ -663,6 +664,50 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final franchise = widget.franchise;
+
+    if (franchise.draftInProgress != null) {
+      // A real bug, live on-device (2026-08-19, a direct GM report): "I
+      // left the draft to look at my roster. And now .. where did the
+      // draft go?! No idea. I think it's a safe bet most coaches will
+      // leave the draft room to look at their roster. During the draft,
+      // there should not be an advance to next game day button -- there
+      // should just be a button to jump you back into the draft." By the
+      // time `SeasonRecapScreen.beginNextSeason` hands off to a fresh
+      // `DraftDayScreen`, the new season's own `seasonProgress` is
+      // already a blank slate (no games played, not complete), so
+      // without this check the normal advance-game-day card below had no
+      // idea a draft was still open -- backing out of Draft Day (the
+      // system back button, or just navigating to Roster) stranded the
+      // GM with no way back in at all.
+      return AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.groups_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: AppSpacing.sm),
+                Text('Draft In Progress', style: theme.textTheme.titleLarge),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Finish drafting your rookies before the season can '
+              'continue.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton(
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const DraftDayScreen())),
+              child: const Text('Return to Draft'),
+            ),
+          ],
+        ),
+      );
+    }
+
     final progress = franchise.seasonProgress;
     final leagueTeams = [
       franchise.team,

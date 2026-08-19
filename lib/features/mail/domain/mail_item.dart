@@ -64,7 +64,12 @@ class TrainingReportMailItem extends MailItem {
   String get id => trainingReportMailId(report.week);
 
   @override
-  String get subject => 'Week ${report.week} Training Report';
+  // `report.weekRangeLabel` reads "Week 24" for an ordinary single-week
+  // cycle, or "Weeks 20-24" when this report's minutes/growth actually
+  // span several real weeks at once (`TrainingReport.fromWeek`'s own doc
+  // comment) -- a direct GM report, 2026-08-19: an off-season report that
+  // silently covered several weeks still only ever said "Week 24."
+  String get subject => '${report.weekRangeLabel} Training Report';
 }
 
 /// The one place [TrainingReportMailItem.id]'s format is spelled out --

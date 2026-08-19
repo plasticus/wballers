@@ -85,6 +85,11 @@ void main() {
 
       await tester.tap(find.text('Highlight'));
       await tester.pump();
+      // A made shot's own points wait for its ball-travel animation to
+      // actually reach the rim before the scoreboard bumps (2026-08-19,
+      // matching the shot-result popup's own timing) -- long enough to
+      // clear that delay at every speed this screen supports.
+      await tester.pump(const Duration(seconds: 2));
 
       // Whatever beat Highlight landed on scored points -- the score bug
       // (top of the card) shows a nonzero total for at least one side.

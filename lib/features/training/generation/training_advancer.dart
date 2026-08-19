@@ -275,7 +275,11 @@ TrainingAdvance? runTraining(Random random, Franchise franchise) {
     }
   }
 
-  final report = TrainingReport(week: week, results: results);
+  final report = TrainingReport(
+    fromWeek: franchise.nextTrainingWeek,
+    week: week,
+    results: results,
+  );
   final updatedFranchise = franchise.copyWithTrainingResult(
     newRoster: newRoster,
     newNextTrainingWeek: week + 1,
@@ -626,7 +630,8 @@ Map<String, double> _minutesInWeekRange(
   }
 
   for (var week = fromWeekInclusive; week <= toWeekInclusive; week++) {
-    if (!leagueWeeksWithGames.contains(week) || weeksTeamPlayed.contains(week)) {
+    if (!leagueWeeksWithGames.contains(week) ||
+        weeksTeamPlayed.contains(week)) {
       continue;
     }
     for (final playerId in rosterPlayerIds) {

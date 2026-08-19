@@ -83,7 +83,7 @@ class _TrainingReportScreenState extends ConsumerState<TrainingReportScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            Text('Week ${report.week}', style: theme.textTheme.titleLarge),
+            Text(report.weekRangeLabel, style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.xs),
             Text(
               sortedResults.isEmpty

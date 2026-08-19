@@ -29,12 +29,36 @@ class PlayerGrowthResult {
 /// truth for player ratings, which live on the `Player` objects
 /// themselves.
 class TrainingReport {
-  const TrainingReport({required this.week, required this.results});
+  const TrainingReport({
+    int? fromWeek,
+    required this.week,
+    required this.results,
+  }) : fromWeek = fromWeek ?? week;
 
   /// The schedule week this training cycle resolved for (see
   /// `lastFullyCompletedWeek`) -- not a literal calendar day, just which
   /// week's accumulated minutes this report is based on.
   final int week;
+
+  /// The earliest week this report's minutes/growth actually cover --
+  /// equal to [week] for an ordinary single-week cycle, but
+  /// [runTraining] (`training_advancer.dart`) always sums minutes across
+  /// `franchise.nextTrainingWeek..week`, which can span several real
+  /// weeks at once (a bye week with no game to trigger training, or a
+  /// multi-week off-season gap where nothing called [runTraining] until
+  /// several weeks had piled up). [weekRangeLabel] is where this actually
+  /// shows up. A real bug, live on-device (2026-08-19, a direct GM
+  /// report): "simulated the off-season, and only for one training
+  /// report (week24). I don't think that's right. Maybe give me an
+  /// off-season training report that covers weeks 20 through 24" -- the
+  /// growth math already *did* cover that whole gap (`_minutesInWeekRange`
+  /// was never missing anything); only the report's own label was
+  /// silently collapsing it down to the single ending week.
+  final int fromWeek;
+
+  /// "Week 24", or "Weeks 20-24" when [fromWeek] and [week] differ.
+  String get weekRangeLabel =>
+      fromWeek == week ? 'Week $week' : 'Weeks $fromWeek-$week';
 
   /// Only players who actually changed -- someone with zero minutes that
   /// week and nothing else pushing them doesn't get an entry.
