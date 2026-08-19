@@ -77,6 +77,8 @@ class Franchise {
     this.narrativeVeteranPlayerId = '',
     this.narrativeVeteranName = '',
     this.narrativeVeteranAppearance,
+    this.tradeBlockPlayerId,
+    this.resolvedTradeOfferIds = const {},
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -302,6 +304,27 @@ class Franchise {
   /// falls back to the generic look rather than crashing.
   final PortraitAppearance? narrativeVeteranAppearance;
 
+  /// The GM's own flagged trade-block player -- `null` when nothing's
+  /// flagged. Exactly one at a time (`trading-and-hidden-gems-notes.md`:
+  /// "only one allowed") -- setting a new one replaces whatever was
+  /// there, rather than needing a separate clear-first step.
+  /// `trade_offer_generator.dart`'s `generateTradeOffers` reads this to
+  /// bias 3 of the 5 generated offers toward this specific player.
+  final String? tradeBlockPlayerId;
+
+  /// [TradeOffer.id]s the GM has already accepted or declined *this
+  /// turn* -- `trade_offer_generator.dart` regenerates all 5 offers
+  /// deterministically from the same seed every time the Trade Board
+  /// screen opens (same "cheap to regenerate, nothing to persist"
+  /// posture the Player Market preview tabs already use), so without
+  /// this, reopening the board after resolving an offer would show that
+  /// exact same offer again, unresolved. Reset to empty the moment a new
+  /// game day is advanced into (`current_franchise_provider.dart`'s
+  /// advance methods) -- a stale id from a past turn should never
+  /// suppress a freshly (re)generated offer that just happens to land on
+  /// the same deterministic id again.
+  final Set<String> resolvedTradeOfferIds;
+
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
   /// picks and to record the GM's own, and finally to clear it (`null`)
@@ -333,6 +356,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -366,6 +391,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -399,6 +426,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -431,6 +460,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -463,6 +494,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -495,6 +528,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -527,6 +562,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -569,6 +606,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -609,6 +648,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -642,6 +683,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -676,6 +719,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -715,6 +760,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -751,6 +798,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -784,6 +833,80 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+    );
+  }
+
+  /// Returns a copy with [newTradeBlockPlayerId] replacing
+  /// [tradeBlockPlayerId] -- `current_franchise_provider.dart`'s
+  /// `setTradeBlockPlayer` is the only caller. `null` clears it.
+  Franchise copyWithTradeBlockPlayerId(String? newTradeBlockPlayerId) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: newTradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+    );
+  }
+
+  /// Returns a copy with [newResolvedTradeOfferIds] replacing
+  /// [resolvedTradeOfferIds] -- `current_franchise_provider.dart`'s
+  /// `acceptTradeOffer`/`declineTradeOffer` add to it; every game-day
+  /// advance method resets it to empty (see that field's own doc
+  /// comment for why).
+  Franchise copyWithResolvedTradeOfferIds(Set<String> newResolvedTradeOfferIds) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: newResolvedTradeOfferIds,
     );
   }
 
@@ -832,6 +955,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 
@@ -886,6 +1011,8 @@ class Franchise {
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
       narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
     );
   }
 }

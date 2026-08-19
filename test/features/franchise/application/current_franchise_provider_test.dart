@@ -22,6 +22,8 @@ import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/generation/retirement_advancer.dart';
+import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
+import 'package:womensbballmgr/features/trade/domain/trade_offer.dart';
 import 'package:womensbballmgr/features/training/domain/training_focus.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
@@ -2229,6 +2231,340 @@ void main() {
         aiRosterCountAfterDraft,
         aiRosterCountBeforeDraft + 19 * kDraftRounds,
       );
+    });
+  });
+
+  group('setTradeBlockPlayer', () {
+    test('sets and clears Franchise.tradeBlockPlayerId', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final target = franchise.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .setTradeBlockPlayer(target.id);
+      expect(
+        container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,
+        target.id,
+      );
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .setTradeBlockPlayer(null);
+      expect(
+        container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,
+        isNull,
+      );
+    });
+
+    test('is a no-op for a player not on the active roster', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .setTradeBlockPlayer('not-a-real-player-id');
+
+      expect(
+        container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,
+        isNull,
+      );
+    });
+  });
+
+  group('declineTradeOffer', () {
+    test('adds the id to resolvedTradeOfferIds without touching either '
+        'roster', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .declineTradeOffer('some-offer-id');
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.resolvedTradeOfferIds, contains('some-offer-id'));
+      expect(updated.roster.length, franchise.roster.length);
+    });
+  });
+
+  group('acceptTradeOffer', () {
+    test('swaps players between the GM\'s roster and the offering AI '
+        'team\'s roster for real, and marks the offer resolved', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      final ownPlayer = franchise.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+      final aiTeam = franchise.league.aiTeams.first;
+      final aiPlayer = aiTeam.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+
+      final offer = TradeOffer(
+        id: 'test-offer',
+        offeringTeamAbbreviation: aiTeam.team.abbreviation,
+        offeredToYou: [PlayerTradeAsset(aiPlayer)],
+        askedFromYou: [PlayerTradeAsset(ownPlayer)],
+        character: TradeOfferCharacter.value,
+      );
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .acceptTradeOffer(offer);
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(
+        updated.roster.any((m) => m.player.id == aiPlayer.id),
+        isTrue,
+      );
+      expect(
+        updated.roster.any((m) => m.player.id == ownPlayer.id),
+        isFalse,
+      );
+      final updatedAiTeam = updated.league.aiTeams.firstWhere(
+        (t) => t.team.abbreviation == aiTeam.team.abbreviation,
+      );
+      expect(
+        updatedAiTeam.roster.any((m) => m.player.id == ownPlayer.id),
+        isTrue,
+      );
+      expect(
+        updatedAiTeam.roster.any((m) => m.player.id == aiPlayer.id),
+        isFalse,
+      );
+      expect(updated.resolvedTradeOfferIds, contains('test-offer'));
+      // Total roster size on each side never changes -- 1-for-1 in, 1
+      // out, both sides.
+      expect(updated.roster.length, franchise.roster.length);
+      expect(updatedAiTeam.roster.length, aiTeam.roster.length);
+    });
+
+    test('the traded-away player\'s new status on the acquiring roster is '
+        'always active', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final ownPlayer = franchise.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+      final aiTeam = franchise.league.aiTeams.first;
+      final aiPlayer = aiTeam.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+
+      await container.read(currentFranchiseProvider.notifier).acceptTradeOffer(
+        TradeOffer(
+          id: 'test-offer',
+          offeringTeamAbbreviation: aiTeam.team.abbreviation,
+          offeredToYou: [PlayerTradeAsset(aiPlayer)],
+          askedFromYou: [PlayerTradeAsset(ownPlayer)],
+          character: TradeOfferCharacter.value,
+        ),
+      );
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(
+        updated.roster
+            .firstWhere((m) => m.player.id == aiPlayer.id)
+            .status,
+        RosterStatus.active,
+      );
+    });
+
+    test('clears the trade-block flag when the flagged player is the one '
+        'traded away', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final ownPlayer = franchise.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+      final aiTeam = franchise.league.aiTeams.first;
+      final aiPlayer = aiTeam.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .setTradeBlockPlayer(ownPlayer.id);
+
+      await container.read(currentFranchiseProvider.notifier).acceptTradeOffer(
+        TradeOffer(
+          id: 'test-offer',
+          offeringTeamAbbreviation: aiTeam.team.abbreviation,
+          offeredToYou: [PlayerTradeAsset(aiPlayer)],
+          askedFromYou: [PlayerTradeAsset(ownPlayer)],
+          character: TradeOfferCharacter.value,
+        ),
+      );
+
+      expect(
+        container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,
+        isNull,
+      );
+    });
+
+    test('a stale offer (the named player is no longer actually there) '
+        'is a no-op for both rosters, but still marks the id resolved', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      final ownPlayer = franchise.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+      final aiTeam = franchise.league.aiTeams.first;
+      // A real player, but from a *different* AI team -- genuinely not
+      // on aiTeam's own roster, exactly like a stale offer referencing a
+      // player who's since moved on.
+      final notActuallyOnThisTeam = franchise.league.aiTeams[1].roster.first
+          .player;
+      final aiRosterBefore = aiTeam.roster.length;
+
+      await container.read(currentFranchiseProvider.notifier).acceptTradeOffer(
+        TradeOffer(
+          id: 'stale-offer',
+          offeringTeamAbbreviation: aiTeam.team.abbreviation,
+          offeredToYou: [PlayerTradeAsset(notActuallyOnThisTeam)],
+          askedFromYou: [PlayerTradeAsset(ownPlayer)],
+          character: TradeOfferCharacter.value,
+        ),
+      );
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      // Own roster untouched -- still has ownPlayer, same size.
+      expect(updated.roster.any((m) => m.player.id == ownPlayer.id), isTrue);
+      expect(updated.roster.length, franchise.roster.length);
+      // The named AI team untouched too.
+      final updatedAiTeam = updated.league.aiTeams.firstWhere(
+        (t) => t.team.abbreviation == aiTeam.team.abbreviation,
+      );
+      expect(updatedAiTeam.roster.length, aiRosterBefore);
+      // But the offer is still marked resolved, so it doesn't linger.
+      expect(updated.resolvedTradeOfferIds, contains('stale-offer'));
     });
   });
 }

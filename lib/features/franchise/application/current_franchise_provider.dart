@@ -6,6 +6,7 @@ import '../../../core/persistence/save_envelope.dart';
 import '../../../core/persistence/save_repository_provider.dart';
 import '../../coach/generation/coach_free_agency_advancer.dart';
 import '../../draft/generation/draft_advancer.dart';
+import '../../league/domain/league.dart';
 import '../../match/domain/match_result.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../player/domain/player.dart';
@@ -29,6 +30,8 @@ import '../../season/generation/season_advancer.dart';
 import '../../season/generation/season_awards_advancer.dart';
 import '../../season/generation/season_tenure_advancer.dart';
 import '../../season/generation/season_transition_advancer.dart';
+import '../../trade/domain/trade_asset.dart';
+import '../../trade/domain/trade_offer.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
@@ -190,6 +193,137 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
             isDevelopmentalEligible(candidate),
       RosterStatus.reserveInactive => count < kMaxInactiveRosterSpots,
     };
+  }
+
+  /// Sets (or, given `null`, clears) [Franchise.tradeBlockPlayerId] --
+  /// exactly one at a time, per `trading-and-hidden-gems-notes.md`. A
+  /// no-op if [playerId] isn't actually one of the GM's own *active*
+  /// roster players (developmental/reserve players, or a stale id,
+  /// silently don't set anything, rather than the Trade Board later
+  /// having to cope with a block player who was never really tradeable).
+  Future<void> setTradeBlockPlayer(String? playerId) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    if (playerId != null &&
+        !franchise.roster.any(
+          (m) => m.player.id == playerId && m.status == RosterStatus.active,
+        )) {
+      return;
+    }
+    await _persist(franchise.copyWithTradeBlockPlayerId(playerId));
+  }
+
+  /// Records [offerId] as resolved this turn
+  /// ([Franchise.resolvedTradeOfferIds]) without touching either roster
+  /// -- what the Trade Board's "Decline" button calls.
+  Future<void> declineTradeOffer(String offerId) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    await _persist(
+      franchise.copyWithResolvedTradeOfferIds({
+        ...franchise.resolvedTradeOfferIds,
+        offerId,
+      }),
+    );
+  }
+
+  /// Executes [offer] for real: every [PlayerTradeAsset] on each side
+  /// actually changes rosters (the GM's own and [offer]'s
+  /// [TradeOffer.offeringTeamAbbreviation]'s), landing [RosterStatus.active]
+  /// on their new team same as a free-agent signing or a draft pick
+  /// does. [PickTradeAsset]s are deliberately not applied to anything --
+  /// see that class's own doc comment for why real cross-season pick
+  /// ownership isn't tracked yet; a pick still did its job of letting
+  /// this exact offer clear the Management swing check that generated
+  /// it, it just doesn't change who's on the clock next draft.
+  ///
+  /// A no-op (but still marks [offer] resolved, so a stale offer card
+  /// doesn't linger) if either side no longer actually has everything
+  /// [offer] named -- a player it referenced could have retired, been
+  /// traded away by an earlier accepted offer this same turn, or moved
+  /// off the active roster, between when the board was generated and
+  /// now. If the GM's own [Franchise.tradeBlockPlayerId] was part of
+  /// [offer], it's cleared -- she's not on this roster to keep
+  /// advertising anymore.
+  Future<void> acceptTradeOffer(TradeOffer offer) async {
+    final franchise = await future;
+    if (franchise == null) return;
+    if (franchise.resolvedTradeOfferIds.contains(offer.id)) return;
+
+    Future<void> markResolved() => _persist(
+      franchise.copyWithResolvedTradeOfferIds({
+        ...franchise.resolvedTradeOfferIds,
+        offer.id,
+      }),
+    );
+
+    final aiTeamIndex = franchise.league.aiTeams.indexWhere(
+      (t) => t.team.abbreviation == offer.offeringTeamAbbreviation,
+    );
+    if (aiTeamIndex == -1) {
+      await markResolved();
+      return;
+    }
+    final aiTeam = franchise.league.aiTeams[aiTeamIndex];
+
+    final askedPlayerIds = {
+      for (final asset in offer.askedFromYou)
+        if (asset case PlayerTradeAsset(:final player)) player.id,
+    };
+    final offeredPlayerIds = {
+      for (final asset in offer.offeredToYou)
+        if (asset case PlayerTradeAsset(:final player)) player.id,
+    };
+    final ownHasEverything = askedPlayerIds.every(
+      (id) => franchise.roster.any((m) => m.player.id == id),
+    );
+    final aiHasEverything = offeredPlayerIds.every(
+      (id) => aiTeam.roster.any((m) => m.player.id == id),
+    );
+    if (!ownHasEverything || !aiHasEverything) {
+      await markResolved();
+      return;
+    }
+
+    final incomingPlayers = [
+      for (final asset in offer.offeredToYou)
+        if (asset case PlayerTradeAsset(:final player)) player,
+    ];
+    final outgoingPlayers = [
+      for (final asset in offer.askedFromYou)
+        if (asset case PlayerTradeAsset(:final player)) player,
+    ];
+
+    final newOwnRoster = [
+      for (final m in franchise.roster)
+        if (!askedPlayerIds.contains(m.player.id)) m,
+      for (final p in incomingPlayers)
+        RosterMembership(player: p, status: RosterStatus.active),
+    ];
+    final newAiRoster = [
+      for (final m in aiTeam.roster)
+        if (!offeredPlayerIds.contains(m.player.id)) m,
+      for (final p in outgoingPlayers)
+        RosterMembership(player: p, status: RosterStatus.active),
+    ];
+    final newAiTeams = [...franchise.league.aiTeams];
+    newAiTeams[aiTeamIndex] = aiTeam.copyWithRoster(newAiRoster);
+
+    final blockPlayerTraded =
+        franchise.tradeBlockPlayerId != null &&
+        askedPlayerIds.contains(franchise.tradeBlockPlayerId);
+
+    var updated = franchise
+        .copyWithRoster(newOwnRoster)
+        .copyWithLeague(League(aiTeams: newAiTeams))
+        .copyWithResolvedTradeOfferIds({
+          ...franchise.resolvedTradeOfferIds,
+          offer.id,
+        });
+    if (blockPlayerTraded) {
+      updated = updated.copyWithTradeBlockPlayerId(null);
+    }
+    await _persist(updated);
   }
 
   /// Releases the roster player with [playerId] and moves them onto
@@ -406,7 +540,14 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withTraining = _catchUpTraining(
       franchise.copyWithSeasonProgress(advance.progress),
     );
-    await _persist(withTraining);
+    // A new game day means a new Trade Board turn -- whatever the GM
+    // accepted/declined on the day that just ended shouldn't keep
+    // suppressing a freshly (re)generated offer that happens to land on
+    // the same deterministic id again (`Franchise.resolvedTradeOfferIds`'s
+    // own doc comment).
+    await _persist(
+      withTraining.copyWithResolvedTradeOfferIds(const {}),
+    );
     return advance.gamesPlayed;
   }
 
@@ -461,7 +602,14 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withTraining = _catchUpTraining(
       franchise.copyWithSeasonProgress(advance.progress),
     );
-    await _persist(withTraining);
+    // A new game day means a new Trade Board turn -- whatever the GM
+    // accepted/declined on the day that just ended shouldn't keep
+    // suppressing a freshly (re)generated offer that happens to land on
+    // the same deterministic id again (`Franchise.resolvedTradeOfferIds`'s
+    // own doc comment).
+    await _persist(
+      withTraining.copyWithResolvedTradeOfferIds(const {}),
+    );
     return advance.gamesPlayed;
   }
 

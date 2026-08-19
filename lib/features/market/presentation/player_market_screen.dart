@@ -8,7 +8,6 @@ import '../../../core/widgets/app_card.dart';
 import '../../draft/domain/draft_prospect.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
-import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../../player/presentation/player_card_widgets.dart';
 import '../../player/presentation/player_sort_filter_bar.dart';
@@ -16,26 +15,33 @@ import '../../player/presentation/trait_chip.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../trade/domain/trade_asset.dart';
+import '../../trade/domain/trade_offer.dart';
+import '../../trade/domain/trade_window.dart';
+import '../../trade/generation/trade_offer_generator.dart';
 import '../generation/player_market_preview_generator.dart';
 
-/// Free agents, the trade block, and this season's draft class -- one
+/// Free agents, the Trade Board, and this season's draft class -- one
 /// screen for everywhere a GM might look to bring in a player who isn't
 /// already on their roster. Reachable from the Team tab, alongside the
 /// existing Bench Order/Training/Card Lab entry points.
 ///
 /// **Free Agents is real** -- `Franchise.freeAgents`, generated once at
 /// franchise creation and signable here (`CurrentFranchiseNotifier.signFreeAgent`).
-/// **Trade Block and Draft both stay preview only here**: there's still
-/// no trade system at all (`0B_Planned.md`'s Trade System entry), and
-/// while a real draft-day flow now exists (`draft/presentation/draft_day_screen.dart`,
-/// 2026-08-11, `0D_Season_2_Roadmap.md`'s "The draft, for real" stage),
-/// it only ever runs once a season, right after a "Begin Next Season" --
-/// this tab is for browsing a *hypothetical* class any time mid-season,
-/// not the real one. Every player shown on either tab is flavor data
-/// from `pickTradeBlockPreview`/`generateDraftPreview`, regenerated fresh
-/// (but deterministically) every time the screen opens -- nothing on
-/// either tab is tradeable or actually draftable from here, which is why
-/// each still opens with a banner saying so.
+/// **Trade Board is real too** (`trading-and-hidden-gems-notes.md`): up
+/// to 5 live AI offers at a time, regenerated deterministically off the
+/// current game day (`generateTradeOffers`), accept-or-decline only --
+/// no player-initiated trades, no negotiating. Only open from right
+/// after the draft through the trade window (`isTradeWindowOpen`).
+/// **Draft stays preview only**: while a real draft-day flow now exists
+/// (`draft/presentation/draft_day_screen.dart`, 2026-08-11,
+/// `0D_Season_2_Roadmap.md`'s "The draft, for real" stage), it only ever
+/// runs once a season, right after a "Begin Next Season" -- this tab is
+/// for browsing a *hypothetical* class any time mid-season, not the real
+/// one. Every player shown there is flavor data from
+/// `generateDraftPreview`, regenerated fresh (but deterministically)
+/// every time the screen opens -- nothing on it is actually draftable
+/// from here, which is why it still opens with a banner saying so.
 class PlayerMarketScreen extends StatefulWidget {
   const PlayerMarketScreen({required this.franchise, super.key});
 
@@ -60,10 +66,6 @@ class _PlayerMarketScreenState extends State<PlayerMarketScreen>
     final franchise = widget.franchise;
     final seed = franchise.simulationSeed;
 
-    final tradeBlock = pickTradeBlockPreview(
-      franchise,
-      Random(seed + kTradeBlockPreviewSeedOffset),
-    );
     final draftClass = generateDraftPreview(
       Random(seed + kDraftPreviewSeedOffset),
     );
@@ -78,7 +80,7 @@ class _PlayerMarketScreenState extends State<PlayerMarketScreen>
               controller: _tabController,
               tabs: const [
                 Tab(text: 'Free Agents'),
-                Tab(text: 'Trade Block'),
+                Tab(text: 'Trade Board'),
                 Tab(text: 'Draft'),
               ],
             ),
@@ -87,7 +89,7 @@ class _PlayerMarketScreenState extends State<PlayerMarketScreen>
                 controller: _tabController,
                 children: [
                   _FreeAgentsTab(franchise: franchise),
-                  _TradeBlockTab(franchise: franchise, picks: tradeBlock),
+                  _TradeBoardTab(franchise: franchise),
                   _DraftTab(franchise: franchise, prospects: draftClass),
                 ],
               ),
@@ -238,34 +240,440 @@ class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
   }
 }
 
-class _TradeBlockTab extends StatelessWidget {
-  const _TradeBlockTab({required this.franchise, required this.picks});
+/// The real Trade Board -- up to [kTradeOfferCount] live AI offers,
+/// regenerated deterministically off the current game day every time this
+/// tab rebuilds (`generateTradeOffers`). Watches [currentFranchiseProvider]
+/// directly (rather than trusting the static [franchise] snapshot every
+/// other tab on this screen gets away with) so accepting or declining an
+/// offer updates this list in place -- a GM reviewing 5 offers at once
+/// needs to act on several without the screen popping out from under them
+/// after each one, unlike Free Agents' one-and-done "Sign".
+class _TradeBoardTab extends ConsumerStatefulWidget {
+  const _TradeBoardTab({required this.franchise});
 
   final Franchise franchise;
-  final List<({Player player, Team team})> picks;
+
+  @override
+  ConsumerState<_TradeBoardTab> createState() => _TradeBoardTabState();
+}
+
+class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
+  String? _busyOfferId;
 
   @override
   Widget build(BuildContext context) {
+    final franchise =
+        ref.watch(currentFranchiseProvider).value ?? widget.franchise;
+    final windowOpen = isTradeWindowOpen(franchise);
+
+    Player? tradeBlockPlayer;
+    if (franchise.tradeBlockPlayerId != null) {
+      for (final m in franchise.roster) {
+        if (m.player.id == franchise.tradeBlockPlayerId) {
+          tradeBlockPlayer = m.player;
+          break;
+        }
+      }
+    }
+
+    final offers = windowOpen
+        ? generateTradeOffers(franchise)
+              .where((o) => !franchise.resolvedTradeOfferIds.contains(o.id))
+              .toList()
+        : const <TradeOffer>[];
+
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        const _PreviewBanner(
-          text:
-              'Preview only -- there\'s no trade system yet. These are '
-              'real roster players, randomly flagged as "rumored '
-              'available" -- nothing here can actually be traded for.',
+        _PreviewBanner(
+          text: windowOpen
+              ? 'Real offers from around the league -- accept or decline, '
+                    'no negotiating. Every offer is already legal for that '
+                    'team\'s own coaching staff, so what you see is what '
+                    'you\'d get.'
+              : 'The trade window is closed for the year -- it runs from '
+                    'right after the draft through your first '
+                    '${kTradeWindowGameDayCount - 2} regular-season games. '
+                    'Check back next season.',
         ),
-        for (var i = 0; i < picks.length; i++) ...[
-          _PlayerMarketRow(
-            franchise: franchise,
-            player: picks[i].player,
-            subtitle: '${picks[i].team.emoji} ${picks[i].team.name}',
-            accentColor: picks[i].team.colors.primary,
-            jersey: parseHexColor(picks[i].team.colors.primaryHex),
-          ),
-          if (i != picks.length - 1) const SizedBox(height: AppSpacing.sm),
+        _TradeBlockCard(
+          franchise: franchise,
+          tradeBlockPlayer: tradeBlockPlayer,
+          enabled: windowOpen,
+        ),
+        if (windowOpen) ...[
+          const SizedBox(height: AppSpacing.md),
+          if (offers.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: Text(
+                  'No live offers on the board right now -- check back '
+                  'after your next game.',
+                ),
+              ),
+            )
+          else
+            for (var i = 0; i < offers.length; i++) ...[
+              _TradeOfferCard(
+                franchise: franchise,
+                offer: offers[i],
+                busy: _busyOfferId == offers[i].id,
+                onAccept: () => _accept(offers[i]),
+                onDecline: () => _decline(offers[i]),
+              ),
+              if (i != offers.length - 1) const SizedBox(height: AppSpacing.sm),
+            ],
         ],
       ],
+    );
+  }
+
+  Future<void> _accept(TradeOffer offer) async {
+    setState(() => _busyOfferId = offer.id);
+    await ref.read(currentFranchiseProvider.notifier).acceptTradeOffer(offer);
+    if (mounted) setState(() => _busyOfferId = null);
+  }
+
+  Future<void> _decline(TradeOffer offer) async {
+    setState(() => _busyOfferId = offer.id);
+    await ref
+        .read(currentFranchiseProvider.notifier)
+        .declineTradeOffer(offer.id);
+    if (mounted) setState(() => _busyOfferId = null);
+  }
+}
+
+/// The GM's own trade-block flag -- "put a player on the trade block
+/// (only one allowed), and the trade board should TRY to have 3 (out of
+/// the 5) involve that player" (direct GM ask, see
+/// `trading-and-hidden-gems-notes.md`). Set/clear via a bottom sheet, the
+/// same pattern `team_roster_screen.dart`'s empty-slot "Assign" already
+/// uses for picking one player out of a list.
+class _TradeBlockCard extends StatelessWidget {
+  const _TradeBlockCard({
+    required this.franchise,
+    required this.tradeBlockPlayer,
+    required this.enabled,
+  });
+
+  final Franchise franchise;
+  final Player? tradeBlockPlayer;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.local_offer_outlined, color: theme.colorScheme.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Trade Block', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 2),
+                Text(
+                  tradeBlockPlayer == null
+                      ? 'No player flagged -- other teams have no reason '
+                            'to specifically target anyone on your roster.'
+                      : '${tradeBlockPlayer!.name} is flagged. The board '
+                            'tries to build offers around her.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          if (enabled) ...[
+            const SizedBox(width: AppSpacing.sm),
+            if (tradeBlockPlayer != null)
+              Consumer(
+                builder: (context, ref, _) => TextButton(
+                  onPressed: () => ref
+                      .read(currentFranchiseProvider.notifier)
+                      .setTradeBlockPlayer(null),
+                  child: const Text('Clear'),
+                ),
+              ),
+            OutlinedButton(
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => _TradeBlockPickerSheet(franchise: franchise),
+              ),
+              child: Text(tradeBlockPlayer == null ? 'Set' : 'Change'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Every active-roster player, tap to flag her as the trade block --
+/// mirrors `team_roster_screen.dart`'s `_AssignPlayerSheet` shape (a
+/// title, a scrollable candidate list, tap-to-act-and-pop) without
+/// reusing that class directly since it's private to its own file.
+class _TradeBlockPickerSheet extends ConsumerWidget {
+  const _TradeBlockPickerSheet({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final candidates =
+        franchise.roster.where((m) => m.status == RosterStatus.active).toList()
+          ..sort(
+            (a, b) =>
+                b.player.ratings.overall.compareTo(a.player.ratings.overall),
+          );
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Put a player on the Trade Block',
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final membership in candidates)
+                    ListTile(
+                      leading: CircleAvatar(
+                        child: Text('${membership.player.ratings.overall}'),
+                      ),
+                      title: Text(membership.player.name),
+                      subtitle: Text(
+                        '${membership.player.primaryPosition.abbreviation} '
+                        '· Age ${membership.player.age}',
+                      ),
+                      trailing:
+                          membership.player.id == franchise.tradeBlockPlayerId
+                          ? const Icon(Icons.check)
+                          : null,
+                      onTap: () async {
+                        await ref
+                            .read(currentFranchiseProvider.notifier)
+                            .setTradeBlockPlayer(membership.player.id);
+                        if (context.mounted) Navigator.of(context).pop();
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One live [TradeOffer] -- the offering team, a character tag, both
+/// sides' assets, and Accept/Decline. [busy] disables both buttons while
+/// this specific offer's action is in flight, so a fast double-tap can't
+/// fire it twice.
+class _TradeOfferCard extends StatelessWidget {
+  const _TradeOfferCard({
+    required this.franchise,
+    required this.offer,
+    required this.busy,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  final Franchise franchise;
+  final TradeOffer offer;
+  final bool busy;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final aiTeam = franchise.league.aiTeams.firstWhere(
+      (t) => t.team.abbreviation == offer.offeringTeamAbbreviation,
+    );
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(aiTeam.team.emoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  aiTeam.team.name,
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              _CharacterChip(character: offer.character),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _TradeAssetColumn(label: 'You Get', assets: offer.offeredToYou),
+          const SizedBox(height: AppSpacing.sm),
+          _TradeAssetColumn(label: 'You Give', assets: offer.askedFromYou),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy ? null : onDecline,
+                  child: const Text('Decline'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: FilledButton(
+                  onPressed: busy ? null : onAccept,
+                  child: busy
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Accept'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "You Get"/"You Give", each a short label over one row per asset.
+class _TradeAssetColumn extends StatelessWidget {
+  const _TradeAssetColumn({required this.label, required this.assets});
+
+  final String label;
+  final List<TradeAsset> assets;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        for (final asset in assets)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: _TradeAssetTile(asset: asset),
+          ),
+      ],
+    );
+  }
+}
+
+/// One [TradeAsset] row -- an OVR badge and identity line for a player,
+/// or a plain icon-and-label for a pick (there's no player underneath a
+/// pick to show a badge for).
+class _TradeAssetTile extends StatelessWidget {
+  const _TradeAssetTile({required this.asset});
+
+  final TradeAsset asset;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return switch (asset) {
+      PlayerTradeAsset(:final player) => Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '${player.ratings.overall}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              '${player.primaryPosition.abbreviation} ${player.name} · '
+              'Age ${player.age}',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+      PickTradeAsset() => Row(
+        children: [
+          Icon(
+            Icons.confirmation_number_outlined,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(asset.label, style: theme.textTheme.bodyMedium),
+        ],
+      ),
+    };
+  }
+}
+
+/// [TradeOfferCharacter] as a small colored pill -- same visual language
+/// as `StatChip`, but for a fixed short label rather than a number.
+class _CharacterChip extends StatelessWidget {
+  const _CharacterChip({required this.character});
+
+  final TradeOfferCharacter character;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (label, swatch) = switch (character) {
+      TradeOfferCharacter.value => ('Value', Colors.blueGrey),
+      TradeOfferCharacter.winNow => ('Win-Now', Colors.orange),
+      TradeOfferCharacter.rebuilding => ('Rebuilding', Colors.teal),
+      TradeOfferCharacter.aggressive => ('Aggressive', Colors.red),
+    };
+    final color = statChipTone(context, swatch);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }

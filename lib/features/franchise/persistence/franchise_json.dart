@@ -59,6 +59,8 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'narrativeVeteranAppearance': franchise.narrativeVeteranAppearance == null
         ? null
         : portraitAppearanceToJson(franchise.narrativeVeteranAppearance!),
+    'tradeBlockPlayerId': franchise.tradeBlockPlayerId,
+    'resolvedTradeOfferIds': franchise.resolvedTradeOfferIds.toList(),
   };
 }
 
@@ -131,5 +133,9 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
         : portraitAppearanceFromJson(
             json['narrativeVeteranAppearance'] as Map<String, dynamic>,
           ),
+    tradeBlockPlayerId: json['tradeBlockPlayerId'] as String?,
+    resolvedTradeOfferIds: (json['resolvedTradeOfferIds'] as List<dynamic>)
+        .map((value) => value as String)
+        .toSet(),
   );
 }

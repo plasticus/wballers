@@ -14,6 +14,7 @@ import 'package:womensbballmgr/features/market/generation/player_market_preview_
 import 'package:womensbballmgr/features/market/presentation/player_market_screen.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/trade/generation/trade_offer_generator.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 
@@ -64,7 +65,7 @@ void main() {
 
       expect(find.text('Player Market'), findsOneWidget);
       expect(find.text('Free Agents'), findsWidgets); // tab + banner text
-      expect(find.text('Trade Block'), findsOneWidget);
+      expect(find.text('Trade Board'), findsOneWidget);
       expect(find.text('Draft'), findsOneWidget);
 
       // The active roster starts one short (11/12) -- the banner says so
@@ -215,7 +216,7 @@ void main() {
     expect(find.textContaining('Free Agent ·'), findsNWidgets(expectedCount));
   });
 
-  testWidgets('the Trade Block tab shows real AI teams, one per player', (
+  testWidgets('the Trade Board tab shows live AI offers with Accept/Decline', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 4500);
@@ -233,28 +234,98 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Trade Block'));
+    await tester.tap(find.text('Trade Board'));
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Preview only -- there\'s no trade system'),
+      find.textContaining('Real offers from around the league'),
       findsOneWidget,
     );
-    // The screen's own preview picks, recomputed the same way it
-    // generates them internally (same seed formula) -- whichever real
-    // team its first pick actually belongs to shows up as that row's
-    // subtitle, not "Free Agent".
-    final picks = pickTradeBlockPreview(
-      franchise,
-      Random(franchise.simulationSeed + kTradeBlockPreviewSeedOffset),
+
+    // The screen's own offers, recomputed the same way it generates them
+    // internally (same seed/game-day formula) -- a fresh franchise's trade
+    // window is open at game day 0, so this matches exactly.
+    final offers = generateTradeOffers(franchise);
+    expect(offers, isNotEmpty);
+    final firstOfferTeam = franchise.league.aiTeams.firstWhere(
+      (t) => t.team.abbreviation == offers.first.offeringTeamAbbreviation,
     );
-    final firstPickTeam = picks.first.team;
-    expect(
-      find.textContaining('${firstPickTeam.emoji} ${firstPickTeam.name}'),
-      findsWidgets,
+    expect(find.text(firstOfferTeam.team.name), findsWidgets);
+    expect(find.text('Accept'), findsNWidgets(offers.length));
+    expect(find.text('Decline'), findsNWidgets(offers.length));
+  });
+
+  testWidgets(
+    'tapping Accept on a Trade Board offer resolves it and persists',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Trade Board'));
+      await tester.pumpAndSettle();
+
+      final offers = generateTradeOffers(franchise);
+      expect(offers, isNotEmpty);
+      final acceptedOffer = offers.first;
+
+      await tester.tap(find.text('Accept').first);
+      await tester.pumpAndSettle();
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(savedFranchise.resolvedTradeOfferIds, contains(acceptedOffer.id));
+    },
+  );
+
+  testWidgets('setting a Trade Block player persists the flag', (tester) async {
+    tester.view.physicalSize = const Size(800, 4500);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = _newFranchise();
+    final repository = await _seededRepository(franchise);
+    final target = franchise.roster
+        .firstWhere((m) => m.status == RosterStatus.active)
+        .player;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+      ),
     );
-    expect(find.textContaining('Free Agent ·'), findsNothing);
-    expect(find.text('Sign'), findsNothing);
+    await tester.pump();
+
+    await tester.tap(find.text('Trade Board'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Set'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(target.name));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('${target.name} is flagged'), findsOneWidget);
+
+    final saved = await repository.readSave(kCurrentFranchiseSaveId);
+    final savedFranchise = franchiseFromJson(
+      SaveEnvelope.fromJson(saved!).payload,
+    );
+    expect(savedFranchise.tradeBlockPlayerId, target.id);
   });
 
   testWidgets('the Draft tab shows a college per prospect, not a team', (

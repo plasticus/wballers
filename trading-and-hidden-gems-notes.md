@@ -41,7 +41,7 @@ nobody else saw.
 This is **only** the objective math: given a set of assets on each
 side of a proposed trade, is it something a given coach's Management
 could actually pull off? It says nothing about *which* teams offer
-*what* to whom — that's the still-unbuilt Trade Board (below).
+*what* to whom — that's the Trade Board (below).
 
 - **Currency:** skill points, same as Hidden Gems. Two players who
   display the same rounded OVR aren't necessarily equal value — a 900
@@ -110,34 +110,53 @@ clears at any Management level. A wider natural gap (1870 vs. 1760)
 doesn't close with either pick alone at Management 50, but the better
 one (R2) clears at 70.
 
-## Trade Board — still to design/build
+## Trade Board (built, `lib/features/trade/`, screen in
+`market/presentation/player_market_screen.dart`'s "Trade Board" tab)
 
 The screen and offer-generation logic that actually *produces* trade
-offers for the value math above to validate. Locked so far, not yet
-built:
+offers for the value math above to validate.
 
 - **Accept/decline only** — no player-initiated trades. A real,
   deliberate scope cut ("a whole can of worms I'm not sure I want to
-  touch").
-- **5 offers visible at a time**, from any teams around the league,
-  regenerated each "turn."
-- **Trade window:** opens after the draft, runs through 2 preseason
-  games + up to 12 regular-season turns (~15 total regenerations,
-  max). *Also still open: a trade deadline exists in real terms too —
-  floated "maybe around end of week 6" but never locked.*
-- **Intended 5-slot mix** (not yet built — the "which team wants what"
-  layer, distinct from the value math): 2 offers reflecting a team's
-  contention-window lean (needs a real signal — roster age average +
-  standings, not designed in detail), 2 "situational" (an occasional
-  win-now/sell-the-future roll on an otherwise ordinary offer), 1
-  "hairbrained" (a coach pushing right to the edge of their own swing
-  tolerance, pure value-math, no team-need story at all).
+  touch"). `CurrentFranchiseNotifier.acceptTradeOffer`/`declineTradeOffer`.
+- **5 offers visible at a time** (`kTradeOfferCount`), from any teams
+  around the league, regenerated deterministically off the current
+  game day every time the tab rebuilds
+  (`trade_offer_generator.dart`'s `generateTradeOffers`) — not
+  persisted, same "recompute, don't store" posture the Player Market's
+  other preview tabs already use.
+- **Trade window** (`trade_window.dart`): opens after the draft, runs
+  through 2 preseason games + up to 12 regular-season turns
+  (`kTradeWindowGameDayCount = 14`, ~15 total regenerations, max).
+  *Still open: a trade deadline in real narrative terms — floated
+  "maybe around end of week 6" but never locked, and not needed since
+  the window itself already caps things.*
+- **5-slot mix — simplified from the original plan.** The original
+  intent (2 contention-window / 2 situational / 1 hairbrained,
+  targeted generation) needed a real per-team strategy signal that was
+  never designed in detail. What shipped instead: every offer is built
+  the same way (closest-value combo + a balancing pick, gated by the
+  offering coach's own Management swing), and `TradeOfferCharacter`
+  (value/winNow/rebuilding/aggressive) is derived *after the fact*
+  from what the offer's own numbers produced — an honest description,
+  not a targeted simulation. Revisit if the flat mix ever feels wrong
+  in play.
 - **Trade Block (2026-08-19, added mid-design):** the GM can flag
-  exactly **one** of their own players as available. Whenever a
-  trade-block player is set, the Trade Board should *try* to make **3
-  of the 5** offers involve that specific player — the other 2 stay
-  general. Not yet built.
+  exactly **one** of their own active-roster players as available
+  (`Franchise.tradeBlockPlayerId`, set from the Trade Board tab's
+  "Set"/"Change"/"Clear" controls). Whenever one's set, the Trade
+  Board *tries* to make **3 of the 5** offers involve that specific
+  player (`kTradeBlockTargetedOfferCount`) — the other 2 stay general.
+  "Tries," not guaranteed: a slot with no legal match for that player
+  just falls back to a general offer.
 - **Roster-need-driven offer generation** (the 3rd flavor idea from
   earlier in the conversation, using real per-position depth-chart
   gaps) was considered and set aside — "not super into" it, per a
   direct GM call. Parked, not dead.
+- **Known limitation, by design:** a traded draft pick is value-only —
+  there's no real cross-season pick-ownership tracking, so accepting a
+  pick doesn't change who's actually on the clock at the next draft
+  (`trade_asset.dart`'s `PickTradeAsset` doc comment). Would need
+  restructuring `DraftInProgress.order` from a flat repeating list to
+  per-round distinct ownership — scoped out as too large a change for
+  this pass.
