@@ -5,8 +5,10 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
+import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
@@ -21,6 +23,7 @@ import 'package:womensbballmgr/features/season/generation/retirement_advancer.da
 import 'package:womensbballmgr/features/training/domain/training_coach.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
 
+import '../../../support/franchise_test_helpers.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
@@ -353,6 +356,135 @@ void main() {
         reason:
             'expected at least one success within 200 seeds even at '
             'min Motivation',
+      );
+    });
+  });
+
+  group('resolveNarrativeVeteranRetirement (2026-08-19, a direct GM report: '
+      '"if the new player trades away their star player right away...")', () {
+    Franchise newFranchise() => withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+
+    test('retires her off the GM\'s own roster and flags '
+        'narrativeVeteranRetired, when season is still 0', () {
+      final franchise = newFranchise();
+      expect(franchise.season, 0);
+      expect(
+        franchise.roster.any(
+          (m) => m.player.id == franchise.narrativeVeteranPlayerId,
+        ),
+        isTrue,
+      );
+
+      final updated = resolveNarrativeVeteranRetirement(franchise);
+
+      expect(updated.narrativeVeteranRetired, isTrue);
+      expect(
+        updated.roster.any(
+          (m) => m.player.id == franchise.narrativeVeteranPlayerId,
+        ),
+        isFalse,
+      );
+    });
+
+    test('retires her off whichever AI team she was traded to, not just '
+        'the GM\'s own roster', () {
+      final franchise = newFranchise();
+      final veteran = franchise.roster
+          .firstWhere((m) => m.player.id == franchise.narrativeVeteranPlayerId)
+          .player;
+      final aiTeam = franchise.league.aiTeams.first;
+
+      // Simulate a trade: she leaves the GM's roster and lands on an
+      // AI team's, same shape `acceptTradeOffer` produces.
+      final traded = franchise
+          .copyWithRoster([
+            for (final m in franchise.roster)
+              if (m.player.id != veteran.id) m,
+          ])
+          .copyWithLeague(
+            League(
+              aiTeams: [
+                aiTeam.copyWithRoster([
+                  ...aiTeam.roster,
+                  RosterMembership(
+                    player: veteran,
+                    status: RosterStatus.active,
+                  ),
+                ]),
+                ...franchise.league.aiTeams.skip(1),
+              ],
+            ),
+          );
+
+      final updated = resolveNarrativeVeteranRetirement(traded);
+
+      expect(updated.narrativeVeteranRetired, isTrue);
+      final updatedAiTeam = updated.league.aiTeams.first;
+      expect(
+        updatedAiTeam.roster.any((m) => m.player.id == veteran.id),
+        isFalse,
+      );
+    });
+
+    test('retires her out of freeAgents if she was dropped there', () {
+      final franchise = newFranchise();
+      final veteran = franchise.roster
+          .firstWhere((m) => m.player.id == franchise.narrativeVeteranPlayerId)
+          .player;
+      final dropped = franchise
+          .copyWithRoster([
+            for (final m in franchise.roster)
+              if (m.player.id != veteran.id) m,
+          ])
+          .copyWithFreeAgents([...franchise.freeAgents, veteran]);
+
+      final updated = resolveNarrativeVeteranRetirement(dropped);
+
+      expect(updated.narrativeVeteranRetired, isTrue);
+      expect(updated.freeAgents.any((p) => p.id == veteran.id), isFalse);
+    });
+
+    test('is a no-op once already marked retired -- fires only once', () {
+      final franchise = newFranchise().copyWithNarrativeVeteranRetired(true);
+
+      final updated = resolveNarrativeVeteranRetirement(franchise);
+
+      // Untouched -- still has her on the roster, since a real
+      // second-call scenario would never legitimately re-add her.
+      expect(
+        updated.roster.any(
+          (m) => m.player.id == franchise.narrativeVeteranPlayerId,
+        ),
+        isTrue,
+      );
+    });
+
+    test('does nothing once past the franchise\'s first season', () {
+      final franchise = newFranchise().copyWithNewSeason(
+        newSeason: 1,
+        newSeasonProgress: newFranchise().seasonProgress,
+      );
+      expect(franchise.season, 1);
+
+      final updated = resolveNarrativeVeteranRetirement(franchise);
+
+      expect(updated.narrativeVeteranRetired, isFalse);
+      expect(
+        updated.roster.any(
+          (m) => m.player.id == franchise.narrativeVeteranPlayerId,
+        ),
+        isTrue,
       );
     });
   });

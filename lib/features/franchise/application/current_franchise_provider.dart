@@ -33,6 +33,7 @@ import '../../season/generation/season_transition_advancer.dart';
 import '../../trade/domain/pick_ownership.dart';
 import '../../trade/domain/trade_asset.dart';
 import '../../trade/domain/trade_offer.dart';
+import '../../trade/generation/ai_offseason_trade_advancer.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
@@ -842,6 +843,16 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withAiRetirement = withAiAging.copyWithLeague(
       aiRetirementAdvance.league,
     );
+    // Forces the narrative veteran into retirement at the end of the
+    // franchise's very first season, wherever she is by then -- see
+    // `resolveNarrativeVeteranRetirement`'s own doc comment. Runs before
+    // the GM's own pending-retirement eligibility check below, so if
+    // she's still on the GM's own roster at this point, she's removed
+    // outright rather than also being evaluated for a persuasion decision
+    // she was never meant to get.
+    final withVeteranRetirement = resolveNarrativeVeteranRetirement(
+      withAiRetirement,
+    );
     // The GM's own roster is never auto-retired -- each newly-eligible
     // player becomes a pending decision instead (a real Mail item lets
     // the GM let them retire or have the coach attempt to convince them
@@ -849,16 +860,16 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     // unresolved decision (the GM never opened that mail) shouldn't get
     // silently dropped just because another season's evaluation ran.
     final championAbbreviation = seasonChampion(
-      withAiRetirement.seasonProgress.playedGames,
+      withVeteranRetirement.seasonProgress.playedGames,
     );
     final wonChampionship =
-        championAbbreviation == withAiRetirement.team.abbreviation;
+        championAbbreviation == withVeteranRetirement.team.abbreviation;
     final alreadyPending = {
-      for (final pending in withAiRetirement.pendingRetirements)
+      for (final pending in withVeteranRetirement.pendingRetirements)
         pending.playerId,
     };
     final newlyEligible = [
-      for (final membership in withAiRetirement.roster)
+      for (final membership in withVeteranRetirement.roster)
         if (!alreadyPending.contains(membership.player.id))
           if (evaluateRetirementEligibility(
                 membership.player,
@@ -868,9 +879,9 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
             PendingRetirement(playerId: membership.player.id, reason: reason),
     ];
     final withPendingRetirements = newlyEligible.isEmpty
-        ? withAiRetirement
-        : withAiRetirement.copyWithPendingRetirements([
-            ...withAiRetirement.pendingRetirements,
+        ? withVeteranRetirement
+        : withVeteranRetirement.copyWithPendingRetirements([
+            ...withVeteranRetirement.pendingRetirements,
             ...newlyEligible,
           ]);
     // Legality enforcement runs after retirement, so it sees who's
@@ -879,10 +890,21 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final withLegality = enforceAiRosterLegality(
       withPendingRetirements,
     ).franchise;
+    // A light off-season pass of AI-to-AI 1:1 trades, entirely separate
+    // from the GM-facing Trade Board -- runs after legality enforcement,
+    // so it's trading with each team's real final roster shape, not one
+    // about to get waived down anyway.
+    final aiOffseasonTradeAdvance = resolveAiOffseasonTrades(
+      Random(withLegality.seasonSeed + kAiOffseasonTradeSeedOffset),
+      withLegality,
+    );
+    final withAiOffseasonTrades = withLegality.copyWithLeague(
+      aiOffseasonTradeAdvance.league,
+    );
     // Tenure (age/yearsOfService) increments last, deliberately -- every
     // pass above computes its result against the age a player played this
     // season *at* (`advancePlayerTenure`'s own doc comment).
-    await _persist(advancePlayerTenure(withLegality));
+    await _persist(advancePlayerTenure(withAiOffseasonTrades));
     return advance.gamesPlayed;
   }
 

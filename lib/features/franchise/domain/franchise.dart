@@ -81,6 +81,7 @@ class Franchise {
     this.tradeBlockPlayerId,
     this.resolvedTradeOfferIds = const {},
     this.pickOwnershipOverrides = const {},
+    this.narrativeVeteranRetired = false,
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -282,12 +283,11 @@ class Franchise {
   /// (`matchup/domain/analyst.dart`) uses to decide whether seat 1 (a
   /// direct GM ask, 2026-08-12) still shows the generic
   /// [kNarrativeVeteranSeatFallback] look or her own real, retired
-  /// portrait: if this id is still found in [roster], she hasn't retired
-  /// yet, so the seat stays generic; once she's gone (today, the only way
-  /// a player ever leaves [roster] is retirement -- no trade/waive path
-  /// exists for the GM's own roster), the seat switches to
-  /// [narrativeVeteranAppearance] styled for the analyst desk
-  /// (`asAnalystPortrait`).
+  /// portrait -- keyed off [narrativeVeteranRetired], not roster
+  /// presence: she's tradeable like anyone else now, so "not found in
+  /// [roster]" stopped being a reliable "she retired" signal the moment
+  /// trading shipped (2026-08-19) -- see [narrativeVeteranRetired]'s own
+  /// doc comment for the real trigger.
   final String narrativeVeteranPlayerId;
 
   /// The narrative veteran's real generated name, captured alongside
@@ -341,6 +341,17 @@ class Franchise {
   /// out) carry forward untouched rather than resetting.
   final FuturePickOwnershipOverrides pickOwnershipOverrides;
 
+  /// Whether `narrativeVeteranPlayerId` has been forced into
+  /// retirement yet -- `retirement_advancer.dart`'s
+  /// `resolveNarrativeVeteranRetirement` sets this exactly once, at
+  /// the end of the franchise's first season, wherever she is by
+  /// then (the GM's own roster, an AI team she was traded to, or
+  /// dropped to `freeAgents`). What `match_preview_screen.dart`'s
+  /// seat-1 Analyst swap keys off -- a real, trade-proof signal,
+  /// replacing the old "not found on the GM's own roster" proxy that
+  /// broke the instant she was traded away.
+  final bool narrativeVeteranRetired;
+
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
   /// picks and to record the GM's own, and finally to clear it (`null`)
@@ -375,6 +386,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -411,6 +423,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -447,6 +460,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -482,6 +496,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -517,6 +532,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -552,6 +568,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -587,6 +604,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -632,6 +650,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -675,6 +694,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -711,6 +731,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -748,6 +769,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -790,6 +812,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -829,6 +852,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -865,6 +889,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -901,6 +926,7 @@ class Franchise {
       tradeBlockPlayerId: newTradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -941,6 +967,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: newResolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -984,6 +1011,45 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: newPickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
+    );
+  }
+
+  /// Returns a copy with [newNarrativeVeteranRetired] replacing
+  /// [narrativeVeteranRetired] -- `retirement_advancer.dart`'s
+  /// `resolveNarrativeVeteranRetirement` is the only caller, and only
+  /// ever writes `true` (this never resets back to `false`).
+  Franchise copyWithNarrativeVeteranRetired(bool newNarrativeVeteranRetired) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: newNarrativeVeteranRetired,
     );
   }
 
@@ -1035,6 +1101,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 
@@ -1092,6 +1159,7 @@ class Franchise {
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
     );
   }
 }

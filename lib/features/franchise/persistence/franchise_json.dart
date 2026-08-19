@@ -67,6 +67,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         byRound.map((round, byTeam) => MapEntry('$round', byTeam)),
       ),
     ),
+    'narrativeVeteranRetired': franchise.narrativeVeteranRetired,
   };
 }
 
@@ -158,5 +159,6 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
             ),
           ),
         ),
+    narrativeVeteranRetired: json['narrativeVeteranRetired'] as bool,
   );
 }

@@ -269,7 +269,7 @@ void main() {
 
   testWidgets(
     'seat 1 shows the narrative veteran\'s own name once she has retired '
-    '(no longer found on the roster)',
+    '(narrativeVeteranRetired, not just "not found on the roster")',
     (tester) async {
       tester.view.physicalSize = const Size(900, 2600);
       tester.view.devicePixelRatio = 1.0;
@@ -278,14 +278,18 @@ void main() {
       final base = _newFranchise();
       final opponent = base.league.aiTeams.first.team;
       final withGame = _withOwnGameToday(base, opponent);
-      // "Retire" the narrative veteran -- drop her from the roster the
-      // same way `resolvePendingRetirement`'s `_retirePlayer` does, while
-      // her id/name/appearance stay snapshotted on the franchise itself.
-      final franchise = withGame.copyWithRoster([
-        for (final membership in withGame.roster)
-          if (membership.player.id != withGame.narrativeVeteranPlayerId)
-            membership,
-      ]);
+      // "Retire" the narrative veteran -- drop her from the roster (same
+      // as `resolvePendingRetirement`'s `_retirePlayer`) and flip the
+      // real retirement flag `retirement_advancer.dart`'s
+      // `resolveNarrativeVeteranRetirement` sets -- her id/name/appearance
+      // stay snapshotted on the franchise itself either way.
+      final franchise = withGame
+          .copyWithRoster([
+            for (final membership in withGame.roster)
+              if (membership.player.id != withGame.narrativeVeteranPlayerId)
+                membership,
+          ])
+          .copyWithNarrativeVeteranRetired(true);
       final game = franchise.seasonProgress.schedule.games.single;
       final repository = await _seededRepository(franchise);
 
@@ -302,6 +306,47 @@ void main() {
 
       expect(find.text(franchise.narrativeVeteranName), findsOneWidget);
       expect(find.text('Preston'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'seat 1 stays the generic "Preston" look once she\'s been traded away '
+    'but hasn\'t actually retired yet -- the old "not found on the '
+    'roster" proxy incorrectly showed the retired look here (2026-08-19, '
+    'a direct GM report: "if the new player trades away their star '
+    'player right away...")',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final base = _newFranchise();
+      final opponent = base.league.aiTeams.first.team;
+      final withGame = _withOwnGameToday(base, opponent);
+      // She's gone from the GM's own roster (traded away), but
+      // narrativeVeteranRetired is still false -- she's just playing for
+      // someone else now, not retired.
+      final franchise = withGame.copyWithRoster([
+        for (final membership in withGame.roster)
+          if (membership.player.id != withGame.narrativeVeteranPlayerId)
+            membership,
+      ]);
+      expect(franchise.narrativeVeteranRetired, isFalse);
+      final game = franchise.seasonProgress.schedule.games.single;
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: MatchPreviewScreen(franchise: franchise, game: game),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Preston'), findsOneWidget);
     },
   );
 

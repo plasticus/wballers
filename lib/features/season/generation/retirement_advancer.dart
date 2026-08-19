@@ -194,3 +194,76 @@ AiTeamRetirementAdvance resolveAiTeamRetirements(
     retiredPlayerIds: retiredIds,
   );
 }
+
+/// Forces [Franchise.narrativeVeteranPlayerId] into retirement at the end
+/// of the franchise's very first season (`franchise.season == 0`),
+/// wherever she currently is -- a direct GM call (2026-08-19), triggered
+/// by noticing the seat-1 Analyst swap (`match_preview_screen.dart`) had
+/// no real trigger of its own: "if the new player trades away their star
+/// player right away... whatever team she's on at the end of season 1,
+/// she retires, and takes over the analyst position." A scripted,
+/// one-time narrative beat, not the age/decline-based
+/// [evaluateRetirementEligibility] triggers every other player uses --
+/// she starts at 33-34 (`expansion_franchise_factory.dart`), well under
+/// [kMandatoryRetirementAge], so nothing else would ever retire her this
+/// early.
+///
+/// A no-op once [Franchise.narrativeVeteranRetired] is already true (this
+/// only ever fires once), or if it isn't actually the end of season 0
+/// yet, or if [Franchise.narrativeVeteranPlayerId] is empty (a hand-built
+/// test fixture with no real veteran -- `Franchise.narrativeVeteranPlayerId`'s
+/// own doc comment). Otherwise removes her from wherever she's found --
+/// the GM's own roster, whichever AI team a trade sent her to, or (rare)
+/// [Franchise.freeAgents] if she was dropped along the way -- the same
+/// "retired means retired, not available to sign" posture
+/// [resolveAiTeamRetirements] already established, and sets
+/// [Franchise.narrativeVeteranRetired] so `match_preview_screen.dart`'s
+/// seat 1 swap has a real, trade-proof signal to key off instead of the
+/// old "not found on the GM's own roster" proxy (which broke the instant
+/// she was traded away, retired or not).
+Franchise resolveNarrativeVeteranRetirement(Franchise franchise) {
+  if (franchise.narrativeVeteranRetired) return franchise;
+  if (franchise.season != 0) return franchise;
+  final veteranId = franchise.narrativeVeteranPlayerId;
+  if (veteranId.isEmpty) return franchise;
+
+  if (franchise.roster.any((m) => m.player.id == veteranId)) {
+    return franchise
+        .copyWithRoster([
+          for (final m in franchise.roster)
+            if (m.player.id != veteranId) m,
+        ])
+        .copyWithNarrativeVeteranRetired(true);
+  }
+
+  for (final aiTeam in franchise.league.aiTeams) {
+    if (!aiTeam.roster.any((m) => m.player.id == veteranId)) continue;
+    final newAiTeams = [
+      for (final team in franchise.league.aiTeams)
+        if (team.team.abbreviation == aiTeam.team.abbreviation)
+          team.copyWithRoster([
+            for (final m in team.roster)
+              if (m.player.id != veteranId) m,
+          ])
+        else
+          team,
+    ];
+    return franchise
+        .copyWithLeague(League(aiTeams: newAiTeams))
+        .copyWithNarrativeVeteranRetired(true);
+  }
+
+  if (franchise.freeAgents.any((p) => p.id == veteranId)) {
+    return franchise
+        .copyWithFreeAgents([
+          for (final p in franchise.freeAgents)
+            if (p.id != veteranId) p,
+        ])
+        .copyWithNarrativeVeteranRetired(true);
+  }
+
+  // Not found anywhere at all (an edge case some other flow would have
+  // to produce) -- still mark her retired so the Analyst seat stops
+  // waiting on a roster presence that will never resolve.
+  return franchise.copyWithNarrativeVeteranRetired(true);
+}

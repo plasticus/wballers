@@ -186,14 +186,16 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     final leaders = computeLeagueLeaders(franchise.seasonProgress.playedGames);
 
     // Seat 1 stays the generic fallback until the franchise's own
-    // narrative veteran has actually left the roster -- see
-    // `Franchise.narrativeVeteranPlayerId`'s own doc comment for why
-    // "not found in roster" reliably means "retired" today.
-    final veteranStillActive = franchise.roster.any(
-      (m) => m.player.id == franchise.narrativeVeteranPlayerId,
-    );
+    // narrative veteran has actually retired -- keyed off the real,
+    // trade-proof `narrativeVeteranRetired` flag
+    // (`retirement_advancer.dart`'s `resolveNarrativeVeteranRetirement`),
+    // not "not found on the GM's own roster" -- that old proxy broke the
+    // instant she was traded to another team, showing the retired look
+    // for someone still actively playing (2026-08-19, a direct GM report:
+    // "if the new player trades away their star player right away...").
     final veteranAppearance = franchise.narrativeVeteranAppearance;
-    final seat1 = (veteranStillActive || veteranAppearance == null)
+    final seat1 =
+        (!franchise.narrativeVeteranRetired || veteranAppearance == null)
         ? kNarrativeVeteranSeatFallback
         : Analyst(
             name: franchise.narrativeVeteranName,

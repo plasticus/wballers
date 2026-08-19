@@ -188,3 +188,41 @@ offers for the value math above to validate.
     labels each pick "(next draft)" or "(the draft after)"
     (`pickHorizonLabel`) rather than a raw season number, so a GM never
     has to do the season-number math themselves.
+
+## AI-to-AI off-season trades (built 2026-08-19, `trade/generation/ai_offseason_trade_advancer.dart`)
+
+A second, entirely separate trade system from the GM-facing Trade Board
+above — a direct GM ask: "make a few AI trades happen in the off-season...
+only 1:1 trades, trying to balance their rosters closer to... at least 2
+players from every position... none of them would make more than one
+trade... Max gap of 36." No offer is ever shown to anyone; these trades
+just happen, resolved once per off-season inside
+`simulatePostseasonAndPersist` (same "one lump" posture
+`resolveCoachFreeAgency`/`enforceAiRosterLegality` already have), after
+roster-legality enforcement and before tenure advances.
+
+- **1:1 only**, players for players — no picks, no multi-player packages.
+- **Target: 2 active players per position** (`kAiOffseasonTradeTargetPerPosition`).
+  A team with more than 2 at a position has surplus there; fewer than 2 is
+  a need. For each shuffled pair of AI teams, looks for a genuinely
+  complementary mismatch — team A has real surplus at a position team B
+  needs, *and* team B has real surplus at a (necessarily different)
+  position team A needs — and, if found, each side offers its *weakest*
+  player at its own surplus position (a team fixing a depth problem gives
+  up its extra depth piece, not a starter).
+- **Flat gap cap of 36** (`kAiOffseasonTradeMaxGap`), `PlayerRatings.skillPoints`
+  currency — deliberately *not* gated by either team's own coach
+  Management (unlike the GM-facing board's `tradeSwing`); see
+  `coaching-stats-notes.md`'s Management section for why the two trade
+  systems use different rules on purpose.
+- **Each team trades at most once per off-season** — once matched, both
+  teams are excluded from the rest of that pass.
+- Deliberately light-touch, not an optimizer: takes the *first*
+  complementary position match found (fixed `Position.values` order), not
+  the best possible one, and never retries a pair with a different
+  position/player combination if the first attempt doesn't clear the gap.
+  "Probably none of them would make more than one trade" per the GM's own
+  framing — most off-seasons, most teams, nothing happens at all.
+- Only `RosterStatus.active` players are ever counted, offered, or
+  received — developmental/reserve rosters are untouched, matching every
+  other season-end AI system's own active-only scope.
