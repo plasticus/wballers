@@ -30,6 +30,7 @@ import '../../season/generation/season_advancer.dart';
 import '../../season/generation/season_awards_advancer.dart';
 import '../../season/generation/season_tenure_advancer.dart';
 import '../../season/generation/season_transition_advancer.dart';
+import '../../trade/domain/pick_ownership.dart';
 import '../../trade/domain/trade_asset.dart';
 import '../../trade/domain/trade_offer.dart';
 import '../../training/domain/training_plan.dart';
@@ -231,20 +232,21 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// actually changes rosters (the GM's own and [offer]'s
   /// [TradeOffer.offeringTeamAbbreviation]'s), landing [RosterStatus.active]
   /// on their new team same as a free-agent signing or a draft pick
-  /// does. [PickTradeAsset]s are deliberately not applied to anything --
-  /// see that class's own doc comment for why real cross-season pick
-  /// ownership isn't tracked yet; a pick still did its job of letting
-  /// this exact offer clear the Management swing check that generated
-  /// it, it just doesn't change who's on the clock next draft.
+  /// does. Every [PickTradeAsset] on each side genuinely changes
+  /// ownership too (2026-08-19, real draft-pick ownership --
+  /// [Franchise.pickOwnershipOverrides], `pick_ownership.dart`'s
+  /// `transferPickOwnership`) -- the acquiring side is really who's on
+  /// the clock for it come next draft (`DraftInProgress.onTheClock`),
+  /// not just credited for it in this one offer's value math.
   ///
   /// A no-op (but still marks [offer] resolved, so a stale offer card
   /// doesn't linger) if either side no longer actually has everything
-  /// [offer] named -- a player it referenced could have retired, been
-  /// traded away by an earlier accepted offer this same turn, or moved
-  /// off the active roster, between when the board was generated and
-  /// now. If the GM's own [Franchise.tradeBlockPlayerId] was part of
-  /// [offer], it's cleared -- she's not on this roster to keep
-  /// advertising anymore.
+  /// [offer] named -- a player could have retired, been traded away by
+  /// an earlier accepted offer this same turn, or moved off the active
+  /// roster; a pick could have already been traded away the same way --
+  /// all between when the board was generated and now. If the GM's own
+  /// [Franchise.tradeBlockPlayerId] was part of [offer], it's cleared --
+  /// she's not on this roster to keep advertising anymore.
   Future<void> acceptTradeOffer(TradeOffer offer) async {
     final franchise = await future;
     if (franchise == null) return;
@@ -274,13 +276,42 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       for (final asset in offer.offeredToYou)
         if (asset case PlayerTradeAsset(:final player)) player.id,
     };
+    final askedPicks = [
+      for (final asset in offer.askedFromYou)
+        if (asset case PickTradeAsset()) asset,
+    ];
+    final offeredPicks = [
+      for (final asset in offer.offeredToYou)
+        if (asset case PickTradeAsset()) asset,
+    ];
     final ownHasEverything = askedPlayerIds.every(
       (id) => franchise.roster.any((m) => m.player.id == id),
     );
     final aiHasEverything = offeredPlayerIds.every(
       (id) => aiTeam.roster.any((m) => m.player.id == id),
     );
-    if (!ownHasEverything || !aiHasEverything) {
+    final ownOwnsEveryAskedPick = askedPicks.every(
+      (pick) =>
+          currentPickOwner(
+            franchise.pickOwnershipOverrides,
+            pick.round,
+            pick.originalTeamAbbreviation,
+          ) ==
+          franchise.team.abbreviation,
+    );
+    final aiOwnsEveryOfferedPick = offeredPicks.every(
+      (pick) =>
+          currentPickOwner(
+            franchise.pickOwnershipOverrides,
+            pick.round,
+            pick.originalTeamAbbreviation,
+          ) ==
+          aiTeam.team.abbreviation,
+    );
+    if (!ownHasEverything ||
+        !aiHasEverything ||
+        !ownOwnsEveryAskedPick ||
+        !aiOwnsEveryOfferedPick) {
       await markResolved();
       return;
     }
@@ -309,6 +340,24 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final newAiTeams = [...franchise.league.aiTeams];
     newAiTeams[aiTeamIndex] = aiTeam.copyWithRoster(newAiRoster);
 
+    var newPickOwnershipOverrides = franchise.pickOwnershipOverrides;
+    for (final pick in askedPicks) {
+      newPickOwnershipOverrides = transferPickOwnership(
+        newPickOwnershipOverrides,
+        round: pick.round,
+        originalTeamAbbreviation: pick.originalTeamAbbreviation,
+        newOwnerAbbreviation: aiTeam.team.abbreviation,
+      );
+    }
+    for (final pick in offeredPicks) {
+      newPickOwnershipOverrides = transferPickOwnership(
+        newPickOwnershipOverrides,
+        round: pick.round,
+        originalTeamAbbreviation: pick.originalTeamAbbreviation,
+        newOwnerAbbreviation: franchise.team.abbreviation,
+      );
+    }
+
     final blockPlayerTraded =
         franchise.tradeBlockPlayerId != null &&
         askedPlayerIds.contains(franchise.tradeBlockPlayerId);
@@ -316,6 +365,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     var updated = franchise
         .copyWithRoster(newOwnRoster)
         .copyWithLeague(League(aiTeams: newAiTeams))
+        .copyWithPickOwnershipOverrides(newPickOwnershipOverrides)
         .copyWithResolvedTradeOfferIds({
           ...franchise.resolvedTradeOfferIds,
           offer.id,
@@ -545,9 +595,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     // suppressing a freshly (re)generated offer that happens to land on
     // the same deterministic id again (`Franchise.resolvedTradeOfferIds`'s
     // own doc comment).
-    await _persist(
-      withTraining.copyWithResolvedTradeOfferIds(const {}),
-    );
+    await _persist(withTraining.copyWithResolvedTradeOfferIds(const {}));
     return advance.gamesPlayed;
   }
 
@@ -607,9 +655,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     // suppressing a freshly (re)generated offer that happens to land on
     // the same deterministic id again (`Franchise.resolvedTradeOfferIds`'s
     // own doc comment).
-    await _persist(
-      withTraining.copyWithResolvedTradeOfferIds(const {}),
-    );
+    await _persist(withTraining.copyWithResolvedTradeOfferIds(const {}));
     return advance.gamesPlayed;
   }
 

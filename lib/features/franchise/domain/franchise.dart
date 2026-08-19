@@ -8,6 +8,7 @@ import '../../player/domain/player.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../season/domain/season_progress.dart';
 import '../../season/domain/skills_competition.dart';
+import '../../trade/domain/pick_ownership.dart';
 import '../../training/domain/training_coach.dart';
 import '../../training/domain/training_plan.dart';
 import '../../portrait/domain/portrait_appearance.dart';
@@ -79,6 +80,7 @@ class Franchise {
     this.narrativeVeteranAppearance,
     this.tradeBlockPlayerId,
     this.resolvedTradeOfferIds = const {},
+    this.pickOwnershipOverrides = const {},
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -325,6 +327,17 @@ class Franchise {
   /// the same deterministic id again.
   final Set<String> resolvedTradeOfferIds;
 
+  /// Which team currently owns each of next season's draft picks, if
+  /// any have been traded -- `pick_ownership.dart`'s
+  /// `PickOwnershipOverrides`. Empty for almost the whole game (most
+  /// picks never trade hands); `acceptTradeOffer` is the only writer
+  /// during a season, and `season_transition_advancer.dart`'s
+  /// `beginNextSeason` bakes whatever's accumulated into the fresh
+  /// `DraftInProgress` it builds, then resets this back to empty --
+  /// there's no multi-year future-pick tracking, so a new trade window
+  /// always starts with nothing traded yet.
+  final PickOwnershipOverrides pickOwnershipOverrides;
+
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
   /// picks and to record the GM's own, and finally to clear it (`null`)
@@ -358,6 +371,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -393,6 +407,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -428,6 +443,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -462,6 +478,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -496,6 +513,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -530,6 +548,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -564,6 +583,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -608,6 +628,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -650,6 +671,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -685,6 +707,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -721,6 +744,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -762,6 +786,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -800,6 +825,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -835,6 +861,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -870,6 +897,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: newTradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -878,7 +906,9 @@ class Franchise {
   /// `acceptTradeOffer`/`declineTradeOffer` add to it; every game-day
   /// advance method resets it to empty (see that field's own doc
   /// comment for why).
-  Franchise copyWithResolvedTradeOfferIds(Set<String> newResolvedTradeOfferIds) {
+  Franchise copyWithResolvedTradeOfferIds(
+    Set<String> newResolvedTradeOfferIds,
+  ) {
     return Franchise(
       id: id,
       gmName: gmName,
@@ -907,6 +937,49 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: newResolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+    );
+  }
+
+  /// Returns a copy with [newPickOwnershipOverrides] replacing
+  /// [pickOwnershipOverrides] -- `current_franchise_provider.dart`'s
+  /// `acceptTradeOffer` is the only in-season writer (transferring one
+  /// pick at a time via `pick_ownership.dart`'s `transferPickOwnership`);
+  /// `season_transition_advancer.dart`'s `beginNextSeason` is the only
+  /// caller that resets it back to empty, right after baking the current
+  /// snapshot into the fresh `DraftInProgress` it builds.
+  Franchise copyWithPickOwnershipOverrides(
+    PickOwnershipOverrides newPickOwnershipOverrides,
+  ) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: newPickOwnershipOverrides,
     );
   }
 
@@ -957,6 +1030,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 
@@ -1013,6 +1087,7 @@ class Franchise {
       narrativeVeteranAppearance: narrativeVeteranAppearance,
       tradeBlockPlayerId: tradeBlockPlayerId,
       resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
     );
   }
 }

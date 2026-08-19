@@ -1,9 +1,11 @@
 import 'dart:math';
 
+import '../../draft/generation/draft_generator.dart' show kDraftRounds;
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../player/domain/player.dart';
 import '../../roster/domain/roster_status.dart';
+import '../domain/pick_ownership.dart';
 import '../domain/trade_asset.dart';
 import '../domain/trade_offer.dart';
 import '../domain/trade_value.dart';
@@ -78,6 +80,11 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
   final aiTeams = List<AiTeamRoster>.of(franchise.league.aiTeams)
     ..shuffle(random);
 
+  final allTeamAbbreviations = [
+    franchise.team.abbreviation,
+    for (final aiTeam in franchise.league.aiTeams) aiTeam.team.abbreviation,
+  ];
+
   final offers = <TradeOffer>[];
   for (var slot = 0; slot < kTradeOfferCount; slot++) {
     final wantsTradeBlockPlayer =
@@ -89,6 +96,9 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
       ownActive: ownActive,
       forcedTarget: wantsTradeBlockPlayer ? tradeBlockPlayer : null,
       slotIndex: slot,
+      ownTeamAbbreviation: franchise.team.abbreviation,
+      pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+      allTeamAbbreviations: allTeamAbbreviations,
     );
     if (offer != null) offers.add(offer);
   }
@@ -108,6 +118,9 @@ TradeOffer? _tryBuildOffer(
   required List<Player> ownActive,
   required Player? forcedTarget,
   required int slotIndex,
+  required String ownTeamAbbreviation,
+  required PickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
 }) {
   final aiActive = [
     for (final m in aiTeam.roster)
@@ -131,7 +144,9 @@ TradeOffer? _tryBuildOffer(
     final askedValue = asked.fold(0, (s, p) => s + p.ratings.skillPoints);
 
     final offeredPlayers = _closestCombo(aiActive, wantCount, askedValue);
-    var offered = <TradeAsset>[for (final p in offeredPlayers) PlayerTradeAsset(p)];
+    var offered = <TradeAsset>[
+      for (final p in offeredPlayers) PlayerTradeAsset(p),
+    ];
     var askedAssets = <TradeAsset>[for (final p in asked) PlayerTradeAsset(p)];
 
     var gap = totalTradeValue(offered) - totalTradeValue(askedAssets);
@@ -140,6 +155,10 @@ TradeOffer? _tryBuildOffer(
         offered: offered,
         asked: askedAssets,
         swing: swing,
+        ownTeamAbbreviation: ownTeamAbbreviation,
+        aiTeamAbbreviation: aiTeam.team.abbreviation,
+        pickOwnershipOverrides: pickOwnershipOverrides,
+        allTeamAbbreviations: allTeamAbbreviations,
       );
       if (balanced == null) continue;
       offered = balanced.offered;
@@ -164,30 +183,52 @@ TradeOffer? _tryBuildOffer(
   return null;
 }
 
-/// Tries adding one pick (largest first) to whichever side of the ledger
-/// is short, same "one pick, whichever side needs it" simplification
-/// `trading-and-hidden-gems-notes.md` settled on -- covers every
-/// canonical case worked out this session without needing a literal
-/// pick-for-pick swap on both sides at once.
+/// Tries adding one *real, currently-owned* pick to whichever side of the
+/// ledger is short, same "one pick, whichever side needs it"
+/// simplification `trading-and-hidden-gems-notes.md` settled on -- covers
+/// every canonical case worked out this session without needing a
+/// literal pick-for-pick swap on both sides at once. Only ever offers a
+/// pick the sweetening side genuinely still holds
+/// (`pick_ownership.dart`'s `picksOwnedBy`, 2026-08-19) -- a team that
+/// already traded its own natal pick away earlier this season can't
+/// offer it again, though it can offer forward anything it picked up in
+/// an earlier trade.
 ({List<TradeAsset> offered, List<TradeAsset> asked})? _tryAddPickToBalance({
   required List<TradeAsset> offered,
   required List<TradeAsset> asked,
   required int swing,
+  required String ownTeamAbbreviation,
+  required String aiTeamAbbreviation,
+  required PickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
 }) {
   final gap = totalTradeValue(offered) - totalTradeValue(asked);
-  for (final round in [1, 2, 3]) {
-    if (gap < 0) {
-      // The AI's side is short -- it sweetens its own offer.
-      final candidate = [...offered, PickTradeAsset(round)];
+  if (gap < 0) {
+    // The AI's side is short -- it sweetens its own offer with a pick it
+    // actually currently holds.
+    for (final pick in picksOwnedBy(
+      aiTeamAbbreviation,
+      pickOwnershipOverrides,
+      allTeamAbbreviations,
+      rounds: kDraftRounds,
+    )) {
+      final candidate = [...offered, pick];
       if ((totalTradeValue(candidate) - totalTradeValue(asked)).abs() <=
           swing) {
         return (offered: candidate, asked: asked);
       }
-    } else if (gap > 0) {
-      // The AI is asking for less than it's offering -- it asks the GM
-      // to send a pick back too, exactly the "pick-swap" shape Case B
-      // worked out.
-      final candidate = [...asked, PickTradeAsset(round)];
+    }
+  } else if (gap > 0) {
+    // The AI is asking for less than it's offering -- it asks the GM to
+    // send one of the GM's own currently-held picks back too, exactly
+    // the "pick-swap" shape Case B worked out.
+    for (final pick in picksOwnedBy(
+      ownTeamAbbreviation,
+      pickOwnershipOverrides,
+      allTeamAbbreviations,
+      rounds: kDraftRounds,
+    )) {
+      final candidate = [...asked, pick];
       if ((totalTradeValue(offered) - totalTradeValue(candidate)).abs() <=
           swing) {
         return (offered: offered, asked: candidate);
@@ -252,7 +293,8 @@ String _offerId(
 ) {
   String assetKey(TradeAsset asset) => switch (asset) {
     PlayerTradeAsset(:final player) => 'p:${player.id}',
-    PickTradeAsset(:final round) => 'r:$round',
+    PickTradeAsset(:final round, :final originalTeamAbbreviation) =>
+      'r:$round:$originalTeamAbbreviation',
   };
   final offeredKey = offered.map(assetKey).toList()..sort();
   final askedKey = asked.map(assetKey).toList()..sort();
@@ -278,7 +320,8 @@ TradeOfferCharacter _characterFor({
       if (a is PlayerTradeAsset) a.player.age,
   ];
   if (offeredAges.isNotEmpty && askedAges.isNotEmpty) {
-    final offeredAvgAge = offeredAges.reduce((a, b) => a + b) / offeredAges.length;
+    final offeredAvgAge =
+        offeredAges.reduce((a, b) => a + b) / offeredAges.length;
     final askedAvgAge = askedAges.reduce((a, b) => a + b) / askedAges.length;
     if (askedAvgAge - offeredAvgAge >= _kCharacterAgeGapThreshold) {
       return TradeOfferCharacter.rebuilding;

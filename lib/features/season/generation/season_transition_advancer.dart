@@ -52,7 +52,11 @@ bool seasonIsOver(Franchise franchise) {
 /// [Franchise.draftInProgress] is set to a fresh, pick-less
 /// [DraftInProgress] built from that order -- `draft_advancer.dart`'s
 /// `resolveAiPicksUntilOwnTurn`/`makeOwnPick`/`finalizeDraft` are what
-/// actually resolve it from here.
+/// actually resolve it from here. Whatever [Franchise.pickOwnershipOverrides]
+/// accumulated over the season that just ended (real draft-pick trades,
+/// 2026-08-19) gets baked into that fresh [DraftInProgress] as a frozen
+/// snapshot, then reset back to empty -- the new trade window starts
+/// with nothing traded yet.
 ///
 /// Also snapshots every current player's overall rating into
 /// [Franchise.seasonStartOverallByPlayerId] -- taken right here, before
@@ -130,7 +134,12 @@ Franchise beginNextSeason(
       .copyWithFreeAgents([...franchise.freeAgents, ...freshFreeAgents])
       .copyWithDraftClass(newDraftClass)
       .copyWithDraftInProgress(
-        DraftInProgress(order: draftOrder, rounds: kDraftRounds),
+        DraftInProgress(
+          order: draftOrder,
+          rounds: kDraftRounds,
+          pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+        ),
       )
+      .copyWithPickOwnershipOverrides(const {})
       .copyWithSeasonStartOverallByPlayerId(seasonStartSnapshot);
 }

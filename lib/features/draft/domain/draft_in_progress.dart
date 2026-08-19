@@ -1,3 +1,4 @@
+import '../../trade/domain/pick_ownership.dart';
 import 'draft_pick.dart';
 
 /// One season's real draft, mid-resolution -- `0D_Season_2_Roadmap.md`'s
@@ -8,29 +9,46 @@ import 'draft_pick.dart';
 ///
 /// [order] is fixed for the whole draft (`generateDraftOrder`'s result --
 /// worst-record-first via the lottery, then playoff teams reverse-seeded)
-/// and repeats identically every round, same as real WNBA. [picks] grows
-/// one at a time as each slot resolves -- every non-GM team's pick
-/// resolves automatically (`draft_advancer.dart`'s
-/// `resolvePicksUntilOwnTurn`, best player available, same logic
-/// `simulateDraft` already established), the GM's own pauses for a real
-/// decision (`makeOwnPick`).
+/// and repeats identically every round, same as real WNBA -- it always
+/// names each *slot*'s natal team (the one that earned it by standings),
+/// regardless of any trade. [picks] grows one at a time as each slot
+/// resolves -- every non-GM team's pick resolves automatically
+/// (`draft_advancer.dart`'s `resolvePicksUntilOwnTurn`, best player
+/// available, same logic `simulateDraft` already established), the GM's
+/// own pauses for a real decision (`makeOwnPick`).
+///
+/// [pickOwnershipOverrides] (2026-08-19, real draft-pick ownership) is a
+/// frozen snapshot of `Franchise.pickOwnershipOverrides` taken the moment
+/// this draft was set up (`season_transition_advancer.dart`'s
+/// `beginNextSeason`) -- whatever the trade window moved around over the
+/// season that just ended. [onTheClock] resolves each slot's natal team
+/// through it, so a traded pick genuinely puts the *acquiring* team on
+/// the clock, not just changes who gets credited in the value math.
 class DraftInProgress {
   const DraftInProgress({
     required this.order,
     required this.rounds,
     this.picks = const [],
+    this.pickOwnershipOverrides = const {},
   });
 
   final List<String> order;
   final int rounds;
   final List<DraftPick> picks;
+  final PickOwnershipOverrides pickOwnershipOverrides;
 
   /// Every pick, across every round, has been made.
   bool get isComplete => picks.length >= order.length * rounds;
 
-  /// Which team is up next, or `null` once [isComplete].
-  String? get onTheClock =>
-      isComplete ? null : order[picks.length % order.length];
+  /// Which team is actually up next -- the real current owner of that
+  /// slot's pick, not necessarily the natal team that earned it by
+  /// standings (see [pickOwnershipOverrides]) -- or `null` once
+  /// [isComplete].
+  String? get onTheClock {
+    if (isComplete) return null;
+    final natalTeam = order[picks.length % order.length];
+    return currentPickOwner(pickOwnershipOverrides, nextRound, natalTeam);
+  }
 
   /// The round the *next* pick belongs to, 1-based. Meaningless once
   /// [isComplete] (there is no next pick), but still computes a value

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/trade/domain/pick_ownership.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_value.dart';
 import 'package:womensbballmgr/features/trade/generation/trade_offer_generator.dart';
@@ -36,7 +37,8 @@ void main() {
             management: aiTeam.coach.stats.management,
           ),
           isTrue,
-          reason: 'game day $gameDayIndex: offer $offer is not actually '
+          reason:
+              'game day $gameDayIndex: offer $offer is not actually '
               'legal for ${offer.offeringTeamAbbreviation}\'s own coach',
         );
       }
@@ -105,6 +107,93 @@ void main() {
     // "Try" -- not every slot is guaranteed a legal match, but real
     // rosters/coaches should generally produce at least 1.
     expect(targetingBlockPlayer, isNotEmpty);
+  });
+
+  test('every pick asset in every offer is a pick the offering/asking side '
+      'genuinely currently owns (2026-08-19, real draft-pick ownership)', () {
+    final base = withFullActiveRoster(franchiseForPortraitTests());
+    final allTeamAbbreviations = [
+      base.team.abbreviation,
+      for (final aiTeam in base.league.aiTeams) aiTeam.team.abbreviation,
+    ];
+    var sawAtLeastOnePick = false;
+
+    // Several distinct turns, same reasoning as the "objectively legal"
+    // test above -- not every turn's 5 offers happen to need a pick
+    // sweetener, so check enough of them to reliably hit one.
+    for (var gameDayIndex = 0; gameDayIndex < 10; gameDayIndex++) {
+      final franchise = base.copyWithSeasonProgress(
+        SeasonProgress(
+          schedule: base.seasonProgress.schedule,
+          playedGames: base.seasonProgress.playedGames,
+          nextGameDayIndex: gameDayIndex,
+        ),
+      );
+      final offers = generateTradeOffers(franchise);
+
+      for (final offer in offers) {
+        for (final asset in offer.offeredToYou) {
+          if (asset case PickTradeAsset()) {
+            sawAtLeastOnePick = true;
+            expect(
+              currentPickOwner(
+                franchise.pickOwnershipOverrides,
+                asset.round,
+                asset.originalTeamAbbreviation,
+              ),
+              offer.offeringTeamAbbreviation,
+            );
+            expect(
+              allTeamAbbreviations,
+              contains(asset.originalTeamAbbreviation),
+            );
+          }
+        }
+        for (final asset in offer.askedFromYou) {
+          if (asset case PickTradeAsset()) {
+            sawAtLeastOnePick = true;
+            expect(
+              currentPickOwner(
+                franchise.pickOwnershipOverrides,
+                asset.round,
+                asset.originalTeamAbbreviation,
+              ),
+              franchise.team.abbreviation,
+            );
+          }
+        }
+      }
+    }
+
+    // Not asserting a specific count -- just that these turns' real
+    // offers actually exercise the pick-balancing path at all, so the
+    // ownership checks above aren't vacuously true.
+    expect(sawAtLeastOnePick, isTrue);
+  });
+
+  test('once a pick is traded away, a later turn\'s offers never offer it '
+      'again from the side that no longer holds it', () {
+    final franchise = withFullActiveRoster(franchiseForPortraitTests());
+    final aiAbbreviation = franchise.league.aiTeams.first.team.abbreviation;
+    // The GM's own round-1 pick already went to this AI team earlier
+    // this season.
+    final withATrade = franchise.copyWithPickOwnershipOverrides({
+      1: {franchise.team.abbreviation: aiAbbreviation},
+    });
+
+    final offers = generateTradeOffers(withATrade);
+
+    for (final offer in offers) {
+      for (final asset in offer.askedFromYou) {
+        if (asset case PickTradeAsset(
+          round: 1,
+          originalTeamAbbreviation: final originalTeam,
+        )) {
+          // The GM can no longer offer this specific pick away again.
+          expect(originalTeam == franchise.team.abbreviation, isFalse);
+        }
+      }
+    }
   });
 
   test('no trade-block player set -- no offer is specifically forced '

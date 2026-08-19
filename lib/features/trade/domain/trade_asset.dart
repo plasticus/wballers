@@ -35,34 +35,47 @@ class PlayerTradeAsset extends TradeAsset {
 }
 
 /// A future draft pick, valued on the flat [draftPickTradeValue] ladder --
-/// [round] is 1-3. Deliberately doesn't track *which* future draft this
-/// pick belongs to, or carry real cross-season ownership once traded --
-/// see `trading-and-hidden-gems-notes.md`'s Trade Board section for why
-/// that's a bigger, still-open piece of work. A traded pick is real for
-/// the purposes of balancing *this* offer's value, not yet a persisted
-/// promise that changes who's actually on the clock next draft.
+/// [round] is 1-3, always next season's draft (there's no multi-year
+/// future-pick concept). [originalTeamAbbreviation] is whose *natal*
+/// pick this is -- the team that will actually earn this slot by
+/// standings (`DraftInProgress.order`) -- which may not be who currently
+/// holds it: a pick already traded once this season can be traded again
+/// (`pick_ownership.dart`'s `picksOwnedBy` is what finds every pick a
+/// team currently actually has to offer). Real ownership: accepting a
+/// trade with one of these transfers it for real
+/// (`current_franchise_provider.dart`'s `acceptTradeOffer`,
+/// `pick_ownership.dart`'s `transferPickOwnership`), and it genuinely
+/// puts the acquiring team on the clock at the next draft
+/// (`DraftInProgress.onTheClock`), not just a value-only IOU.
 class PickTradeAsset extends TradeAsset {
-  const PickTradeAsset(this.round);
+  const PickTradeAsset({
+    required this.round,
+    required this.originalTeamAbbreviation,
+  });
 
   final int round;
+  final String originalTeamAbbreviation;
 
   @override
   int get tradeValue => draftPickTradeValue(round);
 
   @override
   String get label => switch (round) {
-    1 => 'a 1st-round pick',
-    2 => 'a 2nd-round pick',
-    3 => 'a 3rd-round pick',
-    _ => 'a future pick',
+    1 => '$originalTeamAbbreviation\'s 1st-round pick',
+    2 => '$originalTeamAbbreviation\'s 2nd-round pick',
+    3 => '$originalTeamAbbreviation\'s 3rd-round pick',
+    _ => '$originalTeamAbbreviation\'s future pick',
   };
 
   @override
   bool operator ==(Object other) =>
-      other is PickTradeAsset && other.round == round;
+      other is PickTradeAsset &&
+      other.round == round &&
+      other.originalTeamAbbreviation == originalTeamAbbreviation;
 
   @override
-  int get hashCode => Object.hash(PickTradeAsset, round);
+  int get hashCode =>
+      Object.hash(PickTradeAsset, round, originalTeamAbbreviation);
 }
 
 /// The total [TradeAsset.tradeValue] across [assets].

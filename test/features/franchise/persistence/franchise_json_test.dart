@@ -372,7 +372,8 @@ void main() {
     expect(restored.draftInProgress, isNull);
   });
 
-  test('round-trips a mid-resolution draftInProgress, picks included', () {
+  test('round-trips a mid-resolution draftInProgress, picks and '
+      'pickOwnershipOverrides included', () {
     final prospect = DraftProspect(
       player: playerWithOverall(65, id: 'p-prospect', name: 'Sam Rookie'),
       college: kColleges.first,
@@ -388,6 +389,9 @@ void main() {
           prospect: prospect,
         ),
       ],
+      pickOwnershipOverrides: const {
+        2: {'BBB': 'CCC'},
+      },
     );
     final franchise = _sampleFranchise().copyWithDraftInProgress(draft);
 
@@ -401,6 +405,32 @@ void main() {
       restored.draftInProgress!.picks.single.prospect.player.id,
       'p-prospect',
     );
+    expect(restored.draftInProgress!.pickOwnershipOverrides, {
+      2: {'BBB': 'CCC'},
+    });
+  });
+
+  test('round-trips Franchise.pickOwnershipOverrides (2026-08-19, real '
+      'draft-pick ownership)', () {
+    final franchise = _sampleFranchise().copyWithPickOwnershipOverrides(const {
+      1: {'AAA': 'BBB'},
+      3: {'CCC': 'AAA'},
+    });
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.pickOwnershipOverrides, {
+      1: {'AAA': 'BBB'},
+      3: {'CCC': 'AAA'},
+    });
+  });
+
+  test('pickOwnershipOverrides round-trips empty', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.pickOwnershipOverrides, isEmpty);
   });
 
   test('seasonStartOverallByPlayerId defaults to empty and round-trips '

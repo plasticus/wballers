@@ -234,6 +234,36 @@ void main() {
     );
   });
 
+  test('bakes whatever pickOwnershipOverrides accumulated this season into '
+      'the fresh draftInProgress, then resets the live field to empty '
+      '(2026-08-19, real draft-pick ownership)', () async {
+    final base = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final aiAbbreviation = base.league.aiTeams.first.team.abbreviation;
+    final tradedThisSeason = {
+      2: {base.team.abbreviation: aiAbbreviation},
+    };
+    final withATrade = base.copyWithPickOwnershipOverrides(tradedThisSeason);
+    final playedOut = await _playedOutFranchise(withATrade);
+    expect(playedOut.pickOwnershipOverrides, tradedThisSeason);
+
+    final next = beginNextSeason(playedOut);
+
+    expect(next.draftInProgress!.pickOwnershipOverrides, tradedThisSeason);
+    // The live field resets -- the new trade window starts fresh.
+    expect(next.pickOwnershipOverrides, isEmpty);
+  });
+
   test('draftInProgress order is deterministic for the same played-out '
       'franchise', () async {
     final base = withFullActiveRoster(

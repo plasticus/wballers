@@ -22,6 +22,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/generation/retirement_advancer.dart';
+import 'package:womensbballmgr/features/trade/domain/pick_ownership.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_offer.dart';
 import 'package:womensbballmgr/features/training/domain/training_focus.dart';
@@ -2387,14 +2388,8 @@ void main() {
           .acceptTradeOffer(offer);
 
       final updated = container.read(currentFranchiseProvider).value!;
-      expect(
-        updated.roster.any((m) => m.player.id == aiPlayer.id),
-        isTrue,
-      );
-      expect(
-        updated.roster.any((m) => m.player.id == ownPlayer.id),
-        isFalse,
-      );
+      expect(updated.roster.any((m) => m.player.id == aiPlayer.id), isTrue);
+      expect(updated.roster.any((m) => m.player.id == ownPlayer.id), isFalse);
       final updatedAiTeam = updated.league.aiTeams.firstWhere(
         (t) => t.team.abbreviation == aiTeam.team.abbreviation,
       );
@@ -2443,21 +2438,21 @@ void main() {
           .firstWhere((m) => m.status == RosterStatus.active)
           .player;
 
-      await container.read(currentFranchiseProvider.notifier).acceptTradeOffer(
-        TradeOffer(
-          id: 'test-offer',
-          offeringTeamAbbreviation: aiTeam.team.abbreviation,
-          offeredToYou: [PlayerTradeAsset(aiPlayer)],
-          askedFromYou: [PlayerTradeAsset(ownPlayer)],
-          character: TradeOfferCharacter.value,
-        ),
-      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .acceptTradeOffer(
+            TradeOffer(
+              id: 'test-offer',
+              offeringTeamAbbreviation: aiTeam.team.abbreviation,
+              offeredToYou: [PlayerTradeAsset(aiPlayer)],
+              askedFromYou: [PlayerTradeAsset(ownPlayer)],
+              character: TradeOfferCharacter.value,
+            ),
+          );
 
       final updated = container.read(currentFranchiseProvider).value!;
       expect(
-        updated.roster
-            .firstWhere((m) => m.player.id == aiPlayer.id)
-            .status,
+        updated.roster.firstWhere((m) => m.player.id == aiPlayer.id).status,
         RosterStatus.active,
       );
     });
@@ -2495,15 +2490,17 @@ void main() {
           .read(currentFranchiseProvider.notifier)
           .setTradeBlockPlayer(ownPlayer.id);
 
-      await container.read(currentFranchiseProvider.notifier).acceptTradeOffer(
-        TradeOffer(
-          id: 'test-offer',
-          offeringTeamAbbreviation: aiTeam.team.abbreviation,
-          offeredToYou: [PlayerTradeAsset(aiPlayer)],
-          askedFromYou: [PlayerTradeAsset(ownPlayer)],
-          character: TradeOfferCharacter.value,
-        ),
-      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .acceptTradeOffer(
+            TradeOffer(
+              id: 'test-offer',
+              offeringTeamAbbreviation: aiTeam.team.abbreviation,
+              offeredToYou: [PlayerTradeAsset(aiPlayer)],
+              askedFromYou: [PlayerTradeAsset(ownPlayer)],
+              character: TradeOfferCharacter.value,
+            ),
+          );
 
       expect(
         container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,
@@ -2511,8 +2508,140 @@ void main() {
       );
     });
 
-    test('a stale offer (the named player is no longer actually there) '
-        'is a no-op for both rosters, but still marks the id resolved', () async {
+    test(
+      'a stale offer (the named player is no longer actually there) '
+      'is a no-op for both rosters, but still marks the id resolved',
+      () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+        final ownPlayer = franchise.roster
+            .firstWhere((m) => m.status == RosterStatus.active)
+            .player;
+        final aiTeam = franchise.league.aiTeams.first;
+        // A real player, but from a *different* AI team -- genuinely not
+        // on aiTeam's own roster, exactly like a stale offer referencing a
+        // player who's since moved on.
+        final notActuallyOnThisTeam =
+            franchise.league.aiTeams[1].roster.first.player;
+        final aiRosterBefore = aiTeam.roster.length;
+
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .acceptTradeOffer(
+              TradeOffer(
+                id: 'stale-offer',
+                offeringTeamAbbreviation: aiTeam.team.abbreviation,
+                offeredToYou: [PlayerTradeAsset(notActuallyOnThisTeam)],
+                askedFromYou: [PlayerTradeAsset(ownPlayer)],
+                character: TradeOfferCharacter.value,
+              ),
+            );
+
+        final updated = container.read(currentFranchiseProvider).value!;
+        // Own roster untouched -- still has ownPlayer, same size.
+        expect(updated.roster.any((m) => m.player.id == ownPlayer.id), isTrue);
+        expect(updated.roster.length, franchise.roster.length);
+        // The named AI team untouched too.
+        final updatedAiTeam = updated.league.aiTeams.firstWhere(
+          (t) => t.team.abbreviation == aiTeam.team.abbreviation,
+        );
+        expect(updatedAiTeam.roster.length, aiRosterBefore);
+        // But the offer is still marked resolved, so it doesn't linger.
+        expect(updated.resolvedTradeOfferIds, contains('stale-offer'));
+      },
+    );
+
+    test(
+      'transfers real draft-pick ownership -- the acquiring side genuinely '
+      'owns the traded pick afterward (2026-08-19, real pick ownership)',
+      () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+        final aiTeam = franchise.league.aiTeams.first;
+
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .acceptTradeOffer(
+              TradeOffer(
+                id: 'pick-swap-offer',
+                offeringTeamAbbreviation: aiTeam.team.abbreviation,
+                offeredToYou: [
+                  PickTradeAsset(
+                    round: 1,
+                    originalTeamAbbreviation: aiTeam.team.abbreviation,
+                  ),
+                ],
+                askedFromYou: [
+                  PickTradeAsset(
+                    round: 2,
+                    originalTeamAbbreviation: franchise.team.abbreviation,
+                  ),
+                ],
+                character: TradeOfferCharacter.value,
+              ),
+            );
+
+        final updated = container.read(currentFranchiseProvider).value!;
+        // The GM now owns the AI team's own 1st-round pick.
+        expect(
+          currentPickOwner(
+            updated.pickOwnershipOverrides,
+            1,
+            aiTeam.team.abbreviation,
+          ),
+          franchise.team.abbreviation,
+        );
+        // And the AI team now owns the GM's own 2nd-round pick.
+        expect(
+          currentPickOwner(
+            updated.pickOwnershipOverrides,
+            2,
+            franchise.team.abbreviation,
+          ),
+          aiTeam.team.abbreviation,
+        );
+        expect(updated.resolvedTradeOfferIds, contains('pick-swap-offer'));
+      },
+    );
+
+    test('a stale pick (already traded away by an earlier accepted offer) is '
+        'a no-op, but still marks the id resolved', () async {
       final repository = InMemorySaveRepository();
       final container = ProviderContainer(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
@@ -2533,38 +2662,70 @@ void main() {
       await container
           .read(currentFranchiseProvider.notifier)
           .createFranchise(franchise);
-      final ownPlayer = franchise.roster
-          .firstWhere((m) => m.status == RosterStatus.active)
-          .player;
-      final aiTeam = franchise.league.aiTeams.first;
-      // A real player, but from a *different* AI team -- genuinely not
-      // on aiTeam's own roster, exactly like a stale offer referencing a
-      // player who's since moved on.
-      final notActuallyOnThisTeam = franchise.league.aiTeams[1].roster.first
-          .player;
-      final aiRosterBefore = aiTeam.roster.length;
-
-      await container.read(currentFranchiseProvider.notifier).acceptTradeOffer(
-        TradeOffer(
-          id: 'stale-offer',
-          offeringTeamAbbreviation: aiTeam.team.abbreviation,
-          offeredToYou: [PlayerTradeAsset(notActuallyOnThisTeam)],
-          askedFromYou: [PlayerTradeAsset(ownPlayer)],
-          character: TradeOfferCharacter.value,
-        ),
+      final aiTeamA = franchise.league.aiTeams[0];
+      final aiTeamB = franchise.league.aiTeams[1];
+      final ownPickOffer = PickTradeAsset(
+        round: 3,
+        originalTeamAbbreviation: franchise.team.abbreviation,
       );
+
+      // First, actually trade the GM's own 3rd-round pick away to Team A.
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .acceptTradeOffer(
+            TradeOffer(
+              id: 'first-offer',
+              offeringTeamAbbreviation: aiTeamA.team.abbreviation,
+              offeredToYou: [
+                PickTradeAsset(
+                  round: 3,
+                  originalTeamAbbreviation: aiTeamA.team.abbreviation,
+                ),
+              ],
+              askedFromYou: [ownPickOffer],
+              character: TradeOfferCharacter.value,
+            ),
+          );
+
+      // Now a second, stale offer still thinks the GM has that same
+      // pick to give Team B -- it doesn't anymore.
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .acceptTradeOffer(
+            TradeOffer(
+              id: 'stale-pick-offer',
+              offeringTeamAbbreviation: aiTeamB.team.abbreviation,
+              offeredToYou: [
+                PickTradeAsset(
+                  round: 1,
+                  originalTeamAbbreviation: aiTeamB.team.abbreviation,
+                ),
+              ],
+              askedFromYou: [ownPickOffer],
+              character: TradeOfferCharacter.value,
+            ),
+          );
 
       final updated = container.read(currentFranchiseProvider).value!;
-      // Own roster untouched -- still has ownPlayer, same size.
-      expect(updated.roster.any((m) => m.player.id == ownPlayer.id), isTrue);
-      expect(updated.roster.length, franchise.roster.length);
-      // The named AI team untouched too.
-      final updatedAiTeam = updated.league.aiTeams.firstWhere(
-        (t) => t.team.abbreviation == aiTeam.team.abbreviation,
+      // Still owned by Team A -- the stale second offer never applied.
+      expect(
+        currentPickOwner(
+          updated.pickOwnershipOverrides,
+          3,
+          franchise.team.abbreviation,
+        ),
+        aiTeamA.team.abbreviation,
       );
-      expect(updatedAiTeam.roster.length, aiRosterBefore);
-      // But the offer is still marked resolved, so it doesn't linger.
-      expect(updated.resolvedTradeOfferIds, contains('stale-offer'));
+      // Team B never actually gave up its 1st-round pick.
+      expect(
+        currentPickOwner(
+          updated.pickOwnershipOverrides,
+          1,
+          aiTeamB.team.abbreviation,
+        ),
+        aiTeamB.team.abbreviation,
+      );
+      expect(updated.resolvedTradeOfferIds, contains('stale-pick-offer'));
     });
   });
 }

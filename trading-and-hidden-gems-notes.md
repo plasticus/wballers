@@ -153,10 +153,16 @@ offers for the value math above to validate.
   earlier in the conversation, using real per-position depth-chart
   gaps) was considered and set aside — "not super into" it, per a
   direct GM call. Parked, not dead.
-- **Known limitation, by design:** a traded draft pick is value-only —
-  there's no real cross-season pick-ownership tracking, so accepting a
-  pick doesn't change who's actually on the clock at the next draft
-  (`trade_asset.dart`'s `PickTradeAsset` doc comment). Would need
-  restructuring `DraftInProgress.order` from a flat repeating list to
-  per-round distinct ownership — scoped out as too large a change for
-  this pass.
+- **Real draft-pick ownership (built 2026-08-19, `trade/domain/pick_ownership.dart`).**
+  A traded pick genuinely changes who's on the clock at the next draft —
+  not just a value-only IOU, the limitation this bullet used to flag.
+  `PickTradeAsset` now carries `originalTeamAbbreviation` (whose *natal*
+  pick it is, not necessarily who currently holds it — a pick can trade
+  hands more than once in a season). `Franchise.pickOwnershipOverrides`
+  accumulates real ownership changes over the trade window
+  (`acceptTradeOffer`); `season_transition_advancer.dart`'s
+  `beginNextSeason` bakes that snapshot into the fresh `DraftInProgress`
+  it builds (`DraftInProgress.onTheClock` resolves each slot's natal team
+  through it) and then resets the live field to empty. Still only ever
+  tracks the single upcoming draft — there's no multi-year future-pick
+  concept, same as before.

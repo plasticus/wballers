@@ -78,5 +78,33 @@ void main() {
       expect(draft.onTheClock, 'AAA');
       expect(draft.nextRound, 2);
     });
+
+    test('onTheClock resolves through pickOwnershipOverrides -- a traded '
+        'pick puts the acquiring team on the clock, not the natal one', () {
+      final draft = DraftInProgress(
+        order: const ['AAA', 'BBB', 'CCC'],
+        rounds: 2,
+        pickOwnershipOverrides: const {
+          1: {'AAA': 'CCC'},
+        },
+      );
+
+      expect(draft.onTheClock, 'CCC');
+    });
+
+    test('a traded pick\'s override only applies to its own round -- the '
+        'natal team is still on the clock for every other round', () {
+      final draft = DraftInProgress(
+        order: const ['AAA', 'BBB'],
+        rounds: 2,
+        picks: [_pick(1, 1, 'CCC'), _pick(1, 2, 'BBB')],
+        pickOwnershipOverrides: const {
+          1: {'AAA': 'CCC'},
+        },
+      );
+
+      // Round 2 has no override for AAA -- back to the natal owner.
+      expect(draft.onTheClock, 'AAA');
+    });
   });
 }

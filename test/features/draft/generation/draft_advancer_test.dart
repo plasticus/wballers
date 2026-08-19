@@ -319,6 +319,58 @@ void main() {
       expect(finalized.roster, isEmpty);
     });
 
+    test('a traded pick genuinely lands the prospect on the acquiring '
+        'team\'s roster, not the natal slot team\'s (2026-08-19, real '
+        'draft-pick ownership)', () {
+      final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
+      final franchise = _franchise(ownTeamAbbreviation: ownAbbreviation);
+      final aiAbbreviation = franchise.league.aiTeams.first.team.abbreviation;
+      final prospect = _prospect('p1', 80);
+      // The slot is AI's own by standings, but its round-1 pick was
+      // traded to the GM earlier this season.
+      final draft = DraftInProgress(
+        order: [aiAbbreviation],
+        rounds: 1,
+        pickOwnershipOverrides: {
+          1: {aiAbbreviation: ownAbbreviation},
+        },
+      );
+      final withDraft = franchise
+          .copyWithDraftInProgress(draft)
+          .copyWithDraftClass([prospect]);
+
+      // The GM, not the AI team, is really on the clock -- resolving
+      // "every AI pick until the own team's turn" stops immediately.
+      final resolved = resolveAiPicksUntilOwnTurn(
+        draft: withDraft.draftInProgress!,
+        draftClass: withDraft.draftClass,
+        ownTeamAbbreviation: ownAbbreviation,
+      );
+      expect(resolved.onTheClock, ownAbbreviation);
+      expect(resolved.picks, isEmpty);
+
+      final afterOwnPick = makeOwnPick(
+        draft: resolved,
+        draftClass: withDraft.draftClass,
+        ownTeamAbbreviation: ownAbbreviation,
+        selected: prospect,
+      );
+      expect(afterOwnPick.picks.single.teamAbbreviation, ownAbbreviation);
+
+      final finalized = finalizeDraft(
+        Random(1),
+        withDraft.copyWithDraftInProgress(afterOwnPick),
+      );
+
+      // The prospect landed on the GM's own roster, not the AI
+      // team's -- the traded pick's ownership was honored for real.
+      expect(finalized.roster.any((m) => m.player.id == 'p1'), isTrue);
+      expect(
+        finalized.league.aiTeams.first.roster.any((m) => m.player.id == 'p1'),
+        isFalse,
+      );
+    });
+
     test('throws when the draft still has outstanding picks', () {
       final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
       final franchise = _franchise(ownTeamAbbreviation: ownAbbreviation);

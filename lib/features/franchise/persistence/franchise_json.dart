@@ -61,6 +61,9 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         : portraitAppearanceToJson(franchise.narrativeVeteranAppearance!),
     'tradeBlockPlayerId': franchise.tradeBlockPlayerId,
     'resolvedTradeOfferIds': franchise.resolvedTradeOfferIds.toList(),
+    'pickOwnershipOverrides': franchise.pickOwnershipOverrides.map(
+      (round, byTeam) => MapEntry('$round', byTeam),
+    ),
   };
 }
 
@@ -137,5 +140,15 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
     resolvedTradeOfferIds: (json['resolvedTradeOfferIds'] as List<dynamic>)
         .map((value) => value as String)
         .toSet(),
+    pickOwnershipOverrides:
+        (json['pickOwnershipOverrides'] as Map<String, dynamic>).map(
+          (round, byTeam) => MapEntry(
+            int.parse(round),
+            (byTeam as Map<String, dynamic>).map(
+              (originalTeam, currentOwner) =>
+                  MapEntry(originalTeam, currentOwner as String),
+            ),
+          ),
+        ),
   );
 }
