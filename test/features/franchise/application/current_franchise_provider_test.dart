@@ -1538,18 +1538,43 @@ void main() {
       }
       expect(anyAiPlayerChanged, isTrue);
 
-      // Team identity/roster composition is never touched by training --
-      // same 19 teams, same players on each, only ratings can move.
+      // Team identity is never touched by training -- same 19 teams.
+      // Roster *composition* is a little looser: `simulatePostseasonAndPersist`
+      // bundles real AI-team retirement into this same call
+      // (`resolveAiTeamRetirements`, entirely separate from training
+      // itself), which can genuinely remove a player -- surfaced by this
+      // exact test once the name pools grew (2026-08-19, a direct GM
+      // ask to fold in more names), which shifted which players this
+      // fixed seed generates in the first place. What training itself
+      // actually guarantees, and what's worth still checking here: no
+      // reordering, no duplication, no player appearing who wasn't
+      // already on the original roster -- the after-roster is always a
+      // (possibly shorter) ordered subsequence of the before-roster.
       expect(savedFranchise.league.aiTeams.length, 19);
       for (var i = 0; i < franchise.league.aiTeams.length; i++) {
         expect(
           savedFranchise.league.aiTeams[i].team.abbreviation,
           franchise.league.aiTeams[i].team.abbreviation,
         );
-        expect(
-          savedFranchise.league.aiTeams[i].roster.map((m) => m.player.id),
-          franchise.league.aiTeams[i].roster.map((m) => m.player.id),
-        );
+        final beforeIds = franchise.league.aiTeams[i].roster
+            .map((m) => m.player.id)
+            .toList();
+        final afterIds = savedFranchise.league.aiTeams[i].roster
+            .map((m) => m.player.id)
+            .toList();
+        var cursor = 0;
+        for (final id in afterIds) {
+          final foundAt = beforeIds.indexOf(id, cursor);
+          expect(
+            foundAt,
+            greaterThanOrEqualTo(0),
+            reason:
+                'team ${franchise.league.aiTeams[i].team.abbreviation}: '
+                '$id appeared out of order, or wasn\'t on the original '
+                'roster at all',
+          );
+          cursor = foundAt + 1;
+        }
       }
     });
 

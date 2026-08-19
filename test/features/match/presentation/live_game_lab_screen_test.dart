@@ -107,9 +107,7 @@ void main() {
           .where((t) => RegExp(r'^\d+$').hasMatch(t))
           .map(int.parse)
           .any((s) => s > 0);
-      final sawStealOrBlock = allText.any(
-        (t) => t == 'STEAL' || t == 'BLOCK',
-      );
+      final sawStealOrBlock = allText.any((t) => t == 'STEAL' || t == 'BLOCK');
       expect(sawScore || sawStealOrBlock, isTrue, reason: '$allText');
     },
   );
