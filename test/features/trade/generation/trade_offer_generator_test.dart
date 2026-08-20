@@ -234,8 +234,7 @@ void main() {
 
       for (final offer in offers) {
         final askedPlayers = offer.askedFromYou.whereType<PlayerTradeAsset>();
-        final offeredPlayers = offer.offeredToYou
-            .whereType<PlayerTradeAsset>();
+        final offeredPlayers = offer.offeredToYou.whereType<PlayerTradeAsset>();
         final hasPick =
             offer.offeredToYou.whereType<PickTradeAsset>().isNotEmpty ||
             offer.askedFromYou.whereType<PickTradeAsset>().isNotEmpty;

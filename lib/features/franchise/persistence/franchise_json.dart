@@ -119,9 +119,7 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
             )
             .toList(),
     leagueRetirements: (json['leagueRetirements'] as List<dynamic>)
-        .map(
-          (value) => leagueRetirementFromJson(value as Map<String, dynamic>),
-        )
+        .map((value) => leagueRetirementFromJson(value as Map<String, dynamic>))
         .toList(),
     freeAgents: (json['freeAgents'] as List<dynamic>)
         .map((value) => playerFromJson(value as Map<String, dynamic>))

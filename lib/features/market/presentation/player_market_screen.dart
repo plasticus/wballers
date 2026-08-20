@@ -545,8 +545,10 @@ class _TradeOfferCard extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) =>
-                      TradeOfferDetailScreen(franchise: franchise, offer: offer),
+                  builder: (_) => TradeOfferDetailScreen(
+                    franchise: franchise,
+                    offer: offer,
+                  ),
                 ),
               );
             },
@@ -616,9 +618,7 @@ class _TradeOfferDetailScreenState
     final franchise =
         ref.watch(currentFranchiseProvider).value ?? widget.franchise;
     final offer = widget.offer;
-    final alreadyResolved = franchise.resolvedTradeOfferIds.contains(
-      offer.id,
-    );
+    final alreadyResolved = franchise.resolvedTradeOfferIds.contains(offer.id);
     final aiTeam = franchise.league.aiTeams.firstWhere(
       (t) => t.team.abbreviation == offer.offeringTeamAbbreviation,
     );

@@ -15,10 +15,19 @@ class TeamRow extends StatelessWidget {
     this.rank,
     this.record,
     this.overall,
+    this.onTap,
     super.key,
   });
 
   final Team team;
+
+  /// Pushes a real detail screen when given (`LeagueScreen`'s AI-team
+  /// rows only, `TeamDetailScreen` -- 2026-08-20, a direct GM ask) --
+  /// `null` (the default) leaves the row a plain, non-interactive listing,
+  /// same as every caller before this existed (onboarding's conference
+  /// browser, and `LeagueScreen`'s own row for the GM's own club, which
+  /// already has a richer detail screen of its own, the Team tab).
+  final VoidCallback? onTap;
 
   /// This team's overall rating (`teamOverallForPlayers`), if the caller
   /// has a roster to derive one from. `null` hides it entirely --
@@ -46,7 +55,7 @@ class TeamRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
+    final row = Container(
       // A background tint instead of a "Your Team" text chip (a direct GM
       // ask, 2026-08-09: "just highlight your team in a color") -- the row
       // itself now carries the signal, so nothing needs to compete with
@@ -128,8 +137,22 @@ class TeamRow extends StatelessWidget {
               style: theme.textTheme.titleMedium,
             ),
           ],
+          if (onTap != null) ...[
+            const SizedBox(width: AppSpacing.xs),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.outline,
+              size: 20,
+            ),
+          ],
         ],
       ),
+    );
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: row,
     );
   }
 }

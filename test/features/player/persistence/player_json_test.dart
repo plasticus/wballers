@@ -80,24 +80,19 @@ void main() {
     expect(player.draftRecord, isNull);
   });
 
-  test(
-    'playerToJson/playerFromJson round-trips draftRecord (2026-08-19, a '
-    'direct GM ask: "we should see what season, round, and pick they '
-    'were drafted")',
-    () {
-      final player = playerFromJson(
-        _legacyPlayerJson(),
-      ).copyWithDraftRecord(
-        const PlayerDraftRecord(season: 2, round: 3, pickNumber: 47),
-      );
+  test('playerToJson/playerFromJson round-trips draftRecord (2026-08-19, a '
+      'direct GM ask: "we should see what season, round, and pick they '
+      'were drafted")', () {
+    final player = playerFromJson(_legacyPlayerJson()).copyWithDraftRecord(
+      const PlayerDraftRecord(season: 2, round: 3, pickNumber: 47),
+    );
 
-      final roundTripped = playerFromJson(playerToJson(player));
+    final roundTripped = playerFromJson(playerToJson(player));
 
-      expect(roundTripped.draftRecord?.season, 2);
-      expect(roundTripped.draftRecord?.round, 3);
-      expect(roundTripped.draftRecord?.pickNumber, 47);
-    },
-  );
+    expect(roundTripped.draftRecord?.season, 2);
+    expect(roundTripped.draftRecord?.round, 3);
+    expect(roundTripped.draftRecord?.pickNumber, 47);
+  });
 
   test('a legacy save (predating peakOverall) falls back to null, reading as '
       'the current overall via effectivePeakOverall', () {

@@ -80,12 +80,29 @@ const _teamQualityOffsetMax = 2;
 /// Positions are drawn from `kTwelvePlayerPositionPlan`, shuffled first so
 /// which position ends up with the star/quality slots varies -- otherwise
 /// every AI team's best player would always play the same position.
+///
+/// [starPositionLean] (2026-08-20, `league/domain/team_identity.dart`'s
+/// `TeamIdentity`, a direct GM ask for lightweight team identities), when
+/// given, forces the single star slot (`positions[0]`, always this
+/// team's one 4-star franchise player) to land on that exact position --
+/// swapped to the front of the already-shuffled list rather than
+/// reshuffling around it, so every other slot's position assignment stays
+/// exactly as random as before. `null` (the default, e.g. for tests that
+/// don't care) leaves the shuffle's own natural pick in place.
 List<RosterMembership> generateAiRoster(
   Random random, {
   PortraitWeights? portraitWeights,
+  Position? starPositionLean,
 }) {
   final positions = List<Position>.of(kTwelvePlayerPositionPlan)
     ..shuffle(random);
+  if (starPositionLean != null) {
+    final leanIndex = positions.indexOf(starPositionLean);
+    if (leanIndex > 0) {
+      positions[leanIndex] = positions[0];
+      positions[0] = starPositionLean;
+    }
+  }
   final qualityOffset =
       _teamQualityOffsetMin +
       random.nextInt(_teamQualityOffsetMax - _teamQualityOffsetMin + 1);

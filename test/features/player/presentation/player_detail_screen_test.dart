@@ -186,12 +186,10 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
 
-        final target = playerWithOverall(
-          65,
-          name: 'Riley Okafor',
-        ).copyWithDraftRecord(
-          const PlayerDraftRecord(season: 1, round: 2, pickNumber: 15),
-        );
+        final target = playerWithOverall(65, name: 'Riley Okafor')
+            .copyWithDraftRecord(
+              const PlayerDraftRecord(season: 1, round: 2, pickNumber: 15),
+            );
         final franchise = _franchiseWith(
           target: RosterMembership(player: target, status: RosterStatus.active),
         );
@@ -217,33 +215,29 @@ void main() {
       },
     );
 
-    testWidgets(
-      'shows no Drafted line for a player who was never drafted',
-      (tester) async {
-        tester.view.physicalSize = const Size(800, 2400);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.reset);
+    testWidgets('shows no Drafted line for a player who was never drafted', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-        final target = playerWithOverall(65, name: 'Riley Okafor');
-        final franchise = _franchiseWith(
-          target: RosterMembership(player: target, status: RosterStatus.active),
-        );
+      final target = playerWithOverall(65, name: 'Riley Okafor');
+      final franchise = _franchiseWith(
+        target: RosterMembership(player: target, status: RosterStatus.active),
+      );
 
-        await tester.pumpWidget(
-          ProviderScope(
-            child: MaterialApp(
-              home: PlayerDetailScreen(
-                franchise: franchise,
-                playerId: target.id,
-              ),
-            ),
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
           ),
-        );
-        await tester.pump();
+        ),
+      );
+      await tester.pump();
 
-        expect(find.textContaining('Drafted:'), findsNothing);
-      },
-    );
+      expect(find.textContaining('Drafted:'), findsNothing);
+    });
 
     testWidgets('shows a rookie as EXP: Rookie, not EXP: 0', (tester) async {
       tester.view.physicalSize = const Size(800, 2400);

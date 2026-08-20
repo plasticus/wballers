@@ -7,6 +7,7 @@ import '../../roster/generation/ai_roster_generator.dart';
 import '../domain/ai_team_roster.dart';
 import '../domain/league.dart';
 import '../domain/league_draw.dart';
+import '../domain/team_identity.dart';
 
 /// Offset applied to a franchise's `simulationSeed` before generating AI
 /// rosters, so this random stream doesn't correlate with the coach's
@@ -28,7 +29,10 @@ const kAiCoachSeedOffset = 15;
 /// `drawLeagueTeams` produces for [simulationSeed], minus
 /// [replacedTeamAbbreviation] (the GM's club takes that slot instead --
 /// see `Franchise.team`), with a freshly generated roster and head coach
-/// for each of the other 19. Deterministic for a given [simulationSeed].
+/// for each of the other 19 -- each one's `TeamIdentity` (`team_identity.dart`)
+/// locking its coach's archetype and its roster's star-slot position, a
+/// permanent property of the team abbreviation itself, not this
+/// [simulationSeed]. Deterministic for a given [simulationSeed].
 League generateLeague({
   required int simulationSeed,
   required String replacedTeamAbbreviation,
@@ -47,11 +51,16 @@ League generateLeague({
     for (final team in aiTeamIdentities)
       AiTeamRoster(
         team: team,
-        roster: generateAiRoster(random, portraitWeights: portraitWeights),
+        roster: generateAiRoster(
+          random,
+          portraitWeights: portraitWeights,
+          starPositionLean: identityFor(team.abbreviation).positionLean,
+        ),
         coach: generateCoach(
           coachRandom,
           minAge: kCoachInitialLeagueMinAge,
           maxAge: kCoachInitialLeagueMaxAge,
+          archetype: identityFor(team.abbreviation).archetype,
           portraitWeights: portraitWeights,
         ),
       ),

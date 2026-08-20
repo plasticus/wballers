@@ -168,6 +168,8 @@ Player playerFromJson(Map<String, dynamic> json) {
     // both mean the same thing here too.
     draftRecord: json['draftRecord'] == null
         ? null
-        : playerDraftRecordFromJson(json['draftRecord'] as Map<String, dynamic>),
+        : playerDraftRecordFromJson(
+            json['draftRecord'] as Map<String, dynamic>,
+          ),
   );
 }

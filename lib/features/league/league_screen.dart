@@ -31,6 +31,7 @@ import '../season/presentation/results_screen.dart';
 import '../season/presentation/schedule_screen.dart';
 import 'domain/league_draw.dart';
 import 'domain/team.dart';
+import 'team_detail_screen.dart';
 import 'team_row.dart';
 
 /// This playthrough's 20-team league (drawn from the 40-team design pool
@@ -202,6 +203,7 @@ class _RegularSeasonTab extends StatelessWidget {
     return ListView(
       children: [
         _ConferenceSection(
+          franchise: franchise,
           title: Conference.atlantic.label,
           teams: _rankedByStandings(atlantic, standings),
           standings: standings,
@@ -210,6 +212,7 @@ class _RegularSeasonTab extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         _ConferenceSection(
+          franchise: franchise,
           title: Conference.pacific.label,
           teams: _rankedByStandings(pacific, standings),
           standings: standings,
@@ -244,6 +247,7 @@ List<Team> _rankedByStandings(
 
 class _ConferenceSection extends StatelessWidget {
   const _ConferenceSection({
+    required this.franchise,
     required this.title,
     required this.teams,
     required this.standings,
@@ -251,6 +255,7 @@ class _ConferenceSection extends StatelessWidget {
     required this.overallByAbbreviation,
   });
 
+  final Franchise franchise;
   final String title;
   final List<Team> teams;
   final List<StandingsEntry> standings;
@@ -275,6 +280,19 @@ class _ConferenceSection extends StatelessWidget {
                   rank: i + 1,
                   record: recordFor(teams[i].abbreviation, standings),
                   overall: overallByAbbreviation[teams[i].abbreviation],
+                  // Only AI teams get a real detail page -- the GM's own
+                  // row already has a richer one, the Team tab
+                  // (`TeamDetailScreen`'s own doc comment on why).
+                  onTap: teams[i].abbreviation == userTeamAbbreviation
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TeamDetailScreen(
+                              franchise: franchise,
+                              teamAbbreviation: teams[i].abbreviation,
+                            ),
+                          ),
+                        ),
                 ),
                 if (i != teams.length - 1) const Divider(height: AppSpacing.lg),
               ],

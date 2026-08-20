@@ -216,6 +216,49 @@ void main() {
     },
   );
 
+  testWidgets('tapping an AI team\'s row opens its real TeamDetailScreen '
+      '(2026-08-20, a direct GM ask -- team-detail pages)', (tester) async {
+    // Tall enough that every team in the conference lays out at once --
+    // no scrolling needed to reach a row several ranks down.
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = withFullActiveRoster(_newFranchise());
+    final opponent = franchise.league.aiTeams.first;
+    final repository = await _seededRepository(franchise);
+
+    await _pumpWithRepository(tester, repository);
+    await tester.tap(find.text(opponent.team.name));
+    await tester.pumpAndSettle();
+
+    expect(find.text(opponent.team.name), findsOneWidget);
+    expect(find.text('Head Coach'), findsOneWidget);
+    expect(find.text(opponent.coach.name), findsOneWidget);
+    expect(find.textContaining('Active Roster ('), findsOneWidget);
+  });
+
+  testWidgets(
+    'tapping the GM\'s own row does nothing -- no detail page for the '
+    'one team the GM already fully controls',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = withFullActiveRoster(_newFranchise());
+      final repository = await _seededRepository(franchise);
+
+      await _pumpWithRepository(tester, repository);
+      await tester.tap(find.text(franchise.team.name));
+      await tester.pumpAndSettle();
+
+      // Still on LeagueScreen -- no AppBar title change, no "Head Coach"
+      // section (that's TeamDetailScreen-only content).
+      expect(find.text('Head Coach'), findsNothing);
+    },
+  );
+
   testWidgets('"Schedule" and "Results" open their respective screens', (
     tester,
   ) async {

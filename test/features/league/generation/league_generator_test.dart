@@ -2,7 +2,9 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/league/domain/league_draw.dart';
+import 'package:womensbballmgr/features/league/domain/team_identity.dart';
 import 'package:womensbballmgr/features/league/generation/league_generator.dart';
+import 'package:womensbballmgr/features/roster/domain/star_tier.dart';
 
 void main() {
   test('generates 19 AI teams, none of them the replaced team', () {
@@ -55,6 +57,35 @@ void main() {
       expect(
         a.aiTeams[i].roster.first.player.name,
         b.aiTeams[i].roster.first.player.name,
+      );
+    }
+  });
+
+  test('every AI team\'s coach and star player match its own permanent '
+      'TeamIdentity (2026-08-20, a direct GM ask for lightweight team '
+      'identities)', () {
+    const seed = 1;
+    final drawn = drawLeagueTeams(Random(seed + kLeagueDrawSeedOffset));
+
+    final league = generateLeague(
+      simulationSeed: seed,
+      replacedTeamAbbreviation: drawn.first.abbreviation,
+    );
+
+    for (final aiTeam in league.aiTeams) {
+      final identity = identityFor(aiTeam.team.abbreviation);
+      expect(
+        aiTeam.coach.archetype,
+        identity.archetype,
+        reason: aiTeam.team.abbreviation,
+      );
+      final star = aiTeam.roster.singleWhere(
+        (m) => StarTier.of(m.player) == StarTier.fourStar,
+      );
+      expect(
+        star.player.primaryPosition,
+        identity.positionLean,
+        reason: aiTeam.team.abbreviation,
       );
     }
   });

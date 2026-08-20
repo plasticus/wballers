@@ -361,8 +361,7 @@ void main() {
       final offers = generateTradeOffers(franchise);
       final firstOffer = offers.first;
       final firstGivePlayer =
-          (firstOffer.askedFromYou.whereType<PlayerTradeAsset>().first)
-              .player;
+          (firstOffer.askedFromYou.whereType<PlayerTradeAsset>().first).player;
 
       await tester.tap(find.text('View Full Details').first);
       await tester.pumpAndSettle();
@@ -373,7 +372,8 @@ void main() {
       expect(
         find.textContaining(firstGivePlayer.name),
         findsOneWidget,
-        reason: 'the GM\'s own asked-for player should be listed under '
+        reason:
+            'the GM\'s own asked-for player should be listed under '
             '"You Give"',
       );
 

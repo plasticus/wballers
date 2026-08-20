@@ -17,9 +17,7 @@ LeagueRetirement leagueRetirementFromJson(Map<String, dynamic> json) {
   return LeagueRetirement(
     playerId: json['playerId'] as String,
     name: json['name'] as String,
-    primaryPosition: Position.values.byName(
-      json['primaryPosition'] as String,
-    ),
+    primaryPosition: Position.values.byName(json['primaryPosition'] as String),
     teamAbbreviation: json['teamAbbreviation'] as String,
     reason: RetirementReason.values.byName(json['reason'] as String),
     season: json['season'] as int,

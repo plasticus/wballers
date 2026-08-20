@@ -270,7 +270,9 @@ TradeOffer? _tryBuildGuaranteedTradeBlockPickOffer(
     final offered = <TradeAsset>[
       for (final p in offeredPlayers) PlayerTradeAsset(p),
     ];
-    final askedAssets = <TradeAsset>[for (final p in asked) PlayerTradeAsset(p)];
+    final askedAssets = <TradeAsset>[
+      for (final p in asked) PlayerTradeAsset(p),
+    ];
 
     final withPick = _forceAddPick(
       offered: offered,

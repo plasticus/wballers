@@ -498,9 +498,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// isn't actually on [franchise]'s roster (never expected in practice
   /// -- every caller resolves this against a real [PendingRetirement]).
   Franchise _retirePlayer(Franchise franchise, String playerId) {
-    final membership = franchise.roster.where(
-      (m) => m.player.id == playerId,
-    );
+    final membership = franchise.roster.where((m) => m.player.id == playerId);
     if (membership.isEmpty) return franchise;
     final player = membership.first.player;
     return franchise.copyWithRetiredPlayer(

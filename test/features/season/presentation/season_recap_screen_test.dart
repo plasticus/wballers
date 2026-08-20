@@ -150,10 +150,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(
-      find.text('League Retirements', skipOffstage: false),
-      findsNothing,
-    );
+    expect(find.text('League Retirements', skipOffstage: false), findsNothing);
   });
 
   testWidgets(
@@ -340,77 +337,76 @@ void main() {
     },
   );
 
-  testWidgets(
-    'shows a retired player\'s real name in Player Development, not '
-    '"Former Player" -- a direct GM report (2026-08-19): a retired '
-    'all-star showed up on this exact section labeled "Former Player"',
-    (tester) async {
-      final player = playerWithOverall(
-        70,
-        id: 'p1',
-        name: 'Riley Okafor',
-        primaryPosition: Position.pointGuard,
-      ).copyWithJerseyNumber(23);
-      // Retired: no longer on `roster` at all, but her name/position/
-      // jersey survives in `formerPlayers` -- exactly what
-      // `current_franchise_provider.dart`'s `_retirePlayer` does for
-      // real.
-      final franchise = Franchise(
-        id: 'franchise-1',
-        gmName: 'Taylor Reed',
-        team: kLeagueTeamPool.first,
-        coach: const Coach(
-          name: 'Jordan Ellis',
-          stats: CoachStats.neutral,
-          archetype: CoachArchetype.steadyHand,
-        ),
-        roster: const [],
+  testWidgets('shows a retired player\'s real name in Player Development, not '
+      '"Former Player" -- a direct GM report (2026-08-19): a retired '
+      'all-star showed up on this exact section labeled "Former Player"', (
+    tester,
+  ) async {
+    final player = playerWithOverall(
+      70,
+      id: 'p1',
+      name: 'Riley Okafor',
+      primaryPosition: Position.pointGuard,
+    ).copyWithJerseyNumber(23);
+    // Retired: no longer on `roster` at all, but her name/position/
+    // jersey survives in `formerPlayers` -- exactly what
+    // `current_franchise_provider.dart`'s `_retirePlayer` does for
+    // real.
+    final franchise = Franchise(
+      id: 'franchise-1',
+      gmName: 'Taylor Reed',
+      team: kLeagueTeamPool.first,
+      coach: const Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      ),
+      roster: const [],
+      simulationSeed: 1,
+      replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      league: testLeague(
         simulationSeed: 1,
         replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
-        league: testLeague(
-          simulationSeed: 1,
-          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+      ),
+      seasonProgress: testSeasonProgress(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ownTeam: kLeagueTeamPool.first,
+      ),
+      trainingCoaches: testTrainingCoaches(),
+      trainingPlan: TrainingPlan.initial(),
+      nextTrainingWeek: 3,
+      trainingReports: const [
+        TrainingReport(
+          week: 2,
+          results: [
+            PlayerGrowthResult(
+              playerId: 'p1',
+              fieldDeltas: {PlayerRatingField.speed: 2},
+              overallBefore: 68,
+              overallAfter: 69,
+            ),
+          ],
         ),
-        seasonProgress: testSeasonProgress(
-          simulationSeed: 1,
-          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
-          ownTeam: kLeagueTeamPool.first,
+      ],
+      formerPlayers: [
+        FormerPlayerRecord(
+          playerId: 'p1',
+          name: player.name,
+          primaryPosition: player.primaryPosition,
+          jerseyNumber: player.jerseyNumber,
         ),
-        trainingCoaches: testTrainingCoaches(),
-        trainingPlan: TrainingPlan.initial(),
-        nextTrainingWeek: 3,
-        trainingReports: const [
-          TrainingReport(
-            week: 2,
-            results: [
-              PlayerGrowthResult(
-                playerId: 'p1',
-                fieldDeltas: {PlayerRatingField.speed: 2},
-                overallBefore: 68,
-                overallAfter: 69,
-              ),
-            ],
-          ),
-        ],
-        formerPlayers: [
-          FormerPlayerRecord(
-            playerId: 'p1',
-            name: player.name,
-            primaryPosition: player.primaryPosition,
-            jerseyNumber: player.jerseyNumber,
-          ),
-        ],
-      );
+      ],
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
-      );
-      await tester.pump();
+    await tester.pumpWidget(
+      MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+    );
+    await tester.pump();
 
-      expect(find.textContaining('Riley Okafor'), findsOneWidget);
-      expect(find.textContaining('Former Player'), findsNothing);
-    },
-  );
+    expect(find.textContaining('Riley Okafor'), findsOneWidget);
+    expect(find.textContaining('Former Player'), findsNothing);
+  });
 
   testWidgets(
     'shows an empty-state message when no development results exist yet',

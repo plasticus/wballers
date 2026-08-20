@@ -95,4 +95,23 @@ void main() {
 
     expect(find.bySemanticsLabel('Boston Comets, Your Team'), findsNothing);
   });
+
+  testWidgets('onTap given: shows a chevron and tapping calls it '
+      '(2026-08-20, a direct GM ask -- team-detail pages)', (tester) async {
+    var tapped = false;
+    await _pump(tester, TeamRow(team: _team, onTap: () => tapped = true));
+
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+
+    await tester.tap(find.byType(TeamRow));
+    expect(tapped, isTrue);
+  });
+
+  testWidgets('onTap omitted (the default): no chevron, row stays inert', (
+    tester,
+  ) async {
+    await _pump(tester, const TeamRow(team: _team));
+
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+  });
 }

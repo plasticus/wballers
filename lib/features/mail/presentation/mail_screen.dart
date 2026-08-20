@@ -342,10 +342,7 @@ class _AllStarSelectionMailDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
-                    const _MailHeaderRow(
-                      label: 'From',
-                      value: 'League Office',
-                    ),
+                    const _MailHeaderRow(label: 'From', value: 'League Office'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -441,10 +438,7 @@ class _LeagueRetirementsMailDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
-                    const _MailHeaderRow(
-                      label: 'From',
-                      value: 'Assistant GM',
-                    ),
+                    const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -528,10 +522,7 @@ class _RosterLegalityMailDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
-                    const _MailHeaderRow(
-                      label: 'From',
-                      value: 'Assistant GM',
-                    ),
+                    const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -561,9 +552,7 @@ class _RosterLegalityMailDetailScreen extends StatelessWidget {
               FilledButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const TeamRosterScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const TeamRosterScreen()),
                   );
                 },
                 icon: const Icon(Icons.groups_outlined),

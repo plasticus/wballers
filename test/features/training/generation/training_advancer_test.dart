@@ -1009,14 +1009,18 @@ void main() {
           controlledRoster: [
             RosterMembership(player: player, status: RosterStatus.active),
           ],
-          playedGames: [weekGame(1, {'ai1': 40})],
+          playedGames: [
+            weekGame(1, {'ai1': 40}),
+          ],
           coach: weakCoach,
         );
         final strongFranchise = franchiseWithAiTeam(
           controlledRoster: [
             RosterMembership(player: player, status: RosterStatus.active),
           ],
-          playedGames: [weekGame(1, {'ai1': 40})],
+          playedGames: [
+            weekGame(1, {'ai1': 40}),
+          ],
           coach: strongCoach,
         );
 

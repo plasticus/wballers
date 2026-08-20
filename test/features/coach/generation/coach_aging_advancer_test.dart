@@ -6,6 +6,7 @@ import 'package:womensbballmgr/features/coach/generation/coach_aging_advancer.da
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/league/domain/team_identity.dart';
 
 import '../../../support/franchise_test_helpers.dart';
 
@@ -138,6 +139,13 @@ void main() {
         inInclusiveRange(kCoachEntryMinAge, kCoachEntryMaxAge),
       );
       expect(updatedAiTeam.coachHiredSeason, franchise.season);
+      // 2026-08-20, a direct GM ask for lightweight team identities --
+      // the real replacement locks to this team's own permanent
+      // TeamIdentity archetype, not a fresh random roll.
+      expect(
+        updatedAiTeam.coach.archetype,
+        identityFor(aiTeam.team.abbreviation).archetype,
+      );
     });
 
     test('every other AI team is untouched -- same 19 teams, same '

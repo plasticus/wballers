@@ -141,4 +141,47 @@ void main() {
     final spread = overalls.last - overalls.first;
     expect(spread, greaterThanOrEqualTo(7), reason: 'overalls: $overalls');
   });
+
+  group('starPositionLean (2026-08-20, `team_identity.dart`\'s TeamIdentity '
+      '-- a direct GM ask for lightweight team identities)', () {
+    test('forces the one four-star player onto the given position', () {
+      for (var seed = 0; seed < 30; seed++) {
+        final roster = generateAiRoster(
+          Random(seed),
+          starPositionLean: Position.center,
+        );
+        final star = roster.singleWhere(
+          (m) => StarTier.of(m.player) == StarTier.fourStar,
+        );
+        expect(
+          star.player.primaryPosition,
+          Position.center,
+          reason: 'seed $seed',
+        );
+      }
+    });
+
+    test('every position still gets covered, same as with no lean at all', () {
+      final roster = generateAiRoster(
+        Random(1),
+        starPositionLean: Position.pointGuard,
+      );
+
+      final coveredPositions = roster
+          .map((m) => m.player.primaryPosition)
+          .toSet();
+      expect(coveredPositions, Position.values.toSet());
+    });
+
+    test('omitting it (null, the default) leaves the star position exactly '
+        'as random as before', () {
+      final withLean = generateAiRoster(Random(7), starPositionLean: null);
+      final withoutParam = generateAiRoster(Random(7));
+
+      expect(
+        withLean.map((m) => m.player.primaryPosition),
+        withoutParam.map((m) => m.player.primaryPosition),
+      );
+    });
+  });
 }

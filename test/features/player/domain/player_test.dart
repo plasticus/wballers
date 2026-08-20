@@ -399,36 +399,33 @@ void main() {
     expect(player.draftRecord, isNull);
   });
 
-  test(
-    'copyWithDraftRecord replaces only draftRecord (2026-08-19, a direct '
-    'GM ask: "we should see what season, round, and pick they were '
-    'drafted")',
-    () {
-      final player = Player(
-        id: 'p1',
-        name: 'Riley Okafor',
-        age: 24,
-        yearsOfService: 2,
-        hometown: 'Fictional City',
-        primaryPosition: Position.pointGuard,
-        handedness: Handedness.right,
-        biography: 'A steady floor general.',
-        ratings: _ratings,
-        heightInches: 73,
-        archetype: Archetype.floorGeneral,
-      );
+  test('copyWithDraftRecord replaces only draftRecord (2026-08-19, a direct '
+      'GM ask: "we should see what season, round, and pick they were '
+      'drafted")', () {
+    final player = Player(
+      id: 'p1',
+      name: 'Riley Okafor',
+      age: 24,
+      yearsOfService: 2,
+      hometown: 'Fictional City',
+      primaryPosition: Position.pointGuard,
+      handedness: Handedness.right,
+      biography: 'A steady floor general.',
+      ratings: _ratings,
+      heightInches: 73,
+      archetype: Archetype.floorGeneral,
+    );
 
-      final updated = player.copyWithDraftRecord(
-        const PlayerDraftRecord(season: 1, round: 2, pickNumber: 15),
-      );
+    final updated = player.copyWithDraftRecord(
+      const PlayerDraftRecord(season: 1, round: 2, pickNumber: 15),
+    );
 
-      expect(updated.draftRecord?.season, 1);
-      expect(updated.draftRecord?.round, 2);
-      expect(updated.draftRecord?.pickNumber, 15);
-      expect(updated.name, player.name);
-      expect(updated.jerseyNumber, player.jerseyNumber);
-    },
-  );
+    expect(updated.draftRecord?.season, 1);
+    expect(updated.draftRecord?.round, 2);
+    expect(updated.draftRecord?.pickNumber, 15);
+    expect(updated.name, player.name);
+    expect(updated.jerseyNumber, player.jerseyNumber);
+  });
 
   test('copyWithSeasonAdvanced increments age and yearsOfService by one, '
       'leaving everything else untouched (2026-08-11, '

@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
+import '../../league/domain/team_identity.dart';
 import '../../player/domain/draft_record.dart';
 import '../../player/domain/player.dart';
 import '../../roster/domain/roster_membership.dart';
@@ -13,6 +14,16 @@ import '../domain/draft_pick.dart';
 import '../domain/draft_prospect.dart';
 import 'draft_generator.dart';
 import 'hidden_gem.dart';
+
+/// How close a prospect's own [draftProspectValue] has to be to the best
+/// available prospect's before an AI team's [TeamIdentity.positionLean]
+/// breaks the tie -- a direct GM call (2026-08-20), narrower than "always
+/// draft our lean position": "I DON'T want a team drafting a PG first
+/// every draft... they'd always have at least one or 2 good ones on the
+/// roster, and if they have a star player, they want it to be a PG."
+/// Best-player-available always wins outright once the gap exceeds this;
+/// only a genuine near-tie ever gets nudged.
+const kPositionLeanTiebreakTolerance = 4;
 
 /// Seed offset for [finalizeDraft]'s jersey-number assignment -- once per
 /// season, right after a real draft completes. Next free number after
@@ -99,9 +110,36 @@ DraftInProgress resolveAiPicksUntilOwnTurn({
     final best = available.reduce(
       (a, b) => draftProspectValue(a) >= draftProspectValue(b) ? a : b,
     );
-    current = _appendPick(current, best, managementByAbbreviation);
+    final selected = _preferLeanPositionOnNearTie(
+      available,
+      best,
+      identityFor(current.onTheClock!).positionLean,
+    );
+    current = _appendPick(current, selected, managementByAbbreviation);
   }
   return current;
+}
+
+/// [best] unless a genuinely near-tied prospect at [positionLean] exists
+/// in [available] -- see [kPositionLeanTiebreakTolerance]'s own doc
+/// comment for why this is a tiebreak, not a hard preference. Ties among
+/// qualifying lean-position prospects break on [draftProspectValue] too
+/// (the best of the ones close enough to matter), then list order.
+DraftProspect _preferLeanPositionOnNearTie(
+  List<DraftProspect> available,
+  DraftProspect best,
+  Position positionLean,
+) {
+  final bestValue = draftProspectValue(best);
+  final leanCandidates = available.where(
+    (p) =>
+        p.player.primaryPosition == positionLean &&
+        bestValue - draftProspectValue(p) <= kPositionLeanTiebreakTolerance,
+  );
+  if (leanCandidates.isEmpty) return best;
+  return leanCandidates.reduce(
+    (a, b) => draftProspectValue(a) >= draftProspectValue(b) ? a : b,
+  );
 }
 
 /// Records the GM's own pick: [selected] must actually still be available
@@ -204,7 +242,11 @@ AiTeamRoster _addToAiRoster(
   AiTeamRoster aiTeam,
   Player draftedPlayer,
 ) {
-  final signed = assignJerseyNumberAvoiding(random, draftedPlayer, aiTeam.roster);
+  final signed = assignJerseyNumberAvoiding(
+    random,
+    draftedPlayer,
+    aiTeam.roster,
+  );
   return aiTeam.copyWithRoster([
     ...aiTeam.roster,
     RosterMembership(player: signed, status: RosterStatus.active),

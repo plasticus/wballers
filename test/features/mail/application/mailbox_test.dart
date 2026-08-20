@@ -168,7 +168,8 @@ void main() {
 
       final items = mailboxFor(franchise);
 
-      final retirementItem = items.whereType<LeagueRetirementsMailItem>()
+      final retirementItem = items
+          .whereType<LeagueRetirementsMailItem>()
           .single;
       expect(retirementItem.retirements, hasLength(1));
       expect(retirementItem.id, 'league_retirements_0');

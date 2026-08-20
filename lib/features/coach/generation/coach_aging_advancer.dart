@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
+import '../../league/domain/team_identity.dart';
 import '../domain/coach_lifecycle.dart';
 import 'coach_generator.dart';
 
@@ -96,6 +97,7 @@ CoachAgingAdvance resolveCoachAging(Random random, Franchise franchise) {
             random,
             minAge: kCoachEntryMinAge,
             maxAge: kCoachEntryMaxAge,
+            archetype: identityFor(aiTeam.team.abbreviation).archetype,
           ),
           hiredSeason: franchise.season,
         ),

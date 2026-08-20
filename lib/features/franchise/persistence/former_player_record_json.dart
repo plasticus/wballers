@@ -14,9 +14,7 @@ FormerPlayerRecord formerPlayerRecordFromJson(Map<String, dynamic> json) {
   return FormerPlayerRecord(
     playerId: json['playerId'] as String,
     name: json['name'] as String,
-    primaryPosition: Position.values.byName(
-      json['primaryPosition'] as String,
-    ),
+    primaryPosition: Position.values.byName(json['primaryPosition'] as String),
     jerseyNumber: json['jerseyNumber'] as int?,
   );
 }

@@ -8,6 +8,7 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
+import 'package:womensbballmgr/features/league/domain/team_identity.dart';
 import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
 import 'package:womensbballmgr/features/matchup/domain/offense_shape.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_weights.dart';
@@ -221,6 +222,44 @@ void main() {
     // A tally reading "<emoji> <n> — <n> <emoji>" for exactly 5 picks.
     expect(find.textContaining(franchise.team.emoji), findsWidgets);
   });
+
+  testWidgets(
+    'shows a Scouting Report for the opponent\'s own permanent identity, '
+    'not the GM\'s own team (2026-08-20, a direct GM ask: "they see '
+    'they\'re about to play Cincinnati, and they\'re like, oh damn")',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final base = _newFranchise();
+      final opponent = base.league.aiTeams.first.team;
+      final franchise = _withOwnGameToday(base, opponent);
+      final game = franchise.seasonProgress.schedule.games.single;
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: MatchPreviewScreen(franchise: franchise, game: game),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final identity = identityFor(opponent.abbreviation);
+      expect(find.text('Scouting Report'), findsOneWidget);
+      expect(find.text(identity.styleLabel), findsOneWidget);
+      // The GM's own team never gets a scouting line -- there's no
+      // locked identity for the one team the GM actually controls.
+      expect(
+        find.text(identityFor(franchise.team.abbreviation).styleLabel),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets(
     'seat 1 shows the generic "Preston" look while the narrative veteran '

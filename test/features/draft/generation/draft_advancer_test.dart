@@ -10,7 +10,8 @@ import 'package:womensbballmgr/features/draft/domain/draft_prospect.dart';
 import 'package:womensbballmgr/features/draft/generation/draft_advancer.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
-import 'package:womensbballmgr/features/player/domain/college.dart';
+import 'package:womensbballmgr/features/league/domain/team_identity.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
@@ -160,6 +161,92 @@ void main() {
 
       final landed = resolved.picks.single.prospect.player.ratings.skillPoints;
       expect(landed, before);
+    });
+  });
+
+  group('position-lean tiebreak (2026-08-20, `team_identity.dart`\'s '
+      'TeamIdentity -- a direct GM ask: "I DON\'T want a team drafting a '
+      'PG first every draft... they\'d always have at least one or 2 good '
+      'ones on the roster, and if they have a star player, they want it '
+      'to be a PG")', () {
+    DraftProspect prospectAt(
+      String id,
+      Position position, {
+      required int overall,
+    }) {
+      final player = playerWithOverall(
+        overall,
+        id: id,
+        name: 'Prospect $id',
+        primaryPosition: position,
+      );
+      return DraftProspect(player: player, college: kColleges.first);
+    }
+
+    test('a near-tied prospect at the team\'s own lean position wins over '
+        'a slightly-higher-value prospect elsewhere', () {
+      final leanPosition = identityFor('AAA').positionLean;
+      final otherPosition = Position.values.firstWhere(
+        (p) => p != leanPosition,
+      );
+      // draftProspectValue = overall + potential/2 (potential defaults to
+      // overall here, via playerWithOverall) -- 70 -> 105, 72 -> 108, a
+      // 3-point gap, comfortably inside kPositionLeanTiebreakTolerance (4).
+      final leanProspect = prospectAt('lean', leanPosition, overall: 70);
+      final betterElsewhere = prospectAt('better', otherPosition, overall: 72);
+      final draft = DraftInProgress(order: const ['AAA', 'ZZZ'], rounds: 1);
+
+      final resolved = resolveAiPicksUntilOwnTurn(
+        draft: draft,
+        draftClass: [leanProspect, betterElsewhere],
+        ownTeamAbbreviation: 'ZZZ',
+      );
+
+      expect(resolved.picks.single.prospect.player.id, 'lean');
+    });
+
+    test('a genuinely better prospect elsewhere still wins outright once '
+        'the gap exceeds the tiebreak tolerance -- never "always draft '
+        'the lean position"', () {
+      final leanPosition = identityFor('AAA').positionLean;
+      final otherPosition = Position.values.firstWhere(
+        (p) => p != leanPosition,
+      );
+      // 60 -> 90, 80 -> 120 -- a 30-point gap, nowhere close to the
+      // tolerance band.
+      final leanProspect = prospectAt('lean', leanPosition, overall: 60);
+      final muchBetterElsewhere = prospectAt(
+        'better',
+        otherPosition,
+        overall: 80,
+      );
+      final draft = DraftInProgress(order: const ['AAA', 'ZZZ'], rounds: 1);
+
+      final resolved = resolveAiPicksUntilOwnTurn(
+        draft: draft,
+        draftClass: [leanProspect, muchBetterElsewhere],
+        ownTeamAbbreviation: 'ZZZ',
+      );
+
+      expect(resolved.picks.single.prospect.player.id, 'better');
+    });
+
+    test('no near-tied prospect at the lean position -- best value picked '
+        'exactly as before, tiebreak never invents a pick', () {
+      final leanPosition = identityFor('AAA').positionLean;
+      final otherPosition = Position.values.firstWhere(
+        (p) => p != leanPosition,
+      );
+      final onlyProspect = prospectAt('only', otherPosition, overall: 70);
+      final draft = DraftInProgress(order: const ['AAA', 'ZZZ'], rounds: 1);
+
+      final resolved = resolveAiPicksUntilOwnTurn(
+        draft: draft,
+        draftClass: [onlyProspect],
+        ownTeamAbbreviation: 'ZZZ',
+      );
+
+      expect(resolved.picks.single.prospect.player.id, 'only');
     });
   });
 

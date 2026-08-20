@@ -109,10 +109,7 @@ void main() {
         playedOut.seasonProgress,
         allLeagueTeams(playedOut),
       );
-      final ownRecord = recordFor(
-        playedOut.team.abbreviation,
-        finalStandings,
-      );
+      final ownRecord = recordFor(playedOut.team.abbreviation, finalStandings);
       final wonChampionship =
           seasonChampion(playedOut.seasonProgress.playedGames) ==
           playedOut.team.abbreviation;

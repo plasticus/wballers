@@ -8,6 +8,7 @@ import 'package:womensbballmgr/features/coach/generation/coach_free_agency_advan
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
+import 'package:womensbballmgr/features/league/domain/team_identity.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
@@ -158,6 +159,19 @@ void main() {
       // season 3 as its `defaultHiredSeason`.
       for (final aiTeam in advance.league.aiTeams) {
         expect(aiTeam.coachHiredSeason, 3);
+      }
+      // 2026-08-20, a direct GM ask for lightweight team identities --
+      // every fired team's real replacement coach locks to that team's
+      // own permanent TeamIdentity archetype, not a fresh random roll.
+      for (final abbreviation in badTeams) {
+        final aiTeam = advance.league.aiTeams.firstWhere(
+          (t) => t.team.abbreviation == abbreviation,
+        );
+        expect(
+          aiTeam.coach.archetype,
+          identityFor(abbreviation).archetype,
+          reason: abbreviation,
+        );
       }
     });
 

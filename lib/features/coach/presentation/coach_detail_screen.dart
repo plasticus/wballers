@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
-import '../../player/presentation/player_card_widgets.dart' show StatChip, statChipTone;
+import '../../player/presentation/player_card_widgets.dart'
+    show StatChip, statChipTone;
 import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../domain/coach.dart';
@@ -71,7 +72,10 @@ class CoachDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Center(
-                    child: Text(coach.name, style: theme.textTheme.headlineSmall),
+                    child: Text(
+                      coach.name,
+                      style: theme.textTheme.headlineSmall,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Center(
