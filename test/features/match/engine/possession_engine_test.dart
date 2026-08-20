@@ -799,4 +799,61 @@ void main() {
       expect(targetedRate, lessThan(untargetedRate));
     });
   });
+
+  group('injuryPenalty (2026-08-20, `player_injury.dart` -- "playing '
+      'through it")', () {
+    test('an injured offense scores less often than an identical healthy '
+        'one', () {
+      final offense = testLineup('off', rating: 60);
+      final defense = testLineup('def', rating: 50);
+      const sampleSize = 30000;
+      final injuryPenalty = {for (final p in offense) p: -0.25};
+
+      var injuredScores = 0;
+      final injuredRandom = Random(3);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          injuredRandom,
+          offense: offense,
+          defense: defense,
+          injuryPenalty: injuryPenalty,
+        );
+        if (result.end == PossessionEnd.scored) injuredScores++;
+      }
+
+      var healthyScores = 0;
+      final healthyRandom = Random(3);
+      for (var i = 0; i < sampleSize; i++) {
+        final result = simulatePossession(
+          healthyRandom,
+          offense: offense,
+          defense: defense,
+        );
+        if (result.end == PossessionEnd.scored) healthyScores++;
+      }
+
+      expect(injuredScores, lessThan(healthyScores));
+    });
+
+    test('missing from the map (the default) applies no penalty at all -- '
+        'identical to not passing injuryPenalty', () {
+      final offense = testLineup('off');
+      final defense = testLineup('def');
+
+      final withEmptyMap = simulatePossession(
+        Random(9),
+        offense: offense,
+        defense: defense,
+        injuryPenalty: const {},
+      );
+      final withoutParam = simulatePossession(
+        Random(9),
+        offense: offense,
+        defense: defense,
+      );
+
+      expect(withEmptyMap.end, withoutParam.end);
+      expect(withEmptyMap.pointsScored, withoutParam.pointsScored);
+    });
+  });
 }

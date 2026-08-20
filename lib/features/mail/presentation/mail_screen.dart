@@ -10,8 +10,10 @@ import '../../franchise/onboarding/onboarding_screen.dart';
 import '../../franchise/presentation/team_roster_screen.dart';
 import '../../market/presentation/player_market_screen.dart';
 import '../../player/domain/position.dart';
+import '../../player/domain/player_injury.dart';
 import '../../player/domain/retirement_reason.dart';
 import '../../player/presentation/retirement_decision_screen.dart';
+import '../../season/domain/game_day.dart';
 import '../../season/presentation/all_star_game_result_screen.dart';
 import '../../season/presentation/skills_competition_result_screen.dart';
 import '../../training/presentation/training_report_screen.dart';
@@ -151,6 +153,20 @@ class _MailRow extends ConsumerWidget {
         Icons.warning_amber_outlined,
         item0.legality.violationMessages.first,
       ),
+      InjuryReportMailItem() => (
+        'Assistant GM',
+        Icons.local_hospital_outlined,
+        item0.entries.length == 1
+            ? '1 new injury around the league today.'
+            : '${item0.entries.length} new injuries around the league '
+                  'today.',
+      ),
+      InjuryRecoveredMailItem() => (
+        'Assistant GM',
+        Icons.check_circle_outline,
+        '${item0.player.name} is fully healed and still parked in '
+            'Reserve/Inactive.',
+      ),
     };
 
     return AppCard(
@@ -194,6 +210,14 @@ class _MailRow extends ConsumerWidget {
                     item: item0,
                   ),
                 RosterLegalityMailItem() => _RosterLegalityMailDetailScreen(
+                  franchise: franchise,
+                  item: item0,
+                ),
+                InjuryReportMailItem() => _InjuryReportMailDetailScreen(
+                  franchise: franchise,
+                  item: item0,
+                ),
+                InjuryRecoveredMailItem() => _InjuryRecoveredMailDetailScreen(
                   franchise: franchise,
                   item: item0,
                 ),
@@ -545,6 +569,154 @@ class _RosterLegalityMailDetailScreen extends StatelessWidget {
                           style: theme.textTheme.bodyMedium,
                         ),
                       ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const TeamRosterScreen()),
+                  );
+                },
+                icon: const Icon(Icons.groups_outlined),
+                label: const Text('Open Team Roster'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An [InjuryReportMailItem] opened full-screen -- one line per league
+/// injury from that game day, its own team and severity shown plainly
+/// (2026-08-20, following the injuries design pass -- "for flavor text
+/// vs formula, I'm fine with just facts only" already set the tone for
+/// this whole system's UI).
+class _InjuryReportMailDetailScreen extends StatelessWidget {
+  const _InjuryReportMailDetailScreen({
+    required this.franchise,
+    required this.item,
+  });
+
+  final Franchise franchise;
+  final InjuryReportMailItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = item.entries;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mail')),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _MailHeaderRow(label: 'To', value: franchise.gmName),
+                    const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
+                    _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(
+                      label: 'Date',
+                      value: formatFictionalDate(item.week, item.day),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      child: Divider(height: 1),
+                    ),
+                    Text(
+                      entries.length == 1
+                          ? 'Boss -- one injury to report from around the '
+                                'league:'
+                          : 'Boss -- ${entries.length} injuries to report '
+                                'from around the league:',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final entry in entries)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${entry.name} (${entry.teamAbbreviation})',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${entry.severity.label} -- '
+                              '${entry.severity.baseDurationGames} games',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An [InjuryRecoveredMailItem] opened full-screen -- a plain reminder
+/// that [InjuryRecoveredMailItem.player] is healthy again but still
+/// sitting in Reserve/Inactive, plus a shortcut to actually move them
+/// back (2026-08-20, a direct GM ask: "so that you have a reminder to put
+/// them back in the active roster if you want"). Nothing here forces the
+/// move -- same "notify, don't enforce" posture [RosterLegalityMailItem]
+/// already has.
+class _InjuryRecoveredMailDetailScreen extends StatelessWidget {
+  const _InjuryRecoveredMailDetailScreen({
+    required this.franchise,
+    required this.item,
+  });
+
+  final Franchise franchise;
+  final InjuryRecoveredMailItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mail')),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _MailHeaderRow(label: 'To', value: franchise.gmName),
+                    const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
+                    _MailHeaderRow(label: 'Subject', value: item.subject),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      child: Divider(height: 1),
+                    ),
+                    Text(
+                      'Boss -- ${item.player.name} is fully recovered, but '
+                      'still parked in Reserve/Inactive. Move her back to '
+                      'the active roster whenever you\'re ready.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
                   ],
                 ),
               ),

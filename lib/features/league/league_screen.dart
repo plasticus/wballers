@@ -502,13 +502,13 @@ class _CupGameRow extends StatelessWidget {
   }
 }
 
-/// The postseason bracket, First Round through the Finals. Unlike the
-/// Continental Cup, the whole bracket resolves in one shot the moment the
-/// GM taps "Simulate Postseason" on the Dashboard (`postseason_generator.dart`'s
-/// `simulatePostseason` -- a series' length isn't known ahead of time, so
-/// there's nothing to pre-schedule one round at a time), so this tab only
-/// really has 2 states: nothing played yet (every round shows a projected
-/// matchup) or fully decided.
+/// The postseason bracket, First Round through the Finals -- now that the
+/// postseason plays out one real game day at a time
+/// (`postseason_generator.dart`'s `growPostseasonSchedule`, 2026-08-20, a
+/// direct GM report: "it needs to play all the games through the normal
+/// system"), this tab shows a genuinely live picture: some series decided,
+/// others still mid-series, others still a projected matchup, for as long
+/// as the postseason takes to fully resolve.
 class _PlayoffsTab extends StatelessWidget {
   const _PlayoffsTab({required this.franchise});
 
@@ -518,8 +518,16 @@ class _PlayoffsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final progress = franchise.seasonProgress;
-
-    if (!progress.isComplete) {
+    // Postseason games only ever get scheduled once the regular season/
+    // Cup/All-Star break are fully done (`growPostseasonSchedule`'s own
+    // guard) -- checking for one directly is a strictly more precise
+    // "has the postseason actually started" signal than [SeasonProgress.
+    // isComplete] would be now that the postseason itself plays out over
+    // many real game days instead of resolving in one shot.
+    final hasPostseasonGame = progress.schedule.games.any(
+      (g) => g.type == GameType.postseason,
+    );
+    if (!hasPostseasonGame) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),

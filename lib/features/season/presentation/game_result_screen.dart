@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../franchise/domain/injury_report_entry.dart';
 import '../../league/domain/team.dart';
 import '../../match/domain/player_box_score.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../matchup/domain/offense_shape.dart';
+import '../../player/domain/player_injury.dart';
 import '../../player/domain/position.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
@@ -105,6 +107,23 @@ class GameResultScreen extends StatelessWidget {
       lines: ownIsHome ? awayLines : homeLines,
     );
 
+    // Any brand-new injury from *this specific game* -- matched by the
+    // exact same (week, day) plus one of the 2 teams actually playing
+    // here, since a real game day can hold several other league games'
+    // worth of entries too (2026-08-20, a direct GM ask: "it absolutely
+    // needs to be on the game result screen... big and bold" -- the
+    // original `TODO.md` spec note this closes: an injury has to be
+    // impossible to miss, not buried in a quiet 0-minutes box-score line).
+    final gameInjuries = franchise.injuryReports
+        .where(
+          (entry) =>
+              entry.week == result.game.week &&
+              entry.day == result.game.day &&
+              (entry.teamAbbreviation == result.game.homeTeamAbbreviation ||
+                  entry.teamAbbreviation == result.game.awayTeamAbbreviation),
+        )
+        .toList();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Game Result')),
       body: SafeArea(
@@ -118,6 +137,10 @@ class GameResultScreen extends StatelessWidget {
               awayOverall: teamOverallForPlayers(awayRoster),
               result: result,
             ),
+            if (gameInjuries.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              _InjuryAlertCard(entries: gameInjuries),
+            ],
             const SizedBox(height: AppSpacing.md),
             _StrategyRecapCard(
               homeTeam: homeTeam,
@@ -145,6 +168,62 @@ class GameResultScreen extends StatelessWidget {
             secondSection,
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// One or more brand-new injuries from this exact game, right below the
+/// score -- deliberately loud (a filled error-tone card, a medical emoji,
+/// bold text) rather than folded quietly into the box score, per the
+/// GM's own original spec (`TODO.md`'s Player Health item): "an injury
+/// needs to show up *prominently* on the post-game report... something
+/// the GM can't miss."
+class _InjuryAlertCard extends StatelessWidget {
+  const _InjuryAlertCard({required this.entries});
+
+  final List<InjuryReportEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🚑', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                entries.length == 1 ? 'Injury Report' : 'Injury Reports',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.onErrorContainer,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          for (final entry in entries)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '${entry.name} (${entry.teamAbbreviation}) -- '
+                '${entry.severity.label} injury, out '
+                '${entry.severity.baseDurationGames} games',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onErrorContainer,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

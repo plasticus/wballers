@@ -63,6 +63,7 @@ void main() {
           Random(franchise.simulationSeed + kSeasonAdvanceSeedOffset + i),
           progress,
           rostersByAbbreviation: rosters,
+          leagueTeams: allLeagueTeams(franchise),
         );
         progress = advance.progress;
       }

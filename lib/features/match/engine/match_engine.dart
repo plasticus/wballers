@@ -192,9 +192,18 @@ MatchResult simulateMatch(
   DefensiveTactic awayDefenseTactic = DefensiveTactic.balanced,
   CoachingOptionPicker? homeCoachingPicker,
   CoachingOptionPicker? awayCoachingPicker,
+  Map<Player, double> injuryPenalty = const {},
 }) {
-  assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
-  assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
+  assert(
+    homeRoster.length >= 5 && homeRoster.length <= 12,
+    'homeRoster must have 5-12 players (fewer than 12 only when injuries '
+    'have parked someone in Reserve/Inactive)',
+  );
+  assert(
+    awayRoster.length >= 5 && awayRoster.length <= 12,
+    'awayRoster must have 5-12 players (fewer than 12 only when injuries '
+    'have parked someone in Reserve/Inactive)',
+  );
 
   final sim = _GameSimulation(
     random,
@@ -208,6 +217,7 @@ MatchResult simulateMatch(
     awayDefenseTactic: awayDefenseTactic,
     homeCoachingPicker: homeCoachingPicker,
     awayCoachingPicker: awayCoachingPicker,
+    injuryPenalty: injuryPenalty,
   );
   while (!sim.isComplete) {
     if (sim.quarter > 1) sim.prepareQuarter();
@@ -274,9 +284,18 @@ Future<MatchResult> simulateMatchLive(
   LiveCoachingPicker? homeLiveCoachingPicker,
   LiveCoachingPicker? awayLiveCoachingPicker,
   required Future<void> Function(LiveGameSegment segment) onSegmentComplete,
+  Map<Player, double> injuryPenalty = const {},
 }) async {
-  assert(homeRoster.length == 12, 'homeRoster must have exactly 12 players');
-  assert(awayRoster.length == 12, 'awayRoster must have exactly 12 players');
+  assert(
+    homeRoster.length >= 5 && homeRoster.length <= 12,
+    'homeRoster must have 5-12 players (fewer than 12 only when injuries '
+    'have parked someone in Reserve/Inactive)',
+  );
+  assert(
+    awayRoster.length >= 5 && awayRoster.length <= 12,
+    'awayRoster must have 5-12 players (fewer than 12 only when injuries '
+    'have parked someone in Reserve/Inactive)',
+  );
 
   final sim = _GameSimulation(
     random,
@@ -290,6 +309,7 @@ Future<MatchResult> simulateMatchLive(
     awayDefenseTactic: awayDefenseTactic,
     homeLiveCoachingPicker: homeLiveCoachingPicker,
     awayLiveCoachingPicker: awayLiveCoachingPicker,
+    injuryPenalty: injuryPenalty,
   );
 
   var possessionsHandedOff = 0;
@@ -352,6 +372,7 @@ class _GameSimulation {
     this.awayCoachingPicker,
     this.homeLiveCoachingPicker,
     this.awayLiveCoachingPicker,
+    this.injuryPenalty = const {},
   }) : homeOffenseCoachBonus = homeCoach == null
            ? 0.0
            : coachQualityBonus(homeCoach.stats.offense),
@@ -457,6 +478,15 @@ class _GameSimulation {
   final CoachingOptionPicker? awayCoachingPicker;
   final LiveCoachingPicker? homeLiveCoachingPicker;
   final LiveCoachingPicker? awayLiveCoachingPicker;
+
+  /// Every rostered player's current "playing through it" injury penalty
+  /// (2026-08-20, `player_injury.dart`), keyed by [Player] -- covers both
+  /// [homeRoster] and [awayRoster], same shape [energy] already uses.
+  /// Defaults to empty (nobody injured), same opt-in posture as every
+  /// other bonus this engine threads through. Precomputed once by the
+  /// caller from each player's current [PlayerInjury] state -- unlike
+  /// [energy], never mutated during the game.
+  final Map<Player, double> injuryPenalty;
   late final bool tipOffWinnerIsHome;
 
   // Game state -- mutated quarter to quarter and possession to
@@ -787,6 +817,7 @@ class _GameSimulation {
           ? awayDefenseTargetId
           : homeDefenseTargetId,
       energy: energy,
+      injuryPenalty: injuryPenalty,
       offenseCoachingBonus: _offenseIsHome
           ? homeCoachingBonus
           : awayCoachingBonus,

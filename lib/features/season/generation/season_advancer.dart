@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../coach/domain/coach.dart';
+import '../../league/domain/team.dart';
 import '../../match/domain/match_result.dart';
 import '../../match/engine/match_engine.dart';
 import '../../match/engine/substitution_policy.dart';
@@ -12,6 +13,7 @@ import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
 import '../domain/season_schedule.dart';
 import 'continental_cup_generator.dart';
+import 'postseason_generator.dart' show growPostseasonSchedule;
 
 /// Seed offset for game-day advancement -- keeps this random stream from
 /// correlating with the coach (0), starting roster (1), league draw (2),
@@ -122,19 +124,28 @@ class GameDayAdvance {
 /// round finishes: every one of a Cup round's games is scheduled on the
 /// same single game day (`season_schedule_generator.dart`), so finishing
 /// that day always means the whole round just finished, and the next
-/// round can be generated immediately -- see [_growContinentalCup]. The
-/// postseason bracket still isn't folded in -- series play out over
-/// several games apiece and a series' length isn't known ahead of time,
-/// so it doesn't fit this same "one round, one game day" shape. That's
-/// real follow-up work, not done here.
+/// round can be generated immediately -- see [_growContinentalCup].
+///
+/// The postseason bracket (2026-08-20, a direct GM report: "it needs to
+/// play all the games through the normal system") grows the exact same
+/// way, just at finer grain -- a series plays 2-7 games depending on
+/// results, so there's nothing to pre-schedule a whole round at a time
+/// the way a single-elimination Cup round can. Instead, every call here
+/// schedules at most one more real game day's worth of postseason games:
+/// the next game for every series still alive, or (once a whole round
+/// clinches) the next round's Game 1s -- see [growPostseasonSchedule].
+/// [leagueTeams] is what that needs to compute standings/seeding; nothing
+/// else in this function reads it.
 GameDayAdvance advanceToNextGameDay(
   Random random,
   SeasonProgress progress, {
   required Map<String, List<Player>> rostersByAbbreviation,
+  required List<Team> leagueTeams,
   String? ownTeamAbbreviation,
   Map<String, Coach>? coachesByAbbreviation,
   DefensiveTactic? ownDefenseTactic,
   MatchResult? ownGameAlreadyPlayed,
+  Map<String, Map<Player, double>>? injuryPenaltyByAbbreviation,
 }) {
   final gameDays = gameDaysInOrder(progress.schedule);
   assert(
@@ -160,6 +171,7 @@ GameDayAdvance advanceToNextGameDay(
           ownTeamAbbreviation,
           coachesByAbbreviation,
           ownDefenseTactic,
+          injuryPenaltyByAbbreviation,
         ),
   ];
 
@@ -171,7 +183,29 @@ GameDayAdvance advanceToNextGameDay(
       ),
   ];
 
-  final grownSchedule = _growContinentalCup(random, progress.schedule, results);
+  final cupGrownSchedule = _growContinentalCup(
+    random,
+    progress.schedule,
+    results,
+  );
+  // Postseason growth needs to see *today's* results already folded in --
+  // both the played-game history (for bracket reconstruction) and the
+  // advanced index (to know whether the regular season just genuinely
+  // ran out of scheduled days) -- so this is built against a progress
+  // snapshot that already reflects today, not the one this call started
+  // with.
+  final progressAfterToday = SeasonProgress(
+    schedule: cupGrownSchedule,
+    playedGames: [...progress.playedGames, ...newlyPlayed],
+    nextGameDayIndex: progress.nextGameDayIndex + 1,
+  );
+  final postseasonAdditions = growPostseasonSchedule(
+    progressAfterToday,
+    leagueTeams: leagueTeams,
+  );
+  final grownSchedule = postseasonAdditions.isEmpty
+      ? cupGrownSchedule
+      : cupGrownSchedule.copyWithAppendedGames(postseasonAdditions);
 
   return GameDayAdvance(
     progress: progress.copyWithGameDayPlayed(
@@ -216,6 +250,7 @@ GameResult _simulateOneGame(
   String? ownTeamAbbreviation,
   Map<String, Coach>? coachesByAbbreviation,
   DefensiveTactic? ownDefenseTactic,
+  Map<String, Map<Player, double>>? injuryPenaltyByAbbreviation,
 ) {
   final homeRoster = rostersByAbbreviation[game.homeTeamAbbreviation]!;
   final awayRoster = rostersByAbbreviation[game.awayTeamAbbreviation]!;
@@ -245,6 +280,15 @@ GameResult _simulateOneGame(
     awayDefenseTactic: game.awayTeamAbbreviation == ownTeamAbbreviation
         ? (ownDefenseTactic ?? DefensiveTactic.balanced)
         : DefensiveTactic.balanced,
+    // Both sides' current injury penalties, merged into the one combined
+    // map `simulateMatch` expects (2026-08-20, `injury_advancer.dart`) --
+    // `null` (every existing caller, and any team with nobody hurt) reads
+    // as "nobody injured," same opt-in-only posture as every other bonus
+    // here.
+    injuryPenalty: {
+      ...?injuryPenaltyByAbbreviation?[game.homeTeamAbbreviation],
+      ...?injuryPenaltyByAbbreviation?[game.awayTeamAbbreviation],
+    },
   );
   return GameResult(game: game, match: match);
 }

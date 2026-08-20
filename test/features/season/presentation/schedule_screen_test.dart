@@ -123,6 +123,7 @@ void main() {
       Random(franchise.simulationSeed + kSeasonAdvanceSeedOffset),
       franchise.seasonProgress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
+      leagueTeams: allLeagueTeams(franchise),
     );
     final playedFranchise = franchise.copyWithSeasonProgress(advance.progress);
 

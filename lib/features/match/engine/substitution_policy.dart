@@ -7,6 +7,11 @@ import '../../player/domain/player.dart';
 /// `0B_Planned.md`'s reference table. Index 0 is rank 1 (the best player).
 const _targetMinutesByRank = <int>[30, 30, 30, 26, 26, 14, 14, 8, 8, 6, 4, 4];
 
+/// The full-roster total [_targetMinutesByRank] sums to -- every
+/// [targetMinutesForOrderedRoster] call redistributes to hit exactly this,
+/// whether the roster is a full 12 or short a player or two to injury.
+const kTotalTargetMinutes = 200;
+
 /// Ranks [roster] by [PlayerRatings.overall] (best first), then --
 /// roughly half the time, decided once per team by [_shouldBalanceTopFive]
 /// -- rebalances the top 5 to cover one of each standard position
@@ -27,7 +32,11 @@ const _targetMinutesByRank = <int>[30, 30, 30, 26, 26, 14, 14, 8, 8, 6, 4, 4];
 /// duplicate positions and all -- that's the "interesting" variety being
 /// preserved, not a residual bug.
 Map<Player, int> targetMinutesFor(List<Player> roster) {
-  assert(roster.length == 12, 'expects a full 12-player active roster');
+  assert(
+    roster.length >= 5 && roster.length <= 12,
+    'expects 5-12 active players (fewer than a full 12 only when injuries '
+    'have parked someone in Reserve/Inactive)',
+  );
   final sorted = [...roster]
     ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
   final topFive = _shouldBalanceTopFive(roster)
@@ -160,11 +169,45 @@ List<Player> _withBalancedTopFive(List<Player> sortedByOverall) {
 /// for whichever roster a caller already knows is in a real, meaningful
 /// order.
 Map<Player, int> targetMinutesForOrderedRoster(List<Player> orderedRoster) {
-  assert(orderedRoster.length == 12, 'expects a full 12-player active roster');
-  return {
-    for (var i = 0; i < orderedRoster.length; i++)
-      orderedRoster[i]: _targetMinutesByRank[i],
-  };
+  assert(
+    orderedRoster.length >= 5 && orderedRoster.length <= 12,
+    'expects 5-12 active players (fewer than a full 12 only when injuries '
+    'have parked someone in Reserve/Inactive)',
+  );
+  final n = orderedRoster.length;
+  if (n == 12) {
+    return {
+      for (var i = 0; i < n; i++) orderedRoster[i]: _targetMinutesByRank[i],
+    };
+  }
+
+  // Fewer than a full 12 -- an injury (or two) has parked someone in
+  // Reserve/Inactive (2026-08-20, following a direct GM question: "do we
+  // need to plan minutes differently?"). Ranks 1-N simply slide up the
+  // same table [orderedRoster] is already in -- that alone gives an
+  // injured starter's replacement starter-level minutes for free, no
+  // special-casing needed. What's left over is the minutes the *omitted*
+  // bottom ranks would have played; the GM's own suggestion was to spread
+  // that across "the remaining non-starters" rather than touch the
+  // starters' minutes, so it's split evenly across ranks 6+ (falling back
+  // to splitting across everyone in the vanishingly rare case fewer than
+  // 6 players remain at all -- shouldn't happen given the 2-slot
+  // Reserve/Inactive cap, but this keeps the totals exact either way).
+  final assigned = _targetMinutesByRank.sublist(0, n);
+  final shortfall = kTotalTargetMinutes - assigned.reduce((a, b) => a + b);
+  const starterCount = 5;
+  final benchStart = n > starterCount ? starterCount : 0;
+  final benchCount = n - benchStart;
+  final share = shortfall ~/ benchCount;
+  final remainder = shortfall - (share * benchCount);
+  final minutes = List<int>.of(assigned);
+  for (var i = benchStart; i < n; i++) {
+    // Any leftover single minutes (integer division can't split evenly)
+    // go to the higher-ranked bench players first.
+    minutes[i] += share + (i - benchStart < remainder ? 1 : 0);
+  }
+
+  return {for (var i = 0; i < n; i++) orderedRoster[i]: minutes[i]};
 }
 
 int Function(Player, Player) _byMostBehindSchedule(

@@ -750,6 +750,25 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     final isAllStarBreakDay =
         nextDayTypes.contains(GameType.skillsCompetition) ||
         nextDayTypes.contains(GameType.allStarGame);
+    // The postseason now plays out through this exact same day-by-day
+    // advance (2026-08-20, a direct GM report: "it needs to play all the
+    // games through the normal system") -- same "name the moment" note
+    // [isCupWeek] gets, reading the actual round straight off *today's*
+    // scheduled game(s) specifically, not just any postseason game
+    // anywhere in the schedule.
+    int? postseasonRoundToday;
+    if (nextDayTypes.contains(GameType.postseason)) {
+      final gameDays = gameDaysInOrder(progress.schedule);
+      final (todayWeek, todayDay) = gameDays[progress.nextGameDayIndex];
+      postseasonRoundToday = progress.schedule.games
+          .firstWhere(
+            (g) =>
+                g.type == GameType.postseason &&
+                g.week == todayWeek &&
+                g.day == todayDay,
+          )
+          .postseasonRound;
+    }
     final isOwnByeDay =
         !progress.isComplete &&
         !nextDayTypes.contains(GameType.skillsCompetition) &&
@@ -804,21 +823,28 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
               },
               child: const Text('Available Head Coaches'),
             ),
-          ] else if (progress.isComplete) ...[
-            const Text('Regular season complete.'),
-            const SizedBox(height: AppSpacing.md),
-            FilledButton(
-              onPressed: _isAdvancing ? null : _simulatePostseason,
-              child: _isAdvancing
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Simulate Postseason'),
-            ),
           ] else ...[
-            if (isCupWeek) ...[
+            if (postseasonRoundToday != null) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.emoji_events_outlined,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Postseason -- '
+                    '${postseasonRoundName(postseasonRoundToday)}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ] else if (isCupWeek) ...[
               Row(
                 children: [
                   Icon(
@@ -1076,68 +1102,6 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     }
     return '${results.length} game${results.length == 1 ? '' : 's'} '
         'simulated across the league.';
-  }
-
-  /// Runs the whole postseason bracket in one shot. If the GM's own team
-  /// played in the Finals-clinching game, hands off to [GameResultScreen]
-  /// for that one (same "surface the GM's own moment" treatment
-  /// [_advance] gives a regular game day) -- otherwise just announces the
-  /// champion, since the "Season" card above already grows a permanent
-  /// champion banner once this persists.
-  Future<void> _simulatePostseason() async {
-    setState(() => _isAdvancing = true);
-    final results = await ref
-        .read(currentFranchiseProvider.notifier)
-        .simulatePostseasonAndPersist();
-    if (!mounted) return;
-    setState(() => _isAdvancing = false);
-    if (results == null || results.isEmpty) return;
-
-    final ownAbbreviation = widget.franchise.team.abbreviation;
-    GameResult? clinchingFinalsGame;
-    for (final result in results) {
-      if (result.game.postseasonRound == 3) clinchingFinalsGame = result;
-    }
-
-    final updatedFranchise = ref.read(currentFranchiseProvider).value;
-    if (updatedFranchise == null) return;
-
-    final ownGameInFinals =
-        clinchingFinalsGame != null &&
-        (clinchingFinalsGame.game.homeTeamAbbreviation == ownAbbreviation ||
-            clinchingFinalsGame.game.awayTeamAbbreviation == ownAbbreviation);
-
-    if (!mounted) return;
-    if (ownGameInFinals) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => GameResultScreen(
-            franchise: updatedFranchise,
-            result: clinchingFinalsGame!,
-            // Postseason never shows a pre-game tactic picker -- both
-            // sides always resolve Balanced (`match_preview_screen.dart`'s
-            // own doc comment).
-            ownDefenseTactic: DefensiveTactic.balanced,
-          ),
-        ),
-      );
-    } else {
-      final champion = seasonChampion(
-        updatedFranchise.seasonProgress.playedGames,
-      );
-      final championTeam = champion == null
-          ? null
-          : teamByAbbreviation(updatedFranchise, champion);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            championTeam == null
-                ? 'The postseason is complete.'
-                : '🏆 ${championTeam.name} are the champions!',
-          ),
-        ),
-      );
-    }
   }
 }
 

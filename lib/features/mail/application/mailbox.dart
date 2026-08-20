@@ -1,8 +1,10 @@
 import '../../franchise/domain/franchise.dart';
 import '../../franchise/domain/franchise_legality.dart';
+import '../../franchise/domain/injury_report_entry.dart';
 import '../../player/domain/position.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../season/domain/game_day.dart';
 import '../../season/domain/scheduled_game.dart';
 import '../../season/generation/season_schedule_generator.dart'
     show kPostseasonFinalsWeek;
@@ -134,6 +136,11 @@ List<MailItem> mailboxFor(Franchise franchise) {
             .firstWhere((m) => m.player.id == pending.playerId)
             .player,
       ),
+    for (final group in _injuryReportsByGameDay(franchise.injuryReports))
+      InjuryReportMailItem(week: group.$1, day: group.$2, entries: group.$3),
+    for (final membership in franchise.roster)
+      if (membership.recoveredWhileReserved)
+        InjuryRecoveredMailItem(player: membership.player),
   ];
 
   items.sort((a, b) {
@@ -155,6 +162,7 @@ List<MailItem> mailboxFor(Franchise franchise) {
 bool _isPinned(MailItem item) =>
     item is RetirementDecisionMailItem ||
     item is RosterLegalityMailItem ||
+    item is InjuryRecoveredMailItem ||
     (item is AssistantGmMailItem && item.id == kRosterGapMailId);
 
 /// The season week a given [MailItem] is "about", for newest-first
@@ -177,11 +185,36 @@ int? _recencyWeek(MailItem item) => switch (item) {
   // a single played game), so this pins to the Finals' own calendar week,
   // the same moment the rest of the off-season report lands.
   LeagueRetirementsMailItem() => kPostseasonFinalsWeek,
+  InjuryReportMailItem(:final week) => week,
   AssistantGmMailItem(id: kRosterCompleteMailId) => -1,
   AssistantGmMailItem() ||
   RetirementDecisionMailItem() ||
-  RosterLegalityMailItem() => null,
+  RosterLegalityMailItem() ||
+  InjuryRecoveredMailItem() => null,
 };
+
+/// Groups [entries] (`Franchise.injuryReports`' flat, ungrouped records)
+/// into one tuple per (week, day) pair that has at least one -- what
+/// [mailboxFor] turns into one [InjuryReportMailItem] per game day. Order
+/// follows [entries]' own append order (chronological, since
+/// `injury_advancer.dart`'s `resolveInjuries` only ever appends in the
+/// order games were actually played), deduplicated by first occurrence of
+/// each (week, day) pair.
+List<(int, GameDay, List<InjuryReportEntry>)> _injuryReportsByGameDay(
+  List<InjuryReportEntry> entries,
+) {
+  final order = <(int, GameDay)>[];
+  final byKey = <(int, GameDay), List<InjuryReportEntry>>{};
+  for (final entry in entries) {
+    final key = (entry.week, entry.day);
+    if (!byKey.containsKey(key)) {
+      order.add(key);
+      byKey[key] = [];
+    }
+    byKey[key]!.add(entry);
+  }
+  return [for (final key in order) (key.$1, key.$2, byKey[key]!)];
+}
 
 /// How many items [mailboxFor] would return that aren't yet in
 /// [Franchise.readMailIds] -- what the Mail tab's red unread badge shows.

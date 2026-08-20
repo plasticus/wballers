@@ -29,7 +29,6 @@ import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/generation/continental_cup_generator.dart';
-import 'package:womensbballmgr/features/season/generation/postseason_advancer.dart';
 import 'package:womensbballmgr/features/season/generation/postseason_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 import 'package:womensbballmgr/features/season/presentation/season_recap_screen.dart';
@@ -47,7 +46,11 @@ import '../../roster/domain/roster_test_helpers.dart';
 /// Plays a real franchise all the way through the regular season,
 /// Continental Cup, and postseason -- same "play it for real, don't fake
 /// the data" approach `current_franchise_provider_test.dart`'s own
-/// postseason test uses.
+/// postseason test uses. The postseason plays out through this exact same
+/// `advanceToNextGameDay` loop now (2026-08-20, a direct GM report: "it
+/// needs to play all the games through the normal system") -- no separate
+/// bulk-simulate call needed, just a generous enough guard to cover the
+/// whole season through to a decided champion.
 Franchise _playFullSeason(int simulationSeed) {
   var franchise = withFullActiveRoster(
     createExpansionFranchise(
@@ -62,27 +65,21 @@ Franchise _playFullSeason(int simulationSeed) {
     ),
   );
   final rosters = rostersByAbbreviation(franchise);
+  final leagueTeams = allLeagueTeams(franchise);
 
   var progress = franchise.seasonProgress;
   var guard = 0;
-  while (!progress.isComplete && guard < 60) {
+  while (!progress.isComplete && guard < 150) {
     final advance = advanceToNextGameDay(
       Random(franchise.simulationSeed + kSeasonAdvanceSeedOffset + guard),
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: leagueTeams,
     );
     progress = advance.progress;
     guard++;
   }
-  franchise = franchise.copyWithSeasonProgress(progress);
-
-  final postseasonAdvance = simulatePostseason(
-    Random(franchise.simulationSeed + kPostseasonAdvanceSeedOffset),
-    franchise.seasonProgress,
-    leagueTeams: allLeagueTeams(franchise),
-    rostersByAbbreviation: rosters,
-  );
-  return franchise.copyWithSeasonProgress(postseasonAdvance.progress);
+  return franchise.copyWithSeasonProgress(progress);
 }
 
 void main() {

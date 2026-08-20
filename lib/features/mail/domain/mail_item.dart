@@ -1,8 +1,10 @@
+import '../../franchise/domain/injury_report_entry.dart';
 import '../../franchise/domain/league_retirement.dart';
 import '../../franchise/domain/pending_retirement.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../../roster/domain/roster_legality.dart';
+import '../../season/domain/game_day.dart';
 import '../../season/domain/played_game.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../training/domain/training_report.dart';
@@ -214,4 +216,48 @@ class RosterLegalityMailItem extends MailItem {
 
   @override
   String get subject => 'Roster Legality Issue';
+}
+
+/// Every new injury (across the whole league, the GM's own roster
+/// included) from one real game day, grouped by [week]/[day]
+/// (2026-08-20, following the injuries design pass). `Franchise.injuryReports`
+/// is where the flat, ungrouped records actually live -- `mailboxFor`
+/// groups them into one of these per game day that produced at least one.
+class InjuryReportMailItem extends MailItem {
+  const InjuryReportMailItem({
+    required this.week,
+    required this.day,
+    required this.entries,
+  });
+
+  final int week;
+  final GameDay day;
+  final List<InjuryReportEntry> entries;
+
+  @override
+  String get id => 'injury_report_${week}_${day.name}';
+
+  @override
+  String get subject => 'Injury Report';
+}
+
+/// [player] has fully recovered while still parked in
+/// [RosterStatus.reserveInactive] -- a direct GM ask: "you should get an
+/// asst gm mail when a player has fully recovered from injury if they are
+/// on the reserve slots, so that you have a reminder to put them back in
+/// the active roster if you want." Live-derived from
+/// [RosterMembership.recoveredWhileReserved] every time, same "appears
+/// until fixed" posture [RosterLegalityMailItem] already has -- see that
+/// field's own doc comment for why a durable flag (not just
+/// `injury == null`) is what makes this safe to re-derive.
+class InjuryRecoveredMailItem extends MailItem {
+  const InjuryRecoveredMailItem({required this.player});
+
+  final Player player;
+
+  @override
+  String get id => 'injury_recovered_${player.id}';
+
+  @override
+  String get subject => '${player.name} is Ready to Play';
 }

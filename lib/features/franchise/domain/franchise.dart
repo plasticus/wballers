@@ -14,6 +14,7 @@ import '../../training/domain/training_plan.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../training/domain/training_report.dart';
 import 'former_player_record.dart';
+import 'injury_report_entry.dart';
 import 'league_retirement.dart';
 import 'pending_retirement.dart';
 
@@ -72,6 +73,7 @@ class Franchise {
     this.seasonEndAgingResults = const [],
     this.skillsCompetitionResults = const [],
     this.leagueRetirements = const [],
+    this.injuryReports = const [],
     this.freeAgents = const [],
     this.readMailIds = const {},
     this.pendingRetirements = const [],
@@ -212,6 +214,12 @@ class Franchise {
   /// why the GM's own roster and the narrative veteran are deliberately
   /// left out.
   final List<LeagueRetirement> leagueRetirements;
+
+  /// Every new injury (across every team, the GM's own included) this
+  /// season, reset each new season the same way [leagueRetirements] is --
+  /// see [InjuryReportEntry]'s own doc comment. `InjuryReportMailItem`
+  /// groups these by game day.
+  final List<InjuryReportEntry> injuryReports;
 
   /// Unrostered players available to sign -- real, persisted game state
   /// (not to be confused with the Player Market screen's still-preview-only
@@ -398,6 +406,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -437,6 +446,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -476,6 +486,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -514,6 +525,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -552,6 +564,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -590,6 +603,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -628,6 +642,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -676,6 +691,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -722,6 +738,7 @@ class Franchise {
       seasonEndAgingResults: newResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -761,6 +778,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: [...skillsCompetitionResults, newResult],
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -800,6 +818,52 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: [...leagueRetirements, ...newRetirements],
+      injuryReports: injuryReports,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
+    );
+  }
+
+  /// Returns a copy with [newReports] appended to [injuryReports] --
+  /// `injury_advancer.dart`'s `resolveInjuries` is the only producer,
+  /// once per game day advanced (`advanceGameDay`,
+  /// `advanceGameDayWithOwnResult`, `simulatePostseasonAndPersist`).
+  /// Applied alongside separate [copyWithRoster]/[copyWithLeague] calls
+  /// for the actual roster/injury-state mutations, same "several small
+  /// chained copies, not one combined one" pattern
+  /// [copyWithLeagueRetirements] already follows.
+  Franchise copyWithInjuryReports(List<InjuryReportEntry> newReports) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
+      injuryReports: [...injuryReports, ...newReports],
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -840,6 +904,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -885,6 +950,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -927,6 +993,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -966,6 +1033,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: newReadMailIds,
       pendingRetirements: pendingRetirements,
@@ -1005,6 +1073,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1048,6 +1117,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1094,6 +1164,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1134,6 +1205,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1188,6 +1260,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: newPendingRetirements,
@@ -1249,6 +1322,7 @@ class Franchise {
       seasonEndAgingResults: const [],
       skillsCompetitionResults: const [],
       leagueRetirements: const [],
+      injuryReports: const [],
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1299,6 +1373,7 @@ class Franchise {
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
       leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,

@@ -13,6 +13,7 @@ import '../../training/persistence/training_plan_json.dart';
 import '../../training/persistence/training_report_json.dart';
 import '../domain/franchise.dart';
 import 'former_player_record_json.dart';
+import 'injury_report_entry_json.dart';
 import 'league_retirement_json.dart';
 import 'pending_retirement_json.dart';
 
@@ -46,6 +47,9 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         .toList(),
     'leagueRetirements': franchise.leagueRetirements
         .map(leagueRetirementToJson)
+        .toList(),
+    'injuryReports': franchise.injuryReports
+        .map(injuryReportEntryToJson)
         .toList(),
     'freeAgents': franchise.freeAgents.map(playerToJson).toList(),
     'readMailIds': franchise.readMailIds.toList(),
@@ -120,6 +124,11 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
             .toList(),
     leagueRetirements: (json['leagueRetirements'] as List<dynamic>)
         .map((value) => leagueRetirementFromJson(value as Map<String, dynamic>))
+        .toList(),
+    injuryReports: (json['injuryReports'] as List<dynamic>)
+        .map(
+          (value) => injuryReportEntryFromJson(value as Map<String, dynamic>),
+        )
         .toList(),
     freeAgents: (json['freeAgents'] as List<dynamic>)
         .map((value) => playerFromJson(value as Map<String, dynamic>))

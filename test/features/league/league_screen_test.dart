@@ -71,6 +71,7 @@ Franchise _franchiseThroughContinentalCupRound1() {
       Random(franchise.simulationSeed + kSeasonAdvanceSeedOffset + i),
       progress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
+      leagueTeams: allLeagueTeams(franchise),
     );
     progress = advance.progress;
   }

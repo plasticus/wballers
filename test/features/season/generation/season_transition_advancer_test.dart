@@ -22,7 +22,12 @@ import '../../../support/in_memory_save_repository.dart';
 /// provider (same "play out a whole season" pattern
 /// `current_franchise_provider_test.dart` already established), and
 /// returns the resulting persisted [Franchise] -- `seasonIsOver` true,
-/// ready for [beginNextSeason].
+/// ready for [beginNextSeason]. The postseason plays out through the exact
+/// same `advanceGameDay` every other game day already uses (2026-08-20, a
+/// direct GM report: "it needs to play all the games through the normal
+/// system"), so a generous guard covers the whole season -- regular
+/// season, Continental Cup, All-Star break, and the postseason bracket
+/// through to a decided champion -- not just the regular season.
 Future<Franchise> _playedOutFranchise(Franchise franchise) async {
   final container = ProviderContainer(
     overrides: [
@@ -36,14 +41,11 @@ Future<Franchise> _playedOutFranchise(Franchise franchise) async {
 
   var progress = franchise.seasonProgress;
   var guard = 0;
-  while (!progress.isComplete && guard < 60) {
+  while (!progress.isComplete && guard < 150) {
     await container.read(currentFranchiseProvider.notifier).advanceGameDay();
     progress = container.read(currentFranchiseProvider).value!.seasonProgress;
     guard++;
   }
-  await container
-      .read(currentFranchiseProvider.notifier)
-      .simulatePostseasonAndPersist();
   return container.read(currentFranchiseProvider).value!;
 }
 

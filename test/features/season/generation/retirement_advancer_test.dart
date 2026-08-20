@@ -27,19 +27,28 @@ import '../../../support/franchise_test_helpers.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../roster/domain/roster_test_helpers.dart';
 
-PlayedGame _finalsGame({required String winner, required String loser}) {
-  return PlayedGame(
-    game: ScheduledGame(
-      week: 24,
-      day: GameDay.sunday,
-      homeTeamAbbreviation: winner,
-      awayTeamAbbreviation: loser,
-      type: GameType.postseason,
-      postseasonRound: 3,
-    ),
-    homeScore: 80,
-    awayScore: 70,
-  );
+/// A real clinched Finals -- 4 games (`seasonChampion`'s own actual win
+/// threshold, `postseason_generator.dart`'s `_finalsWinsNeeded`), not just
+/// one -- `seasonChampion` no longer treats "leads in win count" as
+/// decided now that a genuinely mid-series Finals is a reachable state
+/// (2026-08-20, following the "play the postseason through the normal
+/// system" rework).
+List<PlayedGame> _finalsGames({required String winner, required String loser}) {
+  return [
+    for (var i = 0; i < 4; i++)
+      PlayedGame(
+        game: ScheduledGame(
+          week: 24 + i ~/ GameDay.values.length,
+          day: GameDay.values[i % GameDay.values.length],
+          homeTeamAbbreviation: winner,
+          awayTeamAbbreviation: loser,
+          type: GameType.postseason,
+          postseasonRound: 3,
+        ),
+        homeScore: 80,
+        awayScore: 70,
+      ),
+  ];
 }
 
 /// Same "one controlled AI team, the other 18 straight from [testLeague]"
@@ -62,7 +71,7 @@ Franchise _franchiseWithAiRoster(
   );
   final playedGames = championAbbreviation == null
       ? const <PlayedGame>[]
-      : [_finalsGame(winner: championAbbreviation, loser: 'ZZZ')];
+      : _finalsGames(winner: championAbbreviation, loser: 'ZZZ');
   return Franchise(
     id: 'franchise-1',
     gmName: 'Taylor Reed',

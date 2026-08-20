@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
+import 'package:womensbballmgr/features/franchise/domain/injury_report_entry.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
 import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
+import 'package:womensbballmgr/features/player/domain/player_injury.dart';
 import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
@@ -426,4 +428,150 @@ void main() {
     expect(find.text('Game Result'), findsNothing);
     expect(find.text('Open result'), findsOneWidget);
   });
+
+  testWidgets(
+    'a new injury from this exact game shows a loud alert above the box '
+    'score (2026-08-20, a direct GM ask: "it absolutely needs to be on '
+    'the game result screen... big and bold")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      final opponent = franchise.league.aiTeams.first.team;
+      final rosters = rostersByAbbreviation(franchise);
+      final match = simulateMatch(
+        Random(1),
+        homeRoster: rosters[franchise.team.abbreviation]!,
+        awayRoster: rosters[opponent.abbreviation]!,
+      );
+      final result = GameResult(
+        game: ScheduledGame(
+          week: 2,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: franchise.team.abbreviation,
+          awayTeamAbbreviation: opponent.abbreviation,
+          type: GameType.regularSeason,
+        ),
+        match: match,
+      );
+      final withInjury = franchise.copyWithInjuryReports([
+        InjuryReportEntry(
+          playerId: 'hurt-1',
+          name: 'Alex Rivera',
+          teamAbbreviation: franchise.team.abbreviation,
+          severity: InjurySeverity.moderate,
+          week: 2,
+          day: GameDay.sunday,
+          season: 0,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+          child: MaterialApp(
+            home: GameResultScreen(
+              franchise: withInjury,
+              result: result,
+              ownDefenseTactic: DefensiveTactic.balanced,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Injury Report'), findsOneWidget);
+      expect(
+        find.textContaining('Alex Rivera (${franchise.team.abbreviation})'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Moderate injury'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'no alert when injuryReports has entries, but none from this exact '
+    'game day',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      final opponent = franchise.league.aiTeams.first.team;
+      final rosters = rostersByAbbreviation(franchise);
+      final match = simulateMatch(
+        Random(1),
+        homeRoster: rosters[franchise.team.abbreviation]!,
+        awayRoster: rosters[opponent.abbreviation]!,
+      );
+      final result = GameResult(
+        game: ScheduledGame(
+          week: 2,
+          day: GameDay.sunday,
+          homeTeamAbbreviation: franchise.team.abbreviation,
+          awayTeamAbbreviation: opponent.abbreviation,
+          type: GameType.regularSeason,
+        ),
+        match: match,
+      );
+      // A real injury, just from an earlier game day -- shouldn't bleed
+      // into this later one's result screen.
+      final withInjury = franchise.copyWithInjuryReports([
+        InjuryReportEntry(
+          playerId: 'hurt-1',
+          name: 'Alex Rivera',
+          teamAbbreviation: franchise.team.abbreviation,
+          severity: InjurySeverity.moderate,
+          week: 1,
+          day: GameDay.sunday,
+          season: 0,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+          ],
+          child: MaterialApp(
+            home: GameResultScreen(
+              franchise: withInjury,
+              result: result,
+              ownDefenseTactic: DefensiveTactic.balanced,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Injury Report'), findsNothing);
+    },
+  );
 }

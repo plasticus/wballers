@@ -55,6 +55,7 @@ Franchise _franchiseWithRegularSeasonGames() {
       Random(franchise.simulationSeed + kSeasonAdvanceSeedOffset + i),
       progress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
+      leagueTeams: allLeagueTeams(franchise),
     );
     progress = advance.progress;
     if (progress.playedGames.any(

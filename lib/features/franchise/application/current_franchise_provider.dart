@@ -25,7 +25,7 @@ import '../../season/domain/scheduled_game.dart';
 import '../../season/domain/season_progress.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../season/generation/all_star_advancer.dart';
-import '../../season/generation/postseason_advancer.dart';
+import '../../season/generation/injury_advancer.dart';
 import '../../season/generation/postseason_generator.dart' show seasonChampion;
 import '../../season/generation/retirement_advancer.dart';
 import '../../season/generation/season_advancer.dart';
@@ -168,9 +168,16 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     }
 
     final newRoster = [...franchise.roster];
-    newRoster[index] = RosterMembership(
-      player: membership.player,
+    // `copyWith`, not a fresh `RosterMembership(...)` -- preserves
+    // [RosterMembership.injury] across the move (an injured player moved
+    // between slots is still injured; this isn't a recovery mechanism).
+    // [RosterMembership.recoveredWhileReserved] does get cleared here,
+    // deliberately -- any real move the GM makes off this player counts as
+    // having seen/acted on the reminder, not just a move specifically back
+    // to active.
+    newRoster[index] = membership.copyWith(
       status: newStatus,
+      recoveredWhileReserved: false,
     );
     await _persist(franchise.copyWithRoster(newRoster));
   }
@@ -571,6 +578,33 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     await _persist(franchise.copyWithRoster(newRoster));
   }
 
+  /// Whether [advanceGameDay]/[advanceGameDayWithOwnResult] should refuse
+  /// to run. Originally a flat `activeCount < kActiveRosterSize` check, but
+  /// that ended up stricter than the game's own roster-legality rules ever
+  /// were: `roster_legality.dart`'s own doc comment is explicit that
+  /// there's "no enforced minimum" on active roster size -- running short
+  /// is meant to be a self-inflicted disadvantage, not something the game
+  /// blocks. The flat check only existed for one real scenario: a fresh
+  /// expansion roster starts one player short on purpose
+  /// (`generateStartingRoster`'s doc comment), and the season shouldn't be
+  /// advanceable until the GM fills that Day-0 gap with a free agent.
+  ///
+  /// Narrowed (2026-08-20, following the injuries design pass) to exactly
+  /// that Day-0 case -- `franchise.season == 0` and still short a player --
+  /// so that parking a player or two in Reserve/Inactive for an injury,
+  /// later in a season, no longer blocks play the same way. The Dashboard's
+  /// own button already hides itself in the Day-0 situation
+  /// (`dashboard_screen.dart`'s `_SeasonAdvanceCard`), so a real GM should
+  /// never hit this guard -- it's here so nothing else that might call
+  /// [advanceGameDay] directly could accidentally bypass the gate.
+  bool _blockedByRosterGap(Franchise franchise) {
+    if (franchise.season != 0) return false;
+    final activeCount = franchise.roster
+        .where((m) => m.status == RosterStatus.active)
+        .length;
+    return activeCount < kActiveRosterSize;
+  }
+
   /// Simulates the next scheduled game day and persists the result.
   /// Returns the full [GameResult]s for that game day -- box scores and
   /// all -- so the caller can do something with them (show the GM's own
@@ -580,15 +614,8 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   ///
   /// Returns `null` if there's no current franchise, if the season has no
   /// game days left to advance to ([SeasonProgress.isComplete]), or if
-  /// the active roster is under [kActiveRosterSize] -- a direct GM ask
-  /// for a real Day-0 hook: a fresh expansion roster starts one player
-  /// short on purpose (`generateStartingRoster`'s doc comment), and the
-  /// season can't advance until the GM signs a free agent to fill it.
-  /// This is the actual enforcement point; the Dashboard's own button
-  /// already hides itself in the same situation (`dashboard_screen.dart`'s
-  /// `_SeasonAdvanceCard`), so a real GM should never hit this guard --
-  /// it's here so nothing else that might call this directly could
-  /// accidentally bypass the gate.
+  /// [_blockedByRosterGap] -- see that method's doc comment for exactly
+  /// which roster gaps block advancing and which don't.
   ///
   /// The [Random] stream is reseeded from [Franchise.seasonSeed] plus
   /// the game day index being advanced, not carried forward across calls
@@ -609,10 +636,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     if (franchise == null || franchise.seasonProgress.isComplete) {
       return null;
     }
-    final activeCount = franchise.roster
-        .where((m) => m.status == RosterStatus.active)
-        .length;
-    if (activeCount < kActiveRosterSize) return null;
+    if (_blockedByRosterGap(franchise)) return null;
 
     final advance = advanceToNextGameDay(
       Random(
@@ -622,20 +646,44 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       ),
       franchise.seasonProgress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
+      leagueTeams: allLeagueTeams(franchise),
       ownTeamAbbreviation: franchise.team.abbreviation,
       coachesByAbbreviation: coachesByAbbreviation(franchise),
       ownDefenseTactic: ownDefenseTactic,
+      injuryPenaltyByAbbreviation: _injuryPenaltyByAbbreviation(franchise),
     );
 
     final withTraining = _catchUpTraining(
       franchise.copyWithSeasonProgress(advance.progress),
     );
+    final withInjuries = _withInjuriesResolved(
+      Random(
+        franchise.seasonSeed +
+            kInjuryResolutionSeedOffset +
+            franchise.seasonProgress.nextGameDayIndex,
+      ),
+      withTraining,
+      gamesPlayed: advance.gamesPlayed,
+      // This game day might be a postseason one -- `advance.gamesPlayed`
+      // being postseason games is exactly what makes this true, no
+      // separate flag needed.
+      isPostseason: advance.gamesPlayed.any(
+        (result) => result.game.type == GameType.postseason,
+      ),
+    );
+    // The Finals just got decided (or the postseason was somehow skipped
+    // entirely, e.g. a hand-built test franchise) -- run the full
+    // off-season pipeline right here, the same real, unambiguous signal
+    // [_resolveOffSeason]'s own doc comment describes.
+    final withOffSeason = withInjuries.seasonProgress.isComplete
+        ? _resolveOffSeason(withInjuries)
+        : withInjuries;
     // A new game day means a new Trade Board turn -- whatever the GM
     // accepted/declined on the day that just ended shouldn't keep
     // suppressing a freshly (re)generated offer that happens to land on
     // the same deterministic id again (`Franchise.resolvedTradeOfferIds`'s
     // own doc comment).
-    await _persist(withTraining.copyWithResolvedTradeOfferIds(const {}));
+    await _persist(withOffSeason.copyWithResolvedTradeOfferIds(const {}));
     return advance.gamesPlayed;
   }
 
@@ -668,10 +716,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     if (franchise == null || franchise.seasonProgress.isComplete) {
       return null;
     }
-    final activeCount = franchise.roster
-        .where((m) => m.status == RosterStatus.active)
-        .length;
-    if (activeCount < kActiveRosterSize) return null;
+    if (_blockedByRosterGap(franchise)) return null;
 
     final advance = advanceToNextGameDay(
       Random(
@@ -681,21 +726,38 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       ),
       franchise.seasonProgress,
       rostersByAbbreviation: rostersByAbbreviation(franchise),
+      leagueTeams: allLeagueTeams(franchise),
       ownTeamAbbreviation: franchise.team.abbreviation,
       coachesByAbbreviation: coachesByAbbreviation(franchise),
       ownDefenseTactic: ownDefenseTactic,
       ownGameAlreadyPlayed: ownMatch,
+      injuryPenaltyByAbbreviation: _injuryPenaltyByAbbreviation(franchise),
     );
 
     final withTraining = _catchUpTraining(
       franchise.copyWithSeasonProgress(advance.progress),
     );
+    final withInjuries = _withInjuriesResolved(
+      Random(
+        franchise.seasonSeed +
+            kInjuryResolutionSeedOffset +
+            franchise.seasonProgress.nextGameDayIndex,
+      ),
+      withTraining,
+      gamesPlayed: advance.gamesPlayed,
+      isPostseason: advance.gamesPlayed.any(
+        (result) => result.game.type == GameType.postseason,
+      ),
+    );
+    final withOffSeason = withInjuries.seasonProgress.isComplete
+        ? _resolveOffSeason(withInjuries)
+        : withInjuries;
     // A new game day means a new Trade Board turn -- whatever the GM
     // accepted/declined on the day that just ended shouldn't keep
     // suppressing a freshly (re)generated offer that happens to land on
     // the same deterministic id again (`Franchise.resolvedTradeOfferIds`'s
     // own doc comment).
-    await _persist(withTraining.copyWithResolvedTradeOfferIds(const {}));
+    await _persist(withOffSeason.copyWithResolvedTradeOfferIds(const {}));
     return advance.gamesPlayed;
   }
 
@@ -790,52 +852,32 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     return gameAdvance;
   }
 
-  /// Runs the entire postseason bracket (First Round -> Semifinals ->
-  /// Finals) in one call and persists the result. Returns the full
-  /// [GameResult]s for every series game played, same "here's your
-  /// transient window" deal as [advanceGameDay].
+  /// Runs the full off-season pipeline -- everything that needs to happen
+  /// the moment a season is unambiguously, completely over (the Finals
+  /// decided, nothing left on the calendar). Called from wherever an
+  /// advance just made [SeasonProgress.isComplete] newly true
+  /// ([advanceGameDay], [advanceGameDayWithOwnResult]) -- now that the
+  /// postseason plays out one real game day at a time just like everything
+  /// else (2026-08-20, a direct GM report: "it needs to play all the games
+  /// through the normal system"), there's no longer one single dedicated
+  /// "simulate the postseason" call site to hang this off of; `isComplete`
+  /// flipping true is the real, unambiguous signal instead. Safe to call
+  /// unconditionally once that's confirmed -- `advanceGameDay`'s own early
+  /// return already prevents a second call from ever reaching here once
+  /// the season's actually done, so this never double-applies.
   ///
-  /// Returns `null` if there's no current franchise, or if
-  /// [SeasonProgress.isComplete] isn't true yet (there's still day-by-day
-  /// advancing to do -- the postseason needs final regular-season
-  /// standings to seed). Also returns `null` (a no-op) if the postseason
-  /// has already been played this season -- see
-  /// [simulatePostseason]'s idempotency note.
-  ///
-  /// This is also the one moment the whole season is unambiguously over,
-  /// which is why it's the single call site for [resolveSeasonEndAging]
-  /// (TODO.md item 1's other half, see that function's own doc comment
-  /// for why), [resolveAiTeamSeasonTraining] (TODO.md item 8 -- every
-  /// AI roster's whole season of training resolves right here too, in
-  /// one lump, per the GM's own design call), and [resolveSeasonAwards]
-  /// (`0D_Season_2_Roadmap.md`'s Presentation stage -- League MVP,
-  /// Scoring Leader, Defensive MVP, Sixth Man, Most Improved Player, and
-  /// Rookie of the Year all resolve here too) -- all gated behind the
-  /// exact same `advance.gamesPlayed.isEmpty` idempotency check as
-  /// everything else in this method, so none of them can ever apply
-  /// twice to one season.
-  Future<List<GameResult>?> simulatePostseasonAndPersist() async {
-    final franchise = await future;
-    if (franchise == null || !franchise.seasonProgress.isComplete) {
-      return null;
-    }
-
-    final advance = simulatePostseason(
-      Random(franchise.seasonSeed + kPostseasonAdvanceSeedOffset),
-      franchise.seasonProgress,
-      leagueTeams: allLeagueTeams(franchise),
-      rostersByAbbreviation: rostersByAbbreviation(franchise),
-      ownTeamAbbreviation: franchise.team.abbreviation,
-      coachesByAbbreviation: coachesByAbbreviation(franchise),
-    );
-    if (advance.gamesPlayed.isEmpty) return null; // already played
-
-    final withTraining = _catchUpTraining(
-      franchise.copyWithSeasonProgress(advance.progress),
-    );
+  /// This is the single call site for [resolveSeasonEndAging] (TODO.md
+  /// item 1's other half, see that function's own doc comment for why),
+  /// [resolveAiTeamSeasonTraining] (TODO.md item 8 -- every AI roster's
+  /// whole season of training resolves right here too, in one lump, per
+  /// the GM's own design call), and [resolveSeasonAwards]
+  /// (`0D_Season_2_Roadmap.md`'s Presentation stage -- League MVP, Scoring
+  /// Leader, Defensive MVP, Sixth Man, Most Improved Player, and Rookie of
+  /// the Year all resolve here too).
+  Franchise _resolveOffSeason(Franchise franchise) {
     final agingAdvance = resolveSeasonEndAging(
-      Random(withTraining.seasonSeed + kSeasonEndAgingSeedOffset),
-      withTraining,
+      Random(franchise.seasonSeed + kSeasonEndAgingSeedOffset),
+      franchise,
     );
     final aiTrainingAdvance = resolveAiTeamSeasonTraining(
       Random(agingAdvance.franchise.seasonSeed + kAiTeamTrainingSeedOffset),
@@ -946,8 +988,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     // Tenure (age/yearsOfService) increments last, deliberately -- every
     // pass above computes its result against the age a player played this
     // season *at* (`advancePlayerTenure`'s own doc comment).
-    await _persist(advancePlayerTenure(withAiOffseasonTrades));
-    return advance.gamesPlayed;
+    return advancePlayerTenure(withAiOffseasonTrades);
   }
 
   /// Transitions [franchise] into its next season ([beginNextSeason]) and
@@ -1061,7 +1102,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// show it once, same "here's your transient window" deal as
   /// [advanceGameDay].
   ///
-  /// [advanceGameDay] and [simulatePostseasonAndPersist] both already call
+  /// [advanceGameDay] and [advanceGameDayWithOwnResult] both already call
   /// [_catchUpTraining] themselves the moment a week completes, so in
   /// normal play there's nothing left pending by the time anything else
   /// would call this -- it exists as a manual fallback (a save from before
@@ -1118,10 +1159,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// That's what produced training reports on weeks 2, 6, 8, 9 of a season
   /// instead of every week, and made a report look like it "disappeared"
   /// if it wasn't opened the moment it appeared. Calling this from
-  /// [advanceGameDay] and [simulatePostseasonAndPersist] -- every path
-  /// that can complete a week -- means a week's report exists the instant
-  /// that week finishes, full stop, with no dependence on the GM's UI
-  /// timing at all.
+  /// [advanceGameDay] and [advanceGameDayWithOwnResult] -- every path
+  /// that can complete a week, postseason weeks included now that those
+  /// play out the same day-by-day way -- means a week's report exists the
+  /// instant that week finishes, full stop, with no dependence on the
+  /// GM's UI timing at all.
   Franchise _catchUpTraining(Franchise franchise) {
     var current = franchise;
     while (true) {
@@ -1136,6 +1178,38 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       if (advance == null) return current;
       current = advance.franchise;
     }
+  }
+
+  /// Every team's current active-roster injury penalty, keyed by
+  /// abbreviation (2026-08-20, `injury_advancer.dart`) -- what
+  /// [advanceToNextGameDay]'s `injuryPenaltyByAbbreviation` param needs so
+  /// an already-hobbled player actually plays worse in their next game.
+  Map<String, Map<Player, double>> _injuryPenaltyByAbbreviation(
+    Franchise franchise,
+  ) {
+    return {
+      for (final entry in rosterMembershipsByAbbreviation(franchise).entries)
+        entry.key: injuryPenaltyFor(entry.value),
+    };
+  }
+
+  /// Runs [resolveInjuries] against [franchise] for [gamesPlayed] --
+  /// shared by every caller that just advanced through real games
+  /// ([advanceGameDay], [advanceGameDayWithOwnResult]), same "one shared
+  /// helper, several callers" shape [_catchUpTraining] already
+  /// established.
+  Franchise _withInjuriesResolved(
+    Random random,
+    Franchise franchise, {
+    required List<GameResult> gamesPlayed,
+    required bool isPostseason,
+  }) {
+    return resolveInjuries(
+      random,
+      franchise,
+      gamesPlayed: gamesPlayed,
+      isPostseason: isPostseason,
+    );
   }
 
   /// Marks a Mail inbox item (`mail/domain/mail_item.dart`'s `MailItem.id`)

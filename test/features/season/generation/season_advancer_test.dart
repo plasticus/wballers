@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/match/domain/match_result.dart';
 import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
@@ -10,6 +11,27 @@ import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
 import 'package:womensbballmgr/features/season/generation/season_advancer.dart';
 
 import '../../../support/match_test_players.dart';
+
+// Just the 4 synthetic teams this file's `_schedule` references -- fewer
+// than `kPostseasonTeamCount` (8) on purpose, so `growPostseasonSchedule`
+// gracefully no-ops rather than trying to seed a real postseason bracket
+// out of a hand-built 3-game test schedule (`postseason_generator.dart`'s
+// own guard already handles a too-small standings table).
+Team _team(String abbreviation) => Team(
+  abbreviation: abbreviation,
+  location: abbreviation,
+  name: abbreviation,
+  conference: Conference.atlantic,
+  colors: const TeamColors(
+    primaryHex: '#000000',
+    secondaryHex: '#111111',
+    accentHex: '#222222',
+  ),
+  identityNote: '',
+  emoji: '🏀',
+);
+
+final _leagueTeams = ['AAA', 'BBB', 'CCC', 'DDD'].map(_team).toList();
 
 // Week 2 has 2 game days (Sunday: AAA-BBB, Thursday: CCC-DDD). Week 3 is
 // deliberately empty (a bye week). Week 4 has one game day.
@@ -55,6 +77,7 @@ void main() {
       Random(1),
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
     );
 
     // Only the Sunday slate (week 2) played -- the Thursday slate of the
@@ -83,6 +106,7 @@ void main() {
       Random(1),
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
     );
 
     expect(result.progress.playedGames.length, 1);
@@ -105,11 +129,13 @@ void main() {
       Random(7),
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
     );
     final b = advanceToNextGameDay(
       Random(7),
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
     );
 
     for (var i = 0; i < a.progress.playedGames.length; i++) {
@@ -142,16 +168,19 @@ void main() {
       random,
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
     ).progress;
     progress = advanceToNextGameDay(
       random,
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
     ).progress;
     progress = advanceToNextGameDay(
       random,
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
     ).progress;
 
     expect(progress.nextGameDayIndex, 3);
@@ -181,6 +210,7 @@ void main() {
       Random(1),
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
       ownTeamAbbreviation: 'AAA',
     );
 
@@ -220,6 +250,7 @@ void main() {
         Random(seed),
         progress,
         rostersByAbbreviation: rosters,
+        leagueTeams: _leagueTeams,
         ownTeamAbbreviation: 'AAA',
         ownDefenseTactic: DefensiveTactic.faceGuardStar,
       );
@@ -232,6 +263,7 @@ void main() {
         Random(seed),
         progress,
         rostersByAbbreviation: rosters,
+        leagueTeams: _leagueTeams,
         ownTeamAbbreviation: 'AAA',
       );
       bbbScoreBalanced += result.gamesPlayed.single.match.awayScore;
@@ -291,6 +323,7 @@ void main() {
       Random(1),
       progress,
       rostersByAbbreviation: rosters,
+      leagueTeams: _leagueTeams,
       ownTeamAbbreviation: 'AAA',
       ownGameAlreadyPlayed: fakeOwnMatch,
     );
@@ -345,6 +378,7 @@ void main() {
         Random(2),
         progress,
         rostersByAbbreviation: rosters,
+        leagueTeams: _leagueTeams,
       );
       progress = result.progress;
 
@@ -388,6 +422,7 @@ void main() {
           random,
           progress,
           rostersByAbbreviation: rosters,
+          leagueTeams: _leagueTeams,
         ).progress;
         iterations++;
       }

@@ -19,6 +19,22 @@ Map<String, List<Player>> rostersByAbbreviation(Franchise franchise) {
   };
 }
 
+/// Every team's *full* roster -- every [RosterMembership] regardless of
+/// [RosterStatus], unlike [rostersByAbbreviation]'s active-only players
+/// -- keyed by `Team.abbreviation`. What `injury_advancer.dart` needs:
+/// injury resolution has to see developmental/Reserve-Inactive players
+/// too (an already-injured player parked in Reserve/Inactive still needs
+/// their recovery countdown to advance).
+Map<String, List<RosterMembership>> rosterMembershipsByAbbreviation(
+  Franchise franchise,
+) {
+  return {
+    franchise.team.abbreviation: franchise.roster,
+    for (final aiTeam in franchise.league.aiTeams)
+      aiTeam.team.abbreviation: aiTeam.roster,
+  };
+}
+
 /// [franchise]'s own head coach plus every AI team's, keyed by
 /// `Team.abbreviation` -- the parallel-shaped map `simulateMatch`'s
 /// `homeCoach`/`awayCoach` (the coach Offense-vs-Defense matchup,

@@ -63,10 +63,21 @@ void main() {
       );
     });
 
-    test('throws when the roster does not have exactly 12 players', () {
+    test('still assigns minutes summing to 200 for a short-handed roster '
+        '(2026-08-20, injuries: a player or two parked in Reserve/'
+        'Inactive)', () {
       final roster = testRoster('r').take(11).toList();
 
-      expect(() => targetMinutesFor(roster), throwsA(isA<AssertionError>()));
+      final targetMinutes = targetMinutesFor(roster);
+
+      expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
+    });
+
+    test('throws when fewer than 5 or more than 12 players are given', () {
+      expect(
+        () => targetMinutesFor(testRoster('r').take(4).toList()),
+        throwsA(isA<AssertionError>()),
+      );
     });
 
     test('balances roughly half of position-imbalanced rosters, leaving '
@@ -149,13 +160,50 @@ void main() {
       expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
     });
 
-    test('throws when the roster does not have exactly 12 players', () {
-      final roster = testRoster('r').take(11).toList();
-
+    test('throws when fewer than 5 or more than 12 players are given', () {
       expect(
-        () => targetMinutesForOrderedRoster(roster),
+        () => targetMinutesForOrderedRoster(testRoster('r').take(4).toList()),
         throwsA(isA<AssertionError>()),
       );
+    });
+
+    test('a short-handed roster (injuries parked in Reserve/Inactive) '
+        'leaves the 5 starters\' minutes untouched and spreads the '
+        'shortfall across the bench (2026-08-20, a direct GM question: '
+        '"do we need to plan minutes differently?")', () {
+      // 2 players missing from a full 12 -- the GM's own "we\'re missing
+      // out on 8 minutes of time" example.
+      final roster = testRoster('r').take(10).toList();
+
+      final targetMinutes = targetMinutesForOrderedRoster(roster);
+
+      // Starters (ranks 1-5) keep exactly the same minutes a full roster
+      // would have given them.
+      expect(targetMinutes[roster[0]], 30);
+      expect(targetMinutes[roster[1]], 30);
+      expect(targetMinutes[roster[2]], 30);
+      expect(targetMinutes[roster[3]], 26);
+      expect(targetMinutes[roster[4]], 26);
+      // The bench (ranks 6-10) absorbs all 8 shortfall minutes, spread as
+      // evenly as an integer split allows.
+      expect(targetMinutes[roster[5]], 16);
+      expect(targetMinutes[roster[6]], 16);
+      expect(targetMinutes[roster[7]], 10);
+      expect(targetMinutes[roster[8]], 9);
+      expect(targetMinutes[roster[9]], 7);
+      expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
+    });
+
+    test('sums to exactly 200 for every roster size from 5 to 12', () {
+      for (var size = 5; size <= 12; size++) {
+        final roster = testRoster('r').take(size).toList();
+        final targetMinutes = targetMinutesForOrderedRoster(roster);
+        expect(
+          targetMinutes.values.fold(0, (a, b) => a + b),
+          200,
+          reason: 'roster size $size',
+        );
+      }
     });
   });
 

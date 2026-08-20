@@ -10,6 +10,7 @@ import '../../league/domain/team.dart';
 import '../../market/presentation/player_market_screen.dart';
 import '../../player/domain/archetype.dart';
 import '../../player/domain/player.dart';
+import '../../player/domain/player_injury.dart';
 import '../../player/presentation/player_card_widgets.dart';
 import '../../player/presentation/player_detail_screen.dart';
 import '../../player/presentation/trait_chip.dart';
@@ -790,6 +791,10 @@ class _PlayerRow extends StatelessWidget {
                         const SizedBox(width: AppSpacing.xs),
                         const _StarterBadge(),
                       ],
+                      if (membership.injury != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        _InjuryBadge(injury: membership.injury!),
+                      ],
                       if (trailing != null) ...[
                         const SizedBox(width: AppSpacing.xs),
                         trailing!,
@@ -843,6 +848,39 @@ class _PlayerRow extends StatelessWidget {
 /// primary-tinted rather than neutral gray -- this is meant to read as a
 /// highlight, the same spirit the League tab's "Your Team" tint carries,
 /// not a plain informational fact.
+/// [membership.injury]'s severity and games-remaining, shown right next
+/// to a player's name (2026-08-20, following the injuries design pass --
+/// "for flavor text vs formula, I'm fine with just facts only" already
+/// set the tone for how this whole system's UI reads).
+class _InjuryBadge extends StatelessWidget {
+  const _InjuryBadge({required this.injury});
+
+  final PlayerInjury injury;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 1,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.error.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '${injury.severity.label.toUpperCase()} · '
+        '${injury.gamesRemainingAtSeverity} GM',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.error,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
 class _StarterBadge extends StatelessWidget {
   const _StarterBadge();
 

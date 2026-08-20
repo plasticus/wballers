@@ -22,6 +22,8 @@ import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/season/generation/postseason_generator.dart'
+    show seasonChampion;
 import 'package:womensbballmgr/features/season/generation/retirement_advancer.dart';
 import 'package:womensbballmgr/features/trade/domain/pick_ownership.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
@@ -43,6 +45,25 @@ const _newAppearance = PortraitAppearance(
   mouth: 'mouth_9',
   isCoach: false,
 );
+
+/// Advances [container]'s current franchise day by day via [advanceGameDay]
+/// until the season is genuinely, fully complete -- the postseason plays
+/// out through this exact same call now (2026-08-20, a direct GM report:
+/// "it needs to play all the games through the normal system"), so
+/// [SeasonProgress.isComplete] only flips true once the Finals are decided
+/// and the whole off-season pipeline has already run inline, right where a
+/// dedicated `simulatePostseasonAndPersist` call used to live. A generous
+/// guard against an infinite loop if a real bug ever stalled
+/// [SeasonProgress.isComplete] from flipping true at all.
+Future<void> _playSeasonToCompletion(ProviderContainer container) async {
+  var progress = container.read(currentFranchiseProvider).value!.seasonProgress;
+  var guard = 0;
+  while (!progress.isComplete && guard < 150) {
+    await container.read(currentFranchiseProvider.notifier).advanceGameDay();
+    progress = container.read(currentFranchiseProvider).value!.seasonProgress;
+    guard++;
+  }
+}
 
 void main() {
   // beginNextSeasonAndPersist reads the bundled portrait catalog
@@ -1024,6 +1045,54 @@ void main() {
       expect(updated.seasonProgress.nextGameDayIndex, 0);
     });
 
+    test(
+      'does NOT block advancing once a player is parked in Reserve/'
+      'Inactive mid-season -- only the real Day-0 roster gap blocks '
+      '(2026-08-20, following the injuries design pass: '
+      '"we don\'t need a new toggle... just work with those slots")',
+      () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final started = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        // Season 1, not the real Day-0 (season 0) case the guard still
+        // protects.
+        final franchise = started.copyWithNewSeason(
+          newSeason: 1,
+          newSeasonProgress: started.seasonProgress,
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+        final active = franchise.roster
+            .firstWhere((m) => m.status == RosterStatus.active)
+            .player
+            .id;
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .moveRosterStatus(active, RosterStatus.reserveInactive);
+
+        final results = await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay();
+
+        expect(results, isNotNull);
+      },
+    );
+
     test('simulates the next game day, persists a lean SeasonProgress, and '
         'returns the full game results for that day', () async {
       final repository = InMemorySaveRepository();
@@ -1237,410 +1306,308 @@ void main() {
     });
   });
 
-  group('simulatePostseasonAndPersist', () {
-    test('returns null when there is no current franchise', () async {
-      final container = ProviderContainer(
-        overrides: [
-          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
-        ],
-      );
-      addTearDown(container.dispose);
-      await container.read(currentFranchiseProvider.future);
-
-      final results = await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
-
-      expect(results, isNull);
-    });
-
-    test(
-      'returns null while the regular season/Cup still has game days left',
-      () async {
+  // Was 'simulatePostseasonAndPersist' -- that dedicated bulk-simulate
+  // method is gone (2026-08-20, a direct GM report: "it needs to play all
+  // the games through the normal system"). The postseason now plays out
+  // through the exact same `advanceGameDay` every other game day already
+  // uses; this group covers what used to be that method's own behavior,
+  // now folded into `advanceGameDay` once `SeasonProgress.isComplete`
+  // genuinely flips true.
+  group(
+    'the postseason, now played through the normal advanceGameDay flow',
+    () {
+      test('once the season is otherwise complete, plays the whole '
+          'postseason bracket and persists a champion', () async {
+        final repository = InMemorySaveRepository();
         final container = ProviderContainer(
-          overrides: [
-            saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
-          ],
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
         );
         addTearDown(container.dispose);
-        final franchise = createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
         );
         await container
             .read(currentFranchiseProvider.notifier)
             .createFranchise(franchise);
 
-        final results = await container
-            .read(currentFranchiseProvider.notifier)
-            .simulatePostseasonAndPersist();
+        await _playSeasonToCompletion(container);
 
-        expect(results, isNull);
-      },
-    );
-
-    test('once the season is otherwise complete, runs the whole bracket and '
-        'persists a champion', () async {
-      final repository = InMemorySaveRepository();
-      final container = ProviderContainer(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
-      final franchise = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .createFranchise(franchise);
-
-      // Play through every game day (regular season + Continental Cup)
-      // until nothing's left to advance day-by-day.
-      var progress = franchise.seasonProgress;
-      var guard = 0;
-      while (!progress.isComplete && guard < 60) {
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .advanceGameDay();
-        progress = container
-            .read(currentFranchiseProvider)
-            .value!
-            .seasonProgress;
-        guard++;
-      }
-      expect(progress.isComplete, isTrue);
-
-      final results = await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
-
-      expect(results, isNotNull);
-      expect(results, isNotEmpty);
-
-      final saved = await repository.readSave(kCurrentFranchiseSaveId);
-      final savedFranchise = franchiseFromJson(
-        SaveEnvelope.fromJson(saved!).payload,
-      );
-      expect(
-        savedFranchise.seasonProgress.schedule.games.any(
-          (g) => g.type == GameType.postseason,
-        ),
-        isTrue,
-      );
-
-      // Calling again is a no-op -- the postseason only ever plays once.
-      final again = await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
-      expect(again, isNull);
-    });
-
-    test('also resolves the one-time off-season aging lump for a veteran on '
-        'the roster (TODO.md item 1)', () async {
-      final repository = InMemorySaveRepository();
-      final container = ProviderContainer(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
-      var franchise = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      // Swap in a guaranteed-declining veteran -- generatePlayer's own
-      // random age roll doesn't promise one exists on a fresh roster,
-      // and this test needs to know for certain the lump has someone
-      // real to apply to.
-      final veteran = playerWithOverall(70, id: 'veteran-1', age: 34);
-      franchise = franchise.copyWithRoster([
-        RosterMembership(player: veteran, status: RosterStatus.active),
-        ...franchise.roster.skip(1),
-      ]);
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .createFranchise(franchise);
-
-      var progress = franchise.seasonProgress;
-      var guard = 0;
-      while (!progress.isComplete && guard < 60) {
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .advanceGameDay();
-        progress = container
-            .read(currentFranchiseProvider)
-            .value!
-            .seasonProgress;
-        guard++;
-      }
-
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
-
-      final saved = await repository.readSave(kCurrentFranchiseSaveId);
-      final savedFranchise = franchiseFromJson(
-        SaveEnvelope.fromJson(saved!).payload,
-      );
-      expect(savedFranchise.seasonEndAgingResults, isNotEmpty);
-      final veteranResult = savedFranchise.seasonEndAgingResults
-          .where((r) => r.playerId == 'veteran-1')
-          .toList();
-      expect(veteranResult, hasLength(1));
-      expect(veteranResult.single.overallDelta, lessThan(0));
-      final restoredVeteran = savedFranchise.roster
-          .firstWhere((m) => m.player.id == 'veteran-1')
-          .player;
-      expect(restoredVeteran.ratings.overall, lessThan(70));
-    });
-
-    test('a GM-own-roster player who hits the mandatory retirement age '
-        'becomes a pending decision, not an automatic removal (2026-08-11, '
-        '0D_Season_2_Roadmap.md: Aging & roster churn)', () async {
-      final repository = InMemorySaveRepository();
-      final container = ProviderContainer(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
-      var franchise = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      final elder = playerWithOverall(
-        70,
-        id: 'elder-1',
-        age: kMandatoryRetirementAge,
-      );
-      franchise = franchise.copyWithRoster([
-        RosterMembership(player: elder, status: RosterStatus.active),
-        ...franchise.roster.skip(1),
-      ]);
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .createFranchise(franchise);
-
-      var progress = franchise.seasonProgress;
-      var guard = 0;
-      while (!progress.isComplete && guard < 60) {
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .advanceGameDay();
-        progress = container
-            .read(currentFranchiseProvider)
-            .value!
-            .seasonProgress;
-        guard++;
-      }
-
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
-
-      final updated = container.read(currentFranchiseProvider).value!;
-      // Still on the roster -- the GM hasn't decided anything yet.
-      expect(updated.roster.any((m) => m.player.id == 'elder-1'), isTrue);
-      final pending = updated.pendingRetirements.where(
-        (p) => p.playerId == 'elder-1',
-      );
-      expect(pending, hasLength(1));
-      expect(pending.single.reason, RetirementReason.hitMandatoryAge);
-    });
-
-    test('also trains every AI team\'s roster, all at once, once the '
-        'postseason resolves (TODO.md item 8, a direct GM ask -- "all AI '
-        'training... at the end of the season... in one big lump")', () async {
-      final repository = InMemorySaveRepository();
-      final container = ProviderContainer(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
-      final franchise = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .createFranchise(franchise);
-
-      var progress = franchise.seasonProgress;
-      var guard = 0;
-      while (!progress.isComplete && guard < 60) {
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .advanceGameDay();
-        progress = container
-            .read(currentFranchiseProvider)
-            .value!
-            .seasonProgress;
-        guard++;
-      }
-
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
-
-      final saved = await repository.readSave(kCurrentFranchiseSaveId);
-      final savedFranchise = franchiseFromJson(
-        SaveEnvelope.fromJson(saved!).payload,
-      );
-
-      // A real, full 310-game season gives every AI roster real minutes
-      // for real players across ~18-21 training-eligible weeks -- across
-      // 19 teams x 12 players, at least someone's ratings moved.
-      var anyAiPlayerChanged = false;
-      outer:
-      for (var i = 0; i < franchise.league.aiTeams.length; i++) {
-        final before = franchise.league.aiTeams[i].roster;
-        final after = savedFranchise.league.aiTeams[i].roster;
-        for (var j = 0; j < before.length; j++) {
-          if (before[j].player.ratings.overall !=
-                  after[j].player.ratings.overall ||
-              before[j].player.id != after[j].player.id) {
-            // An id mismatch here would itself be a real bug (roster
-            // reordering), not just "no growth" -- either way, this
-            // player counts as evidence the pass actually ran.
-            anyAiPlayerChanged = true;
-            break outer;
-          }
-        }
-      }
-      expect(anyAiPlayerChanged, isTrue);
-
-      // Team identity is never touched by training -- same 19 teams.
-      // Roster *composition* is a little looser: `simulatePostseasonAndPersist`
-      // bundles real AI-team retirement into this same call
-      // (`resolveAiTeamRetirements`, entirely separate from training
-      // itself), which can genuinely remove a player -- surfaced by this
-      // exact test once the name pools grew (2026-08-19, a direct GM
-      // ask to fold in more names), which shifted which players this
-      // fixed seed generates in the first place. What training itself
-      // actually guarantees, and what's worth still checking here: no
-      // reordering, no duplication, no player appearing who wasn't
-      // already on the original roster -- the after-roster is always a
-      // (possibly shorter) ordered subsequence of the before-roster.
-      expect(savedFranchise.league.aiTeams.length, 19);
-      for (var i = 0; i < franchise.league.aiTeams.length; i++) {
+        final updated = container.read(currentFranchiseProvider).value!;
+        expect(updated.seasonProgress.isComplete, isTrue);
         expect(
-          savedFranchise.league.aiTeams[i].team.abbreviation,
-          franchise.league.aiTeams[i].team.abbreviation,
+          updated.seasonProgress.schedule.games.any(
+            (g) => g.type == GameType.postseason,
+          ),
+          isTrue,
         );
-        final beforeIds = franchise.league.aiTeams[i].roster
-            .map((m) => m.player.id)
-            .toList();
-        final afterIds = savedFranchise.league.aiTeams[i].roster
-            .map((m) => m.player.id)
-            .toList();
-        var cursor = 0;
-        for (final id in afterIds) {
-          final foundAt = beforeIds.indexOf(id, cursor);
-          expect(
-            foundAt,
-            greaterThanOrEqualTo(0),
-            reason:
-                'team ${franchise.league.aiTeams[i].team.abbreviation}: '
-                '$id appeared out of order, or wasn\'t on the original '
-                'roster at all',
-          );
-          cursor = foundAt + 1;
-        }
-      }
-    });
+        expect(seasonChampion(updated.seasonProgress.playedGames), isNotNull);
 
-    test('also resolves this season\'s real awards once the postseason '
-        'wraps (2026-08-11, 0D_Season_2_Roadmap.md: Presentation)', () async {
-      final repository = InMemorySaveRepository();
-      final container = ProviderContainer(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
-      final franchise = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .createFranchise(franchise);
+        final saved = await repository.readSave(kCurrentFranchiseSaveId);
+        final savedFranchise = franchiseFromJson(
+          SaveEnvelope.fromJson(saved!).payload,
+        );
+        expect(
+          savedFranchise.seasonProgress.schedule.games.any(
+            (g) => g.type == GameType.postseason,
+          ),
+          isTrue,
+        );
 
-      var progress = franchise.seasonProgress;
-      var guard = 0;
-      while (!progress.isComplete && guard < 60) {
-        await container
+        // The season is genuinely over -- calling advanceGameDay again is a
+        // no-op, same guard every other "season already complete" case
+        // already relies on.
+        final again = await container
             .read(currentFranchiseProvider.notifier)
             .advanceGameDay();
-        progress = container
-            .read(currentFranchiseProvider)
-            .value!
-            .seasonProgress;
-        guard++;
-      }
+        expect(again, isNull);
+      });
 
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
+      test('also resolves the one-time off-season aging lump for a veteran on '
+          'the roster (TODO.md item 1)', () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        var franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        // Swap in a guaranteed-declining veteran -- generatePlayer's own
+        // random age roll doesn't promise one exists on a fresh roster,
+        // and this test needs to know for certain the lump has someone
+        // real to apply to.
+        final veteran = playerWithOverall(70, id: 'veteran-1', age: 34);
+        franchise = franchise.copyWithRoster([
+          RosterMembership(player: veteran, status: RosterStatus.active),
+          ...franchise.roster.skip(1),
+        ]);
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
 
-      final updated = container.read(currentFranchiseProvider).value!;
-      // A real, full season across 20 teams should crown a League MVP at
-      // minimum -- confirms the pass actually ran as part of the real
-      // pipeline, not just in isolation (season_awards_advancer_test.dart
-      // already covers the award logic itself in detail).
-      final everyPlayer = [
-        ...updated.roster.map((m) => m.player),
-        for (final aiTeam in updated.league.aiTeams)
-          ...aiTeam.roster.map((m) => m.player),
-      ];
-      expect(
-        everyPlayer.any(
-          (p) =>
-              p.achievements.any((a) => a.achievement == Achievement.leagueMvp),
-        ),
-        isTrue,
+        await _playSeasonToCompletion(container);
+
+        final saved = await repository.readSave(kCurrentFranchiseSaveId);
+        final savedFranchise = franchiseFromJson(
+          SaveEnvelope.fromJson(saved!).payload,
+        );
+        expect(savedFranchise.seasonEndAgingResults, isNotEmpty);
+        final veteranResult = savedFranchise.seasonEndAgingResults
+            .where((r) => r.playerId == 'veteran-1')
+            .toList();
+        expect(veteranResult, hasLength(1));
+        expect(veteranResult.single.overallDelta, lessThan(0));
+        final restoredVeteran = savedFranchise.roster
+            .firstWhere((m) => m.player.id == 'veteran-1')
+            .player;
+        expect(restoredVeteran.ratings.overall, lessThan(70));
+      });
+
+      test('a GM-own-roster player who hits the mandatory retirement age '
+          'becomes a pending decision, not an automatic removal (2026-08-11, '
+          '0D_Season_2_Roadmap.md: Aging & roster churn)', () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        var franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        final elder = playerWithOverall(
+          70,
+          id: 'elder-1',
+          age: kMandatoryRetirementAge,
+        );
+        franchise = franchise.copyWithRoster([
+          RosterMembership(player: elder, status: RosterStatus.active),
+          ...franchise.roster.skip(1),
+        ]);
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+
+        await _playSeasonToCompletion(container);
+
+        final updated = container.read(currentFranchiseProvider).value!;
+        // Still on the roster -- the GM hasn't decided anything yet.
+        expect(updated.roster.any((m) => m.player.id == 'elder-1'), isTrue);
+        final pending = updated.pendingRetirements.where(
+          (p) => p.playerId == 'elder-1',
+        );
+        expect(pending, hasLength(1));
+        expect(pending.single.reason, RetirementReason.hitMandatoryAge);
+      });
+
+      test(
+        'also trains every AI team\'s roster, all at once, once the '
+        'postseason resolves (TODO.md item 8, a direct GM ask -- "all AI '
+        'training... at the end of the season... in one big lump")',
+        () async {
+          final repository = InMemorySaveRepository();
+          final container = ProviderContainer(
+            overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          );
+          addTearDown(container.dispose);
+          final franchise = withFullActiveRoster(
+            createExpansionFranchise(
+              gmName: 'Jordan Ellis',
+              clubName: 'Comets',
+              homeCity: 'Springfield, IL',
+              conference: Conference.atlantic,
+              replacedTeamAbbreviation: 'BOS',
+              colors: kStarterPalettes.first,
+              emoji: '🏀',
+              simulationSeed: 1,
+            ),
+          );
+          await container
+              .read(currentFranchiseProvider.notifier)
+              .createFranchise(franchise);
+
+          await _playSeasonToCompletion(container);
+
+          final saved = await repository.readSave(kCurrentFranchiseSaveId);
+          final savedFranchise = franchiseFromJson(
+            SaveEnvelope.fromJson(saved!).payload,
+          );
+
+          // A real, full 310-game season gives every AI roster real minutes
+          // for real players across ~18-21 training-eligible weeks -- across
+          // 19 teams x 12 players, at least someone's ratings moved.
+          var anyAiPlayerChanged = false;
+          outer:
+          for (var i = 0; i < franchise.league.aiTeams.length; i++) {
+            final before = franchise.league.aiTeams[i].roster;
+            final after = savedFranchise.league.aiTeams[i].roster;
+            for (var j = 0; j < before.length; j++) {
+              if (before[j].player.ratings.overall !=
+                      after[j].player.ratings.overall ||
+                  before[j].player.id != after[j].player.id) {
+                // An id mismatch here would itself be a real bug (roster
+                // reordering), not just "no growth" -- either way, this
+                // player counts as evidence the pass actually ran.
+                anyAiPlayerChanged = true;
+                break outer;
+              }
+            }
+          }
+          expect(anyAiPlayerChanged, isTrue);
+
+          // Team identity is never touched by training -- same 19 teams.
+          // Roster *composition* is a little looser: the off-season pipeline
+          // bundles real AI-team retirement into this same off-season pass
+          // (`resolveAiTeamRetirements`, entirely separate from training
+          // itself), which can genuinely remove a player -- surfaced by this
+          // exact test once the name pools grew (2026-08-19, a direct GM
+          // ask to fold in more names), which shifted which players this
+          // fixed seed generates in the first place. What training itself
+          // actually guarantees, and what's worth still checking here: no
+          // reordering, no duplication, no player appearing who wasn't
+          // already on the original roster -- the after-roster is always a
+          // (possibly shorter) ordered subsequence of the before-roster.
+          expect(savedFranchise.league.aiTeams.length, 19);
+          for (var i = 0; i < franchise.league.aiTeams.length; i++) {
+            expect(
+              savedFranchise.league.aiTeams[i].team.abbreviation,
+              franchise.league.aiTeams[i].team.abbreviation,
+            );
+            final beforeIds = franchise.league.aiTeams[i].roster
+                .map((m) => m.player.id)
+                .toList();
+            final afterIds = savedFranchise.league.aiTeams[i].roster
+                .map((m) => m.player.id)
+                .toList();
+            var cursor = 0;
+            for (final id in afterIds) {
+              final foundAt = beforeIds.indexOf(id, cursor);
+              expect(
+                foundAt,
+                greaterThanOrEqualTo(0),
+                reason:
+                    'team ${franchise.league.aiTeams[i].team.abbreviation}: '
+                    '$id appeared out of order, or wasn\'t on the original '
+                    'roster at all',
+              );
+              cursor = foundAt + 1;
+            }
+          }
+        },
       );
-    });
-  });
+
+      test('also resolves this season\'s real awards once the postseason '
+          'wraps (2026-08-11, 0D_Season_2_Roadmap.md: Presentation)', () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+
+        await _playSeasonToCompletion(container);
+
+        final updated = container.read(currentFranchiseProvider).value!;
+        // A real, full season across 20 teams should crown a League MVP at
+        // minimum -- confirms the pass actually ran as part of the real
+        // pipeline, not just in isolation (season_awards_advancer_test.dart
+        // already covers the award logic itself in detail).
+        final everyPlayer = [
+          ...updated.roster.map((m) => m.player),
+          for (final aiTeam in updated.league.aiTeams)
+            ...aiTeam.roster.map((m) => m.player),
+        ];
+        expect(
+          everyPlayer.any(
+            (p) => p.achievements.any(
+              (a) => a.achievement == Achievement.leagueMvp,
+            ),
+          ),
+          isTrue,
+        );
+      });
+    },
+  );
 
   group('updateTrainingPlan', () {
     test('does nothing when there is no current franchise', () async {
@@ -2067,9 +2034,7 @@ void main() {
   group('beginNextSeasonAndPersist / makeDraftPick (2026-08-11, '
       '0D_Season_2_Roadmap.md: The draft, for real)', () {
     /// Creates a franchise, persists it, and plays it all the way through
-    /// season 0's postseason via the real provider -- same
-    /// play-every-game-day-then-postseason pattern the
-    /// `simulatePostseasonAndPersist` group above already established,
+    /// season 0's postseason via the real provider -- [_playSeasonToCompletion],
     /// just packaged for reuse here too.
     Future<ProviderContainer> playedOutContainer() async {
       final repository = InMemorySaveRepository();
@@ -2093,21 +2058,7 @@ void main() {
           .read(currentFranchiseProvider.notifier)
           .createFranchise(franchise);
 
-      var progress = franchise.seasonProgress;
-      var guard = 0;
-      while (!progress.isComplete && guard < 60) {
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .advanceGameDay();
-        progress = container
-            .read(currentFranchiseProvider)
-            .value!
-            .seasonProgress;
-        guard++;
-      }
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .simulatePostseasonAndPersist();
+      await _playSeasonToCompletion(container);
       return container;
     }
 

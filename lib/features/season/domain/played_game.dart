@@ -53,12 +53,13 @@ class PlayedGame {
 
   /// Trims a full [GameResult] down to what's worth persisting -- the one
   /// place `MatchResult`'s `Player`-keyed maps and event log get reduced
-  /// to the leaner id-keyed summaries this class actually stores, so
-  /// `season_advancer.dart` and `postseason_advancer.dart` don't each
-  /// reimplement it. [rostersByAbbreviation] needs at least the two teams
-  /// [result.game] references -- same map shape `advanceToNextGameDay`/
-  /// `simulatePostseason` already thread through for `computeBoxScore`'s
-  /// turnover-crossed-team-lines check.
+  /// to the leaner id-keyed summaries this class actually stores, used by
+  /// every caller of `season_advancer.dart`'s `advanceToNextGameDay`
+  /// (postseason games included -- they flow through the exact same
+  /// day-by-day advance as everything else). [rostersByAbbreviation]
+  /// needs at least the two teams [result.game] references -- same map
+  /// shape `advanceToNextGameDay` already threads through for
+  /// `computeBoxScore`'s turnover-crossed-team-lines check.
   factory PlayedGame.fromResult(
     GameResult result, {
     required Map<String, List<Player>> rostersByAbbreviation,

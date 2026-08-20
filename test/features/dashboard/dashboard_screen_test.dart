@@ -83,6 +83,28 @@ RosterMembership _twelfthActiveMember() {
   );
 }
 
+/// A real clinched Finals -- 4 games, all won by [winner], not just one --
+/// `seasonChampion` no longer treats "leads in win count" as decided now
+/// that a genuinely mid-series Finals is a reachable state (2026-08-20,
+/// following the "play the postseason through the normal system" rework).
+List<PlayedGame> _finalsGames({required String winner, required String loser}) {
+  return [
+    for (var i = 0; i < 4; i++)
+      PlayedGame(
+        game: ScheduledGame(
+          week: 24 + i ~/ GameDay.values.length,
+          day: GameDay.values[i % GameDay.values.length],
+          homeTeamAbbreviation: winner,
+          awayTeamAbbreviation: loser,
+          type: GameType.postseason,
+          postseasonRound: 3,
+        ),
+        homeScore: 90,
+        awayScore: 80,
+      ),
+  ];
+}
+
 Franchise _franchiseWith({
   SeasonProgress? seasonProgress,
   List<TrainingReport> trainingReports = const [],
@@ -857,9 +879,10 @@ void main() {
     );
   });
 
-  testWidgets('offers "Simulate Postseason" once there are no game days left', (
-    tester,
-  ) async {
+  testWidgets('once there are no regular-season game days left, still offers '
+      '"Advance to Next Game Day" -- the postseason now plays out through '
+      'that same button (2026-08-20, a direct GM report: "it needs to play '
+      'all the games through the normal system")', (tester) async {
     final base = _franchiseWith();
     final totalGameDays = gameDaysInOrder(base.seasonProgress.schedule).length;
     final franchise = _franchiseWith(
@@ -879,9 +902,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Regular season complete.'), findsOneWidget);
-    expect(find.text('Simulate Postseason'), findsOneWidget);
-    expect(find.text('Advance to Next Game Day'), findsNothing);
+    expect(find.text('Simulate Postseason'), findsNothing);
+    expect(find.text('Regular season complete.'), findsNothing);
+    expect(find.text('Advance to Next Game Day'), findsOneWidget);
   });
 
   testWidgets('once a champion is crowned, offers "View Season Recap"', (
@@ -896,18 +919,14 @@ void main() {
     final base = _franchiseWith();
     final league = base.league;
     final totalGameDays = gameDaysInOrder(base.seasonProgress.schedule).length;
-    final finals = ScheduledGame(
-      week: 24,
-      day: GameDay.thursday,
-      homeTeamAbbreviation: league.aiTeams[0].team.abbreviation,
-      awayTeamAbbreviation: league.aiTeams[1].team.abbreviation,
-      type: GameType.postseason,
-      postseasonRound: 3,
+    final finals = _finalsGames(
+      winner: league.aiTeams[0].team.abbreviation,
+      loser: league.aiTeams[1].team.abbreviation,
     );
     final franchise = _franchiseWith(
       seasonProgress: SeasonProgress(
         schedule: base.seasonProgress.schedule,
-        playedGames: [PlayedGame(game: finals, homeScore: 90, awayScore: 80)],
+        playedGames: finals,
         nextGameDayIndex: totalGameDays,
       ),
     );
@@ -944,18 +963,14 @@ void main() {
       final totalGameDays = gameDaysInOrder(
         base.seasonProgress.schedule,
       ).length;
-      final finals = ScheduledGame(
-        week: 24,
-        day: GameDay.thursday,
-        homeTeamAbbreviation: league.aiTeams[0].team.abbreviation,
-        awayTeamAbbreviation: league.aiTeams[1].team.abbreviation,
-        type: GameType.postseason,
-        postseasonRound: 3,
+      final finals = _finalsGames(
+        winner: league.aiTeams[0].team.abbreviation,
+        loser: league.aiTeams[1].team.abbreviation,
       );
       final franchise = _franchiseWith(
         seasonProgress: SeasonProgress(
           schedule: base.seasonProgress.schedule,
-          playedGames: [PlayedGame(game: finals, homeScore: 90, awayScore: 80)],
+          playedGames: finals,
           nextGameDayIndex: totalGameDays,
         ),
       );

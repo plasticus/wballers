@@ -282,8 +282,22 @@ void main() {
     expect(withoutCoaches.awayScore, withNullCoaches.awayScore);
   });
 
-  test('throws when a roster does not have exactly 12 players', () {
+  test('simulates fine with a short-handed roster (2026-08-20, injuries: a '
+      'player or two parked in Reserve/Inactive)', () {
     final homeRoster = testRoster('home').take(10).toList();
+    final awayRoster = testRoster('away');
+
+    final result = simulateMatch(
+      Random(1),
+      homeRoster: homeRoster,
+      awayRoster: awayRoster,
+    );
+
+    expect(result, isNotNull);
+  });
+
+  test('throws when a roster has fewer than 5 or more than 12 players', () {
+    final homeRoster = testRoster('home').take(4).toList();
     final awayRoster = testRoster('away');
 
     expect(
