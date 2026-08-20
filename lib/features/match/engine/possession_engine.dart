@@ -158,19 +158,16 @@ const kHomeCourtHeroBonus = 0.05;
 /// begin with.
 const kRoadWarriorBonus = 0.05;
 
-/// Per-point conversion of the coach Offense-vs-Defense matchup gap
-/// ([coachMatchupBonus]) into a rating multiplier -- 0.1% per point, so a
-/// 20-point gap (the GM's own worked example, TODO.md's coach-stats item)
-/// lands at a clean 2%.
-const kCoachMatchupBonusPerPoint = 0.001;
-
-/// Caps [coachMatchupBonus] at the same magnitude as the biggest trait
-/// bonuses already in this engine ([kHomeCourtHeroBonus]/[kRoadWarriorBonus],
-/// both 5%) -- reached once the coach gap hits 50 points, so a truly
-/// extreme mismatch (a 90+ Offense coach against a single-digit Defense
-/// one) doesn't run away past what a home-crowd trait combo can already
-/// do.
-const kCoachMatchupBonusCap = 0.05;
+/// Per-point conversion of a coach stat's gap from the neutral midpoint
+/// (50) into a rating multiplier ([coachQualityBonus]) -- 0.2% per point,
+/// the GM's own worked example (2026-08-20, replacing the earlier
+/// opponent-relative [kCoachMatchupBonusPerPoint] model outright): "a
+/// 60O/55D coach gets a 2% offense bump, 1% defense bump." No separate
+/// cap needed -- the real coach-generation range (`kCoachMinStat`-
+/// `kCoachMaxStat`, 30-79) only ever produces roughly -4% to +5.8%, well
+/// under the biggest trait bonuses already in this engine
+/// ([kHomeCourtHeroBonus]/[kRoadWarriorBonus], both 5%).
+const kCoachQualityBonusPerPoint = 0.002;
 
 enum _BallHandlerChoice { pass, drive, jumper }
 
@@ -179,7 +176,7 @@ enum _BallHandlerChoice { pass, drive, jumper }
 /// that doesn't track fatigue at all, e.g. most possession-level tests)
 /// reads as [kMaxEnergy], i.e. no penalty, same "opt-in only" posture
 /// every other bonus in this file already has. Meant to be summed into a
-/// call site's `bonus` expression exactly like [coachMatchupBonus]/
+/// call site's `bonus` expression exactly like [coachQualityBonus]/
 /// `OffenseShapeBonus`/`DefenseTacticBonus` already are -- fatigue is
 /// symmetric (it costs the same at every rating a fatigued player is
 /// read for), so this one helper covers every call site rather than
@@ -197,9 +194,9 @@ double _fatigueBonus(Map<Player, double> energy, Player player) =>
 ///
 /// [bonus] (default 0, no effect) is a general multiplier-delta
 /// accumulator, not a single named bonus -- a call site sums together
-/// whichever of [coachMatchupBonus], `OffenseShapeBonus`, or
+/// whichever of [coachQualityBonus], `OffenseShapeBonus`, or
 /// `DefenseTacticBonus` actually apply to this specific rating before
-/// passing the total in here. Was `coachBonus` (coach-matchup-only) until
+/// passing the total in here. Was `coachBonus` (coach-quality-only) until
 /// the 2026-08-14 offense-shape/defensive-tactic work gave this same slot
 /// more than one possible contributor.
 ///
@@ -244,32 +241,20 @@ int _averageEffectiveRating(
   effectiveHomeAwayRating(player, ratingB, isHome, bonus: bonus),
 );
 
-/// The attacking team's rating multiplier for the current possession, from
-/// the coach Offense-vs-Defense matchup (TODO.md's coach-stats item, a
-/// direct GM ask): [offenseCoachOffense] is the attacking team's own
-/// coach's `CoachStats.offense`; [defenseCoachDefense] is the *defending*
-/// team's coach's `CoachStats.defense`. Positive when the attacking
-/// team's coach wins the matchup, negative when the defending team's
-/// coach does.
-///
-/// Deliberately single-sided -- applied only to the attacking team's own
-/// ratings via [effectiveHomeAwayRating]'s `coachBonus`, never by directly
-/// reducing the defense's. Every contest in this file resolves off the
-/// *gap* between an attacker and defender rating (`contest_resolver.dart`),
-/// so bumping just the attacker already reads identically to "their
-/// defense gave up ground" from the other side -- moving both numbers for
-/// the same matchup would double the swing per point of coach gap instead
-/// of matching it. Same one-sided posture [kHomeAdvantageBonus] already
-/// established (only the home player's rating moves, never the away
-/// player's).
-double coachMatchupBonus({
-  required int offenseCoachOffense,
-  required int defenseCoachDefense,
-}) {
-  final gap =
-      (offenseCoachOffense - defenseCoachDefense) * kCoachMatchupBonusPerPoint;
-  return gap.clamp(-kCoachMatchupBonusCap, kCoachMatchupBonusCap);
-}
+/// A team's own rating bonus from one of its head coach's stats, off a
+/// flat 50-midpoint baseline -- not a comparison against the opponent
+/// (that was the old [coachMatchupBonus] model, replaced outright
+/// 2026-08-20 per a direct GM re-confirmation: "average coach score is
+/// 50... anything above gets a slight bump... anything below, a
+/// reduction... flip it on defense"). Called twice per team, once per
+/// side of the ball: [coachQualityBonus] of `coach.stats.offense` becomes
+/// that team's [offenseCoachBonus] whenever they're on offense;
+/// [coachQualityBonus] of `coach.stats.defense` becomes their
+/// [defenseCoachBonus] whenever they're on defense -- entirely
+/// independent of which team they're playing, unlike the matchup model
+/// it replaced.
+double coachQualityBonus(int coachStat) =>
+    (coachStat - 50) * kCoachQualityBonusPerPoint;
 
 /// [extraSeconds] (2026-08-17, the quarter-break coaching-options catalog
 /// -- `0B_Planned.md`'s quarter-break bullet) is a coach-picked pace
@@ -339,6 +324,7 @@ Player _randomOf(Random random, List<Player> players) =>
   required bool offenseIsHome,
   required bool defenseIsHome,
   double offenseCoachBonus = 0.0,
+  double defenseCoachBonus = 0.0,
   OffenseShapeBonus offenseBonus = _noOffenseBonus,
   DefenseTacticBonus defenseBonus = _noDefenseBonus,
   String? defenseTargetPlayerId,
@@ -368,6 +354,7 @@ Player _randomOf(Random random, List<Player> players) =>
       defensiveRebounder.ratings.interiorDefense,
       defenseIsHome,
       bonus:
+          defenseCoachBonus +
           defenseBonus.interior +
           defenseCoachingBonus.defenseBonus +
           defenseCoachingBonus.reboundingBonus +
@@ -475,23 +462,26 @@ int _shootFreeThrows(
 /// that sets these for real, one `true` and one `false` every possession
 /// since a game always has exactly one home team.
 ///
-/// [offenseCoachBonus] is [coachMatchupBonus]'s result for whichever team
-/// is on offense *this* possession -- defaults to 0 (no effect), same
-/// opt-in-only posture as the home-court params. Applied to every
+/// [offenseCoachBonus]/[defenseCoachBonus] are [coachQualityBonus]'s
+/// result for whichever team is on offense/defense *this* possession --
+/// each side's own bonus, off its own coach's `stats.offense`/
+/// `stats.defense` against the flat 50 midpoint, entirely independent of
+/// the opponent (2026-08-20, replacing the earlier opponent-relative
+/// `coachMatchupBonus` model outright -- see [coachQualityBonus]'s own
+/// doc comment). Both default to 0 (no effect), same opt-in-only posture
+/// as the home-court params. [offenseCoachBonus] applies to every
 /// attacking-side rating this possession touches (passing, shooting,
-/// free throws, offensive rebounding) via [effectiveHomeAwayRating]'s
-/// `bonus` -- never to the defense's ratings, see [coachMatchupBonus]'s
-/// own doc comment for why.
+/// free throws, offensive rebounding); [defenseCoachBonus] applies to
+/// every defending-side rating (shot defense, pass disruption, blocking,
+/// defensive rebounding) -- both via [effectiveHomeAwayRating]'s `bonus`.
 ///
 /// [offenseBonus]/[defenseBonus] (2026-08-14, a direct GM ask following
 /// the "Coach's Board" design artifact) are the current offense's
 /// lineup-shape bonus (`offense_shape.dart`) and the current defense's
 /// GM-picked tactic bonus (`defensive_tactic.dart`) -- both default to
-/// "no effect." Unlike the coach bonus, [defenseBonus] *does* reach the
-/// defense's own ratings (shot defense, pass disruption, blocking,
-/// defensive rebounding) -- these are new bonus-eligible spots that never
-/// existed before this. [defenseTargetPlayerId], when set (only ever
-/// meaningful for `DefensiveTactic.faceGuardStar`), swaps
+/// "no effect," summed into the same defending-side ratings
+/// [defenseCoachBonus] reaches. [defenseTargetPlayerId], when set (only
+/// ever meaningful for `DefensiveTactic.faceGuardStar`), swaps
 /// [defenseBonus]'s `targetedBonus` in for its `spreadThinPenalty` at
 /// every one of those defender-side spots specifically when the
 /// offensive player involved in that contest is the flagged target.
@@ -532,6 +522,7 @@ PossessionResult simulatePossession(
   bool offenseIsHome = false,
   bool defenseIsHome = false,
   double offenseCoachBonus = 0.0,
+  double defenseCoachBonus = 0.0,
   OffenseShapeBonus offenseBonus = _noOffenseBonus,
   DefenseTacticBonus defenseBonus = _noDefenseBonus,
   String? defenseTargetPlayerId,
@@ -614,6 +605,7 @@ PossessionResult simulatePossession(
           defender.ratings.disruption,
           defenseIsHome,
           bonus:
+              defenseCoachBonus +
               defenseBonus.disruption +
               defenseCoachingBonus.defenseBonus +
               defenseCoachingBonus.disruptionBonus +
@@ -766,6 +758,7 @@ PossessionResult simulatePossession(
             defender.ratings.interiorDefense,
             defenseIsHome,
             bonus:
+                defenseCoachBonus +
                 defenseBonus.interior +
                 defenseCoachingBonus.defenseBonus +
                 defenseTargetBonus +
@@ -777,6 +770,7 @@ PossessionResult simulatePossession(
             defender.ratings.perimeterDefense,
             defenseIsHome,
             bonus:
+                defenseCoachBonus +
                 defenseBonus.perimeter +
                 defenseCoachingBonus.defenseBonus +
                 defenseCoachingBonus.perimeterDefenseBonus +
@@ -900,6 +894,7 @@ PossessionResult simulatePossession(
         // check rather than needing a third variant. defenderFatigue is
         // the same `defender` as above -- reused, not re-derived.
         bonus:
+            defenseCoachBonus +
             defenseBonus.interior +
             defenseCoachingBonus.defenseBonus +
             defenseTargetBonus +
@@ -929,6 +924,7 @@ PossessionResult simulatePossession(
       offenseIsHome: offenseIsHome,
       defenseIsHome: defenseIsHome,
       offenseCoachBonus: offenseCoachBonus,
+      defenseCoachBonus: defenseCoachBonus,
       offenseBonus: offenseBonus,
       defenseBonus: defenseBonus,
       defenseTargetPlayerId: defenseTargetPlayerId,

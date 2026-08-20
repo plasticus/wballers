@@ -5,6 +5,8 @@ import '../../../core/widgets/app_card.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../match/domain/player_box_score.dart';
+import '../../matchup/domain/defensive_tactic.dart';
+import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/position.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
@@ -22,11 +24,22 @@ class GameResultScreen extends StatelessWidget {
   const GameResultScreen({
     required this.franchise,
     required this.result,
+    required this.ownDefenseTactic,
     super.key,
   });
 
   final Franchise franchise;
   final GameResult result;
+
+  /// The Defensive Tactic actually applied to the GM's own side of this
+  /// game -- every real call site already knows this (either the GM's own
+  /// pick off `MatchPreviewScreen`'s tactic picker, or the implicit
+  /// [DefensiveTactic.balanced] default a Dashboard-triggered advance
+  /// never overrides), so it's threaded straight through rather than
+  /// re-derived. 2026-08-20, `TODO.md` item 6/7 -- "the GM picks a tactic
+  /// pre-game and it's applied for real, but nothing on GameResultScreen
+  /// afterward says which one was used."
+  final DefensiveTactic ownDefenseTactic;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +54,26 @@ class GameResultScreen extends StatelessWidget {
     final rosters = rostersByAbbreviation(franchise);
     final homeRoster = rosters[result.game.homeTeamAbbreviation] ?? const [];
     final awayRoster = rosters[result.game.awayTeamAbbreviation] ?? const [];
+
+    // Same bench-order-vs-auto-sort convention `MatchPreviewScreen`'s own
+    // Offensive Shape section uses, and the exact same real inputs
+    // `_simulateOneGame` just used to actually simulate this game --
+    // nothing has changed since (this screen only ever shows immediately
+    // after simulation), so recomputing here reproduces exactly what was
+    // used rather than needing a new persisted field on `MatchResult`.
+    final ownAbbreviation = franchise.team.abbreviation;
+    final homeShape = detectOffenseShape(
+      startingFiveFor(
+        homeRoster,
+        isBenchOrdered: result.game.homeTeamAbbreviation == ownAbbreviation,
+      ),
+    );
+    final awayShape = detectOffenseShape(
+      startingFiveFor(
+        awayRoster,
+        isBenchOrdered: result.game.awayTeamAbbreviation == ownAbbreviation,
+      ),
+    );
     final boxScore = computeBoxScore(
       result.match,
       homeRoster: homeRoster,
@@ -86,6 +119,14 @@ class GameResultScreen extends StatelessWidget {
               result: result,
             ),
             const SizedBox(height: AppSpacing.md),
+            _StrategyRecapCard(
+              homeTeam: homeTeam,
+              awayTeam: awayTeam,
+              homeShape: homeShape,
+              awayShape: awayShape,
+              ownDefenseTactic: ownDefenseTactic,
+            ),
+            const SizedBox(height: AppSpacing.md),
             // Right-aligned, between the box score and the individual
             // player stats (2026-08-10, a direct GM ask) -- this screen
             // is always pushed on top of the Dashboard (never popUntil),
@@ -105,6 +146,91 @@ class GameResultScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Both teams' detected Offensive Shape plus the GM's own Defensive
+/// Tactic pick, right below the score -- the "did that actually work?"
+/// feedback loop `TODO.md` item 7 called out as missing (only the GM's
+/// own tactic is shown, not the opponent's -- AI always defends
+/// [DefensiveTactic.balanced], and calling that out by name for every
+/// single game would just be noise).
+class _StrategyRecapCard extends StatelessWidget {
+  const _StrategyRecapCard({
+    required this.homeTeam,
+    required this.awayTeam,
+    required this.homeShape,
+    required this.awayShape,
+    required this.ownDefenseTactic,
+  });
+
+  final Team homeTeam;
+  final Team awayTeam;
+  final OffenseShape homeShape;
+  final OffenseShape awayShape;
+  final DefensiveTactic ownDefenseTactic;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Offensive Shape', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _ShapeColumn(team: awayTeam, shape: awayShape),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+              Expanded(
+                child: _ShapeColumn(team: homeTeam, shape: homeShape),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Divider(height: 1),
+          ),
+          Text(
+            'Your Defensive Tactic: ${ownDefenseTactic.label}',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShapeColumn extends StatelessWidget {
+  const _ShapeColumn({required this.team, required this.shape});
+
+  final Team team;
+  final OffenseShape shape;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${team.emoji} ${team.abbreviation}',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(shape.label, style: theme.textTheme.bodyMedium),
+      ],
     );
   }
 }

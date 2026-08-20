@@ -19,6 +19,7 @@ import '../league/league_screen.dart';
 import '../mail/application/mailbox.dart';
 import '../mail/domain/mail_item.dart';
 import '../mail/presentation/mail_screen.dart';
+import '../matchup/domain/defensive_tactic.dart';
 import '../market/presentation/player_market_screen.dart';
 import '../roster/domain/roster_legality.dart';
 import '../roster/domain/roster_status.dart';
@@ -762,7 +763,10 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
           // [Franchise.season] is zero-based (its own doc comment) --
           // display is 1-based, a direct GM ask (2026-08-19): "It should
           // say the current season number. Start with 1."
-          Text('Season ${franchise.season + 1}', style: theme.textTheme.titleLarge),
+          Text(
+            'Season ${franchise.season + 1}',
+            style: theme.textTheme.titleLarge,
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(_currentDateLabel(progress), style: theme.textTheme.bodySmall),
           const SizedBox(height: AppSpacing.sm),
@@ -1036,8 +1040,15 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     if (ownGame != null) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) =>
-              GameResultScreen(franchise: updatedFranchise, result: ownGame!),
+          builder: (_) => GameResultScreen(
+            franchise: updatedFranchise,
+            result: ownGame!,
+            // A Dashboard-triggered advance never offers a tactic
+            // picker -- always the implicit default `advanceGameDay`
+            // itself falls back to when `ownDefenseTactic` isn't
+            // passed.
+            ownDefenseTactic: DefensiveTactic.balanced,
+          ),
         ),
       );
     } else {
@@ -1103,6 +1114,10 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
           builder: (_) => GameResultScreen(
             franchise: updatedFranchise,
             result: clinchingFinalsGame!,
+            // Postseason never shows a pre-game tactic picker -- both
+            // sides always resolve Balanced (`match_preview_screen.dart`'s
+            // own doc comment).
+            ownDefenseTactic: DefensiveTactic.balanced,
           ),
         ),
       );
@@ -1272,7 +1287,11 @@ class _AllStarBreakRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Icon(Icons.stars_outlined, size: 16, color: theme.colorScheme.primary),
+          Icon(
+            Icons.stars_outlined,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
           const SizedBox(width: AppSpacing.xs),
           Text(
             'All-Star Break -- Week $kAllStarWeek',

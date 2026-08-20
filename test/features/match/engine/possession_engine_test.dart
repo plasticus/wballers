@@ -441,68 +441,50 @@ void main() {
       expect(effectiveHomeAwayRating(hero, 99, true), 99);
     });
 
-    test('bonus (e.g. the coach matchup bonus) stacks on top of the '
-        'home/trait bonuses (TODO.md coach-stats item)', () {
+    test('bonus (e.g. the coach quality bonus) stacks on top of the '
+        'home/trait bonuses', () {
       final player = testPlayer(id: 'p', rating: 50);
       // 50 * (1 + 0.025 + 0.02) = 52.25 -> rounds to 52.
       expect(effectiveHomeAwayRating(player, 50, true, bonus: 0.02), 52);
       // Away, no traits: only the bonus applies.
       // 50 * 1.02 = 51.
       expect(effectiveHomeAwayRating(player, 50, false, bonus: 0.02), 51);
-      // A negative bonus (e.g. the defending coach won the matchup)
-      // actually reduces the effective rating.
+      // A negative bonus (e.g. a below-50 coach stat) actually reduces
+      // the effective rating.
       // 50 * 0.98 = 49.
       expect(effectiveHomeAwayRating(player, 50, false, bonus: -0.02), 49);
     });
   });
 
-  group('coachMatchupBonus (TODO.md coach-stats item -- a direct GM ask)', () {
-    test('is zero when both coaches are equal on the relevant stat', () {
-      expect(
-        coachMatchupBonus(offenseCoachOffense: 65, defenseCoachDefense: 65),
-        0.0,
-      );
+  group('coachQualityBonus (2026-08-20, a direct GM re-confirmation -- '
+      'replaces the earlier opponent-relative coachMatchupBonus model)', () {
+    test('is zero at the neutral 50 midpoint', () {
+      expect(coachQualityBonus(50), 0.0);
     });
 
-    test('a 20-point gap lands at a clean 2%, the GM\'s own worked '
-        'example', () {
-      expect(
-        coachMatchupBonus(offenseCoachOffense: 65, defenseCoachDefense: 45),
-        closeTo(0.02, 0.0001),
-      );
+    test('a 10-point gap above 50 lands at a clean 2%, the GM\'s own '
+        'worked example (a 60 Offense coach)', () {
+      expect(coachQualityBonus(60), closeTo(0.02, 0.0001));
     });
 
-    test('is negative, not just zero, when the defending coach wins the '
-        'matchup', () {
-      expect(
-        coachMatchupBonus(offenseCoachOffense: 45, defenseCoachDefense: 65),
-        closeTo(-0.02, 0.0001),
-      );
+    test('a 5-point gap above 50 lands at a clean 1%, the GM\'s own '
+        'worked example (a 55 Defense coach)', () {
+      expect(coachQualityBonus(55), closeTo(0.01, 0.0001));
     });
 
-    test('clamps at kCoachMatchupBonusCap for an extreme gap, in either '
-        'direction', () {
-      expect(
-        coachMatchupBonus(offenseCoachOffense: 99, defenseCoachDefense: 1),
-        kCoachMatchupBonusCap,
-      );
-      expect(
-        coachMatchupBonus(offenseCoachOffense: 1, defenseCoachDefense: 99),
-        -kCoachMatchupBonusCap,
-      );
+    test('is negative, not just zero, below the 50 midpoint', () {
+      expect(coachQualityBonus(40), closeTo(-0.02, 0.0001));
     });
 
-    test('reaches exactly the cap at a 50-point gap, no further', () {
-      expect(
-        coachMatchupBonus(offenseCoachOffense: 90, defenseCoachDefense: 40),
-        kCoachMatchupBonusCap,
-      );
+    test('independent of any opponent -- the same coach stat always '
+        'produces the same bonus', () {
+      expect(coachQualityBonus(70), coachQualityBonus(70));
     });
   });
 
-  test('an offense with a favorable coach matchup scores more often than '
-      'an identical offense with no coach bonus at all (TODO.md coach-'
-      'stats item)', () {
+  test('an offense with a strong coach scores more often than an '
+      'identical offense with no coach bonus at all (2026-08-20, a '
+      'direct GM re-confirmation)', () {
     final boostedOffense = testLineup('boosted', rating: 50);
     final plainOffense = testLineup('plain', rating: 50);
     final defense = testLineup('def', rating: 50);
@@ -515,7 +497,8 @@ void main() {
         boostedRandom,
         offense: boostedOffense,
         defense: defense,
-        offenseCoachBonus: kCoachMatchupBonusCap,
+        // The real coach ceiling (79) -- coachQualityBonus(79).
+        offenseCoachBonus: coachQualityBonus(79),
       );
       if (result.end == PossessionEnd.scored) boostedScores++;
     }

@@ -214,11 +214,12 @@ void main() {
   });
 
   test('a team with a real coach Offense/Defense advantage scores more '
-      'often than an identical team with no coach data at all (TODO.md '
-      'coach-stats item -- a direct GM ask)', () {
-    // Home's coach wins the offense-vs-defense matchup both ways: a
-    // strong Offense against a weak Defense, and a strong Defense of
-    // their own against a weak Offense.
+      'often than an identical team with no coach data at all (2026-08-20, '
+      'a direct GM re-confirmation)', () {
+    // Home's own coach rates high on both stats (a real positive bonus on
+    // both ends of the floor); away's own coach rates low on both (a real
+    // negative bonus on both ends) -- entirely independent of each other
+    // under the absolute, 50-baseline model.
     final favoredHomeCoach = _coach(offense: 90, defense: 90);
     final weakAwayCoach = _coach(offense: 10, defense: 10);
     const sampleSize = 200;
@@ -556,9 +557,10 @@ void main() {
           Random(100 + i),
           homeRoster: homeRoster,
           awayRoster: awayRoster,
-          // No awayCoach -- keeps the separate, unrelated coach-matchup
-          // bonus (`coachMatchupBonus`) inactive, so only Motivation's
-          // effect on the coaching-option pick is under test here.
+          // Offense/Defense both pinned to the exact 50 midpoint -- keeps
+          // the separate, unrelated coach-quality bonus (`coachQualityBonus`)
+          // at exactly 0, so only Motivation's effect on the coaching-option
+          // pick is under test here.
           homeCoach: _coach(offense: 50, defense: 50, motivation: 99),
           homeCoachingPicker: alwaysFocusDefense,
         );

@@ -497,15 +497,21 @@ class AiTeamTrainingAdvance {
 /// it's computed.
 ///
 /// AI teams have no [TrainingPlan]/individual coach slots to read (no GM
-/// exists to set one) and no generated head coach of their own --
-/// [AiTeamRoster] only ever carried identity + roster, nothing like
-/// [Franchise.coach]. Every AI player trains under
-/// [TrainingFocus.balanced] at a flat [CoachStats.neutral] development
-/// rating (50, [_totalWeeklyDelta]'s exact "no boost, no penalty"
-/// midpoint) -- the same fallback the GM's own roster already gets for
-/// any player nobody individually assigned, just without a head coach to
-/// vary it team to team. `RosterStatus.reserveInactive` players are
-/// skipped, same as [runTraining]/[resolveSeasonEndAging].
+/// exists to set one), so every AI player trains under
+/// [TrainingFocus.balanced] -- same fallback focus the GM's own roster
+/// already gets for any player nobody individually assigned. Unlike
+/// focus, development rating *is* real and team-varied: [AiTeamRoster.coach]
+/// is a genuine generated coach (`league_generator.dart`'s `generateCoach`),
+/// and each team's own `coach.stats.development` drives its own players'
+/// weekly growth here, the same way [Franchise.coach]'s does for the GM's
+/// roster ([_effectiveFocusAndCoach]'s `headCoachDevelopment`).
+/// (Corrected 2026-08-20, `TODO.md` item 2 -- this doc comment used to
+/// wrongly claim AI teams have no coach at all and trained every player
+/// under a flat [CoachStats.neutral] regardless of who was actually
+/// coaching; every AI-drafted prospect's real growth ceiling now depends
+/// on her own team's real coach quality, same as everyone else's.)
+/// `RosterStatus.reserveInactive` players are skipped, same as
+/// [runTraining]/[resolveSeasonEndAging].
 AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
   Random random,
   Franchise franchise,
@@ -549,7 +555,7 @@ AiTeamTrainingAdvance resolveAiTeamSeasonTraining(
           player: player,
           minutesThisWeek: minutesThisWeek[player.id] ?? 0,
           focus: focus,
-          coachDevelopmentRating: CoachStats.neutral.development,
+          coachDevelopmentRating: aiTeam.coach.stats.development,
           isDevelopmentalSlot: membership.status == RosterStatus.developmental,
           isIndividuallySlotted: false,
           isBreakoutSeason: isBreakoutSeason,

@@ -30,11 +30,12 @@ enum OffenseShape {
 
 /// Small rating-field nudges [OffenseShape] applies to whichever team is
 /// on offense -- mirrors `defensive_tactic.dart`'s `DefenseTacticBonus`
-/// shape and the existing coach-matchup bonus's own magnitude
-/// (`possession_engine.dart`'s `kCoachMatchupBonusCap`, +/-5%):
-/// comfortably under that cap so shape and coach bonuses can stack
-/// without either swamping the other. A reasonable starting point, not a
-/// precisely calibrated one -- tune empirically like every other bonus
+/// shape and the existing coach-quality bonus's own rough magnitude
+/// (`possession_engine.dart`'s `coachQualityBonus`, roughly -4% to +5.8%
+/// across the real coach range): comfortably in the same neighborhood so
+/// shape and coach bonuses can stack without either swamping the other. A
+/// reasonable starting point, not a precisely calibrated one -- tune
+/// empirically like every other bonus
 /// constant in this engine.
 typedef OffenseShapeBonus = ({
   double interior,

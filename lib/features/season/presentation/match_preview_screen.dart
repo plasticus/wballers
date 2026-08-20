@@ -395,8 +395,11 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) =>
-            GameResultScreen(franchise: updatedFranchise, result: ownGame),
+        builder: (_) => GameResultScreen(
+          franchise: updatedFranchise,
+          result: ownGame,
+          ownDefenseTactic: _tactic,
+        ),
       ),
     );
   }

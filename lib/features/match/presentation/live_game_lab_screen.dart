@@ -431,8 +431,11 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) =>
-            GameResultScreen(franchise: updatedFranchise, result: ownGame),
+        builder: (_) => GameResultScreen(
+          franchise: updatedFranchise,
+          result: ownGame,
+          ownDefenseTactic: widget.ownDefenseTactic ?? DefensiveTactic.balanced,
+        ),
       ),
     );
   }

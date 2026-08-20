@@ -5,6 +5,7 @@ import 'package:womensbballmgr/features/coach/domain/coach.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/league/domain/ai_team_roster.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/player/domain/archetype.dart';
@@ -857,14 +858,24 @@ void main() {
     Franchise franchiseWithAiTeam({
       required List<RosterMembership> controlledRoster,
       required List<PlayedGame> playedGames,
+      Coach? coach,
     }) {
       final baseLeague = testLeague(
         simulationSeed: 1,
         replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
       );
+      final controlledTeam = baseLeague.aiTeams.first.copyWithRoster(
+        controlledRoster,
+      );
       final league = League(
         aiTeams: [
-          baseLeague.aiTeams.first.copyWithRoster(controlledRoster),
+          coach == null
+              ? controlledTeam
+              : AiTeamRoster(
+                  team: controlledTeam.team,
+                  roster: controlledTeam.roster,
+                  coach: coach,
+                ),
           ...baseLeague.aiTeams.skip(1),
         ],
       );
@@ -956,6 +967,73 @@ void main() {
         totalRatingFields(grownPlayer.ratings),
         greaterThan(totalRatingFields(player.ratings)),
       );
+    });
+
+    test('an AI team\'s own real coach Development rating drives its '
+        'players\' growth, not a flat CoachStats.neutral fallback '
+        '(2026-08-20, TODO.md item 2 -- "every AI team\'s real, '
+        'already-varied coach quality is used correctly for match-day '
+        'bonuses but ignored for training")', () {
+      const weakCoach = Coach(
+        name: 'Weak Coach',
+        stats: CoachStats(
+          offense: 50,
+          defense: 50,
+          development: 30,
+          motivation: 50,
+          management: 50,
+        ),
+        archetype: CoachArchetype.steadyHand,
+      );
+      const strongCoach = Coach(
+        name: 'Strong Coach',
+        stats: CoachStats(
+          offense: 50,
+          defense: 50,
+          development: 79,
+          motivation: 50,
+          management: 50,
+        ),
+        archetype: CoachArchetype.steadyHand,
+      );
+
+      // Same "sum across many seeds" reasoning as the individual-slot
+      // test above -- a single seed can land on an all-zero
+      // stochastic-rounding draw even at a solidly positive expected
+      // gap.
+      var weakTotal = 0;
+      var strongTotal = 0;
+      for (var seed = 0; seed < 50; seed++) {
+        final player = _player(id: 'ai1', age: 21, overall: 50, potential: 95);
+        final weakFranchise = franchiseWithAiTeam(
+          controlledRoster: [
+            RosterMembership(player: player, status: RosterStatus.active),
+          ],
+          playedGames: [weekGame(1, {'ai1': 40})],
+          coach: weakCoach,
+        );
+        final strongFranchise = franchiseWithAiTeam(
+          controlledRoster: [
+            RosterMembership(player: player, status: RosterStatus.active),
+          ],
+          playedGames: [weekGame(1, {'ai1': 40})],
+          coach: strongCoach,
+        );
+
+        final weakGrown = resolveAiTeamSeasonTraining(
+          Random(seed),
+          weakFranchise,
+        ).league.aiTeams.first.roster.single.player;
+        final strongGrown = resolveAiTeamSeasonTraining(
+          Random(seed),
+          strongFranchise,
+        ).league.aiTeams.first.roster.single.player;
+
+        weakTotal += totalRatingFields(weakGrown.ratings);
+        strongTotal += totalRatingFields(strongGrown.ratings);
+      }
+
+      expect(strongTotal, greaterThan(weakTotal));
     });
 
     test('an AI player gets assumed-minutes bye credit for a week the '

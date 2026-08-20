@@ -105,12 +105,13 @@ String? _bestPlayerId(List<Player> roster) {
 ///   fatigued player touches in `possession_engine.dart` (passing,
 ///   shooting, free throws, blocking, rebounding, on both ends of the
 ///   floor) via that file's `_fatigueBonus` helper, the same accumulator
-///   slot `OffenseShapeBonus`/`DefenseTacticBonus`/`coachMatchupBonus`
+///   slot `OffenseShapeBonus`/`DefenseTacticBonus`/`coachQualityBonus`
 ///   already share. Substitutions still don't react to it, though --
 ///   `pickOnCourt`/`targetMinutesFor` are driven purely by target minutes
-///   and foul-outs, with no energy-aware "sit the gassed starter" logic
-///   yet (that's the quarter-break coaching-options catalog's job,
-///   `TODO.md` item 8, still blocked on its own undesigned catalog).
+///   and foul-outs, confirmed as the intended design rather than a gap
+///   (2026-08-20, a direct GM check-in: "the coach mostly targets minutes
+///   rather than trying to bench high-fatigue players, and I'm good with
+///   that").
 /// - **Blowout pace rubber-banding** (TODO.md item 5): whichever team is
 ///   ahead by `kBlowoutPaceMargin` or more slows its own possessions down
 ///   (`possession_engine.dart`'s `simulatePossession` `offenseMargin`
@@ -124,15 +125,16 @@ String? _bestPlayerId(List<Player> roster) {
 ///   [Trait.homeCourtHero] adds a further home-only bump and
 ///   [Trait.roadWarrior] adds an away-only one. [homeRoster] is always
 ///   the home team here -- there's no neutral-site game.
-/// - **Coach Offense-vs-Defense matchup** (TODO.md's coach-stats item, a
-///   direct GM ask): [homeCoach]/[awayCoach] are optional (`null` skips
-///   the bonus entirely, e.g. an exhibition with no real per-team coach
-///   assigned) -- when both are given, each team's own coach's
-///   `CoachStats.offense` against the *other* coach's `CoachStats.defense`
-///   ([coachMatchupBonus], `possession_engine.dart`) becomes that team's
-///   flat rating bump whenever they're on offense, computed once here for
-///   the whole game (coach stats don't change mid-game) rather than
-///   re-derived every possession.
+/// - **Coach quality bonus** (2026-08-20, a direct GM re-confirmation --
+///   replaces the earlier opponent-relative "coach matchup" model
+///   outright): [homeCoach]/[awayCoach] are optional (`null` skips the
+///   bonus entirely for that side, e.g. an exhibition with no real
+///   per-team coach assigned) -- each team's own coach's `CoachStats.offense`/
+///   `CoachStats.defense`, measured against the flat 50 midpoint
+///   ([coachQualityBonus], `possession_engine.dart`), becomes that team's
+///   own flat rating bump on its own offense/defense, entirely independent
+///   of who they're playing. Computed once here for the whole game (coach
+///   stats don't change mid-game) rather than re-derived every possession.
 /// - **Offense shape** (2026-08-14, a direct GM ask, following the
 ///   "Coach's Board" design artifact): fully automatic, no param to set --
 ///   each side's starting five (the 5 players carrying the most minutes
@@ -350,22 +352,22 @@ class _GameSimulation {
     this.awayCoachingPicker,
     this.homeLiveCoachingPicker,
     this.awayLiveCoachingPicker,
-  }) : homeOffenseCoachBonus = homeCoach == null || awayCoach == null
+  }) : homeOffenseCoachBonus = homeCoach == null
            ? 0.0
-           : coachMatchupBonus(
-               offenseCoachOffense: homeCoach.stats.offense,
-               defenseCoachDefense: awayCoach.stats.defense,
-             ),
-       awayOffenseCoachBonus = homeCoach == null || awayCoach == null
+           : coachQualityBonus(homeCoach.stats.offense),
+       awayOffenseCoachBonus = awayCoach == null
            ? 0.0
-           : coachMatchupBonus(
-               offenseCoachOffense: awayCoach.stats.offense,
-               defenseCoachDefense: homeCoach.stats.defense,
-             ),
-       // Unlike the coach-matchup bonus above, each side's own Motivation
-       // multiplier stands on its own -- it isn't a head-to-head
-       // comparison against the *other* side's coach, so it doesn't need
-       // both coaches present, only this side's own.
+           : coachQualityBonus(awayCoach.stats.offense),
+       homeDefenseCoachBonus = homeCoach == null
+           ? 0.0
+           : coachQualityBonus(homeCoach.stats.defense),
+       awayDefenseCoachBonus = awayCoach == null
+           ? 0.0
+           : coachQualityBonus(awayCoach.stats.defense),
+       // Each side's own Motivation multiplier stands on its own too --
+       // like the coach-quality bonus above (2026-08-20, no longer a
+       // head-to-head comparison against the *other* side's coach), it
+       // only ever needs this side's own coach present.
        homeMotivationBonusMultiplier = motivationBonusMultiplier(
          homeCoach?.stats.motivation ?? 50,
        ),
@@ -432,6 +434,8 @@ class _GameSimulation {
   final Map<Player, int> awayTargetMinutes;
   final double homeOffenseCoachBonus;
   final double awayOffenseCoachBonus;
+  final double homeDefenseCoachBonus;
+  final double awayDefenseCoachBonus;
 
   /// Each side's own coach's Motivation, scaled into a multiplier once
   /// up front (`coaching_option.dart`'s `motivationBonusMultiplier`) --
@@ -774,6 +778,9 @@ class _GameSimulation {
       offenseCoachBonus: _offenseIsHome
           ? homeOffenseCoachBonus
           : awayOffenseCoachBonus,
+      defenseCoachBonus: _offenseIsHome
+          ? awayDefenseCoachBonus
+          : homeDefenseCoachBonus,
       offenseBonus: _offenseIsHome ? homeOffenseBonus : awayOffenseBonus,
       defenseBonus: _offenseIsHome ? awayDefenseBonus : homeDefenseBonus,
       defenseTargetPlayerId: _offenseIsHome

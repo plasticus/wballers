@@ -74,7 +74,7 @@ double fatigueRecoveryPerMinute(int stamina) => 0.6 * stamina / 100;
 /// (no penalty) at or above [kFatigueThreshold], increasingly negative
 /// below it. Summed into `possession_engine.dart`'s existing per-player
 /// bonus accumulator (the same slot `OffenseShapeBonus`/
-/// `DefenseTacticBonus`/`coachMatchupBonus` already share) at every
+/// `DefenseTacticBonus`/`coachQualityBonus` already share) at every
 /// rating contest a fatigued player touches, via that file's
 /// `_fatigueBonus` helper (2026-08-17, wired in for real).
 double fatigueBonusFor(double energy) {

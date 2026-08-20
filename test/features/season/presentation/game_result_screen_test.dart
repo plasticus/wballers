@@ -7,6 +7,7 @@ import 'package:womensbballmgr/core/persistence/save_repository_provider.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/match/engine/match_engine.dart';
+import 'package:womensbballmgr/features/matchup/domain/defensive_tactic.dart';
 import 'package:womensbballmgr/features/roster/domain/team_overall.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
@@ -64,7 +65,11 @@ void main() {
           saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
         ],
         child: MaterialApp(
-          home: GameResultScreen(franchise: franchise, result: result),
+          home: GameResultScreen(
+            franchise: franchise,
+            result: result,
+            ownDefenseTactic: DefensiveTactic.balanced,
+          ),
         ),
       ),
     );
@@ -87,6 +92,69 @@ void main() {
     expect(find.textContaining('PTS'), findsWidgets);
     // A regular-season game counts toward the record -- no disclaimer.
     expect(find.textContaining('doesn\'t count'), findsNothing);
+  });
+
+  testWidgets('shows both teams\' Offensive Shape and the GM\'s own Defensive '
+      'Tactic (2026-08-20, TODO.md item 7: "the GM picks a tactic pre-game '
+      'and it\'s applied for real, but nothing on GameResultScreen '
+      'afterward says which one was used")', (tester) async {
+    tester.view.physicalSize = const Size(800, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final franchise = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    final opponent = franchise.league.aiTeams.first.team;
+    final rosters = rostersByAbbreviation(franchise);
+    final match = simulateMatch(
+      Random(1),
+      homeRoster: rosters[franchise.team.abbreviation]!,
+      awayRoster: rosters[opponent.abbreviation]!,
+    );
+    final result = GameResult(
+      game: ScheduledGame(
+        week: 2,
+        day: GameDay.sunday,
+        homeTeamAbbreviation: franchise.team.abbreviation,
+        awayTeamAbbreviation: opponent.abbreviation,
+        type: GameType.regularSeason,
+      ),
+      match: match,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+        child: MaterialApp(
+          home: GameResultScreen(
+            franchise: franchise,
+            result: result,
+            ownDefenseTactic: DefensiveTactic.packThePaint,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Offensive Shape'), findsOneWidget);
+    expect(find.textContaining(franchise.team.abbreviation), findsWidgets);
+    expect(find.textContaining(opponent.abbreviation), findsWidgets);
+    expect(
+      find.text('Your Defensive Tactic: ${DefensiveTactic.packThePaint.label}'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -136,7 +204,11 @@ void main() {
             saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
           ],
           child: MaterialApp(
-            home: GameResultScreen(franchise: franchise, result: result),
+            home: GameResultScreen(
+              franchise: franchise,
+              result: result,
+              ownDefenseTactic: DefensiveTactic.balanced,
+            ),
           ),
         ),
       );
@@ -199,7 +271,11 @@ void main() {
             saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
           ],
           child: MaterialApp(
-            home: GameResultScreen(franchise: franchise, result: result),
+            home: GameResultScreen(
+              franchise: franchise,
+              result: result,
+              ownDefenseTactic: DefensiveTactic.balanced,
+            ),
           ),
         ),
       );
@@ -257,7 +333,11 @@ void main() {
           saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
         ],
         child: MaterialApp(
-          home: GameResultScreen(franchise: franchise, result: result),
+          home: GameResultScreen(
+            franchise: franchise,
+            result: result,
+            ownDefenseTactic: DefensiveTactic.balanced,
+          ),
         ),
       ),
     );
@@ -321,6 +401,7 @@ void main() {
                       builder: (_) => GameResultScreen(
                         franchise: franchise,
                         result: result,
+                        ownDefenseTactic: DefensiveTactic.balanced,
                       ),
                     ),
                   ),
