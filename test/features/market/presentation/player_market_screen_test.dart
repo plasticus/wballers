@@ -14,6 +14,7 @@ import 'package:womensbballmgr/features/market/generation/player_market_preview_
 import 'package:womensbballmgr/features/market/presentation/player_market_screen.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
+import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
 import 'package:womensbballmgr/features/trade/generation/trade_offer_generator.dart';
 
 import '../../../support/in_memory_save_repository.dart';
@@ -256,6 +257,47 @@ void main() {
   });
 
   testWidgets(
+    'shows a POT chip for every player on the Trade Board -- a direct GM '
+    'ask (2026-08-20): "on the trade board screen, we need to add '
+    'potential somewhere"',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Trade Board'));
+      await tester.pumpAndSettle();
+
+      final offers = generateTradeOffers(franchise);
+      expect(offers, isNotEmpty);
+      final potentials = <int>[
+        for (final offer in offers)
+          for (final asset in [...offer.offeredToYou, ...offer.askedFromYou])
+            if (asset is PlayerTradeAsset) asset.player.ratings.potential,
+      ];
+      expect(potentials, isNotEmpty);
+      final counts = <int, int>{};
+      for (final pot in potentials) {
+        counts[pot] = (counts[pot] ?? 0) + 1;
+      }
+      for (final entry in counts.entries) {
+        expect(find.text('POT ${entry.key}'), findsNWidgets(entry.value));
+      }
+    },
+  );
+
+  testWidgets(
     'tapping Accept on a Trade Board offer resolves it and persists',
     (tester) async {
       tester.view.physicalSize = const Size(800, 4500);
@@ -282,6 +324,100 @@ void main() {
 
       await tester.tap(find.text('Accept').first);
       await tester.pumpAndSettle();
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(savedFranchise.resolvedTradeOfferIds, contains(acceptedOffer.id));
+    },
+  );
+
+  testWidgets(
+    'tapping View Full Details opens a trade detail screen showing every '
+    'player on both sides, each tappable through to their full profile '
+    '-- a direct GM ask (2026-08-20): "each trade needs a details '
+    'screen, where all the players involved are there, I can see every '
+    'detail about each player"',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Trade Board'));
+      await tester.pumpAndSettle();
+
+      final offers = generateTradeOffers(franchise);
+      final firstOffer = offers.first;
+      final firstGivePlayer =
+          (firstOffer.askedFromYou.whereType<PlayerTradeAsset>().first)
+              .player;
+
+      await tester.tap(find.text('View Full Details').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Trade Offer'), findsOneWidget);
+      expect(find.text('You Get'), findsOneWidget);
+      expect(find.text('You Give'), findsOneWidget);
+      expect(
+        find.textContaining(firstGivePlayer.name),
+        findsOneWidget,
+        reason: 'the GM\'s own asked-for player should be listed under '
+            '"You Give"',
+      );
+
+      // Tapping that player's row opens her full profile.
+      await tester.tap(find.textContaining(firstGivePlayer.name));
+      await tester.pumpAndSettle();
+
+      expect(find.text(firstGivePlayer.name), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'accepting from the trade detail screen resolves the offer and pops '
+    'back',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Trade Board'));
+      await tester.pumpAndSettle();
+
+      final offers = generateTradeOffers(franchise);
+      final acceptedOffer = offers.first;
+
+      await tester.tap(find.text('View Full Details').first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Accept'));
+      await tester.pumpAndSettle();
+
+      // Back on the Trade Board.
+      expect(find.text('Trade Offer'), findsNothing);
 
       final saved = await repository.readSave(kCurrentFranchiseSaveId);
       final savedFranchise = franchiseFromJson(

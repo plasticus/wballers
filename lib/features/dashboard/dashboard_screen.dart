@@ -742,6 +742,13 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     // club, so it isn't a "bye" in the sense this note means -- excluded
     // the same way `_advanceOrPreview` treats it as its own special case.
     final nextDayTypes = nextGameDayTypes(progress);
+    // A direct GM ask (2026-08-20): "make the dashboard show the all
+    // star break" -- same "Continental Cup Week" note treatment
+    // [isCupWeek] already gets, just for whichever of the break's 2 days
+    // ([kSkillsCompetitionDay]/[kAllStarGameDay]) is coming up next.
+    final isAllStarBreakDay =
+        nextDayTypes.contains(GameType.skillsCompetition) ||
+        nextDayTypes.contains(GameType.allStarGame);
     final isOwnByeDay =
         !progress.isComplete &&
         !nextDayTypes.contains(GameType.skillsCompetition) &&
@@ -752,7 +759,10 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Season', style: theme.textTheme.titleLarge),
+          // [Franchise.season] is zero-based (its own doc comment) --
+          // display is 1-based, a direct GM ask (2026-08-19): "It should
+          // say the current season number. Start with 1."
+          Text('Season ${franchise.season + 1}', style: theme.textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(_currentDateLabel(progress), style: theme.textTheme.bodySmall),
           const SizedBox(height: AppSpacing.sm),
@@ -831,6 +841,27 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                   style: theme.textTheme.bodySmall,
                 ),
               ],
+              const SizedBox(height: AppSpacing.sm),
+            ] else if (isAllStarBreakDay) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.stars_outlined,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    nextDayTypes.contains(GameType.skillsCompetition)
+                        ? 'All-Star Break -- Skills Competition'
+                        : 'All-Star Break -- All-Star Game',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.sm),
             ] else if (isOwnByeDay) ...[
               // A plain regular-season/preseason bye -- the greedy
@@ -1114,6 +1145,10 @@ class _TradeDeadlineEntry extends _UpcomingItem {
   const _TradeDeadlineEntry();
 }
 
+class _AllStarBreakEntry extends _UpcomingItem {
+  const _AllStarBreakEntry();
+}
+
 class _UpcomingGamesList extends StatelessWidget {
   const _UpcomingGamesList({required this.franchise});
 
@@ -1136,20 +1171,38 @@ class _UpcomingGamesList extends StatelessWidget {
     ];
     final standings = currentStandings(franchise.seasonProgress, leagueTeams);
 
-    // Splices the Trade Deadline milestone in right before the first
-    // visible Week 7+ game -- "the little dashboard calendar," a direct
-    // GM ask (2026-08-19) for the deadline to show up here too, not just
-    // the real Calendar screen. Only while the window's still genuinely
-    // open ([isTradeWindowOpen]) and the boundary actually falls inside
-    // this short "next 3" horizon -- once it's passed, or it's still too
-    // far out to be one of the next few games, nothing is spliced in.
+    // Splices the Trade Deadline and All-Star Break milestones in right
+    // before the first visible game past each boundary -- "the little
+    // dashboard calendar," a direct GM ask (2026-08-19 for the deadline,
+    // 2026-08-20 for the break: "make the dashboard show the all star
+    // break") for both to show up here too, not just the real Calendar
+    // screen. Neither All-Star day is a real [ScheduledGame] for the GM's
+    // own team ([upcomingGamesFor] only ever returns games where the GM's
+    // team is actually the home/away side, and both All-Star days use the
+    // placeholder conference-squad abbreviations instead --
+    // `all_star_generator.dart`'s own doc comment) -- without this splice
+    // the break is entirely invisible here, the week just silently skips
+    // from the regular season straight to the postseason opener. Each
+    // milestone only shows while it's still genuinely ahead
+    // ([isTradeWindowOpen]/[isAllStarWeekUpcoming]) and its boundary
+    // actually falls inside this short "next 3" horizon -- once it's
+    // passed, or it's still too far out to be one of the next few games,
+    // nothing is spliced in.
     final items = <_UpcomingItem>[];
     var deadlineInserted = false;
+    var allStarBreakInserted = false;
     final showDeadline = isTradeWindowOpen(franchise);
+    final showAllStarBreak = isAllStarWeekUpcoming(franchise);
     for (final game in games) {
       if (showDeadline && !deadlineInserted && game.week > kTradeDeadlineWeek) {
         items.add(const _TradeDeadlineEntry());
         deadlineInserted = true;
+      }
+      if (showAllStarBreak &&
+          !allStarBreakInserted &&
+          game.week > kAllStarWeek) {
+        items.add(const _AllStarBreakEntry());
+        allStarBreakInserted = true;
       }
       items.add(_UpcomingGameEntry(game));
     }
@@ -1167,6 +1220,7 @@ class _UpcomingGamesList extends StatelessWidget {
               standings: standings,
             ),
             _TradeDeadlineEntry() => const _TradeDeadlineRow(),
+            _AllStarBreakEntry() => const _AllStarBreakRow(),
           },
       ],
     );
@@ -1194,6 +1248,34 @@ class _TradeDeadlineRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs),
           Text(
             'Trade Deadline -- end of Week $kTradeDeadlineWeek',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A compact single line calling out the All-Star Break, same treatment
+/// [_TradeDeadlineRow] gets -- a direct GM ask (2026-08-20): "make the
+/// dashboard show the all star break."
+class _AllStarBreakRow extends StatelessWidget {
+  const _AllStarBreakRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(Icons.stars_outlined, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            'All-Star Break -- Week $kAllStarWeek',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.primary,
               fontWeight: FontWeight.bold,

@@ -1,9 +1,26 @@
 import '../../portrait/persistence/portrait_appearance_json.dart';
 import '../domain/achievement.dart';
 import '../domain/archetype.dart';
+import '../domain/draft_record.dart';
 import '../domain/player.dart';
 import '../domain/player_ratings.dart';
 import '../domain/trait.dart';
+
+Map<String, dynamic> playerDraftRecordToJson(PlayerDraftRecord record) {
+  return {
+    'season': record.season,
+    'round': record.round,
+    'pickNumber': record.pickNumber,
+  };
+}
+
+PlayerDraftRecord playerDraftRecordFromJson(Map<String, dynamic> json) {
+  return PlayerDraftRecord(
+    season: json['season'] as int,
+    round: json['round'] as int,
+    pickNumber: json['pickNumber'] as int,
+  );
+}
 
 Map<String, dynamic> playerAchievementRecordToJson(
   PlayerAchievementRecord record,
@@ -86,6 +103,9 @@ Map<String, dynamic> playerToJson(Player player) {
     // would just be denormalized data to keep in sync.
     'college': player.college?.abbreviation,
     'peakOverall': player.peakOverall,
+    'draftRecord': player.draftRecord == null
+        ? null
+        : playerDraftRecordToJson(player.draftRecord!),
   };
 }
 
@@ -143,5 +163,11 @@ Player playerFromJson(Map<String, dynamic> json) {
     // both mean the same thing -- see [Player.peakOverall]'s own doc
     // comment.
     peakOverall: json['peakOverall'] as int?,
+    // Absent (a save from before this field existed) and an explicit
+    // `null` (never drafted -- `PlayerDraftRecord`'s own doc comment)
+    // both mean the same thing here too.
+    draftRecord: json['draftRecord'] == null
+        ? null
+        : playerDraftRecordFromJson(json['draftRecord'] as Map<String, dynamic>),
   );
 }

@@ -208,6 +208,52 @@ void main() {
     }
   });
 
+  test('with a trade-block player set, at least one offer across several '
+      'turns is a real 2-for-2 trade that also involves a draft pick '
+      '(2026-08-19, a direct GM ask: "I want to see at least one trade '
+      'that\'s a 2:2 and involved a draft pick")', () {
+    final base = withFullActiveRoster(franchiseForPortraitTests());
+    final blockPlayerId = base.roster
+        .firstWhere((m) => m.status == RosterStatus.active)
+        .player
+        .id;
+    final withBlock = base.copyWithTradeBlockPlayerId(blockPlayerId);
+
+    var sawQualifyingOffer = false;
+    // Several distinct turns, same "not every draw happens to need this"
+    // reasoning the pick-ownership test above already uses.
+    for (var gameDayIndex = 0; gameDayIndex < 10; gameDayIndex++) {
+      final turn = withBlock.copyWithSeasonProgress(
+        SeasonProgress(
+          schedule: withBlock.seasonProgress.schedule,
+          playedGames: withBlock.seasonProgress.playedGames,
+          nextGameDayIndex: gameDayIndex,
+        ),
+      );
+      final offers = generateTradeOffers(turn);
+
+      for (final offer in offers) {
+        final askedPlayers = offer.askedFromYou.whereType<PlayerTradeAsset>();
+        final offeredPlayers = offer.offeredToYou
+            .whereType<PlayerTradeAsset>();
+        final hasPick =
+            offer.offeredToYou.whereType<PickTradeAsset>().isNotEmpty ||
+            offer.askedFromYou.whereType<PickTradeAsset>().isNotEmpty;
+        final involvesBlockPlayer = askedPlayers.any(
+          (a) => a.player.id == blockPlayerId,
+        );
+        if (askedPlayers.length == 2 &&
+            offeredPlayers.length == 2 &&
+            hasPick &&
+            involvesBlockPlayer) {
+          sawQualifyingOffer = true;
+        }
+      }
+    }
+
+    expect(sawQualifyingOffer, isTrue);
+  });
+
   test('no trade-block player set -- no offer is specifically forced '
       'onto one player', () {
     final franchise = withFullActiveRoster(franchiseForPortraitTests());

@@ -1,18 +1,31 @@
 import '../../league/domain/team.dart';
 
 /// One of the 3 events run during the All-Star break's Skills Competition
-/// (2026-08-10, TODO.md item 6, a direct GM ask): 2 offense-only events
-/// balanced by 1 defensive one, no dunk contest ("not something this game
-/// can simulate meaningfully").
-enum SkillsEvent { threePointShootout, horse, defensiveSkillsChallenge }
+/// (2026-08-10, TODO.md item 6, a direct GM ask): originally 2 offense-only
+/// events balanced by 1 defensive one, no dunk contest ("not something this
+/// game can simulate meaningfully"). The 3-Point Shootout was replaced
+/// 2026-08-20 with [fullPressFrenzy] (a direct GM ask, see
+/// aug19pmnotes.md) -- a pure physical-ratings event, since nothing in the
+/// original 3 tested [PlayerRatings.speed]/`agility`/`strength`/`stamina`
+/// at all.
+enum SkillsEvent { fullPressFrenzy, horse, defensiveSkillsChallenge }
 
 extension SkillsEventLabel on SkillsEvent {
   String get label => switch (this) {
-    SkillsEvent.threePointShootout => '3-Point Shootout',
+    SkillsEvent.fullPressFrenzy => 'Full Press Frenzy',
     SkillsEvent.horse => 'H-O-R-S-E',
     SkillsEvent.defensiveSkillsChallenge => 'Defensive Skills Challenge',
   };
 }
+
+/// [SkillsEvent.fullPressFrenzy]'s own tagline -- "the ultimate physical
+/// challenge, driving against full court pressure from one basket to
+/// another" (the GM's own wording). Deliberately not folded into [label]
+/// since none of the other 2 events carry a subtitle; shown wherever the
+/// result screen has room for one.
+const kFullPressFrenzyDescription =
+    'The ultimate physical challenge -- driving against full-court '
+    'pressure from one basket to another.';
 
 /// One participant's result in a single [SkillsEvent] -- a rating-driven
 /// score with variance, not a literal shot-by-shot simulation (this

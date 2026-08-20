@@ -111,6 +111,56 @@ void main() {
   });
 
   testWidgets(
+    'shows a Roster Legality Issue warning when the active roster is over '
+    'the cap (2026-08-20, a direct GM ask: "I think we need to build in '
+    'more notifications of roster legality")',
+    (tester) async {
+      final franchise = _franchiseWith(
+        extraMembers: [
+          RosterMembership(
+            player: playerWithOverall(50),
+            status: RosterStatus.active,
+          ),
+          RosterMembership(
+            player: playerWithOverall(50),
+            status: RosterStatus.active,
+          ),
+        ],
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Roster Legality Issue'), findsOneWidget);
+      expect(find.textContaining('active roster has'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'omits the Roster Legality Issue warning when the roster is legal',
+    (tester) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Roster Legality Issue'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'the Calendar button opens TeamCalendarScreen (2026-08-15, a direct '
     'GM ask)',
     (tester) async {
@@ -503,6 +553,35 @@ void main() {
     expect(find.widgetWithText(AppBar, targetPlayer.name), findsOneWidget);
     expect(find.text('Ratings'), findsOneWidget);
   });
+
+  testWidgets(
+    'tapping the coach row opens the Coach Detail screen -- a direct GM '
+    'ask (2026-08-19): "Head coach needs a detail screen"',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text(franchise.coach.name));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, franchise.coach.name), findsOneWidget);
+      expect(find.text('Career Record'), findsOneWidget);
+      expect(find.text('Coaching Stats'), findsOneWidget);
+      expect(find.text('First season as head coach'), findsOneWidget);
+    },
+  );
 
   testWidgets('the Card Lab button is hidden -- dev tool, not for a normal '
       'playthrough (2026-08-07)', (tester) async {

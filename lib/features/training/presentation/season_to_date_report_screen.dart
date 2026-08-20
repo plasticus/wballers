@@ -34,9 +34,15 @@ class SeasonToDateReportScreen extends StatelessWidget {
         return '${player.primaryPosition.abbreviation} $jersey${player.name}';
       }
     }
-    // Shouldn't happen -- every result comes from this franchise's own
-    // roster -- but a label beats a crash if a player was somehow since
-    // removed from the save.
+    // A real retirement mid-season -- her name still survives in
+    // `Franchise.formerPlayers` (see `FormerPlayerRecord`'s own doc
+    // comment).
+    for (final record in franchise.formerPlayers) {
+      if (record.playerId == playerId) return record.label;
+    }
+    // Shouldn't happen otherwise -- every result comes from this
+    // franchise's own roster -- but a label beats a crash if a player
+    // was somehow since removed from the save with no trace at all.
     return 'Former Player';
   }
 

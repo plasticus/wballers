@@ -57,6 +57,36 @@ class RosterLegality {
       hasLegalThreeStarAndUpCount &&
       hasLegalDevelopmentalRosterSize &&
       hasOnlyEligibleDevelopmentalPlayers;
+
+  /// One plain-English sentence per violation, empty when [isLegal] --
+  /// exactly the "future roster screen can build specific
+  /// validation-warning messages" use this class's own doc comment
+  /// already anticipated (2026-08-20, a direct GM ask: "I think we need
+  /// to build in more notifications of roster legality... haven't seen
+  /// anything about legality"). Shared by `TeamRosterScreen`'s own
+  /// warning banner and `RosterLegalityMailItem`'s Assistant GM
+  /// message, so the two surfaces can never say something different.
+  List<String> get violationMessages {
+    return [
+      if (!hasLegalActiveRosterSize)
+        'Your active roster has $activeRosterSize players -- the max is '
+            '$kActiveRosterSize.',
+      if (!hasLegalFourStarCount)
+        'You\'re carrying $fourStarCount four-star players -- the max is '
+            '$kMaxFourStarPlayers.',
+      if (!hasLegalThreeStarAndUpCount)
+        'You\'re carrying $threeStarAndUpCount three-star-or-better '
+            'players -- the max is $kMaxThreeStarAndUpPlayers.',
+      if (!hasLegalDevelopmentalRosterSize)
+        'Your developmental roster has $developmentalRosterSize players '
+            '-- the max is $kMaxDevelopmentalRosterSpots.',
+      if (!hasOnlyEligibleDevelopmentalPlayers)
+        '$ineligibleDevelopmentalCount developmental player'
+            '${ineligibleDevelopmentalCount == 1 ? '' : 's'} '
+            'no longer qualif${ineligibleDevelopmentalCount == 1 ? 'ies' : 'y'} '
+            'for that spot.',
+    ];
+  }
 }
 
 RosterLegality evaluateRosterLegality({

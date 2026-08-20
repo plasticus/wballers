@@ -61,9 +61,18 @@ class _TrainingReportScreenState extends ConsumerState<TrainingReportScreen> {
         return '${player.primaryPosition.abbreviation} $jersey${player.name}';
       }
     }
-    // Shouldn't happen -- every result comes from this franchise's own
-    // roster at the moment training resolved -- but a label beats a crash
-    // if a player was somehow since removed from the save.
+    // A real retirement since this report resolved -- her name still
+    // survives in `Franchise.formerPlayers` (a direct GM report,
+    // 2026-08-19: a retired all-star showed up here as "Former Player"
+    // instead of her own name; see `FormerPlayerRecord`'s own doc
+    // comment).
+    for (final record in widget.franchise.formerPlayers) {
+      if (record.playerId == playerId) return record.label;
+    }
+    // Shouldn't happen otherwise -- every result comes from this
+    // franchise's own roster at the moment training resolved -- but a
+    // label beats a crash if a player was somehow since removed from the
+    // save with no trace at all.
     return 'Former Player';
   }
 

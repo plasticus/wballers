@@ -1958,6 +1958,35 @@ void main() {
       expect(updated.pendingRetirements, isEmpty);
     });
 
+    test('letting a player retire snapshots her name/position/jersey into '
+        'Franchise.formerPlayers, so a later report can still show a real '
+        'name instead of "Former Player" (2026-08-19, a direct GM '
+        'report)', () async {
+      final player = playerWithOverall(
+        70,
+        id: 'p1',
+        age: 38,
+        name: 'Riley Okafor',
+      ).copyWithJerseyNumber(23);
+      final container = await containerWithPending(
+        player: player,
+        motivation: 50,
+      );
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .resolvePendingRetirement('p1', attemptPersuasion: false);
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      final record = updated.formerPlayers.singleWhere(
+        (r) => r.playerId == 'p1',
+      );
+      expect(record.name, 'Riley Okafor');
+      expect(record.primaryPosition, player.primaryPosition);
+      expect(record.jerseyNumber, 23);
+      expect(record.label, contains('Riley Okafor'));
+    });
+
     test('attempting persuasion always clears the pending entry, and the '
         'reported outcome always matches whether the player is still on '
         'the roster', () async {

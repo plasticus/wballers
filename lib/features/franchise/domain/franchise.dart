@@ -13,6 +13,8 @@ import '../../training/domain/training_coach.dart';
 import '../../training/domain/training_plan.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../training/domain/training_report.dart';
+import 'former_player_record.dart';
+import 'league_retirement.dart';
 import 'pending_retirement.dart';
 
 /// The player's save-game: their General Manager persona, their club, its
@@ -69,6 +71,7 @@ class Franchise {
     this.trainingReports = const [],
     this.seasonEndAgingResults = const [],
     this.skillsCompetitionResults = const [],
+    this.leagueRetirements = const [],
     this.freeAgents = const [],
     this.readMailIds = const {},
     this.pendingRetirements = const [],
@@ -82,6 +85,7 @@ class Franchise {
     this.resolvedTradeOfferIds = const {},
     this.pickOwnershipOverrides = const {},
     this.narrativeVeteranRetired = false,
+    this.formerPlayers = const [],
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -201,6 +205,13 @@ class Franchise {
   /// only ever one entry right now (there's no multi-season flow yet),
   /// but the shape doesn't assume that.
   final List<SkillsCompetitionResult> skillsCompetitionResults;
+
+  /// Every AI-team retirement this season resolved automatically, reset
+  /// each new season the same way [skillsCompetitionResults] is -- see
+  /// [LeagueRetirement]'s own doc comment for the full picture, including
+  /// why the GM's own roster and the narrative veteran are deliberately
+  /// left out.
+  final List<LeagueRetirement> leagueRetirements;
 
   /// Unrostered players available to sign -- real, persisted game state
   /// (not to be confused with the Player Market screen's still-preview-only
@@ -352,6 +363,18 @@ class Franchise {
   /// broke the instant she was traded away.
   final bool narrativeVeteranRetired;
 
+  /// GM-own-roster players who have actually retired, name/position/jersey
+  /// snapshotted at the moment they left [roster] -- see
+  /// [FormerPlayerRecord]'s own doc comment for the exact bug this fixes
+  /// (2026-08-19, a direct GM report: a retired all-star showing up on
+  /// the post-season report as "Former Player"). Append-only
+  /// (`copyWithRetiredPlayer` is the only writer, alongside
+  /// `current_franchise_provider.dart`'s `_retirePlayer`); never trimmed,
+  /// same "keep the whole season's worth" posture [trainingReports]
+  /// already has, and there's no multi-season archive to prune against
+  /// yet regardless.
+  final List<FormerPlayerRecord> formerPlayers;
+
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
   /// picks and to record the GM's own, and finally to clear it (`null`)
@@ -374,6 +397,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -387,6 +411,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -411,6 +436,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -424,6 +450,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -448,6 +475,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -461,6 +489,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -484,6 +513,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -497,6 +527,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -520,6 +551,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -533,6 +565,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -556,6 +589,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -569,6 +603,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -592,6 +627,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -605,6 +641,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -638,6 +675,7 @@ class Franchise {
       trainingReports: [...trainingReports, newReport],
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -651,6 +689,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -682,6 +721,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: newResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -695,6 +735,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -719,6 +760,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: [...skillsCompetitionResults, newResult],
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -732,6 +774,46 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
+    );
+  }
+
+  /// Returns a copy with [newRetirements] appended to [leagueRetirements]
+  /// -- `current_franchise_provider.dart`'s `simulatePostseasonAndPersist`
+  /// is the only producer, once per postseason resolution.
+  Franchise copyWithLeagueRetirements(List<LeagueRetirement> newRetirements) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: [...leagueRetirements, ...newRetirements],
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -757,6 +839,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -770,6 +853,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -800,6 +884,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -813,6 +898,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -840,6 +926,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: newFreeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -853,6 +940,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -877,6 +965,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: newReadMailIds,
       pendingRetirements: pendingRetirements,
@@ -890,6 +979,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -914,6 +1004,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -927,6 +1018,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -955,6 +1047,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -968,6 +1061,7 @@ class Franchise {
       resolvedTradeOfferIds: newResolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -999,6 +1093,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1012,6 +1107,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: newPickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -1037,6 +1133,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1050,6 +1147,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: newNarrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -1089,6 +1187,7 @@ class Franchise {
       trainingReports: trainingReports,
       seasonEndAgingResults: seasonEndAgingResults,
       skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: newPendingRetirements,
@@ -1102,6 +1201,7 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
     );
   }
 
@@ -1116,8 +1216,9 @@ class Franchise {
   /// version of the transition carries every player over completely
   /// unchanged.
   ///
-  /// [trainingReports]/[seasonEndAgingResults]/[skillsCompetitionResults]
-  /// all reset to empty and [nextTrainingWeek] resets to 1 -- a direct GM
+  /// [trainingReports]/[seasonEndAgingResults]/[skillsCompetitionResults]/
+  /// [leagueRetirements] all reset to empty and [nextTrainingWeek] resets
+  /// to 1 -- a direct GM
   /// answer on exactly this (`season2roadmap.md` answer 3): "Off-season,
   /// both [mail and training reports] get cleared... end-of-season
   /// reports and season awards stay visible forever" -- the "stay visible
@@ -1147,6 +1248,7 @@ class Franchise {
       trainingReports: const [],
       seasonEndAgingResults: const [],
       skillsCompetitionResults: const [],
+      leagueRetirements: const [],
       freeAgents: freeAgents,
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
@@ -1160,6 +1262,57 @@ class Franchise {
       resolvedTradeOfferIds: resolvedTradeOfferIds,
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
+    );
+  }
+
+  /// Returns a copy reflecting a GM-own-roster player's real retirement:
+  /// removes her from [roster] entirely (never routed to [freeAgents] --
+  /// "retired means retired," same rule `resolveAiTeamRetirements`
+  /// already established for AI teams) and appends [record] to
+  /// [formerPlayers] in the same call, so this season's own training
+  /// reports can still resolve her name after she's gone
+  /// ([FormerPlayerRecord]'s own doc comment).
+  /// `current_franchise_provider.dart`'s `_retirePlayer` is the only
+  /// caller. Bundled into one method rather than a separate
+  /// `copyWithRoster` + `copyWithFormerPlayers` pair, same "these always
+  /// change together" reasoning [copyWithTrainingResult] already uses.
+  Franchise copyWithRetiredPlayer(FormerPlayerRecord record) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: [
+        for (final membership in roster)
+          if (membership.player.id != record.playerId) membership,
+      ],
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: [...formerPlayers, record],
     );
   }
 }

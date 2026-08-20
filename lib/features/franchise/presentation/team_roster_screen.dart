@@ -5,6 +5,7 @@ import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../coach/domain/coach_archetype.dart';
+import '../../coach/presentation/coach_detail_screen.dart';
 import '../../league/domain/team.dart';
 import '../../market/presentation/player_market_screen.dart';
 import '../../player/domain/archetype.dart';
@@ -12,7 +13,6 @@ import '../../player/domain/player.dart';
 import '../../player/presentation/player_card_widgets.dart';
 import '../../player/presentation/player_detail_screen.dart';
 import '../../player/presentation/trait_chip.dart';
-import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/presentation/portrait_image.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../roster/domain/roster_legality.dart';
@@ -22,6 +22,7 @@ import '../../season/presentation/team_calendar_screen.dart';
 import '../../training/presentation/training_screen.dart';
 import '../application/current_franchise_provider.dart';
 import '../domain/franchise.dart';
+import '../domain/franchise_legality.dart';
 import '../onboarding/onboarding_screen.dart';
 import 'depth_chart_screen.dart';
 
@@ -176,6 +177,7 @@ class _RosterViewState extends State<_RosterView> {
         const SizedBox(height: AppSpacing.md),
         _CoachRow(franchise: franchise),
         const SizedBox(height: AppSpacing.md),
+        _RosterLegalityWarning(franchise: franchise),
         OutlinedButton.icon(
           onPressed: () {
             Navigator.of(context).push(
@@ -282,6 +284,61 @@ class _SortDropdown extends StatelessWidget {
   }
 }
 
+/// A warning card listing every current [RosterLegality] violation,
+/// straight off [RosterLegality.violationMessages] -- empty (renders
+/// nothing) when the roster is legal. 2026-08-20, a direct GM ask: "I
+/// think we need to build in more notifications of roster legality...
+/// haven't started the preseason yet, haven't seen anything about
+/// legality." Same information [RosterLegalityMailItem] surfaces in Mail,
+/// just visible right where the GM is already looking while managing the
+/// roster, not only in the inbox.
+class _RosterLegalityWarning extends StatelessWidget {
+  const _RosterLegalityWarning({required this.franchise});
+
+  final Franchise franchise;
+
+  @override
+  Widget build(BuildContext context) {
+    final messages = evaluateFranchiseLegality(franchise).violationMessages;
+    if (messages.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_outlined,
+                  color: theme.colorScheme.error,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Roster Legality Issue',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            for (final message in messages)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('• $message', style: theme.textTheme.bodySmall),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CoachRow extends StatelessWidget {
   const _CoachRow({required this.franchise});
 
@@ -294,10 +351,16 @@ class _CoachRow extends StatelessWidget {
 
     return AppCard(
       child: InkWell(
+        // Leads to the full detail screen now, same "row leads to a
+        // detail screen" pattern every player row already uses -- a
+        // direct GM ask (2026-08-19): "Head coach needs a detail
+        // screen." Portrait editing (this row's old sole destination)
+        // moves to a tap on the portrait itself, inside that screen,
+        // mirroring `PlayerDetailScreen`'s own header exactly.
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => PortraitEditorScreen(franchise: franchise),
+              builder: (_) => CoachDetailScreen(franchise: franchise),
             ),
           );
         },
@@ -323,7 +386,7 @@ class _CoachRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.edit_outlined, color: theme.colorScheme.primary),
+            Icon(Icons.chevron_right, color: theme.colorScheme.outline),
           ],
         ),
       ),

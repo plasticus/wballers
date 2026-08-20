@@ -87,13 +87,64 @@ class PlayerDetailScreen extends ConsumerWidget {
     WidgetRef ref,
     Player player,
   ) async {
+    final accentColor = franchise.team.colors.primary;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Drop this player?'),
-        content: Text(
-          '${player.name} will be released to free agency -- any team, '
-          'including yours, could sign them back later.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // A direct GM ask (2026-08-19): "it's gotta have an ARE YOU
+            // SURE? popup with player info" -- the plain name-only prose
+            // this dialog used to show made it too easy to fire off a
+            // Drop without a last look at *who*, since this is the one
+            // roster action with no undo (dropped players re-enter free
+            // agency, but any team -- including a rebuilding rival --
+            // could sign them right back out from under you).
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                PhotoOvrRail(
+                  franchise: franchise,
+                  player: player,
+                  accentColor: accentColor,
+                  jersey: parseHexColor(franchise.team.colors.primaryHex),
+                  size: 56,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        player.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        [
+                          player.primaryPosition.abbreviation,
+                          if (player.jerseyNumber != null)
+                            '#${player.jerseyNumber}',
+                          experienceLabel(player),
+                        ].join(' · '),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      StatChipRow(player: player),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              '${player.name} will be released to free agency -- any team, '
+              'including yours, could sign them back later.',
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -341,6 +392,18 @@ class _HeaderCard extends StatelessWidget {
                 : 'Country: ${player.hometown.split(', ').last}',
             style: theme.textTheme.bodySmall,
           ),
+          if (player.draftRecord != null)
+            Text(
+              // Display is 1-based -- `PlayerDraftRecord.season`'s own
+              // doc comment ("zero-based, same convention
+              // PlayerAchievementRecord.season already uses") -- a direct
+              // GM ask (2026-08-19): "we should see what season, round,
+              // and pick they were drafted."
+              'Drafted: Season ${player.draftRecord!.season + 1}, Round '
+              '${player.draftRecord!.round}, Pick '
+              '${player.draftRecord!.pickNumber} overall',
+              style: theme.textTheme.bodySmall,
+            ),
           // player.biography deliberately not shown here (2026-08-10, a
           // direct GM ask): every generated player currently gets the
           // exact same auto-generated line ("Beijing, China-born power

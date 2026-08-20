@@ -1,6 +1,8 @@
+import '../../franchise/domain/league_retirement.dart';
 import '../../franchise/domain/pending_retirement.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
+import '../../roster/domain/roster_legality.dart';
 import '../../season/domain/played_game.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../training/domain/training_report.dart';
@@ -96,6 +98,36 @@ class SkillsCompetitionMailItem extends MailItem {
   String get subject => 'Skills Competition Results';
 }
 
+/// A [SkillsCompetitionResult]'s squad selection, wrapped as its own mail
+/// item -- a direct GM ask (2026-08-20): "At the start of the all star
+/// break, I should get an email telling me if any of my players were
+/// chosen." [selections] is the GM's own roster players who made either
+/// conference's squad this year (`mailboxFor` cross-references
+/// [SkillsCompetitionResult.squads] against [Franchise.roster] fresh each
+/// time -- same "never persisted itself" posture every [MailItem]
+/// already has), empty when nobody did. Distinct from
+/// [SkillsCompetitionMailItem] -- that one reports the 3-event skills
+/// contest itself, which honorees actually competed in and who won; this
+/// one is purely the roster announcement, arriving the moment squads are
+/// set (`all_star_generator.dart`'s own doc comment: squad selection and
+/// the skills contest resolve together on [kSkillsCompetitionDay]), same
+/// as real league news breaking before the contest airs.
+class AllStarSelectionMailItem extends MailItem {
+  const AllStarSelectionMailItem({
+    required this.result,
+    required this.selections,
+  });
+
+  final SkillsCompetitionResult result;
+  final List<Player> selections;
+
+  @override
+  String get id => 'all_star_selection_${result.week}';
+
+  @override
+  String get subject => 'All-Star Selections Announced';
+}
+
 /// The All-Star Game's [PlayedGame], plus the squad selection
 /// [AllStarGameResultScreen] needs to group its box score by conference
 /// -- `mailboxFor` builds this fresh from [Franchise.seasonProgress]'s
@@ -136,4 +168,50 @@ class RetirementDecisionMailItem extends MailItem {
 
   @override
   String get subject => '${player.name} is Considering Retirement';
+}
+
+/// This season's batch of [LeagueRetirement]s -- an Assistant GM roundup
+/// of every AI-team retirement the just-finished off-season resolved
+/// automatically (2026-08-20, a direct GM ask: "an email from asst gm
+/// notifying of all retirements"), wrapped the same way
+/// [SkillsCompetitionMailItem] wraps a [SkillsCompetitionResult]. See
+/// [LeagueRetirement]'s own doc comment for why the GM's own roster and
+/// the narrative veteran are deliberately left off this list.
+class LeagueRetirementsMailItem extends MailItem {
+  const LeagueRetirementsMailItem({
+    required this.season,
+    required this.retirements,
+  });
+
+  final int season;
+  final List<LeagueRetirement> retirements;
+
+  @override
+  String get id => 'league_retirements_$season';
+
+  @override
+  String get subject => 'League Retirements';
+}
+
+/// A live warning that the GM's own roster currently violates one or
+/// more of [RosterLegality]'s rules -- re-derived fresh from
+/// [Franchise.roster] every time, same "real, re-derived state, not a
+/// one-time nudge" posture `mailbox.dart`'s own [kRosterGapMailId]
+/// already established (2026-08-20, a direct GM ask: "I think we need to
+/// build in more notifications of roster legality... I feel like I
+/// should get an email right after the draft from the asst gm"). Appears
+/// the moment the roster goes illegal (most commonly right after a
+/// draft, before the GM has waived anyone down) and disappears the
+/// moment it's fixed -- there's nothing to persist, [legality] itself is
+/// cheap to recompute.
+class RosterLegalityMailItem extends MailItem {
+  const RosterLegalityMailItem({required this.legality});
+
+  final RosterLegality legality;
+
+  @override
+  String get id => 'assistant_gm_roster_legality';
+
+  @override
+  String get subject => 'Roster Legality Issue';
 }

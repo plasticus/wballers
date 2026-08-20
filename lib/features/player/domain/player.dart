@@ -2,6 +2,7 @@ import '../../portrait/domain/portrait_appearance.dart';
 import 'achievement.dart';
 import 'archetype.dart';
 import 'college.dart';
+import 'draft_record.dart';
 import 'player_ratings.dart';
 import 'position.dart';
 import 'trait.dart';
@@ -62,6 +63,7 @@ class Player {
     this.jerseyNumber,
     this.college,
     this.peakOverall,
+    this.draftRecord,
   }) : assert(age > 0, 'age must be positive'),
        assert(
          jerseyNumber == null || (jerseyNumber >= 0 && jerseyNumber <= 99),
@@ -181,6 +183,18 @@ class Player {
   /// increment.
   final int? peakOverall;
 
+  /// Where and when this player was drafted -- `null` for anyone who
+  /// wasn't (an initial expansion-roster/free-agent-pool player, or a
+  /// player generated standalone). Stamped once, at
+  /// `draft/generation/draft_advancer.dart`'s `finalizeDraft`, and never
+  /// changed afterward -- survives trades/drops/free agency exactly like
+  /// [college]/[archetype] do, since it's a fact about how this player
+  /// entered the league, not where she currently plays. See
+  /// [PlayerDraftRecord]'s own doc comment (a direct GM ask, 2026-08-19:
+  /// "when you click on a player who was drafted, we should see what
+  /// season, round, and pick they were drafted").
+  final PlayerDraftRecord? draftRecord;
+
   /// [peakOverall], or [PlayerRatings.overall] itself when nothing's been
   /// recorded yet -- see [peakOverall]'s own doc comment for why that's
   /// the safe default rather than treating an untracked player as having
@@ -224,6 +238,7 @@ class Player {
       jerseyNumber: jerseyNumber,
       college: college,
       peakOverall: peakOverall,
+      draftRecord: draftRecord,
     );
   }
 
@@ -251,6 +266,7 @@ class Player {
       jerseyNumber: jerseyNumber,
       college: college,
       peakOverall: peakOverall,
+      draftRecord: draftRecord,
     );
   }
 
@@ -276,6 +292,7 @@ class Player {
       jerseyNumber: jerseyNumber,
       college: college,
       peakOverall: peakOverall,
+      draftRecord: draftRecord,
     );
   }
 
@@ -301,6 +318,7 @@ class Player {
       jerseyNumber: jerseyNumber,
       college: college,
       peakOverall: peakOverall,
+      draftRecord: draftRecord,
     );
   }
 
@@ -333,6 +351,7 @@ class Player {
       jerseyNumber: newJerseyNumber,
       college: college,
       peakOverall: peakOverall,
+      draftRecord: draftRecord,
     );
   }
 
@@ -359,6 +378,7 @@ class Player {
       jerseyNumber: jerseyNumber,
       college: college,
       peakOverall: peakOverall,
+      draftRecord: draftRecord,
     );
   }
 
@@ -397,6 +417,35 @@ class Player {
       jerseyNumber: jerseyNumber,
       college: college,
       peakOverall: effectivePeakOverall,
+      draftRecord: draftRecord,
+    );
+  }
+
+  /// Returns a copy with [newDraftRecord] replacing [draftRecord] --
+  /// `finalizeDraft` is the only caller, stamping every drafted player
+  /// exactly once, right as the pick lands on a roster.
+  Player copyWithDraftRecord(PlayerDraftRecord newDraftRecord) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      yearsOfService: yearsOfService,
+      hometown: hometown,
+      primaryPosition: primaryPosition,
+      secondaryPositions: secondaryPositions,
+      handedness: handedness,
+      biography: biography,
+      ratings: ratings,
+      heightInches: heightInches,
+      archetype: archetype,
+      traits: traits,
+      appearance: appearance,
+      achievements: achievements,
+      nickname: nickname,
+      jerseyNumber: jerseyNumber,
+      college: college,
+      peakOverall: peakOverall,
+      draftRecord: newDraftRecord,
     );
   }
 }

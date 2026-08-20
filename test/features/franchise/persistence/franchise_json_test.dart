@@ -5,7 +5,9 @@ import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/draft/domain/draft_in_progress.dart';
 import 'package:womensbballmgr/features/draft/domain/draft_pick.dart';
 import 'package:womensbballmgr/features/draft/domain/draft_prospect.dart';
+import 'package:womensbballmgr/features/franchise/domain/former_player_record.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/domain/league_retirement.dart';
 import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
@@ -338,6 +340,73 @@ void main() {
     final restored = franchiseFromJson(franchiseToJson(franchise));
 
     expect(restored.pendingRetirements, isEmpty);
+  });
+
+  test('round-trips formerPlayers (2026-08-19, a direct GM report: a '
+      'retired all-star showed up on the post-season report as "Former '
+      'Player")', () {
+    final franchise = _sampleFranchise().copyWithRetiredPlayer(
+      const FormerPlayerRecord(
+        playerId: 'p-starter',
+        name: 'Riley Okafor',
+        primaryPosition: Position.pointGuard,
+        jerseyNumber: 23,
+      ),
+    );
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.formerPlayers, hasLength(1));
+    final record = restored.formerPlayers.single;
+    expect(record.playerId, 'p-starter');
+    expect(record.name, 'Riley Okafor');
+    expect(record.primaryPosition, Position.pointGuard);
+    expect(record.jerseyNumber, 23);
+    // She's removed from the roster too -- `copyWithRetiredPlayer`'s
+    // bundled behavior, same "retired means retired" rule every other
+    // retirement path already follows.
+    expect(restored.roster.any((m) => m.player.id == 'p-starter'), isFalse);
+  });
+
+  test('formerPlayers round-trips empty', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.formerPlayers, isEmpty);
+  });
+
+  test('round-trips leagueRetirements (2026-08-20, a direct GM ask: an '
+      'off-season report plus an asst GM email listing every retirement)', () {
+    final franchise = _sampleFranchise().copyWithLeagueRetirements(const [
+      LeagueRetirement(
+        playerId: 'ai-vet',
+        name: 'Casey Nguyen',
+        primaryPosition: Position.center,
+        teamAbbreviation: 'CHI',
+        reason: RetirementReason.hitMandatoryAge,
+        season: 0,
+      ),
+    ]);
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.leagueRetirements, hasLength(1));
+    final retirement = restored.leagueRetirements.single;
+    expect(retirement.playerId, 'ai-vet');
+    expect(retirement.name, 'Casey Nguyen');
+    expect(retirement.primaryPosition, Position.center);
+    expect(retirement.teamAbbreviation, 'CHI');
+    expect(retirement.reason, RetirementReason.hitMandatoryAge);
+    expect(retirement.season, 0);
+  });
+
+  test('leagueRetirements round-trips empty', () {
+    final franchise = _sampleFranchise();
+
+    final restored = franchiseFromJson(franchiseToJson(franchise));
+
+    expect(restored.leagueRetirements, isEmpty);
   });
 
   test('round-trips draftClass (2026-08-11, 0D_Season_2_Roadmap.md: Player '

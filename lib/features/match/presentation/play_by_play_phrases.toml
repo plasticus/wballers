@@ -135,6 +135,8 @@ phrases = [
   "{player} beats her defender backdoor for an easy layup.",
   "{player} scoops in a reverse layup.",
   "{player} lays it in off the glass.",
+  "{player}'s shot rattles in!",
+  "It rolls around the rim... and rattles in for {player}!",
 ]
 
 [twopt_miss]
@@ -164,6 +166,8 @@ phrases = [
   "{player} splashes one from way outside!",
   "{player} pulls up in transition and nails the triple!",
   "{player} finds nothing but net from beyond the arc!",
+  "{player}'s three rattles in!",
+  "It bounces around the rim, and it rattles in for three!",
 ]
 
 [threept_miss]

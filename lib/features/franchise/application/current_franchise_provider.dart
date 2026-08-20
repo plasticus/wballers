@@ -39,6 +39,7 @@ import '../../trade/generation/ai_offseason_trade_advancer.dart';
 import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
+import '../domain/former_player_record.dart';
 import '../domain/franchise.dart';
 import '../domain/pending_retirement.dart';
 import '../persistence/franchise_json.dart';
@@ -488,12 +489,28 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// Removes [playerId] from [franchise]'s roster entirely -- unlike
   /// [dropPlayer], never routed to [Franchise.freeAgents]: this is
   /// [resolvePendingRetirement]'s "actually retiring" path, and retired
-  /// means retired, not signable.
+  /// means retired, not signable. Also snapshots her name/position/jersey
+  /// into [Franchise.formerPlayers] (`copyWithRetiredPlayer`) so this
+  /// season's own training reports can still show a real name for her
+  /// afterward instead of the generic "Former Player" fallback -- a
+  /// direct GM report (2026-08-19), see [FormerPlayerRecord]'s own doc
+  /// comment. A no-op beyond the removal itself if [playerId] somehow
+  /// isn't actually on [franchise]'s roster (never expected in practice
+  /// -- every caller resolves this against a real [PendingRetirement]).
   Franchise _retirePlayer(Franchise franchise, String playerId) {
-    return franchise.copyWithRoster([
-      for (final membership in franchise.roster)
-        if (membership.player.id != playerId) membership,
-    ]);
+    final membership = franchise.roster.where(
+      (m) => m.player.id == playerId,
+    );
+    if (membership.isEmpty) return franchise;
+    final player = membership.first.player;
+    return franchise.copyWithRetiredPlayer(
+      FormerPlayerRecord(
+        playerId: player.id,
+        name: player.name,
+        primaryPosition: player.primaryPosition,
+        jerseyNumber: player.jerseyNumber,
+      ),
+    );
   }
 
   /// Replaces the coach's portrait appearance and persists it. Same
@@ -867,9 +884,9 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       Random(withAwards.seasonSeed + kAiTeamRetirementSeedOffset),
       withAwards,
     );
-    final withAiRetirement = withAiAging.copyWithLeague(
-      aiRetirementAdvance.league,
-    );
+    final withAiRetirement = withAiAging
+        .copyWithLeague(aiRetirementAdvance.league)
+        .copyWithLeagueRetirements(aiRetirementAdvance.retirements);
     // Forces the narrative veteran into retirement at the end of the
     // franchise's very first season, wherever she is by then -- see
     // `resolveNarrativeVeteranRetirement`'s own doc comment. Runs before

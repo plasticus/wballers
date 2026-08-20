@@ -1,8 +1,10 @@
+import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
 import '../../player/domain/player.dart';
 import '../domain/game_day.dart';
 import '../domain/league_leaders.dart';
 import '../domain/scheduled_game.dart';
+import '../domain/season_progress.dart';
 
 /// The season calendar week the All-Star break falls on -- a direct GM
 /// ask: "let's put it like 80% of the way through the season." 19/24
@@ -39,6 +41,21 @@ const kAllStarWeek = 19;
 /// to avoid surfacing this mismatch.
 const kSkillsCompetitionDay = GameDay.sunday;
 const kAllStarGameDay = GameDay.thursday;
+
+/// Whether [kAllStarWeek] is still ahead of the next game day to be
+/// played -- mirrors `trade_window.dart`'s `isTradeWindowOpen` gate
+/// exactly, same shape and same reason: the Dashboard's own "All-Star
+/// Break" row, spliced into Upcoming Games (`dashboard_screen.dart`,
+/// 2026-08-20, a direct GM ask: "make the dashboard show the all star
+/// break"), should only show while the break is genuinely still coming,
+/// not once its games have already been played through.
+bool isAllStarWeekUpcoming(Franchise franchise) {
+  final progress = franchise.seasonProgress;
+  final gameDays = gameDaysInOrder(progress.schedule);
+  if (progress.nextGameDayIndex >= gameDays.length) return false;
+  final (nextWeek, _) = gameDays[progress.nextGameDayIndex];
+  return nextWeek <= kAllStarWeek;
+}
 
 /// Placeholder "team" identities for the 2 conference All-Star squads --
 /// not real [Team]s (no entry in `kLeagueTeamPool`, never returned by

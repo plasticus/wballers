@@ -53,6 +53,14 @@ void main() {
     'shows all 3 events, standings sorted best-first, and calls out an '
     'own-roster win (2026-08-10, TODO.md item 6)',
     (tester) async {
+      // All 3 event cards, standings and all, no longer fit the default
+      // test surface now that Full Press Frenzy's tagline makes its card
+      // taller -- same fix the "tapping a standing row" test below already
+      // uses for the same reason.
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       final rival = playerWithOverall(80, id: 'rival-1', name: 'Rival One');
       final roster = generateStartingRoster(1);
       final ownPlayer = roster.first.player;
@@ -94,7 +102,7 @@ void main() {
         },
         events: [
           SkillsEventResult(
-            event: SkillsEvent.threePointShootout,
+            event: SkillsEvent.fullPressFrenzy,
             standings: [
               SkillsEventStanding(playerId: ownPlayer.id, score: 90),
               SkillsEventStanding(playerId: rival.id, score: 70),
@@ -128,12 +136,12 @@ void main() {
       await tester.pump();
 
       expect(find.text('Skills Competition'), findsOneWidget);
-      expect(find.text('3-Point Shootout'), findsOneWidget);
+      expect(find.text('Full Press Frenzy'), findsOneWidget);
       expect(find.text('H-O-R-S-E'), findsOneWidget);
       expect(find.text('Defensive Skills Challenge'), findsOneWidget);
       // The GM's own player won the shootout -- called out at the top.
       expect(
-        find.text('Your player won the 3-Point Shootout!'),
+        find.text('Your player won the Full Press Frenzy!'),
         findsOneWidget,
       );
       // Each name is followed by the player's own team abbreviation
@@ -195,7 +203,7 @@ void main() {
       },
       events: [
         SkillsEventResult(
-          event: SkillsEvent.threePointShootout,
+          event: SkillsEvent.fullPressFrenzy,
           standings: [
             SkillsEventStanding(playerId: a.id, score: 90),
             SkillsEventStanding(playerId: b.id, score: 70),
@@ -281,7 +289,7 @@ void main() {
       },
       events: [
         SkillsEventResult(
-          event: SkillsEvent.threePointShootout,
+          event: SkillsEvent.fullPressFrenzy,
           standings: [
             SkillsEventStanding(playerId: ownPlayer.id, score: 90),
             SkillsEventStanding(playerId: rival.id, score: 70),

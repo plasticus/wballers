@@ -1,11 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/domain/league_retirement.dart';
 import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/mail/application/mailbox.dart';
 import 'package:womensbballmgr/features/mail/domain/mail_item.dart';
+import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/skills_competition.dart';
@@ -13,6 +17,7 @@ import 'package:womensbballmgr/features/season/generation/all_star_generator.dar
 import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
 import '../../../support/franchise_test_helpers.dart';
+import '../../roster/domain/roster_test_helpers.dart';
 
 Franchise _franchise() => createExpansionFranchise(
   gmName: 'Jordan Ellis',
@@ -129,6 +134,52 @@ void main() {
       );
       expect(reportIndex, lessThan(rosterCompleteIndex));
     });
+
+    test('suppresses the Day-0 roster-gap/roster-complete messages once '
+        'the franchise is past its first season (2026-08-20, a direct GM '
+        'report: a mid-career retirement resurrected the exact Day-0 '
+        '"Last Roster Spot" email in a later season)', () {
+      final base = _franchise(); // still short a player
+      final laterSeason = base.copyWithNewSeason(
+        newSeason: 1,
+        newSeasonProgress: base.seasonProgress,
+      );
+
+      final items = mailboxFor(laterSeason);
+
+      expect(items.whereType<AssistantGmMailItem>(), isEmpty);
+    });
+  });
+
+  group('League Retirements mail (2026-08-20, a direct GM ask: "an email '
+      'from asst gm notifying of all retirements")', () {
+    test('includes a LeagueRetirementsMailItem once the off-season resolves '
+        'any AI-team retirements', () {
+      final franchise = _franchise().copyWithLeagueRetirements(const [
+        LeagueRetirement(
+          playerId: 'ai-1',
+          name: 'Alex Rivera',
+          primaryPosition: Position.center,
+          teamAbbreviation: 'CHI',
+          reason: RetirementReason.hitMandatoryAge,
+          season: 0,
+        ),
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      final retirementItem = items.whereType<LeagueRetirementsMailItem>()
+          .single;
+      expect(retirementItem.retirements, hasLength(1));
+      expect(retirementItem.id, 'league_retirements_0');
+    });
+
+    test('omits LeagueRetirementsMailItem when there were no league '
+        'retirements this season', () {
+      final items = mailboxFor(_franchise());
+
+      expect(items.whereType<LeagueRetirementsMailItem>(), isEmpty);
+    });
   });
 
   group('All-Star week mail (2026-08-10, TODO.md items 5/6)', () {
@@ -198,6 +249,72 @@ void main() {
       final items = mailboxFor(franchise);
 
       expect(items.whereType<AllStarGameMailItem>(), hasLength(1));
+    });
+
+    test('includes an AllStarSelectionMailItem naming the GM\'s own '
+        'roster players who made a conference squad (2026-08-20, a '
+        'direct GM ask: "I should get an email telling me if any of my '
+        'players were chosen")', () {
+      final base = _franchise();
+      final ownHonoree = base.roster.first.player;
+      final franchise = base.copyWithSkillsCompetitionResult(
+        SkillsCompetitionResult(
+          week: kAllStarWeek,
+          squads: {
+            Conference.atlantic: [
+              ownHonoree.id,
+              ...List.generate(9, (i) => 'atl-$i'),
+            ],
+            Conference.pacific: List.generate(10, (i) => 'pac-$i'),
+          },
+          events: [
+            for (final event in SkillsEvent.values)
+              SkillsEventResult(
+                event: event,
+                standings: const [
+                  SkillsEventStanding(playerId: 'atl-0', score: 90),
+                  SkillsEventStanding(playerId: 'pac-0', score: 80),
+                ],
+              ),
+          ],
+        ),
+      );
+
+      final items = mailboxFor(franchise);
+
+      final selectionItems = items.whereType<AllStarSelectionMailItem>();
+      expect(selectionItems, hasLength(1));
+      expect(selectionItems.single.selections.single.id, ownHonoree.id);
+    });
+
+    test('an AllStarSelectionMailItem\'s selections are empty when no one '
+        'from the GM\'s own roster made either squad', () {
+      final franchise = _franchise().copyWithSkillsCompetitionResult(
+        SkillsCompetitionResult(
+          week: kAllStarWeek,
+          squads: {
+            Conference.atlantic: List.generate(10, (i) => 'atl-$i'),
+            Conference.pacific: List.generate(10, (i) => 'pac-$i'),
+          },
+          events: [
+            for (final event in SkillsEvent.values)
+              SkillsEventResult(
+                event: event,
+                standings: const [
+                  SkillsEventStanding(playerId: 'atl-0', score: 90),
+                  SkillsEventStanding(playerId: 'pac-0', score: 80),
+                ],
+              ),
+          ],
+        ),
+      );
+
+      final items = mailboxFor(franchise);
+
+      expect(
+        items.whereType<AllStarSelectionMailItem>().single.selections,
+        isEmpty,
+      );
     });
 
     test('a later-week SkillsCompetitionMailItem sorts above an '
@@ -336,6 +453,65 @@ void main() {
         assistantGmRosterGapMessage(franchise),
         contains('one player short'),
       );
+    });
+  });
+
+  group('Roster Legality mail (2026-08-20, a direct GM ask: "I think we '
+      'need to build in more notifications of roster legality")', () {
+    test('includes a RosterLegalityMailItem once the active roster goes '
+        'over the cap', () {
+      final legal = withFullActiveRoster(_franchise());
+      final illegal = legal.copyWithRoster([
+        ...legal.roster,
+        RosterMembership(
+          player: playerWithOverall(50),
+          status: RosterStatus.active,
+        ),
+        RosterMembership(
+          player: playerWithOverall(50),
+          status: RosterStatus.active,
+        ),
+      ]);
+
+      final items = mailboxFor(illegal);
+
+      final legalityItem = items.whereType<RosterLegalityMailItem>().single;
+      expect(legalityItem.legality.isLegal, isFalse);
+      expect(legalityItem.legality.hasLegalActiveRosterSize, isFalse);
+    });
+
+    test('omits RosterLegalityMailItem when the roster is legal', () {
+      final legal = withFullActiveRoster(_franchise());
+
+      final items = mailboxFor(legal);
+
+      expect(items.whereType<RosterLegalityMailItem>(), isEmpty);
+    });
+
+    test('live-derived, not a one-time nudge -- disappears the moment the '
+        'roster is fixed, same posture as kRosterGapMailId', () {
+      final legal = withFullActiveRoster(_franchise());
+      final illegal = legal.copyWithRoster([
+        ...legal.roster,
+        RosterMembership(
+          player: playerWithOverall(50),
+          status: RosterStatus.active,
+        ),
+        RosterMembership(
+          player: playerWithOverall(50),
+          status: RosterStatus.active,
+        ),
+      ]);
+      expect(
+        mailboxFor(illegal).whereType<RosterLegalityMailItem>(),
+        isNotEmpty,
+      );
+
+      final fixed = illegal.copyWithRoster(
+        illegal.roster.take(legal.roster.length).toList(),
+      );
+
+      expect(mailboxFor(fixed).whereType<RosterLegalityMailItem>(), isEmpty);
     });
   });
 }

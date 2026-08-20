@@ -28,6 +28,7 @@ import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
+import 'package:womensbballmgr/features/season/generation/all_star_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart'
     show weekLabel;
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
@@ -155,7 +156,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Season'), findsOneWidget);
+    expect(find.text('Season 1'), findsOneWidget);
     expect(find.text('0-0'), findsOneWidget);
     expect(find.text('Upcoming Games'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
@@ -336,6 +337,88 @@ void main() {
       expect(find.textContaining('Trade Deadline'), findsNothing);
     },
   );
+
+  testWidgets(
+    'splices an All-Star Break row into Upcoming Games once the Week 19 '
+    'boundary is one of the next few games, while the break is still '
+    'ahead (2026-08-20, a direct GM ask: "make the dashboard show the '
+    'all star break")',
+    (tester) async {
+      final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+      final league = testLeague(
+        simulationSeed: 1,
+        replacedTeamAbbreviation: ownAbbreviation,
+      );
+      final opponent = league.aiTeams[0].team.abbreviation;
+      ScheduledGame ownGameAt(int week) => ScheduledGame(
+        week: week,
+        day: GameDay.sunday,
+        homeTeamAbbreviation: ownAbbreviation,
+        awayTeamAbbreviation: opponent,
+        type: GameType.regularSeason,
+      );
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: SeasonSchedule(
+            games: [ownGameAt(kAllStarWeek - 1), ownGameAt(kAllStarWeek + 1)],
+          ),
+          playedGames: const [],
+          nextGameDayIndex: 0,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('All-Star Break'), findsOneWidget);
+    },
+  );
+
+  testWidgets('never shows the All-Star Break row once the break has '
+      'already been played through', (tester) async {
+    final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+    final league = testLeague(
+      simulationSeed: 1,
+      replacedTeamAbbreviation: ownAbbreviation,
+    );
+    final opponent = league.aiTeams[0].team.abbreviation;
+    final franchise = _franchiseWith(
+      seasonProgress: SeasonProgress(
+        schedule: SeasonSchedule(
+          games: [
+            ScheduledGame(
+              week: kAllStarWeek + 1,
+              day: GameDay.sunday,
+              homeTeamAbbreviation: ownAbbreviation,
+              awayTeamAbbreviation: opponent,
+              type: GameType.regularSeason,
+            ),
+          ],
+        ),
+        playedGames: const [],
+        // Already on the clock for the postseason-side game -- the break
+        // is behind us.
+        nextGameDayIndex: 0,
+      ),
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('All-Star Break'), findsNothing);
+  });
 
   testWidgets(
     'shows an Assistant GM mail card naming the pool\'s best prospect, and '

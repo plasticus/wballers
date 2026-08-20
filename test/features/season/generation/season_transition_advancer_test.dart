@@ -9,6 +9,9 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/season/application/franchise_rosters.dart';
+import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/season/domain/standings_entry.dart';
+import 'package:womensbballmgr/features/season/generation/postseason_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_schedule_generator.dart';
 import 'package:womensbballmgr/features/season/generation/season_transition_advancer.dart';
 
@@ -80,6 +83,49 @@ void main() {
         next.roster.map((m) => m.player.id),
         playedOut.roster.map((m) => m.player.id),
       );
+    },
+  );
+
+  test(
+    'beginNextSeason bumps the GM\'s own head coach\'s career record off '
+    'the just-finished season\'s real standings/champion (2026-08-19, a '
+    'direct GM ask: "Head coach needs a detail screen... career '
+    'wins/losses, any trophies, how long they\'ve been a head coach")',
+    () async {
+      final base = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      final playedOut = await _playedOutFranchise(base);
+      final finalStandings = currentStandings(
+        playedOut.seasonProgress,
+        allLeagueTeams(playedOut),
+      );
+      final ownRecord = recordFor(
+        playedOut.team.abbreviation,
+        finalStandings,
+      );
+      final wonChampionship =
+          seasonChampion(playedOut.seasonProgress.playedGames) ==
+          playedOut.team.abbreviation;
+
+      final next = beginNextSeason(playedOut);
+
+      expect(next.coach.seasonsAsHeadCoach, 1);
+      expect(next.coach.careerWins, ownRecord.wins);
+      expect(next.coach.careerLosses, ownRecord.losses);
+      expect(next.coach.championshipsWon, wonChampionship ? 1 : 0);
+      // Nothing else about the coach changed.
+      expect(next.coach.name, playedOut.coach.name);
+      expect(next.coach.stats, playedOut.coach.stats);
     },
   );
 

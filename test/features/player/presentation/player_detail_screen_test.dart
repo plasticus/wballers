@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
+import 'package:womensbballmgr/features/player/domain/draft_record.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/player/presentation/player_card_widgets.dart';
@@ -173,6 +174,74 @@ void main() {
 
         expect(find.text('Country: Nigeria'), findsOneWidget);
         expect(find.textContaining('College:'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'shows a Drafted line naming the season/round/pick for a drafted '
+      'player -- a direct GM ask (2026-08-19): "we should see what '
+      'season, round, and pick they were drafted"',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final target = playerWithOverall(
+          65,
+          name: 'Riley Okafor',
+        ).copyWithDraftRecord(
+          const PlayerDraftRecord(season: 1, round: 2, pickNumber: 15),
+        );
+        final franchise = _franchiseWith(
+          target: RosterMembership(player: target, status: RosterStatus.active),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: PlayerDetailScreen(
+                franchise: franchise,
+                playerId: target.id,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        // Display is 1-based -- season 1 (zero-based, her second season)
+        // shows as "Season 2."
+        expect(
+          find.text('Drafted: Season 2, Round 2, Pick 15 overall'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'shows no Drafted line for a player who was never drafted',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final target = playerWithOverall(65, name: 'Riley Okafor');
+        final franchise = _franchiseWith(
+          target: RosterMembership(player: target, status: RosterStatus.active),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: PlayerDetailScreen(
+                franchise: franchise,
+                playerId: target.id,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.textContaining('Drafted:'), findsNothing);
       },
     );
 

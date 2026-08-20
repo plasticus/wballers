@@ -5,7 +5,7 @@
 // hand-editable copy), then re-run the script to refresh this file:
 //   python3 tool/generate_play_by_play_phrases.py
 
-// 141 phrases across 22 categories.
+// 145 phrases across 22 categories.
 const Map<String, List<String>> kPlayByPlayPhrases = {
   'tip_off': [
     '{player} wins the tip for {team}.',
@@ -82,6 +82,8 @@ const Map<String, List<String>> kPlayByPlayPhrases = {
     '{player} beats her defender backdoor for an easy layup.',
     '{player} scoops in a reverse layup.',
     '{player} lays it in off the glass.',
+    '{player}\'s shot rattles in!',
+    'It rolls around the rim... and rattles in for {player}!',
   ],
   'twopt_miss': [
     '{player}\'s shot rims out.',
@@ -107,6 +109,8 @@ const Map<String, List<String>> kPlayByPlayPhrases = {
     '{player} splashes one from way outside!',
     '{player} pulls up in transition and nails the triple!',
     '{player} finds nothing but net from beyond the arc!',
+    '{player}\'s three rattles in!',
+    'It bounces around the rim, and it rattles in for three!',
   ],
   'threept_miss': [
     '{player}\'s three rims out.',

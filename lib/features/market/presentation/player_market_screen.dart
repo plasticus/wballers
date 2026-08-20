@@ -10,6 +10,7 @@ import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/player.dart';
 import '../../player/presentation/player_card_widgets.dart';
+import '../../player/presentation/player_detail_screen.dart';
 import '../../player/presentation/player_sort_filter_bar.dart';
 import '../../player/presentation/trait_chip.dart';
 import '../../portrait/rendering/portrait_colors.dart';
@@ -534,6 +535,24 @@ class _TradeOfferCard extends StatelessWidget {
             assets: offer.askedFromYou,
             currentSeason: franchise.season,
           ),
+          const SizedBox(height: AppSpacing.sm),
+          // A direct GM ask (2026-08-20): "each trade needs a details
+          // screen, where all the players involved are there, I can see
+          // every detail about each player." Reuses `PlayerDetailScreen`
+          // per-player (full ratings/traits/season stats/awards) rather
+          // than re-building any of that here.
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      TradeOfferDetailScreen(franchise: franchise, offer: offer),
+                ),
+              );
+            },
+            icon: const Icon(Icons.info_outline),
+            label: const Text('View Full Details'),
+          ),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -561,6 +580,244 @@ class _TradeOfferCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// A single [offer]'s full detail -- every player involved shown with
+/// their real identity block (photo, OVR, star tier, POT, OFF/DEF/PHY),
+/// each tappable through to `PlayerDetailScreen`'s full profile (ratings,
+/// traits, this season's stats, awards) -- a direct GM ask (2026-08-20):
+/// "each trade needs a details screen, where all the players involved
+/// are there, I can see every detail about each player." Accept/Decline
+/// live here too, so a GM who came here to actually look closely doesn't
+/// need to back out to the board just to commit.
+class TradeOfferDetailScreen extends ConsumerStatefulWidget {
+  const TradeOfferDetailScreen({
+    required this.franchise,
+    required this.offer,
+    super.key,
+  });
+
+  final Franchise franchise;
+  final TradeOffer offer;
+
+  @override
+  ConsumerState<TradeOfferDetailScreen> createState() =>
+      _TradeOfferDetailScreenState();
+}
+
+class _TradeOfferDetailScreenState
+    extends ConsumerState<TradeOfferDetailScreen> {
+  var _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final franchise =
+        ref.watch(currentFranchiseProvider).value ?? widget.franchise;
+    final offer = widget.offer;
+    final alreadyResolved = franchise.resolvedTradeOfferIds.contains(
+      offer.id,
+    );
+    final aiTeam = franchise.league.aiTeams.firstWhere(
+      (t) => t.team.abbreviation == offer.offeringTeamAbbreviation,
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Trade Offer')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            AppCard(
+              child: Row(
+                children: [
+                  Text(aiTeam.team.emoji, style: const TextStyle(fontSize: 24)),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      aiTeam.team.name,
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ),
+                  _CharacterChip(character: offer.character),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('You Get', style: theme.textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            for (final asset in offer.offeredToYou) ...[
+              _TradeDetailAssetTile(
+                franchise: franchise,
+                asset: asset,
+                accentColor: aiTeam.team.colors.primary,
+                jersey: parseHexColor(aiTeam.team.colors.primaryHex),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            Text('You Give', style: theme.textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            for (final asset in offer.askedFromYou) ...[
+              _TradeDetailAssetTile(
+                franchise: franchise,
+                asset: asset,
+                accentColor: franchise.team.colors.primary,
+                jersey: parseHexColor(franchise.team.colors.primaryHex),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            if (alreadyResolved)
+              const Text(
+                'This offer has already been resolved.',
+                textAlign: TextAlign.center,
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _decline,
+                      child: const Text('Decline'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _busy ? null : _accept,
+                      child: _busy
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Accept'),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _accept() async {
+    setState(() => _busy = true);
+    await ref
+        .read(currentFranchiseProvider.notifier)
+        .acceptTradeOffer(widget.offer);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _decline() async {
+    setState(() => _busy = true);
+    await ref
+        .read(currentFranchiseProvider.notifier)
+        .declineTradeOffer(widget.offer.id);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+}
+
+/// One [TradeAsset] row for [TradeOfferDetailScreen] -- a full identity
+/// block for a player (unlike the Trade Board list's compact
+/// `_TradeAssetTile`), tappable through to `PlayerDetailScreen`'s full
+/// profile. [PickTradeAsset] gets the same plain icon-and-label treatment
+/// `_TradeAssetTile` already uses -- there's still no player underneath a
+/// pick to show a profile for.
+class _TradeDetailAssetTile extends StatelessWidget {
+  const _TradeDetailAssetTile({
+    required this.franchise,
+    required this.asset,
+    required this.accentColor,
+    required this.jersey,
+  });
+
+  final Franchise franchise;
+  final TradeAsset asset;
+  final Color accentColor;
+  final RgbColor? jersey;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return switch (asset) {
+      PlayerTradeAsset(:final player) => AppCard(
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PlayerDetailScreen(
+                  franchise: franchise,
+                  playerId: player.id,
+                ),
+              ),
+            );
+          },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PhotoOvrRail(
+                franchise: franchise,
+                player: player,
+                accentColor: accentColor,
+                jersey: jersey,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${player.primaryPosition.abbreviation} ${player.name}',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    Text(
+                      'Age ${player.age} · ${experienceLabel(player)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    StatChipRow(
+                      player: player,
+                      extra: [
+                        StatChip(
+                          label: 'POT',
+                          value: player.ratings.potential,
+                          color: statChipTone(context, Colors.purple),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: theme.colorScheme.outline),
+            ],
+          ),
+        ),
+      ),
+      PickTradeAsset(:final draftSeason) => AppCard(
+        child: Row(
+          children: [
+            Icon(
+              Icons.confirmation_number_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                '${asset.label} '
+                '(${pickHorizonLabel(draftSeason, franchise.season)})',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
+      ),
+    };
   }
 }
 
@@ -645,6 +902,17 @@ class _TradeAssetTile extends StatelessWidget {
               'Age ${player.age}',
               style: theme.textTheme.bodyMedium,
             ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          // A direct GM ask (2026-08-20): "on the trade board screen, we
+          // need to add potential somewhere" -- same purple "POT" tone
+          // the Market screen's own player rows already use
+          // (`StatChipRow`'s `extra` POT chip), so it reads as the same
+          // concept here.
+          StatChip(
+            label: 'POT',
+            value: player.ratings.potential,
+            color: statChipTone(context, Colors.purple),
           ),
         ],
       ),

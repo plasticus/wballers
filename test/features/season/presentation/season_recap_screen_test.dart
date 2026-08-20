@@ -10,13 +10,16 @@ import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_stats.dart';
 import 'package:womensbballmgr/features/draft/generation/draft_generator.dart';
 import 'package:womensbballmgr/features/franchise/application/current_franchise_provider.dart';
+import 'package:womensbballmgr/features/franchise/domain/former_player_record.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
+import 'package:womensbballmgr/features/franchise/domain/league_retirement.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
+import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
@@ -104,6 +107,53 @@ void main() {
     } else {
       expect(find.textContaining('are the champions.'), findsOneWidget);
     }
+  });
+
+  testWidgets(
+    'shows a League Retirements section listing this season\'s AI-team '
+    'retirements (2026-08-20, a direct GM ask: "I\'d prefer to see that '
+    '[retirement] in an off season report")',
+    (tester) async {
+      final franchise = _playFullSeason(1).copyWithLeagueRetirements(const [
+        LeagueRetirement(
+          playerId: 'ai-1',
+          name: 'Alex Rivera',
+          primaryPosition: Position.center,
+          teamAbbreviation: 'CHI',
+          reason: RetirementReason.hitMandatoryAge,
+          season: 0,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('League Retirements', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Alex Rivera', skipOffstage: false),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('omits the League Retirements section when nothing retired '
+      'this season', (tester) async {
+    final franchise = _playFullSeason(1);
+
+    await tester.pumpWidget(
+      MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('League Retirements', skipOffstage: false),
+      findsNothing,
+    );
   });
 
   testWidgets(
@@ -291,6 +341,78 @@ void main() {
   );
 
   testWidgets(
+    'shows a retired player\'s real name in Player Development, not '
+    '"Former Player" -- a direct GM report (2026-08-19): a retired '
+    'all-star showed up on this exact section labeled "Former Player"',
+    (tester) async {
+      final player = playerWithOverall(
+        70,
+        id: 'p1',
+        name: 'Riley Okafor',
+        primaryPosition: Position.pointGuard,
+      ).copyWithJerseyNumber(23);
+      // Retired: no longer on `roster` at all, but her name/position/
+      // jersey survives in `formerPlayers` -- exactly what
+      // `current_franchise_provider.dart`'s `_retirePlayer` does for
+      // real.
+      final franchise = Franchise(
+        id: 'franchise-1',
+        gmName: 'Taylor Reed',
+        team: kLeagueTeamPool.first,
+        coach: const Coach(
+          name: 'Jordan Ellis',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: const [],
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: testLeague(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ),
+        seasonProgress: testSeasonProgress(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+          ownTeam: kLeagueTeamPool.first,
+        ),
+        trainingCoaches: testTrainingCoaches(),
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 3,
+        trainingReports: const [
+          TrainingReport(
+            week: 2,
+            results: [
+              PlayerGrowthResult(
+                playerId: 'p1',
+                fieldDeltas: {PlayerRatingField.speed: 2},
+                overallBefore: 68,
+                overallAfter: 69,
+              ),
+            ],
+          ),
+        ],
+        formerPlayers: [
+          FormerPlayerRecord(
+            playerId: 'p1',
+            name: player.name,
+            primaryPosition: player.primaryPosition,
+            jerseyNumber: player.jerseyNumber,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Riley Okafor'), findsOneWidget);
+      expect(find.textContaining('Former Player'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'shows an empty-state message when no development results exist yet',
     (tester) async {
       final roster = generateStartingRoster(1);
@@ -454,8 +576,11 @@ void main() {
   });
 
   testWidgets(
-    'tapping Begin Next Season transitions the franchise and opens Draft '
-    'Day (2026-08-11, 0D_Season_2_Roadmap.md: The draft, for real)',
+    'tapping Begin Next Season transitions the franchise and returns to '
+    'the Dashboard, not Draft Day (2026-08-19, a direct GM ask: "It '
+    'immediately dumps me to the draft. I don\'t like that ... feels '
+    'stressful") -- the draft is still waiting, just one tap away from '
+    'the Dashboard\'s own "Draft In Progress" card, not forced',
     (tester) async {
       final franchise = _playFullSeason(1);
       final repository = InMemorySaveRepository();
@@ -470,7 +595,21 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-          child: MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+          child: MaterialApp(
+            home: Navigator(
+              onGenerateRoute: (settings) => MaterialPageRoute(
+                builder: (_) => const Scaffold(body: Text('Dashboard')),
+              ),
+              onGenerateInitialRoutes: (navigator, initialRoute) => [
+                MaterialPageRoute(
+                  builder: (_) => const Scaffold(body: Text('Dashboard')),
+                ),
+                MaterialPageRoute(
+                  builder: (_) => SeasonRecapScreen(franchise: franchise),
+                ),
+              ],
+            ),
+          ),
         ),
       );
       await tester.pump();
@@ -480,8 +619,9 @@ void main() {
       await tester.tap(find.text('Begin Next Season'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Draft Day'), findsOneWidget);
-      final context = tester.element(find.text('Draft Day'));
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Draft Day'), findsNothing);
+      final context = tester.element(find.text('Dashboard'));
       final container = ProviderScope.containerOf(context);
       final updated = container.read(currentFranchiseProvider).value!;
       expect(updated.season, 1);

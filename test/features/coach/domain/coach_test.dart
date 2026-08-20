@@ -74,4 +74,60 @@ void main() {
     expect(updated.archetype, coach.archetype);
     expect(updated.appearance, coach.appearance);
   });
+
+  test(
+    'career fields default to 0 for fixtures built before they existed',
+    () {
+      const coach = Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+      );
+      expect(coach.seasonsAsHeadCoach, 0);
+      expect(coach.careerWins, 0);
+      expect(coach.careerLosses, 0);
+      expect(coach.championshipsWon, 0);
+    },
+  );
+
+  test(
+    'copyWithSeasonRecord bumps tenure and adds onto career wins/losses/'
+    'championships, leaves everything else (2026-08-19, a direct GM ask: '
+    '"Head coach needs a detail screen... career wins/losses, any '
+    'trophies, how long they\'ve been a head coach")',
+    () {
+      const coach = Coach(
+        name: 'Jordan Ellis',
+        stats: CoachStats.neutral,
+        archetype: CoachArchetype.steadyHand,
+        age: 52,
+        seasonsAsHeadCoach: 2,
+        careerWins: 30,
+        careerLosses: 20,
+        championshipsWon: 1,
+      );
+
+      final noTitle = coach.copyWithSeasonRecord(
+        wins: 25,
+        losses: 15,
+        wonChampionship: false,
+      );
+      expect(noTitle.seasonsAsHeadCoach, 3);
+      expect(noTitle.careerWins, 55);
+      expect(noTitle.careerLosses, 35);
+      expect(noTitle.championshipsWon, 1);
+      expect(noTitle.name, coach.name);
+      expect(noTitle.age, coach.age);
+
+      final withTitle = coach.copyWithSeasonRecord(
+        wins: 40,
+        losses: 0,
+        wonChampionship: true,
+      );
+      expect(withTitle.seasonsAsHeadCoach, 3);
+      expect(withTitle.careerWins, 70);
+      expect(withTitle.careerLosses, 20);
+      expect(withTitle.championshipsWon, 2);
+    },
+  );
 }

@@ -32,6 +32,10 @@ Map<String, dynamic> coachToJson(Coach coach) {
     'appearance': coach.appearance == null
         ? null
         : portraitAppearanceToJson(coach.appearance!),
+    'seasonsAsHeadCoach': coach.seasonsAsHeadCoach,
+    'careerWins': coach.careerWins,
+    'careerLosses': coach.careerLosses,
+    'championshipsWon': coach.championshipsWon,
   };
 }
 
@@ -48,5 +52,9 @@ Coach coachFromJson(Map<String, dynamic> json) {
         : portraitAppearanceFromJson(
             json['appearance'] as Map<String, dynamic>,
           ),
+    seasonsAsHeadCoach: json['seasonsAsHeadCoach'] as int,
+    careerWins: json['careerWins'] as int,
+    careerLosses: json['careerLosses'] as int,
+    championshipsWon: json['championshipsWon'] as int,
   );
 }

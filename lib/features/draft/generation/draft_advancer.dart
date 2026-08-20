@@ -3,6 +3,8 @@ import 'dart:math';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
+import '../../player/domain/draft_record.dart';
+import '../../player/domain/player.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../roster/generation/jersey_number_assignment.dart';
@@ -147,6 +149,15 @@ DraftInProgress makeOwnPick({
 /// Asserts the draft is actually [DraftInProgress.isComplete] --
 /// finalizing a draft with picks still outstanding would silently strand
 /// those teams without the players they were about to take.
+///
+/// Also stamps every drafted player's real [PlayerDraftRecord] (season/
+/// round/overall pick) on the way onto a roster -- a direct GM ask
+/// (2026-08-19): "After the first season, when you click on a player who
+/// was drafted, we should see what season, round, and pick they were
+/// drafted." [Franchise.season] has already been bumped to the season
+/// this draft belongs to by the time it resolves (`beginNextSeason` sets
+/// [Franchise.draftInProgress] as part of the same transition), so
+/// [updated.season] here is exactly right.
 Franchise finalizeDraft(Random random, Franchise franchise) {
   final draft = franchise.draftInProgress;
   assert(draft != null, 'no draft is in progress to finalize');
@@ -154,10 +165,18 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
 
   var updated = franchise;
   for (final pick in draft!.picks) {
+    final draftedPlayer = pick.prospect.player.copyWithDraftRecord(
+      PlayerDraftRecord(
+        season: updated.season,
+        round: pick.round,
+        pickNumber: pick.pickNumber,
+      ),
+    );
+
     if (pick.teamAbbreviation == updated.team.abbreviation) {
       final signed = assignJerseyNumberAvoiding(
         random,
-        pick.prospect.player,
+        draftedPlayer,
         updated.roster,
       );
       updated = updated.copyWithRoster([
@@ -170,7 +189,7 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
     final aiTeams = [
       for (final aiTeam in updated.league.aiTeams)
         if (aiTeam.team.abbreviation == pick.teamAbbreviation)
-          _addToAiRoster(random, aiTeam, pick.prospect)
+          _addToAiRoster(random, aiTeam, draftedPlayer)
         else
           aiTeam,
     ];
@@ -183,13 +202,9 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
 AiTeamRoster _addToAiRoster(
   Random random,
   AiTeamRoster aiTeam,
-  DraftProspect prospect,
+  Player draftedPlayer,
 ) {
-  final signed = assignJerseyNumberAvoiding(
-    random,
-    prospect.player,
-    aiTeam.roster,
-  );
+  final signed = assignJerseyNumberAvoiding(random, draftedPlayer, aiTeam.roster);
   return aiTeam.copyWithRoster([
     ...aiTeam.roster,
     RosterMembership(player: signed, status: RosterStatus.active),

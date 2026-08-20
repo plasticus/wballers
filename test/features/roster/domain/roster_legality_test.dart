@@ -129,4 +129,47 @@ void main() {
     expect(legality.hasOnlyEligibleDevelopmentalPlayers, isFalse);
     expect(legality.ineligibleDevelopmentalCount, 1);
   });
+
+  group('violationMessages (2026-08-20, a direct GM ask: "I think we need '
+      'to build in more notifications of roster legality")', () {
+    test('empty when the roster is legal', () {
+      final legality = evaluateRosterLegality(
+        active: _roster(belowThreeStar: 12),
+      );
+
+      expect(legality.violationMessages, isEmpty);
+    });
+
+    test('one message per distinct violation, all surfaced at once', () {
+      final legality = evaluateRosterLegality(
+        active: _roster(fourStar: 3, threeStar: 5, belowThreeStar: 6),
+        developmental: [playerWithOverall(50, yearsOfService: 4)],
+      );
+
+      // 3 four-star (over the 2 cap), 8 three-star-and-up (over the 6
+      // cap), 14 active total (over the 12 cap), plus 1 ineligible
+      // developmental player -- 4 distinct violations at once.
+      expect(legality.violationMessages, hasLength(4));
+      expect(
+        legality.violationMessages.any((m) => m.contains('active roster')),
+        isTrue,
+      );
+      expect(
+        legality.violationMessages.any((m) => m.contains('four-star')),
+        isTrue,
+      );
+      expect(
+        legality.violationMessages.any(
+          (m) => m.contains('three-star-or-better'),
+        ),
+        isTrue,
+      );
+      expect(
+        legality.violationMessages.any(
+          (m) => m.contains('developmental player'),
+        ),
+        isTrue,
+      );
+    });
+  });
 }

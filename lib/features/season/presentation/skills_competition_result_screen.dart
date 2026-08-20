@@ -104,6 +104,18 @@ class _EventCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(result.event.label, style: theme.textTheme.titleMedium),
+          // Only Full Press Frenzy carries a tagline -- H-O-R-S-E and the
+          // Defensive Skills Challenge are self-explanatory from the name
+          // alone, this one isn't.
+          if (result.event == SkillsEvent.fullPressFrenzy) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              kFullPressFrenzyDescription,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           for (var i = 0; i < result.standings.length; i++) ...[
             _StandingRow(
@@ -149,9 +161,11 @@ class _StandingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     // "Former Player" shouldn't happen (every standing entry comes from
-    // this event's own honoree pool, all still on their roster at the
-    // moment this resolved) but a label beats a crash, same posture every
-    // other id-lookup fallback in this codebase already takes.
+    // this event's own field -- honorees for HORSE/Defensive Skills
+    // Challenge, the whole league for Full Press Frenzy -- all still on
+    // their roster at the moment this resolved) but a label beats a crash,
+    // same posture every other id-lookup fallback in this codebase already
+    // takes.
     final player = this.player;
     final name = player?.name ?? 'Former Player';
     final label = teamAbbreviation == null ? name : '$name ($teamAbbreviation)';

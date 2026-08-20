@@ -54,6 +54,9 @@ SkillsCompetitionResult resolveSkillsCompetitionDay(
       ),
   };
   final honorees = [for (final squad in squadsByConference.values) ...squad];
+  final leaguePlayers = [
+    for (final team in leagueTeams) ...?rosters[team.abbreviation],
+  ];
 
   return SkillsCompetitionResult(
     week: kAllStarWeek,
@@ -64,8 +67,21 @@ SkillsCompetitionResult resolveSkillsCompetitionDay(
     events: [
       _runEvent(
         random,
-        SkillsEvent.threePointShootout,
-        _topByRating(honorees, (p) => p.ratings.perimeterOffense),
+        SkillsEvent.fullPressFrenzy,
+        // Deliberately drawn from every team in the league, not just the
+        // 20 All-Star honorees [_topByRating] otherwise pulls from below --
+        // the whole point of a physical-ratings event (a direct GM ask) is
+        // that an elite athlete who isn't a scoring All-Star can still win
+        // it, same as a real speedy role player can out-run a star in a
+        // real combine drill.
+        _topByRating(
+          leaguePlayers,
+          (p) =>
+              p.ratings.speed +
+              p.ratings.agility +
+              p.ratings.strength +
+              p.ratings.stamina,
+        ),
       ),
       _runEvent(
         random,
@@ -89,14 +105,14 @@ SkillsCompetitionResult resolveSkillsCompetitionDay(
   );
 }
 
-/// The [_kSkillsEventFieldSize] honorees ranked highest by [ratingOf],
-/// independently per call -- the 3-Point Shootout and HORSE share this
-/// exact selection (both keyed off [PlayerRatings.perimeterOffense]), so
-/// in practice their fields are usually identical or nearly so. That's a
-/// deliberate simplification, not a bug: this project doesn't model
-/// trick-shot/bank-shot skill as a separate rating from outside shooting
-/// range, so there's no real signal to differentiate the 2 events' fields
-/// on beyond "who shoots well."
+/// The [_kSkillsEventFieldSize] players in [pool] ranked highest by
+/// [ratingOf]. HORSE and the Defensive Skills Challenge both pass the 20
+/// All-Star honorees as [pool] -- both keyed off offense/defense ratings a
+/// non-honoree wouldn't plausibly beat anyway. Full Press Frenzy is the
+/// exception: it passes the *whole league*, not just the honorees (see its
+/// call site's own comment), since the entire point of a physical-ratings
+/// event is that an elite athlete who never made an All-Star squad can
+/// still win it.
 List<Player> _topByRating(List<Player> pool, int Function(Player) ratingOf) {
   final ranked = [...pool]..sort((a, b) => ratingOf(b).compareTo(ratingOf(a)));
   return ranked.take(_kSkillsEventFieldSize).toList();
@@ -108,7 +124,11 @@ SkillsEventResult _runEvent(
   List<Player> participants,
 ) {
   int ratingFor(Player player) => switch (event) {
-    SkillsEvent.threePointShootout ||
+    SkillsEvent.fullPressFrenzy =>
+      player.ratings.speed +
+          player.ratings.agility +
+          player.ratings.strength +
+          player.ratings.stamina,
     SkillsEvent.horse => player.ratings.perimeterOffense,
     SkillsEvent.defensiveSkillsChallenge =>
       player.ratings.disruption + player.ratings.blocking,

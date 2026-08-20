@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../draft/generation/draft_generator.dart';
-import '../../draft/presentation/draft_day_screen.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../player/domain/achievement.dart';
@@ -44,8 +43,12 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
 
   /// Same lookup-with-fallback `TrainingReportScreen`'s own `_playerLabel`
   /// already established -- a player who's since left the roster (a
-  /// free-agent swap; there's no trade system yet) still gets a readable
-  /// label instead of a crash.
+  /// free-agent swap, or a real retirement) still gets a readable label
+  /// instead of a crash. Checks [Franchise.formerPlayers] before falling
+  /// back to the generic "Former Player" string -- a direct GM report
+  /// (2026-08-19): a retired all-star showed up on this exact screen's
+  /// Player Development section labeled "Former Player" instead of her
+  /// own name (see `FormerPlayerRecord`'s own doc comment).
   String _playerLabel(String playerId) {
     for (final membership in widget.franchise.roster) {
       if (membership.player.id == playerId) {
@@ -56,22 +59,31 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
         return '${player.primaryPosition.abbreviation} $jersey${player.name}';
       }
     }
+    for (final record in widget.franchise.formerPlayers) {
+      if (record.playerId == playerId) return record.label;
+    }
     return 'Former Player';
   }
 
   /// Transitions to the next season ([beginNextSeasonAndPersist]) and
-  /// replaces this screen with [DraftDayScreen] -- the recap of a season
-  /// that's already over has nothing left to show once a new one has
-  /// started, so this doesn't stay on the back stack underneath it.
+  /// returns to the Dashboard -- a direct GM ask (2026-08-19): "It
+  /// immediately dumps me to the draft. I don't like that ... Don't dump
+  /// me right into the draft, feels stressful." [beginNextSeasonAndPersist]
+  /// already leaves a fresh [Franchise.draftInProgress] behind
+  /// (`season_transition_advancer.dart`), so the Dashboard's own
+  /// "Draft In Progress" card (`_SeasonAdvanceCard`) picks it right back
+  /// up with a "Return to Draft" button -- the GM gets a look at
+  /// retirement/off-season mail first instead of being routed straight
+  /// into the draft screen. The recap of a season that's already over has
+  /// nothing left to show once a new one has started, so this doesn't
+  /// stay on the back stack underneath the Dashboard either.
   Future<void> _beginNextSeason() async {
     setState(() => _isBeginning = true);
     await ref
         .read(currentFranchiseProvider.notifier)
         .beginNextSeasonAndPersist();
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DraftDayScreen()),
-    );
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -198,6 +210,37 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
               ),
               if (i != awardWinners.length - 1)
                 const SizedBox(height: AppSpacing.sm),
+            ],
+            if (franchise.leagueRetirements.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Text('League Retirements', style: theme.textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                franchise.leagueRetirements.length == 1
+                    ? '1 player around the league retired this off-season.'
+                    : '${franchise.leagueRetirements.length} players '
+                          'around the league retired this off-season.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < franchise.leagueRetirements.length; i++)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: i == 0 ? 0 : AppSpacing.sm,
+                        ),
+                        child: Text(
+                          '${franchise.leagueRetirements[i].primaryPosition.abbreviation} '
+                          '${franchise.leagueRetirements[i].name} '
+                          '(${franchise.leagueRetirements[i].teamAbbreviation})',
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
             const SizedBox(height: AppSpacing.lg),
             Text('Player Development', style: theme.textTheme.titleLarge),

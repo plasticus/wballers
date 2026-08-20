@@ -9,6 +9,8 @@ import '../../trade/domain/pick_ownership.dart';
 import '../application/franchise_rosters.dart';
 import '../domain/scheduled_game.dart';
 import '../domain/season_progress.dart';
+import '../domain/standings_entry.dart';
+import 'postseason_generator.dart' show seasonChampion;
 import 'season_schedule_generator.dart';
 
 /// Whether [franchise]'s current season is genuinely done -- the regular
@@ -100,6 +102,23 @@ Franchise beginNextSeason(
     franchise.seasonProgress,
     allLeagueTeams(franchise),
   );
+
+  // The just-finished season's real result, folded into the GM's own
+  // head coach's career record -- a direct GM ask (2026-08-19): "Head
+  // coach needs a detail screen... career wins/losses, any trophies, how
+  // long they've been a head coach." One tick per real season
+  // transition, off this season's real final standings/champion, not
+  // re-derivable later once [newSchedule] below replaces this season's
+  // own (`Coach.seasonsAsHeadCoach`'s own doc comment).
+  final ownRecord = recordFor(franchise.team.abbreviation, finalStandings);
+  final wonChampionship =
+      seasonChampion(franchise.seasonProgress.playedGames) ==
+      franchise.team.abbreviation;
+  final updatedCoach = franchise.coach.copyWithSeasonRecord(
+    wins: ownRecord.wins,
+    losses: ownRecord.losses,
+    wonChampionship: wonChampionship,
+  );
   final draftOrder = generateDraftOrder(
     Random(newSeasonSeed + kRealDraftOrderSeedOffset),
     finalStandings,
@@ -136,6 +155,7 @@ Franchise beginNextSeason(
   )..remove(newSeason);
 
   return franchise
+      .copyWithCoach(updatedCoach)
       .copyWithNewSeason(
         newSeason: newSeason,
         newSeasonProgress: SeasonProgress(

@@ -114,6 +114,34 @@ void main() {
       );
     });
 
+    test('captures a real LeagueRetirement record (name/position/team/'
+        'reason/season) for every AI retiree, not just the id -- 2026-08-20, '
+        'a direct GM ask: an off-season report plus an asst GM email '
+        'listing every retirement', () {
+      final vet = playerWithOverall(
+        70,
+        id: 'vet',
+        age: kMandatoryRetirementAge,
+      );
+      final franchise = _franchiseWithAiRoster([
+        RosterMembership(player: vet, status: RosterStatus.active),
+      ]);
+
+      final advance = resolveAiTeamRetirements(Random(1), franchise);
+
+      expect(advance.retirements, hasLength(1));
+      final retirement = advance.retirements.single;
+      expect(retirement.playerId, 'vet');
+      expect(retirement.name, vet.name);
+      expect(retirement.primaryPosition, vet.primaryPosition);
+      expect(
+        retirement.teamAbbreviation,
+        franchise.league.aiTeams.first.team.abbreviation,
+      );
+      expect(retirement.reason, RetirementReason.hitMandatoryAge);
+      expect(retirement.season, 0);
+    });
+
     test('a player who has declined kRetirementDeclineFromPeak or more from '
         'their recorded peak retires', () {
       final declined = Player(

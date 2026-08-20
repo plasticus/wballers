@@ -12,6 +12,8 @@ import '../../training/persistence/training_coach_json.dart';
 import '../../training/persistence/training_plan_json.dart';
 import '../../training/persistence/training_report_json.dart';
 import '../domain/franchise.dart';
+import 'former_player_record_json.dart';
+import 'league_retirement_json.dart';
 import 'pending_retirement_json.dart';
 
 Map<String, dynamic> franchiseToJson(Franchise franchise) {
@@ -42,6 +44,9 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'skillsCompetitionResults': franchise.skillsCompetitionResults
         .map(skillsCompetitionResultToJson)
         .toList(),
+    'leagueRetirements': franchise.leagueRetirements
+        .map(leagueRetirementToJson)
+        .toList(),
     'freeAgents': franchise.freeAgents.map(playerToJson).toList(),
     'readMailIds': franchise.readMailIds.toList(),
     'pendingRetirements': franchise.pendingRetirements
@@ -68,6 +73,9 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
       ),
     ),
     'narrativeVeteranRetired': franchise.narrativeVeteranRetired,
+    'formerPlayers': franchise.formerPlayers
+        .map(formerPlayerRecordToJson)
+        .toList(),
   };
 }
 
@@ -110,6 +118,11 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
               ),
             )
             .toList(),
+    leagueRetirements: (json['leagueRetirements'] as List<dynamic>)
+        .map(
+          (value) => leagueRetirementFromJson(value as Map<String, dynamic>),
+        )
+        .toList(),
     freeAgents: (json['freeAgents'] as List<dynamic>)
         .map((value) => playerFromJson(value as Map<String, dynamic>))
         .toList(),
@@ -160,5 +173,10 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
           ),
         ),
     narrativeVeteranRetired: json['narrativeVeteranRetired'] as bool,
+    formerPlayers: (json['formerPlayers'] as List<dynamic>)
+        .map(
+          (value) => formerPlayerRecordFromJson(value as Map<String, dynamic>),
+        )
+        .toList(),
   );
 }

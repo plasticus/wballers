@@ -287,6 +287,12 @@ void main() {
       expect(finalized.roster.single.player.jerseyNumber, isNotNull);
       expect(finalized.draftInProgress, isNull);
       expect(finalized.draftClass, isEmpty);
+      // A direct GM ask (2026-08-19): "we should see what season, round,
+      // and pick they were drafted."
+      final draftRecord = finalized.roster.single.player.draftRecord;
+      expect(draftRecord?.season, franchise.season);
+      expect(draftRecord?.round, 1);
+      expect(draftRecord?.pickNumber, 1);
     });
 
     test('lands an AI team\'s pick on that team\'s league roster', () {
@@ -317,6 +323,12 @@ void main() {
       expect(updatedAiTeam.roster, hasLength(beforeCount + 1));
       expect(updatedAiTeam.roster.any((m) => m.player.id == 'p1'), isTrue);
       expect(finalized.roster, isEmpty);
+      final draftedMembership = updatedAiTeam.roster.firstWhere(
+        (m) => m.player.id == 'p1',
+      );
+      expect(draftedMembership.player.draftRecord?.season, franchise.season);
+      expect(draftedMembership.player.draftRecord?.round, 1);
+      expect(draftedMembership.player.draftRecord?.pickNumber, 1);
     });
 
     test('a traded pick genuinely lands the prospect on the acquiring '

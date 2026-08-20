@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../../core/ratings/rating_scale.dart';
 import '../../coach/domain/coach.dart';
 import '../../franchise/domain/franchise.dart';
+import '../../franchise/domain/league_retirement.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
 import '../../player/domain/player.dart';
@@ -133,6 +134,7 @@ class AiTeamRetirementAdvance {
   const AiTeamRetirementAdvance({
     required this.league,
     required this.retiredPlayerIds,
+    required this.retirements,
   });
 
   final League league;
@@ -143,6 +145,13 @@ class AiTeamRetirementAdvance {
   /// [Franchise.freeAgents] -- retired means retired, not available to
   /// sign.
   final Set<String> retiredPlayerIds;
+
+  /// The same retirements as [retiredPlayerIds], but with the real
+  /// name/position/team [LeagueRetirement] needs -- captured here, before
+  /// each retiree's [RosterMembership] is dropped for good, since nothing
+  /// else keeps her data around afterward (2026-08-20, a direct GM ask:
+  /// an off-season report plus an asst GM email listing every retirement).
+  final List<LeagueRetirement> retirements;
 }
 
 /// Resolves retirement for every AI team's roster -- `0D_Season_2_Roadmap.md`'s
@@ -169,6 +178,7 @@ AiTeamRetirementAdvance resolveAiTeamRetirements(
     franchise.seasonProgress.playedGames,
   );
   final retiredIds = <String>{};
+  final retirements = <LeagueRetirement>[];
   final newAiTeams = <AiTeamRoster>[];
 
   for (final aiTeam in franchise.league.aiTeams) {
@@ -182,6 +192,16 @@ AiTeamRetirementAdvance resolveAiTeamRetirements(
       );
       if (reason != null) {
         retiredIds.add(membership.player.id);
+        retirements.add(
+          LeagueRetirement(
+            playerId: membership.player.id,
+            name: membership.player.name,
+            primaryPosition: membership.player.primaryPosition,
+            teamAbbreviation: aiTeam.team.abbreviation,
+            reason: reason,
+            season: franchise.season,
+          ),
+        );
         continue;
       }
       newRoster.add(membership);
@@ -192,6 +212,7 @@ AiTeamRetirementAdvance resolveAiTeamRetirements(
   return AiTeamRetirementAdvance(
     league: League(aiTeams: newAiTeams),
     retiredPlayerIds: retiredIds,
+    retirements: retirements,
   );
 }
 
