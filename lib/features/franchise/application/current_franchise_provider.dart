@@ -727,6 +727,33 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     return advance.gamesPlayed;
   }
 
+  /// Repeatedly calls [advanceGameDay] until a champion is crowned (or
+  /// there's nothing left to advance) -- a direct GM ask (2026-08-21):
+  /// "there should also be a button to sim the playoffs, because... I just
+  /// want to get to the end of the season report, draft, etc." Loops the
+  /// exact same per-day [advanceGameDay] every other game day already
+  /// uses rather than reviving a separate bulk-resolve path -- the
+  /// postseason plays through the normal advance flow on purpose
+  /// (`advanceGameDay`'s own doc comment/history), this is just that same
+  /// flow driven by one button press instead of a tap per day. Safe to
+  /// call with games still left in the *regular* season too (it simply
+  /// keeps advancing through to the postseason and beyond) -- callers
+  /// only ever expose this once the postseason has actually started,
+  /// though, since that's the only case a GM would want to blow straight
+  /// through every remaining game day for.
+  Future<void> simulateRestOfPostseason() async {
+    while (true) {
+      final franchise = await future;
+      if (franchise == null || franchise.seasonProgress.isComplete) return;
+      if (seasonChampion(franchise.seasonProgress.playedGames) != null) {
+        return;
+      }
+      final results = await advanceGameDay();
+      // `null` means blocked (or nothing left) -- bail rather than spin.
+      if (results == null) return;
+    }
+  }
+
   /// Same as [advanceGameDay], except the GM's own scheduled game for today
   /// has *already* been played -- [ownMatch] is that real, already-computed
   /// [MatchResult] (2026-08-18, `TODO.md` item 8's live-game architecture
@@ -827,7 +854,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       return null;
     }
 
-    final result = resolveSkillsCompetitionDay(
+    final advance = resolveSkillsCompetitionDay(
       Random(
         franchise.seasonSeed +
             kSeasonAdvanceSeedOffset +
@@ -840,11 +867,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       const [],
     );
     await _persist(
-      franchise
+      advance.franchise
           .copyWithSeasonProgress(advancedProgress)
-          .copyWithSkillsCompetitionResult(result),
+          .copyWithSkillsCompetitionResult(advance.result),
     );
-    return result;
+    return advance.result;
   }
 
   /// Advances through the All-Star break's Game day (2026-08-10,
@@ -1125,6 +1152,24 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
         Random(franchise.seasonSeed + kDraftFinalizeSeedOffset),
         withDraft,
       ),
+    );
+  }
+
+  /// Flips [DraftInProgress.hasBeenOpened] to `true` and persists -- the
+  /// Dashboard's Draft In Progress card calls this the moment the GM taps
+  /// through to `DraftDayScreen`, so a later visit reads "Resume" instead
+  /// of "Begin" (2026-08-21, a direct GM ask; see [DraftInProgress.
+  /// hasBeenOpened]'s own doc comment). A no-op if there's no current
+  /// franchise, no draft in progress, or it's already been opened --
+  /// cheap to call unconditionally on every navigation to that screen
+  /// rather than the caller having to check first.
+  Future<void> markDraftScreenOpened() async {
+    final franchise = await future;
+    if (franchise == null) return;
+    final draft = franchise.draftInProgress;
+    if (draft == null || draft.hasBeenOpened) return;
+    await _persist(
+      franchise.copyWithDraftInProgress(draft.copyWith(hasBeenOpened: true)),
     );
   }
 

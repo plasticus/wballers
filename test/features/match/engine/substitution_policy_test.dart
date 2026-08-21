@@ -7,10 +7,10 @@ import '../../../support/match_test_players.dart';
 /// A 12-player roster whose 5 highest-overall players are 3 SFs and 2
 /// SGs -- no PG, PF, or C at all -- while the full pool still carries the
 /// usual `kTwelvePlayerPositionPlan` spread (2 PG, 3 SG, 3 SF, 2 PF,
-/// 2 C). [label] only ever varies the player ids, not ratings/positions
-/// -- `targetMinutesFor`'s balance-or-not decision is a deterministic
-/// hash of roster player ids, so a different [label] is what actually
-/// changes which of the two branches a given call exercises.
+/// 2 C). [label] only ever varies the player ids, not ratings/positions --
+/// which of `targetMinutesFor`'s branches fires is driven by the
+/// `teamAbbreviation` passed alongside the roster (`TeamIdentity.preferredShape`),
+/// not anything about the roster itself.
 List<Player> _imbalancedRoster(String label) {
   return [
     testPlayer(id: '$label-sf1', rating: 90, position: Position.smallForward),
@@ -89,7 +89,11 @@ void main() {
       const trials = 200;
       var balancedCount = 0;
       for (var i = 0; i < trials; i++) {
-        if (_hasStandardTopFive(targetMinutesFor(_imbalancedRoster('t$i')))) {
+        final targetMinutes = targetMinutesFor(
+          _imbalancedRoster('t$i'),
+          teamAbbreviation: 'T$i',
+        );
+        if (_hasStandardTopFive(targetMinutes)) {
           balancedCount++;
         }
       }
@@ -110,7 +114,10 @@ void main() {
         'player', () {
       for (var i = 0; i < 50; i++) {
         final roster = _imbalancedRoster('balanced$i');
-        final targetMinutes = targetMinutesFor(roster);
+        final targetMinutes = targetMinutesFor(
+          roster,
+          teamAbbreviation: 'BAL$i',
+        );
         if (!_hasStandardTopFive(targetMinutes)) continue;
 
         final best = roster.reduce(
@@ -128,7 +135,10 @@ void main() {
         '-- the preserved "interesting" variety, not a residual bug', () {
       for (var i = 0; i < 50; i++) {
         final roster = _imbalancedRoster('unbalanced$i');
-        final targetMinutes = targetMinutesFor(roster);
+        final targetMinutes = targetMinutesFor(
+          roster,
+          teamAbbreviation: 'UNB$i',
+        );
         if (_hasStandardTopFive(targetMinutes)) continue;
 
         // Skipping the rebalance doesn't break anything else about the

@@ -175,6 +175,7 @@ class PhotoOvrRail extends StatelessWidget {
     required this.accentColor,
     required this.jersey,
     this.size = 64,
+    this.cornerBadge,
     super.key,
   });
 
@@ -184,16 +185,31 @@ class PhotoOvrRail extends StatelessWidget {
   final RgbColor? jersey;
   final double size;
 
+  /// An optional small badge pinned to the photo's own lower-right corner
+  /// -- `null` everywhere by default (every existing call site keeps its
+  /// exact old look). `team_roster_screen.dart`'s `_PlayerRow` is the one
+  /// caller that passes one, an ambulance emoji for an injured player
+  /// (2026-08-21, a direct GM ask: "put the ambulance emoji in the lower
+  /// right of their portrait").
+  final Widget? cornerBadge;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        PhotoWithJerseyBadge(
-          franchise: franchise,
-          player: player,
-          accentColor: accentColor,
-          jersey: jersey,
-          size: size,
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            PhotoWithJerseyBadge(
+              franchise: franchise,
+              player: player,
+              accentColor: accentColor,
+              jersey: jersey,
+              size: size,
+            ),
+            if (cornerBadge != null)
+              Positioned(bottom: -2, right: -2, child: cornerBadge!),
+          ],
         ),
         const SizedBox(height: AppSpacing.sm),
         OvrBubble(overall: player.ratings.overall, color: accentColor),

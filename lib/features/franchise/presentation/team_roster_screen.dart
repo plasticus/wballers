@@ -248,7 +248,7 @@ class _RosterViewState extends State<_RosterView> {
         const SizedBox(height: AppSpacing.lg),
         _SlotSection(
           franchise: franchise,
-          title: 'Inactive Slots',
+          title: 'Injured/Inactive Slots',
           status: RosterStatus.reserveInactive,
           slotCount: kMaxInactiveRosterSpots,
           members: reserve,
@@ -620,14 +620,20 @@ class _AssignPlayerSheet extends ConsumerWidget {
     bool eligible(Player player) =>
         status != RosterStatus.developmental || isDevelopmentalEligible(player);
 
+    // Injured candidates first (2026-08-21, a direct GM ask -- this sheet
+    // is exactly where a GM goes looking for who to park while they heal),
+    // best overall first within each of those 2 groups.
     final rosterCandidates =
         franchise.roster
             .where((m) => m.status != status && eligible(m.player))
             .toList()
-          ..sort(
-            (a, b) =>
-                b.player.ratings.overall.compareTo(a.player.ratings.overall),
-          );
+          ..sort((a, b) {
+            final injuredCompare = (b.injury != null ? 1 : 0).compareTo(
+              a.injury != null ? 1 : 0,
+            );
+            if (injuredCompare != 0) return injuredCompare;
+            return b.player.ratings.overall.compareTo(a.player.ratings.overall);
+          });
     final freeAgentCandidates = franchise.freeAgents.where(eligible).toList()
       ..sort((a, b) => b.ratings.potential.compareTo(a.ratings.potential));
 
@@ -658,7 +664,9 @@ class _AssignPlayerSheet extends ConsumerWidget {
                     for (final membership in rosterCandidates)
                       _CandidateRow(
                         player: membership.player,
-                        subtitle: 'Currently ${membership.status.label}',
+                        subtitle:
+                            '${membership.injury != null ? '🚑 ' : ''}'
+                            'Currently ${membership.status.label}',
                         onTap: () async {
                           await ref
                               .read(currentFranchiseProvider.notifier)
@@ -772,6 +780,9 @@ class _PlayerRow extends StatelessWidget {
               player: player,
               accentColor: accentColor,
               jersey: parseHexColor(franchise.team.colors.primaryHex),
+              cornerBadge: membership.injury == null
+                  ? null
+                  : const Text('🚑', style: TextStyle(fontSize: 18)),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -790,10 +801,6 @@ class _PlayerRow extends StatelessWidget {
                       if (isStarter) ...[
                         const SizedBox(width: AppSpacing.xs),
                         const _StarterBadge(),
-                      ],
-                      if (membership.injury != null) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        _InjuryBadge(injury: membership.injury!),
                       ],
                       if (trailing != null) ...[
                         const SizedBox(width: AppSpacing.xs),
@@ -828,6 +835,10 @@ class _PlayerRow extends StatelessWidget {
                       ],
                     ),
                   ],
+                  if (membership.injury != null) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    _InjuryLine(injury: membership.injury!),
+                  ],
                 ],
               ),
             ),
@@ -848,35 +859,38 @@ class _PlayerRow extends StatelessWidget {
 /// primary-tinted rather than neutral gray -- this is meant to read as a
 /// highlight, the same spirit the League tab's "Your Team" tint carries,
 /// not a plain informational fact.
-/// [membership.injury]'s severity and games-remaining, shown right next
-/// to a player's name (2026-08-20, following the injuries design pass --
-/// "for flavor text vs formula, I'm fine with just facts only" already
-/// set the tone for how this whole system's UI reads).
-class _InjuryBadge extends StatelessWidget {
-  const _InjuryBadge({required this.injury});
+/// A full-width line below a player's trait chips -- [membership.injury]'s
+/// severity and games-remaining, led with the ambulance emoji
+/// (2026-08-21, a direct GM ask: "It should be super obvious that they
+/// are injured" -- the small inline pill this replaced sat quietly next
+/// to the name; this is deliberately its own line, same spot a trait row
+/// would sit, so it can't be missed). [PhotoOvrRail]'s own corner badge
+/// (`_PlayerRow`'s `cornerBadge`) repeats the same ambulance emoji right
+/// on the portrait, a second, even harder-to-miss signal. Plain facts
+/// only, same "for flavor text vs formula, I'm fine with just facts
+/// only" tone the whole injuries system already set (2026-08-20).
+class _InjuryLine extends StatelessWidget {
+  const _InjuryLine({required this.injury});
 
   final PlayerInjury injury;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: 1,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.error.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        '${injury.severity.label.toUpperCase()} · '
-        '${injury.gamesRemainingAtSeverity} GM',
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.error,
-          fontWeight: FontWeight.bold,
+    return Row(
+      children: [
+        const Text('🚑', style: TextStyle(fontSize: 14)),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          '${injury.severity.label} injury -- '
+          '${injury.gamesRemainingAtSeverity} game'
+          '${injury.gamesRemainingAtSeverity == 1 ? '' : 's'} until recovery',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.error,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -165,7 +165,7 @@ class _MailRow extends ConsumerWidget {
         'Assistant GM',
         Icons.check_circle_outline,
         '${item0.player.name} is fully healed and still parked in '
-            'Reserve/Inactive.',
+            'Injured/Inactive.',
       ),
     };
 
@@ -713,7 +713,7 @@ class _InjuryRecoveredMailDetailScreen extends StatelessWidget {
                     ),
                     Text(
                       'Boss -- ${item.player.name} is fully recovered, but '
-                      'still parked in Reserve/Inactive. Move her back to '
+                      'still parked in Injured/Inactive. Move her back to '
                       'the active roster whenever you\'re ready.',
                       style: theme.textTheme.bodyMedium,
                     ),

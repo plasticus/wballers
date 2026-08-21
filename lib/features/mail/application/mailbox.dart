@@ -1,8 +1,10 @@
 import '../../franchise/domain/franchise.dart';
 import '../../franchise/domain/franchise_legality.dart';
 import '../../franchise/domain/injury_report_entry.dart';
+import '../../player/domain/player_injury.dart';
 import '../../player/domain/position.dart';
 import '../../roster/domain/roster_legality.dart';
+import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../season/domain/game_day.dart';
 import '../../season/domain/scheduled_game.dart';
@@ -29,6 +31,12 @@ import '../domain/mail_item.dart';
 /// retirement (a later-season gap from any other cause has no
 /// notification yet, left for future work).
 const kRosterGapMailId = 'assistant_gm_roster_gap';
+
+/// Stable id for an own-roster player's injury recommendation, one per
+/// [Player.id] -- exported so `mailboxFor` and any test asserting on it
+/// share the exact same format. See [assistantGmInjuryRecommendationMessage].
+String injuryRecommendationMailId(String playerId) =>
+    '$_kInjuryRecommendationPrefix$playerId';
 
 /// Stable id for the "roster's full, here's what to do next" system
 /// message -- the Assistant GM's follow-up once [kRosterGapMailId]'s own
@@ -141,6 +149,22 @@ List<MailItem> mailboxFor(Franchise franchise) {
     for (final membership in franchise.roster)
       if (membership.recoveredWhileReserved)
         InjuryRecoveredMailItem(player: membership.player),
+    // A real, per-player recommendation -- the actual replacement for the
+    // scripted "sign a free agent" message that used to wrongly re-fire
+    // here (2026-08-21, a direct GM report: pulling an injured player out
+    // of the lineup triggered the Day-0 roster-gap script all over
+    // again). Live-derived off [RosterMembership.injury] the same
+    // "appears until fixed" way [InjuryRecoveredMailItem] is -- only
+    // while she's still sitting [RosterStatus.active] with the injury,
+    // since moving her to Injured/Inactive is exactly the action being
+    // recommended below.
+    for (final membership in franchise.roster)
+      if (membership.status == RosterStatus.active && membership.injury != null)
+        AssistantGmMailItem(
+          id: injuryRecommendationMailId(membership.player.id),
+          subject: '${membership.player.name} is Hurt',
+          body: assistantGmInjuryRecommendationMessage(membership),
+        ),
   ];
 
   items.sort((a, b) {
@@ -163,7 +187,14 @@ bool _isPinned(MailItem item) =>
     item is RetirementDecisionMailItem ||
     item is RosterLegalityMailItem ||
     item is InjuryRecoveredMailItem ||
-    (item is AssistantGmMailItem && item.id == kRosterGapMailId);
+    (item is AssistantGmMailItem &&
+        (item.id == kRosterGapMailId ||
+            item.id.startsWith(_kInjuryRecommendationPrefix)));
+
+/// Shared with [injuryRecommendationMailId] -- kept as its own constant so
+/// [_isPinned]'s prefix check can never drift out of sync with the id
+/// format that function actually produces.
+const _kInjuryRecommendationPrefix = 'injury_recommendation_';
 
 /// The season week a given [MailItem] is "about", for newest-first
 /// sorting -- `null` for [RetirementDecisionMailItem], [RosterLegalityMailItem],
@@ -249,6 +280,31 @@ String assistantGmRosterGapMessage(Franchise franchise) {
                 '(${prospect.primaryPosition.abbreviation}) -- she can '
                 'start for us today, and that ceiling\'s worth the roster '
                 'spot too.'}';
+}
+
+/// The Assistant GM's real per-player injury recommendation -- replaces
+/// the old scripted "sign a free agent" mis-fire with actual advice
+/// (2026-08-21, a direct GM ask): names [membership]'s player, her injury
+/// grade, and how many games until she's back to full strength, then
+/// recommends [InjurySeverity.minor] play through it, anything worse move
+/// her to Injured/Inactive to recover as fast as possible (both branches
+/// spelled out by name, per the ask). Always closes by naming a
+/// short-term free-agent signing as the other option for covering the
+/// spot, exactly as asked.
+String assistantGmInjuryRecommendationMessage(RosterMembership membership) {
+  final player = membership.player;
+  final injury = membership.injury!;
+  final recommendation = injury.severity == InjurySeverity.minor
+      ? 'My read: it\'s minor, so let her play through it -- she\'ll shake '
+            'it off in a couple games.'
+      : 'My read: don\'t risk making it worse. Move her to an '
+            'Injured/Inactive slot so she\'s back to full health as soon as '
+            'possible.';
+  return 'Boss -- ${player.name} is banged up. ${injury.severity.label} '
+      'injury, ${injury.gamesRemainingAtSeverity} game'
+      '${injury.gamesRemainingAtSeverity == 1 ? '' : 's'} until she\'s '
+      'back to full strength. $recommendation If you need to cover the '
+      'spot in the meantime, a short-term free-agent signing works too.';
 }
 
 /// The Assistant GM's follow-up once the roster's actually full

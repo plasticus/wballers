@@ -17,7 +17,7 @@ import '../generation/draft_generator.dart' show kDraftRounds;
 
 /// Draft Day: the GM's real, interactive draft
 /// (`0D_Season_2_Roadmap.md`'s "The draft, for real" stage, 2026-08-11).
-/// Reached from `SeasonRecapScreen`'s "Begin Next Season" button, which
+/// Reached from `SeasonRecapScreen`'s "Begin Season N" button, which
 /// calls `beginNextSeasonAndPersist` first -- by the time this screen is
 /// on-screen, [Franchise.draftInProgress] already exists and every AI
 /// pick before the GM's own first turn has already resolved

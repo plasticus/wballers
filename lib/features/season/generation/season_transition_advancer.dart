@@ -84,7 +84,7 @@ bool seasonIsOver(Franchise franchise) {
 ///
 /// Still not done here, a separate, not-yet-built roadmap stage: no real
 /// ceremony screen presents the awards `resolveSeasonAwards` grants --
-/// `SeasonRecapScreen`'s "Begin Next Season" button calls straight
+/// `SeasonRecapScreen`'s "Begin Season N" button calls straight
 /// through to this with no fanfare in between ("Presentation").
 ///
 /// Asserts [seasonIsOver] -- starting a new season before the old one's

@@ -72,7 +72,8 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
   /// already leaves a fresh [Franchise.draftInProgress] behind
   /// (`season_transition_advancer.dart`), so the Dashboard's own
   /// "Draft In Progress" card (`_SeasonAdvanceCard`) picks it right back
-  /// up with a "Return to Draft" button -- the GM gets a look at
+  /// up with a "Begin Season N Draft"/"Resume Season N Draft" button --
+  /// the GM gets a look at
   /// retirement/off-season mail first instead of being routed straight
   /// into the draft screen. The recap of a season that's already over has
   /// nothing left to show once a new one has started, so this doesn't
@@ -123,7 +124,7 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
     // own lottery roll off kDraftOrderSeedOffset (the preview-only
     // stream), separate from the real draft order beginNextSeason
     // actually computes off kRealDraftOrderSeedOffset once the GM taps
-    // "Begin Next Season" below (2026-08-11, 0D_Season_2_Roadmap.md's
+    // "Begin Season N" below (2026-08-11, 0D_Season_2_Roadmap.md's
     // "The draft, for real" stage) -- the two seeds are deliberately
     // different streams, so this number can land close to, but isn't
     // guaranteed to exactly match, the real pick. `generateDraftOrder`
@@ -317,7 +318,14 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.arrow_forward),
-                    label: const Text('Begin Next Season'),
+                    // "Begin Season N" -- a direct GM ask (2026-08-21):
+                    // "there's a button that says Begin Season 2." +2, not
+                    // +1: [franchise.season] is still the just-finished
+                    // season's own 0-indexed number here (the transition
+                    // this button triggers is what bumps it), so the
+                    // season about to start reads one further than this
+                    // screen's own "Season N" recap header does.
+                    label: Text('Begin Season ${franchise.season + 2}'),
                   ),
                 ],
               ),

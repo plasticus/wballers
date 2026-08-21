@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/coach/domain/coach_archetype.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team_identity.dart';
+import 'package:womensbballmgr/features/matchup/domain/offense_shape.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
 
 void main() {
@@ -38,8 +39,34 @@ void main() {
       expect(
         identity.styleLabel,
         'Coaching style: ${identity.archetype.label}. Roster strength: '
-        '${identity.positionLean.label}-leaning.',
+        '${identity.positionLean.label}-leaning. Preferred shape: '
+        '${identity.preferredShape.label}.',
       );
+    });
+
+    test('preferredShape lands on OffenseShape.traditional roughly half the '
+        'time, split evenly across the other 3 shapes the rest '
+        '(2026-08-21, a direct GM ask: "50% would try for the standard '
+        'shape, and 50% other stuff")', () {
+      final counts = <OffenseShape, int>{
+        for (final shape in OffenseShape.values) shape: 0,
+      };
+      for (var i = 0; i < 2000; i++) {
+        final shape = identityFor('TEAM$i').preferredShape;
+        counts[shape] = counts[shape]! + 1;
+      }
+      // Traditional should land close to 50% -- generous tolerance
+      // since this is real randomness, not a hand-picked fixture.
+      expect(counts[OffenseShape.traditional]!, greaterThan(2000 * 0.4));
+      expect(counts[OffenseShape.traditional]!, lessThan(2000 * 0.6));
+      // Every other shape should show up too -- roughly a sixth each.
+      for (final shape in [
+        OffenseShape.paceAndSpace,
+        OffenseShape.postUp,
+        OffenseShape.motion,
+      ]) {
+        expect(counts[shape]!, greaterThan(0));
+      }
     });
   });
 }

@@ -20,6 +20,12 @@ import '../domain/franchise.dart';
 /// informational note only -- nothing consumes these minutes yet (that's
 /// Phase 3's automatic-substitution engine), this just lets the GM set the
 /// order ahead of time.
+///
+/// Developmental-slot players are deliberately left off this screen
+/// entirely (2026-08-21, a direct GM ask: "I don't want to see
+/// developmental slots when I'm choosing the bench order. Takes up too
+/// much screen, not useful won't select them") -- they draw 0 minutes by
+/// definition, so there's nothing here for a GM to actually do with them.
 class DepthChartScreen extends ConsumerStatefulWidget {
   const DepthChartScreen({required this.franchise, super.key});
 
@@ -87,9 +93,6 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final developmental = widget.franchise.roster
-        .where((m) => m.status == RosterStatus.developmental)
-        .toList();
     // Recomputed on every build -- already rebuilds via `setState` on
     // reorder/auto-fill, so this updates live as the GM changes who's in
     // the top 5 (2026-08-14, a direct GM ask, following the "Coach's
@@ -135,25 +138,6 @@ class _DepthChartScreenState extends ConsumerState<DepthChartScreen> {
                   ],
                 ),
               ),
-              if (developmental.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  'Developmental (0 min)',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                AppCard(
-                  child: Column(
-                    children: [
-                      for (final membership in developmental) ...[
-                        Text(_rowLabel(membership.player)),
-                        if (membership != developmental.last)
-                          const Divider(height: AppSpacing.lg),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
               const SizedBox(height: AppSpacing.md),
               FilledButton(
                 onPressed: _isSaving ? null : _save,

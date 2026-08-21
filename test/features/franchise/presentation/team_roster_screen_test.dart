@@ -12,6 +12,7 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/franchise/presentation/team_roster_screen.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/player/domain/player_injury.dart';
 import 'package:womensbballmgr/features/player/domain/trait.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
@@ -27,8 +28,10 @@ import '../../roster/domain/roster_test_helpers.dart';
 Franchise _franchiseWith({
   List<RosterMembership>? extraMembers,
   List<Player> freeAgents = const [],
+  List<RosterMembership>? overrideRoster,
 }) {
-  final roster = [...generateStartingRoster(1), ...?extraMembers];
+  final roster =
+      overrideRoster ?? [...generateStartingRoster(1), ...?extraMembers];
   return Franchise(
     id: 'franchise-1',
     gmName: 'Taylor Reed',
@@ -419,9 +422,100 @@ void main() {
       await tester.pump();
 
       expect(find.text('Development Slots (0/2)'), findsOneWidget);
-      expect(find.text('Inactive Slots (0/2)'), findsOneWidget);
+      expect(find.text('Injured/Inactive Slots (0/2)'), findsOneWidget);
       expect(find.text('Empty slot'), findsNWidgets(4));
       expect(find.text('Assign'), findsNWidgets(4));
+    },
+  );
+
+  testWidgets(
+    'an injured player shows an obvious ambulance-emoji line below their '
+    'traits (severity + games until recovery), plus a matching corner '
+    'badge on their portrait (2026-08-21, a direct GM ask: "It should be '
+    'super obvious that they are injured")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final baseRoster = generateStartingRoster(1);
+      final injured = baseRoster.first;
+      final overrideRoster = [
+        injured.copyWith(
+          injury: const PlayerInjury(
+            severity: InjurySeverity.moderate,
+            gamesRemainingAtSeverity: 3,
+          ),
+        ),
+        ...baseRoster.skip(1),
+      ];
+      final franchise = _franchiseWith(overrideRoster: overrideRoster);
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('🚑'), findsWidgets);
+      expect(
+        find.text('Moderate injury -- 3 games until recovery'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'the Assign sheet sorts injured roster candidates to the top, each '
+    'flagged with the ambulance emoji (2026-08-21, a direct GM ask)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final baseRoster = generateStartingRoster(1);
+      // The lowest-overall player, injured -- would sort last by overall
+      // alone, but should still jump to the very top of the Assign sheet.
+      final weakest = baseRoster.reduce(
+        (a, b) => a.player.ratings.overall <= b.player.ratings.overall ? a : b,
+      );
+      final overrideRoster = [
+        for (final m in baseRoster)
+          if (m.player.id == weakest.player.id)
+            m.copyWith(
+              injury: const PlayerInjury(
+                severity: InjurySeverity.minor,
+                gamesRemainingAtSeverity: 1,
+              ),
+            )
+          else
+            m,
+      ];
+      final franchise = _franchiseWith(overrideRoster: overrideRoster);
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: Scaffold(body: TeamRosterScreen())),
+        ),
+      );
+      await tester.pump();
+
+      // The last "Assign" button is an Injured/Inactive slot (Development
+      // slots come first) -- deliberate, since Development eligibility
+      // has its own years-of-service restriction the test's injured
+      // player might not clear, while Injured/Inactive has none.
+      await tester.tap(find.text('Assign').last);
+      await tester.pumpAndSettle();
+
+      final rowFinder = find.textContaining('Currently Active');
+      expect(rowFinder, findsWidgets);
+      final firstRowText = tester.widget<Text>(rowFinder.first).data;
+      expect(firstRowText, contains('🚑'));
     },
   );
 

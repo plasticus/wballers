@@ -61,14 +61,29 @@ const _kMonthAbbreviations = [
   'Dec',
 ];
 
+DateTime _fictionalDate(int week, GameDay day) {
+  return _kSeasonWeek1Sunday.add(
+    Duration(days: (week - 1) * 7 + day._calendarOffset),
+  );
+}
+
+String _formatDate(DateTime date) =>
+    '${_kMonthAbbreviations[date.month - 1]} ${date.day}';
+
 /// A flavor-text calendar date for a given (week, day) on the fictional
 /// season schedule, e.g. "May 3" -- no year (this league's calendar isn't
 /// tied to a real one). Purely for display; nothing else in the app reads
 /// or stores this, so it's fine that it's derived fresh every call rather
 /// than persisted anywhere.
-String formatFictionalDate(int week, GameDay day) {
-  final date = _kSeasonWeek1Sunday.add(
-    Duration(days: (week - 1) * 7 + day._calendarOffset),
-  );
-  return '${_kMonthAbbreviations[date.month - 1]} ${date.day}';
-}
+String formatFictionalDate(int week, GameDay day) =>
+    _formatDate(_fictionalDate(week, day));
+
+/// Same flavor-text date as [formatFictionalDate], shifted by [daysOffset]
+/// real days (negative = earlier) -- for a milestone that has no
+/// [GameDay] of its own to anchor to, like the draft or the trade window
+/// opening (`dashboard_screen.dart`'s Draft In Progress card, 2026-08-21,
+/// a direct GM ask: "give it a calendar date, I don't care what"). Still
+/// purely flavor text -- nothing reads these placeholder dates back to
+/// enforce anything.
+String formatFictionalDateOffset(int week, GameDay day, int daysOffset) =>
+    _formatDate(_fictionalDate(week, day).add(Duration(days: daysOffset)));

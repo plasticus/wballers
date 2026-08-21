@@ -162,6 +162,40 @@ void main() {
       final landed = resolved.picks.single.prospect.player.ratings.skillPoints;
       expect(landed, before);
     });
+
+    test('carries pickOwnershipOverrides and hasBeenOpened forward through '
+        'every pick, across rounds -- a real bug this test would have '
+        'caught: DraftInProgress.copyWith replaced a manual field-by-field '
+        'reconstruction in _appendPick that silently dropped both after '
+        'the very first pick of any draft', () {
+      final draftClass = [
+        _prospect('p1', 80),
+        _prospect('p2', 75),
+        _prospect('p3', 70),
+        _prospect('p4', 65),
+      ];
+      final draft = DraftInProgress(
+        order: const ['AAA', 'BBB'],
+        rounds: 2,
+        hasBeenOpened: true,
+        pickOwnershipOverrides: const {
+          2: {'BBB': 'CCC'},
+        },
+      );
+
+      final resolved = resolveAiPicksUntilOwnTurn(
+        draft: draft,
+        draftClass: draftClass,
+        ownTeamAbbreviation: 'CCC',
+      );
+
+      // Round 1 resolves both AAA and BBB automatically (no override for
+      // round 1), landing on round 2's BBB slot -- now owned by CCC.
+      expect(resolved.picks, hasLength(3));
+      expect(resolved.onTheClock, 'CCC');
+      expect(resolved.hasBeenOpened, isTrue);
+      expect(resolved.pickOwnershipOverrides, draft.pickOwnershipOverrides);
+    });
   });
 
   group('position-lean tiebreak (2026-08-20, `team_identity.dart`\'s '

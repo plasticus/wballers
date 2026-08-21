@@ -115,6 +115,7 @@ Franchise _franchiseWith({
   List<Player> freeAgents = const [],
   Set<String> readMailIds = const {},
   DraftInProgress? draftInProgress,
+  int season = 0,
 }) {
   final roster = [
     ...generateStartingRoster(1),
@@ -150,6 +151,7 @@ Franchise _franchiseWith({
     trainingReports: trainingReports,
     readMailIds: readMailIds,
     draftInProgress: draftInProgress,
+    season: season,
   );
 }
 
@@ -182,16 +184,19 @@ void main() {
     expect(find.text('0-0'), findsOneWidget);
     expect(find.text('Upcoming Games'), findsOneWidget);
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
+    // "Sim Rest of Postseason" is offered once the postseason itself has
+    // started, never before -- see the dedicated test for that case.
+    expect(find.text('Sim Rest of Postseason'), findsNothing);
   });
 
   testWidgets(
-    'shows a Return to Draft button instead of Advance to Next Game Day '
-    'while a draft is in progress, and it actually opens Draft Day -- a '
-    'real bug, live on-device (2026-08-19, a direct GM report): "I left '
-    'the draft to look at my roster. And now .. where did the draft go?! '
-    'No idea... During the draft, there should not be an advance to next '
-    'game day button -- there should just be a button to jump you back '
-    'into the draft"',
+    'shows a "Begin Season N Draft" button instead of Advance to Next '
+    'Game Day while a fresh draft is in progress, and it actually opens '
+    'Draft Day -- a real bug, live on-device (2026-08-19, a direct GM '
+    'report): "I left the draft to look at my roster. And now .. where '
+    'did the draft go?! No idea... During the draft, there should not be '
+    'an advance to next game day button -- there should just be a button '
+    'to jump you back into the draft"',
     (tester) async {
       final franchise = _franchiseWith(
         draftInProgress: DraftInProgress(
@@ -211,14 +216,72 @@ void main() {
 
       expect(find.text('Advance to Next Game Day'), findsNothing);
       expect(find.text('Draft In Progress'), findsOneWidget);
-      expect(find.text('Return to Draft'), findsOneWidget);
+      // Season 1 -- `_franchiseWith`'s default `season: 0`, never opened
+      // yet, so "Begin," not "Resume" (2026-08-21, a direct GM ask).
+      expect(find.text('Begin Season 1 Draft'), findsOneWidget);
 
-      await tester.tap(find.text('Return to Draft'));
+      await tester.tap(find.text('Begin Season 1 Draft'));
       await tester.pumpAndSettle();
 
       expect(find.text('Draft Day'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'shows "Resume Season N Draft" once the GM has already opened the '
+    'draft once this season -- (2026-08-21, a direct GM ask: "I\'m '
+    'inevitably going to back out to look at my roster -- the draft '
+    'should effectively pause until I come back and click Resume Season '
+    'N Draft")',
+    (tester) async {
+      final franchise = _franchiseWith(
+        draftInProgress: DraftInProgress(
+          order: [kLeagueTeamPool.first.abbreviation, 'ZZZ'],
+          rounds: 3,
+          hasBeenOpened: true,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Begin Season 1 Draft'), findsNothing);
+      expect(find.text('Resume Season 1 Draft'), findsOneWidget);
+    },
+  );
+
+  testWidgets('shows the placeholder Draft/Trade Window/Preseason dates on the '
+      'Draft In Progress card (2026-08-21, a direct GM ask: "give it a '
+      'calendar date, I don\'t care what... shows me the date of the trade '
+      'window opening, and the date of the first pre-season game")', (
+    tester,
+  ) async {
+    final franchise = _franchiseWith(
+      draftInProgress: DraftInProgress(
+        order: [kLeagueTeamPool.first.abbreviation, 'ZZZ'],
+        rounds: 3,
+      ),
+    );
+    final repository = await _seededRepository(franchise);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Draft:'), findsOneWidget);
+    expect(find.text('Trade Window Opens:'), findsOneWidget);
+    expect(find.text('First Preseason Game:'), findsOneWidget);
+  });
 
   testWidgets('shows the current fictional date and week on the Season card '
       '(2026-08-09, a direct GM ask)', (tester) async {
@@ -476,6 +539,33 @@ void main() {
         find.textContaining('Sign a free agent to fill your roster'),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'a short-a-player roster later in a season (an injury benching, say) '
+    'neither shows the Day-0 Assistant GM mail card nor blocks advancing '
+    '-- only a genuine Day-0 gap does (2026-08-21, a GM bug report: '
+    'benching an injured player wrongly resurrected the Day-0 "sign a '
+    'free agent" script and fully blocked the season)',
+    (tester) async {
+      final franchise = _franchiseWith(includeTwelfthMember: false, season: 1);
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('From Your Assistant GM'), findsNothing);
+      expect(
+        find.textContaining('Sign a free agent to fill your roster'),
+        findsNothing,
+      );
+      expect(find.text('Advance to Next Game Day'), findsOneWidget);
     },
   );
 
@@ -907,47 +997,99 @@ void main() {
     expect(find.text('Advance to Next Game Day'), findsOneWidget);
   });
 
-  testWidgets('once a champion is crowned, offers "View Season Recap"', (
-    tester,
-  ) async {
-    // The trophy banner and its button need to be on-screen for tap() to
-    // hit test it, same rationale as the other Dashboard-button tests.
-    tester.view.physicalSize = const Size(800, 1400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'offers "Sim Rest of Postseason" once the postseason has started -- '
+    'even when the GM\'s own team missed the playoffs entirely '
+    '(2026-08-21, a direct GM ask: "I just want to get to the end of the '
+    'season report, draft, etc.")',
+    (tester) async {
+      final base = _franchiseWith();
+      final league = base.league;
+      final totalGameDays = gameDaysInOrder(
+        base.seasonProgress.schedule,
+      ).length;
+      // A single, unplayed First Round game between 2 AI teams -- the GM's
+      // own club is nowhere on it, the exact "missed the playoffs" shape.
+      final postseasonGame = ScheduledGame(
+        week: 24,
+        day: GameDay.sunday,
+        homeTeamAbbreviation: league.aiTeams[0].team.abbreviation,
+        awayTeamAbbreviation: league.aiTeams[1].team.abbreviation,
+        type: GameType.postseason,
+        postseasonRound: 1,
+      );
+      final schedule = SeasonSchedule(
+        games: [...base.seasonProgress.schedule.games, postseasonGame],
+      );
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: schedule,
+          playedGames: const [],
+          nextGameDayIndex: totalGameDays,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
 
-    final base = _franchiseWith();
-    final league = base.league;
-    final totalGameDays = gameDaysInOrder(base.seasonProgress.schedule).length;
-    final finals = _finalsGames(
-      winner: league.aiTeams[0].team.abbreviation,
-      loser: league.aiTeams[1].team.abbreviation,
-    );
-    final franchise = _franchiseWith(
-      seasonProgress: SeasonProgress(
-        schedule: base.seasonProgress.schedule,
-        playedGames: finals,
-        nextGameDayIndex: totalGameDays,
-      ),
-    );
-    final repository = await _seededRepository(franchise);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: const MaterialApp(home: DashboardScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+      expect(find.textContaining('Postseason'), findsWidgets);
+      expect(find.text('Advance to Next Game Day'), findsOneWidget);
+      expect(find.text('Sim Rest of Postseason'), findsOneWidget);
+    },
+  );
 
-    expect(find.textContaining('are the champions!'), findsOneWidget);
-    expect(find.text('View Season Recap'), findsOneWidget);
+  testWidgets(
+    'once a champion is crowned, offers "Complete Season N" -- a direct '
+    'GM ask (2026-08-21): "I should now have a button on my dashboard '
+    'that says something like, Complete Season 1"',
+    (tester) async {
+      // The trophy banner and its button need to be on-screen for tap() to
+      // hit test it, same rationale as the other Dashboard-button tests.
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    await tester.tap(find.text('View Season Recap'));
-    await tester.pumpAndSettle();
+      final base = _franchiseWith();
+      final league = base.league;
+      final totalGameDays = gameDaysInOrder(
+        base.seasonProgress.schedule,
+      ).length;
+      final finals = _finalsGames(
+        winner: league.aiTeams[0].team.abbreviation,
+        loser: league.aiTeams[1].team.abbreviation,
+      );
+      final franchise = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: base.seasonProgress.schedule,
+          playedGames: finals,
+          nextGameDayIndex: totalGameDays,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
 
-    expect(find.text('Season Recap'), findsOneWidget);
-  });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('are the champions!'), findsOneWidget);
+      expect(find.text('Complete Season 1'), findsOneWidget);
+
+      await tester.tap(find.text('Complete Season 1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Season Recap'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'once a champion is crowned, also offers "Available Head Coaches" '

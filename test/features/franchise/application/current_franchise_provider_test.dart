@@ -66,6 +66,22 @@ Future<void> _playSeasonToCompletion(ProviderContainer container) async {
   }
 }
 
+/// Advances [container]'s current franchise day by day until the very
+/// next game day is a postseason one -- what [simulateRestOfPostseason]'s
+/// own tests need to set up before exercising it specifically, without
+/// running the whole regular season/Cup out to a champion first the way
+/// [_playSeasonToCompletion] does.
+Future<void> _playUntilPostseasonStarts(ProviderContainer container) async {
+  var progress = container.read(currentFranchiseProvider).value!.seasonProgress;
+  var guard = 0;
+  while (!nextGameDayTypes(progress).contains(GameType.postseason) &&
+      guard < 150) {
+    await container.read(currentFranchiseProvider.notifier).advanceGameDay();
+    progress = container.read(currentFranchiseProvider).value!.seasonProgress;
+    guard++;
+  }
+}
+
 void main() {
   // beginNextSeasonAndPersist reads the bundled portrait catalog
   // (portraitWeightsProvider), same real-asset-loading requirement
@@ -1610,6 +1626,98 @@ void main() {
     },
   );
 
+  group('simulateRestOfPostseason (2026-08-21, a direct GM ask: "there should '
+      'also be a button to sim the playoffs... I just want to get to the '
+      'end of the season report, draft, etc.")', () {
+    test('loops the normal advanceGameDay flow through to a crowned '
+        'champion, persisted, in one call', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      await _playUntilPostseasonStarts(container);
+      expect(
+        container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress
+            .isComplete,
+        isFalse,
+      );
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .simulateRestOfPostseason();
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(updated.seasonProgress.isComplete, isTrue);
+      expect(seasonChampion(updated.seasonProgress.playedGames), isNotNull);
+
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(
+        seasonChampion(savedFranchise.seasonProgress.playedGames),
+        isNotNull,
+      );
+    });
+
+    test('is a no-op once a champion is already crowned', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      await _playSeasonToCompletion(container);
+      final champion = seasonChampion(
+        container
+            .read(currentFranchiseProvider)
+            .value!
+            .seasonProgress
+            .playedGames,
+      );
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .simulateRestOfPostseason();
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      expect(seasonChampion(updated.seasonProgress.playedGames), champion);
+    });
+  });
+
   group('updateTrainingPlan', () {
     test('does nothing when there is no current franchise', () async {
       final container = ProviderContainer(
@@ -2215,7 +2323,100 @@ void main() {
         aiRosterCountBeforeDraft + 19 * kDraftRounds,
       );
     });
+
+    group('markDraftScreenOpened (2026-08-21, a direct GM ask: distinguish '
+        '"Begin Season N Draft" from "Resume Season N Draft")', () {
+      test(
+        'flips a fresh draft\'s hasBeenOpened to true and persists it',
+        () async {
+          final container = await playedOutContainer();
+          await container
+              .read(currentFranchiseProvider.notifier)
+              .beginNextSeasonAndPersist();
+          expect(
+            container
+                .read(currentFranchiseProvider)
+                .value!
+                .draftInProgress!
+                .hasBeenOpened,
+            isFalse,
+          );
+
+          await container
+              .read(currentFranchiseProvider.notifier)
+              .markDraftScreenOpened();
+
+          expect(
+            container
+                .read(currentFranchiseProvider)
+                .value!
+                .draftInProgress!
+                .hasBeenOpened,
+            isTrue,
+          );
+        },
+      );
+
+      test('survives a subsequent pick -- not reset by DraftInProgress\'s '
+          'own internal reconstruction', () async {
+        final container = await playedOutContainer();
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .beginNextSeasonAndPersist();
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .markDraftScreenOpened();
+
+        var franchise = container.read(currentFranchiseProvider).value!;
+        final pickedIds = {
+          for (final pick in franchise.draftInProgress!.picks)
+            pick.prospect.player.id,
+        };
+        final best = franchise.draftClass
+            .where((p) => !pickedIds.contains(p.player.id))
+            .reduce(
+              (a, b) => draftProspectValue(a) >= draftProspectValue(b) ? a : b,
+            );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .makeDraftPick(best.player.id);
+
+        franchise = container.read(currentFranchiseProvider).value!;
+        expect(franchise.draftInProgress!.hasBeenOpened, isTrue);
+      });
+
+      test('does nothing when there is no draft in progress', () async {
+        final container = await playedOutContainer();
+
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .markDraftScreenOpened();
+
+        expect(
+          container.read(currentFranchiseProvider).value!.draftInProgress,
+          isNull,
+        );
+      });
+    });
   });
+
+  test(
+    'markDraftScreenOpened does nothing when there is no current franchise',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          saveRepositoryProvider.overrideWithValue(InMemorySaveRepository()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .markDraftScreenOpened();
+
+      expect(container.read(currentFranchiseProvider).value, isNull);
+    },
+  );
 
   group('setTradeBlockPlayer', () {
     test('sets and clears Franchise.tradeBlockPlayerId', () async {

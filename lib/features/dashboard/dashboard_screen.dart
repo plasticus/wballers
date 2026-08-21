@@ -227,7 +227,7 @@ class DashboardScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _FranchiseSummaryCard(franchise: value),
-                      if (_activeRosterCount(value) < kActiveRosterSize) ...[
+                      if (_blockedByRosterGap(value)) ...[
                         const SizedBox(height: AppSpacing.lg),
                         _AssistantGmMailCard(franchise: value),
                       ],
@@ -406,17 +406,29 @@ String _currentDateLabel(SeasonProgress progress) {
 int _activeRosterCount(Franchise franchise) =>
     franchise.roster.where((m) => m.status == RosterStatus.active).length;
 
+/// Whether the Dashboard's own roster-gap mail card/advance-block should
+/// show -- mirrors `current_franchise_provider.dart`'s `_blockedByRosterGap`
+/// exactly (season 0, still short a player), which is the real gate
+/// [advanceGameDay] itself enforces. This file's own two gates
+/// (`_AssistantGmMailCard`'s visibility, [_SeasonAdvanceCard]'s button)
+/// used to just check [_activeRosterCount] alone, with no season guard --
+/// stale ever since the provider's own guard was narrowed to Day 0 only
+/// (2026-08-20), so parking an injured player in Reserve/Inactive later in
+/// a season wrongly resurrected the Day-0 "sign a free agent" framing and
+/// fully blocked the Advance button, even though [advanceGameDay] itself
+/// would have gone through fine if pressed (2026-08-21, a GM bug report).
+bool _blockedByRosterGap(Franchise franchise) =>
+    franchise.season == 0 && _activeRosterCount(franchise) < kActiveRosterSize;
+
 /// "You need to hire a free agent before we can advance" -- a direct GM
 /// ask for a real Day-0 hook: a fresh expansion roster starts one player
 /// short of [kActiveRosterSize] on purpose
 /// (`roster/generation/starting_roster_generator.dart`'s doc comment),
 /// and the season genuinely can't advance until that gap is filled
-/// (`CurrentFranchiseNotifier.advanceGameDay`'s own guard). Shown
-/// whenever [_activeRosterCount] is under the cap -- in practice that's
-/// only ever Day 0 today, since nothing else currently shrinks the active
-/// roster below 12 once it's been filled once, but the card reads the
-/// live count rather than hardcoding "Day 0" so it'd still make sense if
-/// that ever changed.
+/// (`CurrentFranchiseNotifier.advanceGameDay`'s own guard). Shown exactly
+/// when [_blockedByRosterGap] is true -- Day 0 only, not just any time the
+/// active roster happens to be short (an injury benching, say) -- see that
+/// function's own doc comment.
 ///
 /// Same message [mailboxFor] surfaces as a real Mail inbox item
 /// (`assistantGmRosterGapMessage`, one source of truth for the wording) --
@@ -692,6 +704,18 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
       // idea a draft was still open -- backing out of Draft Day (the
       // system back button, or just navigating to Roster) stranded the
       // GM with no way back in at all.
+      // [Franchise.season] has already been bumped by the time a draft
+      // exists (`beginNextSeason` sets both in the same transition) --
+      // this is genuinely the season the draft belongs to, same
+      // 0-indexed/display-as-+1 convention every other "Season N" label
+      // in the app already follows.
+      final displaySeason = franchise.season + 1;
+      final newSeasonGameDays = gameDaysInOrder(
+        franchise.seasonProgress.schedule,
+      );
+      final firstPreseasonDay = newSeasonGameDays.isEmpty
+          ? null
+          : newSeasonGameDays.first;
       return AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -709,12 +733,55 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
               'continue.',
               style: theme.textTheme.bodySmall,
             ),
+            // Placeholder flavor dates -- a direct GM ask (2026-08-21):
+            // "shows me the date of the trade window opening, and the
+            // date of the first pre-season game." None of these are
+            // mechanically enforced (the trade window's real open
+            // condition is [isTradeWindowOpen], "the draft's finalized" --
+            // not a fixed date), but a GM mid-draft still wants a sense
+            // of what's coming next.
+            if (firstPreseasonDay != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _DraftScheduleRow(
+                label: 'Draft',
+                date: formatFictionalDateOffset(
+                  firstPreseasonDay.$1,
+                  firstPreseasonDay.$2,
+                  -14,
+                ),
+              ),
+              _DraftScheduleRow(
+                label: 'Trade Window Opens',
+                date: formatFictionalDateOffset(
+                  firstPreseasonDay.$1,
+                  firstPreseasonDay.$2,
+                  -7,
+                ),
+              ),
+              _DraftScheduleRow(
+                label: 'First Preseason Game',
+                date: formatFictionalDate(
+                  firstPreseasonDay.$1,
+                  firstPreseasonDay.$2,
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             FilledButton(
-              onPressed: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const DraftDayScreen())),
-              child: const Text('Return to Draft'),
+              onPressed: () async {
+                await ref
+                    .read(currentFranchiseProvider.notifier)
+                    .markDraftScreenOpened();
+                if (!context.mounted) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DraftDayScreen()),
+                );
+              },
+              child: Text(
+                franchise.draftInProgress!.hasBeenOpened
+                    ? 'Resume Season $displaySeason Draft'
+                    : 'Begin Season $displaySeason Draft',
+              ),
             ),
           ],
         ),
@@ -805,10 +872,17 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                   ),
                 );
               },
-              child: const Text('View Season Recap'),
+              // "Complete Season N" -- a direct GM ask (2026-08-21): "I
+              // should now have a button on my dashboard that says
+              // something like, Complete Season 1. I click it, it gives
+              // me the end of season report." Same button, same
+              // SeasonRecapScreen destination it already opened -- just
+              // named for what a champion-crowned GM actually wants to do
+              // next, not what the screen itself is called.
+              child: Text('Complete Season ${franchise.season + 1}'),
             ),
             const SizedBox(height: AppSpacing.sm),
-            // Off-season only -- gated the same way "View Season Recap"
+            // Off-season only -- gated the same way "Complete Season N"
             // itself is, a champion crowned but the next season not yet
             // begun (2026-08-19, a direct GM ask: "During the offseason,
             // maybe there's a new button on the Dashboard").
@@ -927,7 +1001,7 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
             ],
             _UpcomingGamesList(franchise: franchise),
             const SizedBox(height: AppSpacing.md),
-            if (_activeRosterCount(franchise) < kActiveRosterSize)
+            if (_blockedByRosterGap(franchise))
               // The Assistant GM mail card above already explains why and
               // links to Player Market -- this just confirms there's
               // genuinely nothing to press here yet, not a dead end.
@@ -937,7 +1011,7 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                   color: theme.colorScheme.error,
                 ),
               )
-            else
+            else ...[
               FilledButton(
                 onPressed: _isAdvancing ? null : _advanceOrPreview,
                 child: _isAdvancing
@@ -948,6 +1022,21 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                       )
                     : const Text('Advance to Next Game Day'),
               ),
+              // Only offered once the postseason has actually started --
+              // a direct GM ask (2026-08-21): "I don't give a damn who
+              // wins it, I just want to get to the end of the season
+              // report, draft, etc." Loops the exact same day-by-day
+              // `advanceGameDay` the button above uses
+              // (`simulateRestOfPostseason`'s own doc comment), it just
+              // doesn't stop to show every result along the way.
+              if (postseasonRoundToday != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                OutlinedButton(
+                  onPressed: _isAdvancing ? null : _simulateRestOfPostseason,
+                  child: const Text('Sim Rest of Postseason'),
+                ),
+              ],
+            ],
           ],
         ],
       ),
@@ -1084,6 +1173,35 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
     }
   }
 
+  /// Handles the "Sim Rest of Postseason" button -- see that button's own
+  /// doc comment. No result screen to push afterward (there's no single
+  /// "own game" to show -- the whole point is skipping past every one of
+  /// them); the dashboard rebuild after the provider call already shows
+  /// the crowned champion, same as any other advance.
+  Future<void> _simulateRestOfPostseason() async {
+    setState(() => _isAdvancing = true);
+    await ref
+        .read(currentFranchiseProvider.notifier)
+        .simulateRestOfPostseason();
+    if (!mounted) return;
+    setState(() => _isAdvancing = false);
+
+    final updatedFranchise = ref.read(currentFranchiseProvider).value;
+    if (updatedFranchise == null) return;
+    final champion = seasonChampion(
+      updatedFranchise.seasonProgress.playedGames,
+    );
+    if (champion == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${teamByAbbreviation(updatedFranchise, champion).name} are the '
+          'champions!',
+        ),
+      ),
+    );
+  }
+
   /// The snackbar copy for a game day the GM's own team had a bye on.
   /// Names the Continental Cup specifically when that's what just
   /// simulated (2026-08-10, TODO.md item 12: a direct GM ask -- a
@@ -1209,6 +1327,37 @@ class _UpcomingGamesList extends StatelessWidget {
 /// A compact single line calling out the Trade Deadline, same visual
 /// weight as [_UpcomingGameRow] so it reads as part of the same list
 /// rather than a separate banner.
+/// A compact "label -- date" line for the Draft In Progress card's
+/// placeholder schedule (2026-08-21, a direct GM ask: "give it a calendar
+/// date... shows me the date of the trade window opening, and the date
+/// of the first pre-season game").
+class _DraftScheduleRow extends StatelessWidget {
+  const _DraftScheduleRow({required this.label, required this.date});
+
+  final String label;
+  final String date;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text('$label:', style: theme.textTheme.bodySmall),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            date,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TradeDeadlineRow extends StatelessWidget {
   const _TradeDeadlineRow();
 

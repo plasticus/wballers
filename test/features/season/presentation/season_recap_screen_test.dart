@@ -568,57 +568,58 @@ void main() {
     expect(find.text('✨ Neon hair color unlocked'), findsOneWidget);
   });
 
-  testWidgets(
-    'tapping Begin Next Season transitions the franchise and returns to '
-    'the Dashboard, not Draft Day (2026-08-19, a direct GM ask: "It '
-    'immediately dumps me to the draft. I don\'t like that ... feels '
-    'stressful") -- the draft is still waiting, just one tap away from '
-    'the Dashboard\'s own "Draft In Progress" card, not forced',
-    (tester) async {
-      final franchise = _playFullSeason(1);
-      final repository = InMemorySaveRepository();
-      await repository.writeSave(
-        kCurrentFranchiseSaveId,
-        SaveEnvelope(
-          schemaVersion: 1,
-          payload: franchiseToJson(franchise),
-        ).toJson(),
-      );
+  testWidgets('tapping Begin Season N transitions the franchise and returns to '
+      'the Dashboard, not Draft Day (2026-08-19, a direct GM ask: "It '
+      'immediately dumps me to the draft. I don\'t like that ... feels '
+      'stressful") -- the draft is still waiting, just one tap away from '
+      'the Dashboard\'s own "Draft In Progress" card, not forced', (
+    tester,
+  ) async {
+    final franchise = _playFullSeason(1);
+    final repository = InMemorySaveRepository();
+    await repository.writeSave(
+      kCurrentFranchiseSaveId,
+      SaveEnvelope(
+        schemaVersion: 1,
+        payload: franchiseToJson(franchise),
+      ).toJson(),
+    );
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-          child: MaterialApp(
-            home: Navigator(
-              onGenerateRoute: (settings) => MaterialPageRoute(
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          home: Navigator(
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              builder: (_) => const Scaffold(body: Text('Dashboard')),
+            ),
+            onGenerateInitialRoutes: (navigator, initialRoute) => [
+              MaterialPageRoute(
                 builder: (_) => const Scaffold(body: Text('Dashboard')),
               ),
-              onGenerateInitialRoutes: (navigator, initialRoute) => [
-                MaterialPageRoute(
-                  builder: (_) => const Scaffold(body: Text('Dashboard')),
-                ),
-                MaterialPageRoute(
-                  builder: (_) => SeasonRecapScreen(franchise: franchise),
-                ),
-              ],
-            ),
+              MaterialPageRoute(
+                builder: (_) => SeasonRecapScreen(franchise: franchise),
+              ),
+            ],
           ),
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    await tester.pump();
 
-      await tester.scrollUntilVisible(find.text('Begin Next Season'), 200);
-      await tester.pump();
-      await tester.tap(find.text('Begin Next Season'));
-      await tester.pumpAndSettle();
+    // Season 2 -- `_playFullSeason`'s franchise starts at `season: 0`
+    // (Season 1), and this button starts the one after.
+    await tester.scrollUntilVisible(find.text('Begin Season 2'), 200);
+    await tester.pump();
+    await tester.tap(find.text('Begin Season 2'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Dashboard'), findsOneWidget);
-      expect(find.text('Draft Day'), findsNothing);
-      final context = tester.element(find.text('Dashboard'));
-      final container = ProviderScope.containerOf(context);
-      final updated = container.read(currentFranchiseProvider).value!;
-      expect(updated.season, 1);
-      expect(updated.draftInProgress, isNotNull);
-    },
-  );
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('Draft Day'), findsNothing);
+    final context = tester.element(find.text('Dashboard'));
+    final container = ProviderScope.containerOf(context);
+    final updated = container.read(currentFranchiseProvider).value!;
+    expect(updated.season, 1);
+    expect(updated.draftInProgress, isNotNull);
+  });
 }

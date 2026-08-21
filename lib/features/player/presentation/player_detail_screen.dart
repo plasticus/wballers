@@ -10,6 +10,8 @@ import '../../portrait/presentation/portrait_editor_screen.dart';
 import '../../portrait/rendering/portrait_colors.dart';
 import '../../season/domain/played_game_stat_line.dart';
 import '../../training/domain/player_rating_field.dart';
+import '../../training/domain/training_report.dart';
+import '../../training/presentation/player_growth_card.dart';
 import '../domain/achievement.dart';
 import '../domain/archetype.dart';
 import '../domain/player.dart';
@@ -233,6 +235,18 @@ class PlayerDetailScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.sm),
             _SeasonStatsCard(franchise: franchise, playerId: playerId),
             const SizedBox(height: AppSpacing.lg),
+            // The GM's own roster only (2026-08-21, a direct GM ask) --
+            // there's no equivalent training data to show for an AI
+            // player, and the GM has no say over their training anyway.
+            if (isOwnRoster) ...[
+              Text(
+                'Trained This Season',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _SeasonTrainingCard(franchise: franchise, playerId: playerId),
+              const SizedBox(height: AppSpacing.lg),
+            ],
             Text('Awards', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             _AwardsCard(player: player),
@@ -586,6 +600,46 @@ class _SeasonStatsCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// This one player's real season-to-date training growth -- the same
+/// [PlayerGrowthCard] look `TrainingReportScreen`/`SeasonRecapScreen`
+/// already use, just filtered down to one player instead of the whole
+/// roster (2026-08-21, a direct GM ask: "a card that tells me how
+/// they've trained this season -- similar to the all-season training
+/// report"). Reuses `aggregateSeasonGrowth` -- the exact same real
+/// season-long aggregation `SeasonRecapScreen`'s own Player Development
+/// section is built on, not a separate re-derivation.
+class _SeasonTrainingCard extends StatelessWidget {
+  const _SeasonTrainingCard({required this.franchise, required this.playerId});
+
+  final Franchise franchise;
+  final String playerId;
+
+  @override
+  Widget build(BuildContext context) {
+    final seasonGrowth = aggregateSeasonGrowth(
+      weeklyReports: franchise.trainingReports,
+      seasonEndAging: franchise.seasonEndAgingResults,
+    );
+    PlayerGrowthResult? own;
+    for (final result in seasonGrowth) {
+      if (result.playerId == playerId) {
+        own = result;
+        break;
+      }
+    }
+    if (own == null) {
+      return const AppCard(
+        child: Text('No training activity recorded yet this season.'),
+      );
+    }
+
+    final player = franchise.roster
+        .firstWhere((m) => m.player.id == playerId)
+        .player;
+    return PlayerGrowthCard(playerName: player.name, result: own);
   }
 }
 

@@ -41,9 +41,15 @@ bool isDevelopmentalEligible(Player player) {
 }
 
 extension RosterStatusLabel on RosterStatus {
+  /// [RosterStatus.reserveInactive]'s own label reads "Injured/Inactive,"
+  /// not the internal "Reserve/Inactive" this file's own doc comments
+  /// still use -- a direct GM ask (2026-08-21): injuries are the actual
+  /// day-to-day reason a GM parks someone here, so the user-facing name
+  /// should say so plainly, even though the *mechanic* stays the same
+  /// catch-all slot for any reason a player isn't active.
   String get label => switch (this) {
     RosterStatus.active => 'Active',
     RosterStatus.developmental => 'Developmental',
-    RosterStatus.reserveInactive => 'Reserve/Inactive',
+    RosterStatus.reserveInactive => 'Injured/Inactive',
   };
 }

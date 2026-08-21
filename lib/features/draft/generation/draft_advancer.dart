@@ -61,9 +61,7 @@ DraftInProgress _appendPick(
           player: applyHiddenGemBonus(selected.player, bonus),
           college: selected.college,
         );
-  return DraftInProgress(
-    order: draft.order,
-    rounds: draft.rounds,
+  return draft.copyWith(
     picks: [
       ...draft.picks,
       DraftPick(

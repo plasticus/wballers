@@ -1,5 +1,5 @@
-import 'dart:math';
-
+import '../../league/domain/team_identity.dart';
+import '../../matchup/domain/offense_shape.dart';
 import '../../player/domain/player.dart';
 
 /// Target minutes by rank on a 12-player active roster, summing to a full
@@ -12,26 +12,32 @@ const _targetMinutesByRank = <int>[30, 30, 30, 26, 26, 14, 14, 8, 8, 6, 4, 4];
 /// whether the roster is a full 12 or short a player or two to injury.
 const kTotalTargetMinutes = 200;
 
-/// Ranks [roster] by [PlayerRatings.overall] (best first), then --
-/// roughly half the time, decided once per team by [_shouldBalanceTopFive]
-/// -- rebalances the top 5 to cover one of each standard position
-/// ([_withBalancedTopFive]) before assigning target minutes off
-/// `_targetMinutesByRank`. There's no GM-set target-minutes ranking to
-/// defer to yet (`0B_Planned.md`'s automatic-substitutions item is still
-/// UI-less), so this is the default the engine falls back to -- "best
-/// players play the most" -- for every AI team, same
-/// random-default-but-overridable shape used elsewhere (team colors, the
-/// team-to-replace picker) once a real ranking exists to plug in here.
+/// Ranks [roster] by [PlayerRatings.overall] (best first), then tries to
+/// steer the top 5 toward [teamAbbreviation]'s own `TeamIdentity.preferredShape`
+/// before assigning target minutes off `_targetMinutesByRank`. There's no
+/// GM-set target-minutes ranking to defer to yet (`0B_Planned.md`'s
+/// automatic-substitutions item is still UI-less), so this is the default
+/// the engine falls back to -- "best players play the most, steered
+/// toward this team's own shape" -- for every AI team.
 ///
-/// Only *some* teams get balanced, deliberately: an initial version
-/// balanced every AI team, but a direct GM follow-up (2026-08-15) walked
-/// that back -- "I don't want them *all* to field standard lineups...
-/// having some non-standard ones is really cool! Like a team that deploys
-/// 2 PFs instead of a Center... that's why I said 50%, not 100%." A team
-/// that skips balancing just keeps its plain overall-sorted top 5,
-/// duplicate positions and all -- that's the "interesting" variety being
-/// preserved, not a residual bug.
-Map<Player, int> targetMinutesFor(List<Player> roster) {
+/// [teamAbbreviation] is optional -- omitted (or a shape that can't be
+/// forced), the top 5 just stays the plain overall-sorted list, duplicate
+/// positions and all. [OffenseShape.motion] is never explicitly forced
+/// either, by design: it's the "nothing special happened" shape
+/// ([OffenseShape.detectOffenseShape]'s own doc comment), so a team whose
+/// identity targets it simply gets the unforced top 5 -- same shape this
+/// whole mechanism used to default to for every team before
+/// [TeamIdentity.preferredShape] existed (2026-08-15, a direct GM call:
+/// "I don't want them *all* to field standard lineups... that's why I
+/// said 50%, not 100%" -- still true today, just driven by a real,
+/// per-team identity now instead of an anonymous coin flip, per a direct
+/// GM follow-up 2026-08-21: "I still think 50% of teams should be a
+/// classic shape... 50% would try for the standard shape, and 50% other
+/// stuff").
+Map<Player, int> targetMinutesFor(
+  List<Player> roster, {
+  String? teamAbbreviation,
+}) {
   assert(
     roster.length >= 5 && roster.length <= 12,
     'expects 5-12 active players (fewer than a full 12 only when injuries '
@@ -39,48 +45,41 @@ Map<Player, int> targetMinutesFor(List<Player> roster) {
   );
   final sorted = [...roster]
     ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
-  final topFive = _shouldBalanceTopFive(roster)
-      ? _withBalancedTopFive(sorted)
-      : sorted;
+  final preferredShape = teamAbbreviation == null
+      ? null
+      : identityFor(teamAbbreviation).preferredShape;
+  final topFive = switch (preferredShape) {
+    OffenseShape.traditional => _withBalancedTopFive(sorted),
+    OffenseShape.postUp => _withPostUpTopFive(sorted),
+    OffenseShape.paceAndSpace => _withPaceAndSpaceTopFive(sorted),
+    OffenseShape.motion || null => sorted,
+  };
   return targetMinutesForOrderedRoster(topFive);
 }
 
-/// A stable, cross-run-deterministic hash of a player id string -- same
-/// algorithm as `training/generation/training_advancer.dart`'s own
-/// private `_stableStringHash` (kept separate since Dart privacy is
-/// per-file), used instead of `String.hashCode` because that's not a
-/// documented-stable algorithm across Dart/Flutter versions, and this
-/// codebase's deterministic-simulation invariants all lean on exact
-/// reproducibility for a given save.
-int _stableStringHash(String value) {
-  var hash = 0;
-  for (final codeUnit in value.codeUnits) {
-    hash = (31 * hash + codeUnit) & 0x7fffffff;
-  }
-  return hash;
-}
+bool _isBig(Player player) =>
+    player.primaryPosition == Position.powerForward ||
+    player.primaryPosition == Position.center;
 
-/// Whether [roster] -- a specific team's specific 12 players -- gets
-/// [_withBalancedTopFive]'s standard-lineup treatment: a deterministic
-/// ~50/50 split, stable for as long as this exact set of players stays
-/// together (no trades exist yet, so that's the whole season). Derived
-/// from the roster's own player ids (sorted, so list order doesn't
-/// matter) rather than a plain team-index coin flip, so it's still stable
-/// if a caller's team ordering ever changes without needing a real seed
-/// threaded all the way through here.
-///
-/// Seeds a real [Random] with the hash rather than reading a bit off it
-/// directly (e.g. `.isEven`) -- every id here shares the same fixed-size
-/// roster (12 players), so a naive checksum-style hash's low bit ends up
-/// *constant* across every roster (each id contributes its own prefix's
-/// parity an even number of times, which always cancels out), not the
-/// ~50/50 split it looks like at a glance. `Random`'s own bit-mixing
-/// avoids that trap -- same reason `_isBreakoutSeason`
-/// (`training/generation/training_advancer.dart`) seeds a `Random` from
-/// a stable hash instead of trusting the hash's own bits directly.
-bool _shouldBalanceTopFive(List<Player> roster) {
-  final ids = [for (final player in roster) player.id]..sort();
-  return Random(_stableStringHash(ids.join(','))).nextBool();
+/// Swaps [promoteIndex] and [displaceIndex] in [roster], then re-sorts
+/// each half (top 5 / bench) by overall independently, so a forced swap
+/// never otherwise disturbs "best players play the most" within either
+/// group. Shared by every `_with*TopFive` builder below.
+List<Player> _swapAndResort(
+  List<Player> roster,
+  int promoteIndex,
+  int displaceIndex,
+) {
+  final updated = List<Player>.of(roster);
+  final promoted = updated[promoteIndex];
+  final displaced = updated[displaceIndex];
+  updated[displaceIndex] = promoted;
+  updated[promoteIndex] = displaced;
+  final newTopFive = updated.sublist(0, 5)
+    ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
+  final newBench = updated.sublist(5)
+    ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
+  return [...newTopFive, ...newBench];
 }
 
 /// Rearranges [sortedByOverall] (already ranked best-to-worst by
@@ -93,7 +92,8 @@ bool _shouldBalanceTopFive(List<Player> roster) {
 /// `kTwelvePlayerPositionPlan`), so this always succeeds for a full
 /// 12-player roster, converging in at most `Position.values.length`
 /// swaps since each swap strictly grows the number of distinct positions
-/// covered by the top 5.
+/// covered by the top 5. Lands exactly on [OffenseShape.traditional]'s own
+/// definition -- one of each position means 2 guards, 1 wing, 2 bigs.
 ///
 /// This is the same fix already applied to the GM's own Day-0 roster
 /// (`roster/generation/starting_roster_generator.dart`'s
@@ -101,9 +101,9 @@ bool _shouldBalanceTopFive(List<Player> roster) {
 /// no GM-ordered bench to inherit that fix from -- their actual on-court
 /// five comes from this overall sort, not roster-generation order (a
 /// direct GM report, 2026-08-15: "zero other teams have a standard
-/// starting 5"). Only called for the roughly-half of AI teams
-/// [_shouldBalanceTopFive] selects -- see [targetMinutesFor]'s own doc
-/// comment for why the other half deliberately skip this.
+/// starting 5"). Only called for whichever AI teams
+/// `TeamIdentity.preferredShape` targets [OffenseShape.traditional] -- see
+/// [targetMinutesFor]'s own doc comment.
 List<Player> _withBalancedTopFive(List<Player> sortedByOverall) {
   var roster = List<Player>.of(sortedByOverall);
   for (var attempt = 0; attempt < Position.values.length; attempt++) {
@@ -138,20 +138,70 @@ List<Player> _withBalancedTopFive(List<Player> sortedByOverall) {
     final displaceIndex = duplicateStarterIndices.reduce(
       (a, b) => roster[a].ratings.overall <= roster[b].ratings.overall ? a : b,
     );
+    roster = _swapAndResort(roster, promoteIndex, displaceIndex);
+  }
+  return roster;
+}
 
-    // Swap the two players' list positions directly, then re-sort each
-    // half by overall so the promotion/demotion doesn't otherwise disturb
-    // "best players play the most" within the top 5 and within the bench.
-    final updated = List<Player>.of(roster);
-    final promoted = updated[promoteIndex];
-    final displaced = updated[displaceIndex];
-    updated[displaceIndex] = promoted;
-    updated[promoteIndex] = displaced;
-    final newTopFive = updated.sublist(0, 5)
-      ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
-    final newBench = updated.sublist(5)
-      ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
-    roster = [...newTopFive, ...newBench];
+/// Steers [sortedByOverall]'s top 5 toward [OffenseShape.postUp]'s own
+/// definition -- 3+ bigs on the floor -- by promoting the best available
+/// bench PF/C in place of the weakest non-big starter, repeated until
+/// either 3 bigs land in the top 5 or there's genuinely nothing left to
+/// promote. The position plan guarantees at least 2 PF + 2 C per roster
+/// (4 bigs total), always enough to reach 3. Bounded the same generous
+/// way [_withBalancedTopFive] is -- convergence only ever needs at most 3
+/// swaps (0 to 3 bigs), [Position.values.length] is comfortably more.
+List<Player> _withPostUpTopFive(List<Player> sortedByOverall) {
+  var roster = List<Player>.of(sortedByOverall);
+  for (var attempt = 0; attempt < Position.values.length; attempt++) {
+    if (roster.take(5).where(_isBig).length >= 3) break;
+    final benchBigIndices = [
+      for (var i = 5; i < roster.length; i++)
+        if (_isBig(roster[i])) i,
+    ];
+    final nonBigStarterIndices = [
+      for (var i = 0; i < 5; i++)
+        if (!_isBig(roster[i])) i,
+    ];
+    if (benchBigIndices.isEmpty || nonBigStarterIndices.isEmpty) break;
+    final promoteIndex = benchBigIndices.reduce(
+      (a, b) => roster[a].ratings.overall >= roster[b].ratings.overall ? a : b,
+    );
+    final displaceIndex = nonBigStarterIndices.reduce(
+      (a, b) => roster[a].ratings.overall <= roster[b].ratings.overall ? a : b,
+    );
+    roster = _swapAndResort(roster, promoteIndex, displaceIndex);
+  }
+  return roster;
+}
+
+/// Steers [sortedByOverall]'s top 5 toward [OffenseShape.paceAndSpace]'s
+/// own definition -- 1 or 0 bigs on the floor -- by demoting the weakest
+/// big starter in place of the best available non-big bench player,
+/// repeated until either 1 big or fewer remains in the top 5 or there's
+/// genuinely nothing left to demote. The position plan guarantees at
+/// least 6 non-big players per roster (2 each of PG/SG/SF), always enough
+/// to backfill. Bounded the same generous way [_withBalancedTopFive] is.
+List<Player> _withPaceAndSpaceTopFive(List<Player> sortedByOverall) {
+  var roster = List<Player>.of(sortedByOverall);
+  for (var attempt = 0; attempt < Position.values.length; attempt++) {
+    if (roster.take(5).where(_isBig).length <= 1) break;
+    final bigStarterIndices = [
+      for (var i = 0; i < 5; i++)
+        if (_isBig(roster[i])) i,
+    ];
+    final benchNonBigIndices = [
+      for (var i = 5; i < roster.length; i++)
+        if (!_isBig(roster[i])) i,
+    ];
+    if (bigStarterIndices.isEmpty || benchNonBigIndices.isEmpty) break;
+    final displaceIndex = bigStarterIndices.reduce(
+      (a, b) => roster[a].ratings.overall <= roster[b].ratings.overall ? a : b,
+    );
+    final promoteIndex = benchNonBigIndices.reduce(
+      (a, b) => roster[a].ratings.overall >= roster[b].ratings.overall ? a : b,
+    );
+    roster = _swapAndResort(roster, promoteIndex, displaceIndex);
   }
   return roster;
 }

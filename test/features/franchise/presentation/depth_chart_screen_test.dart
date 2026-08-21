@@ -217,12 +217,12 @@ void main() {
     expect(find.text('4 min'), findsNWidgets(2));
   });
 
-  testWidgets('shows developmental players separately at 0 minutes', (
-    tester,
-  ) async {
-    final franchise = _franchiseWith(
-      extraMembers: [_developmentalMember('dev-1')],
-    );
+  testWidgets('hides developmental players entirely -- they draw 0 minutes and '
+      'aren\'t part of the bench order (2026-08-21, a direct GM ask: '
+      '"I don\'t want to see developmental slots when I\'m choosing the '
+      'bench order")', (tester) async {
+    final developmental = _developmentalMember('dev-1');
+    final franchise = _franchiseWith(extraMembers: [developmental]);
     final repository = await _seededRepository(franchise);
 
     await tester.pumpWidget(
@@ -233,11 +233,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Developmental (0 min)'), findsOneWidget);
-    expect(
-      find.text(_rowLabel(_developmentalMember('dev-1').player)),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Developmental'), findsNothing);
+    expect(find.text(_rowLabel(developmental.player)), findsNothing);
   });
 
   testWidgets(

@@ -39,6 +39,22 @@ enum Achievement {
   /// [mostImprovedPlayer] when both would otherwise point at the same
   /// player.
   rookieOfTheYear,
+
+  /// Named to either conference's 10-player All-Star squad
+  /// (`all_star_advancer.dart`'s `resolveSkillsCompetitionDay`, the one
+  /// persisted record of who made the team) -- distinct from
+  /// [allStarMvp], which only the one player who wins the Game itself
+  /// gets. Granted the same day the squads are actually selected (2026-08-21,
+  /// a direct GM ask: "will Awards include all-star selections...
+  /// it should, if it doesn't").
+  allStarSelection,
+
+  /// Won any one of the All-Star break's 3 `SkillsEvent`s (2026-08-21, a
+  /// direct GM ask: "and all-star skill challenge wins"). One flat
+  /// achievement regardless of which event -- winning 2 or all 3 in the
+  /// same Skills Competition just grants this multiple times, same as any
+  /// other repeatable [Achievement].
+  skillsChallengeWinner,
 }
 
 extension AchievementLabel on Achievement {
@@ -50,6 +66,8 @@ extension AchievementLabel on Achievement {
     Achievement.sixthManOfTheYear => 'Sixth Player of the Year',
     Achievement.mostImprovedPlayer => 'Most Improved Player',
     Achievement.rookieOfTheYear => 'Rookie of the Year',
+    Achievement.allStarSelection => 'All-Star',
+    Achievement.skillsChallengeWinner => 'Skills Challenge Winner',
   };
 }
 

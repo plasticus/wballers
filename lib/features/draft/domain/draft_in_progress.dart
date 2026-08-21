@@ -30,12 +30,46 @@ class DraftInProgress {
     required this.rounds,
     this.picks = const [],
     this.pickOwnershipOverrides = const {},
+    this.hasBeenOpened = false,
   });
 
   final List<String> order;
   final int rounds;
   final List<DraftPick> picks;
   final PickOwnershipOverrides pickOwnershipOverrides;
+
+  /// True once the GM has actually opened `DraftDayScreen` for this draft
+  /// at least once this season -- `false` for a freshly-created draft,
+  /// even one whose own AI picks have already auto-resolved up to the
+  /// GM's first turn (`beginNextSeason`'s own doc comment). Distinguishes
+  /// the Dashboard's "Begin Season N Draft" wording (never opened yet)
+  /// from "Resume Season N Draft" (backed out once already) -- a direct
+  /// GM ask (2026-08-21): "I'm inevitably going to back out to look at my
+  /// roster -- the draft should effectively pause until I come back and
+  /// click Resume Season N Draft." [DraftInProgress.picks] alone can't
+  /// stand in for this: the GM's own team rarely picks first, so picks
+  /// already exist from auto-resolved AI turns before the GM ever sees
+  /// the screen the first time.
+  final bool hasBeenOpened;
+
+  /// A copy with just [picks] (or, in principle, any other field) swapped
+  /// in -- every other field defaults to carrying [this]'s own value
+  /// forward untouched. `draft_advancer.dart`'s `_appendPick` is the one
+  /// real caller, and specifically the reason this exists: reconstructing
+  /// a fresh [DraftInProgress] by hand for every single pick previously
+  /// silently dropped [pickOwnershipOverrides] (and would have dropped
+  /// [hasBeenOpened] the same way) after the very first pick of any
+  /// draft, since neither field was ever named in that manual
+  /// reconstruction.
+  DraftInProgress copyWith({List<DraftPick>? picks, bool? hasBeenOpened}) {
+    return DraftInProgress(
+      order: order,
+      rounds: rounds,
+      picks: picks ?? this.picks,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      hasBeenOpened: hasBeenOpened ?? this.hasBeenOpened,
+    );
+  }
 
   /// Every pick, across every round, has been made.
   bool get isComplete => picks.length >= order.length * rounds;

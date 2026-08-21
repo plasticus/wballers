@@ -9,6 +9,7 @@ Map<String, dynamic> draftInProgressToJson(DraftInProgress draft) {
     'pickOwnershipOverrides': draft.pickOwnershipOverrides.map(
       (round, byTeam) => MapEntry('$round', byTeam),
     ),
+    if (draft.hasBeenOpened) 'hasBeenOpened': true,
   };
 }
 
@@ -31,5 +32,12 @@ DraftInProgress draftInProgressFromJson(Map<String, dynamic> json) {
             ),
           ),
         ),
+    // Absent on a save written before this field existed -- reads as
+    // `false` (never opened), which is the safe, no-worse-than-before
+    // fallback: it just means that one stale in-progress draft shows
+    // "Begin" instead of "Resume" once, self-correcting the moment the
+    // GM opens it (2026-08-21, `DraftInProgress.hasBeenOpened`'s own doc
+    // comment).
+    hasBeenOpened: json['hasBeenOpened'] as bool? ?? false,
   );
 }

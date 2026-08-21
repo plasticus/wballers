@@ -6,6 +6,7 @@ import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/mail/application/mailbox.dart';
 import 'package:womensbballmgr/features/mail/domain/mail_item.dart';
+import 'package:womensbballmgr/features/player/domain/player_injury.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
@@ -453,6 +454,118 @@ void main() {
       expect(
         assistantGmRosterGapMessage(franchise),
         contains('one player short'),
+      );
+    });
+  });
+
+  group('injury recommendation mail (2026-08-21, a direct GM ask: replace the '
+      'scripted "sign a free agent" mis-fire with a real per-player '
+      'recommendation)', () {
+    test(
+      'includes a real AssistantGmMailItem for an active-roster player '
+      'with an active injury, naming her, the grade, and games remaining',
+      () {
+        final base = withFullActiveRoster(_franchise());
+        final target = base.roster.first;
+        final franchise = base.copyWithRoster([
+          target.copyWith(
+            injury: const PlayerInjury(
+              severity: InjurySeverity.moderate,
+              gamesRemainingAtSeverity: 3,
+            ),
+          ),
+          for (final m in base.roster.skip(1)) m,
+        ]);
+
+        final items = mailboxFor(franchise);
+
+        final injuryMail = items
+            .whereType<AssistantGmMailItem>()
+            .where((i) => i.id == injuryRecommendationMailId(target.player.id))
+            .single;
+        expect(injuryMail.body, contains(target.player.name));
+        expect(injuryMail.body, contains('Moderate'));
+        expect(injuryMail.body, contains('3 games'));
+      },
+    );
+
+    test('recommends playing through a minor injury, and moving anything '
+        'worse to Injured/Inactive', () {
+      final base = withFullActiveRoster(_franchise());
+      final minorTarget = base.roster.first;
+      final minor = base.copyWithRoster([
+        minorTarget.copyWith(
+          injury: const PlayerInjury(
+            severity: InjurySeverity.minor,
+            gamesRemainingAtSeverity: 2,
+          ),
+        ),
+        for (final m in base.roster.skip(1)) m,
+      ]);
+      final majorTarget = base.roster.first;
+      final major = base.copyWithRoster([
+        majorTarget.copyWith(
+          injury: const PlayerInjury(
+            severity: InjurySeverity.major,
+            gamesRemainingAtSeverity: 6,
+          ),
+        ),
+        for (final m in base.roster.skip(1)) m,
+      ]);
+
+      final minorBody = mailboxFor(minor)
+          .whereType<AssistantGmMailItem>()
+          .firstWhere(
+            (i) => i.id == injuryRecommendationMailId(minorTarget.player.id),
+          )
+          .body;
+      final majorBody = mailboxFor(major)
+          .whereType<AssistantGmMailItem>()
+          .firstWhere(
+            (i) => i.id == injuryRecommendationMailId(majorTarget.player.id),
+          )
+          .body;
+
+      expect(minorBody, contains('play through it'));
+      expect(majorBody, contains('Injured/Inactive'));
+      expect(majorBody, contains('free-agent signing'));
+    });
+
+    test('omits the recommendation once the player is moved to '
+        'Injured/Inactive -- the recommended action is already done', () {
+      final base = withFullActiveRoster(_franchise());
+      final target = base.roster.first;
+      final franchise = base.copyWithRoster([
+        target.copyWith(
+          status: RosterStatus.reserveInactive,
+          injury: const PlayerInjury(
+            severity: InjurySeverity.major,
+            gamesRemainingAtSeverity: 6,
+          ),
+        ),
+        for (final m in base.roster.skip(1)) m,
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      expect(
+        items.whereType<AssistantGmMailItem>().where(
+          (i) => i.id == injuryRecommendationMailId(target.player.id),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('omits the recommendation entirely for a healthy active roster', () {
+      final franchise = withFullActiveRoster(_franchise());
+
+      final items = mailboxFor(franchise);
+
+      expect(
+        items.whereType<AssistantGmMailItem>().where(
+          (i) => i.id.startsWith('injury_recommendation_'),
+        ),
+        isEmpty,
       );
     });
   });

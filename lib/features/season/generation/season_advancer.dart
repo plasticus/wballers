@@ -265,12 +265,18 @@ GameResult _simulateOneGame(
     // so they're left null and fall back to that default.
     homeTargetMinutes: game.homeTeamAbbreviation == ownTeamAbbreviation
         ? targetMinutesForOrderedRoster(homeRoster)
-        : null,
+        : targetMinutesFor(
+            homeRoster,
+            teamAbbreviation: game.homeTeamAbbreviation,
+          ),
     homeCoach: coachesByAbbreviation?[game.homeTeamAbbreviation],
     awayCoach: coachesByAbbreviation?[game.awayTeamAbbreviation],
     awayTargetMinutes: game.awayTeamAbbreviation == ownTeamAbbreviation
         ? targetMinutesForOrderedRoster(awayRoster)
-        : null,
+        : targetMinutesFor(
+            awayRoster,
+            teamAbbreviation: game.awayTeamAbbreviation,
+          ),
     // Only the GM's own team ever plays anything but Balanced -- every AI
     // opponent gets the literal default, always, "AI always plays
     // Balanced" with no separate decision logic anywhere.

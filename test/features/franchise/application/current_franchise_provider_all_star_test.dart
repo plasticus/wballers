@@ -5,6 +5,7 @@ import 'package:womensbballmgr/features/franchise/application/current_franchise_
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
+import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/generation/all_star_generator.dart';
@@ -82,6 +83,41 @@ void main() {
       ).contains(GameType.allStarGame),
       isTrue,
     );
+
+    // Every honoree really did land a real Achievement.allStarSelection
+    // (2026-08-21, a direct GM ask: "will Awards include all-star
+    // selections... it should, if it doesn't"), and every event's real
+    // winner landed a real Achievement.skillsChallengeWinner.
+    final everyPlayerAfterSkills = [
+      ...afterSkills.roster.map((m) => m.player),
+      for (final aiTeam in afterSkills.league.aiTeams)
+        ...aiTeam.roster.map((m) => m.player),
+    ];
+    Player playerById(String id) =>
+        everyPlayerAfterSkills.firstWhere((p) => p.id == id);
+    for (final honoreeId in {
+      ...skillsResult.squads[Conference.atlantic]!,
+      ...skillsResult.squads[Conference.pacific]!,
+    }) {
+      expect(
+        playerById(honoreeId).achievements.any(
+          (a) => a.achievement == Achievement.allStarSelection,
+        ),
+        isTrue,
+        reason: 'honoree $honoreeId should have Achievement.allStarSelection',
+      );
+    }
+    for (final event in skillsResult.events) {
+      expect(
+        playerById(event.winnerPlayerId).achievements.any(
+          (a) => a.achievement == Achievement.skillsChallengeWinner,
+        ),
+        isTrue,
+        reason:
+            '${event.event} winner ${event.winnerPlayerId} should have '
+            'Achievement.skillsChallengeWinner',
+      );
+    }
 
     final gameAdvance = await container
         .read(currentFranchiseProvider.notifier)

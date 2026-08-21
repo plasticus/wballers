@@ -372,11 +372,17 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
       // Only the GM's own real side reads its real bench order --
       // `_simulateOneGame`'s exact convention, mirrored here so a live
       // game plays under the same rules an instant-sim of it would have.
+      // A real AI opponent gets its own `TeamIdentity.preferredShape`
+      // steered in too, same as an instant-simmed game would.
       homeTargetMinutes: homeIsOwn && isReal
           ? targetMinutesForOrderedRoster(_homeRoster)
+          : isReal
+          ? targetMinutesFor(_homeRoster, teamAbbreviation: _homeAbbreviation)
           : null,
       awayTargetMinutes: awayIsOwn
           ? targetMinutesForOrderedRoster(_awayRoster)
+          : isReal
+          ? targetMinutesFor(_awayRoster, teamAbbreviation: _awayAbbreviation)
           : null,
       homeCoach: coaches?[_homeAbbreviation],
       awayCoach: coaches?[_awayAbbreviation],

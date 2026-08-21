@@ -39,7 +39,7 @@ import '../../trade/generation/trade_offer_generator.dart';
 /// **Draft tab shows the real upcoming class, but isn't itself draftable**:
 /// a real draft-day flow exists (`draft/presentation/draft_day_screen.dart`,
 /// 2026-08-11, `0D_Season_2_Roadmap.md`'s "The draft, for real" stage), and
-/// only runs once a season, right after "Begin Next Season" -- but the
+/// only runs once a season, right after "Begin Season N" -- but the
 /// prospects who'll actually be on the board that day
 /// ([Franchise.upcomingDraftClass]) are rolled a full season early and
 /// previewable here the whole time (2026-08-21, a direct GM ask: "roll it
@@ -1132,7 +1132,7 @@ class _DraftTab extends StatelessWidget {
           text:
               'This season\'s real upcoming draft class -- not draftable '
               'from here, though. The real draft happens once the season '
-              'ends -- Season Recap\'s "Begin Next Season" button leads '
+              'ends -- Season Recap\'s "Begin Season N" button leads '
               'straight into it.',
         ),
         for (var i = 0; i < prospects.length; i++) ...[

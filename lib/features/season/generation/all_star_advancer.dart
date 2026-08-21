@@ -30,13 +30,37 @@ const _kSkillsEventFieldSize = 6;
 /// ranked field, not a single head-to-head check.
 const _kSkillsScoreVariance = 20.0;
 
+/// What resolving the Skills Competition day produces: the real
+/// [SkillsCompetitionResult] (squads + event standings), and the updated
+/// [Franchise] -- every honoree now carries a real
+/// [Achievement.allStarSelection], every event's winner a real
+/// [Achievement.skillsChallengeWinner] (2026-08-21, a direct GM ask:
+/// "will Awards include all-star selections, and all-star skill
+/// challenge wins? it should, if it doesn't"). Mirrors
+/// [AllStarGameAdvance]'s own "result plus the franchise it updated"
+/// shape.
+class SkillsCompetitionAdvance {
+  const SkillsCompetitionAdvance({
+    required this.franchise,
+    required this.result,
+  });
+
+  final Franchise franchise;
+  final SkillsCompetitionResult result;
+}
+
 /// Resolves the All-Star break's Skills Competition day
 /// ([kSkillsCompetitionDay]) -- selects both conferences' 10-player
 /// squads (the one persisted record of who made the team; see
-/// [SkillsCompetitionResult]'s own doc comment) and runs all 3
-/// [SkillsEvent]s. Deterministic for a given [random] stream, same
-/// contract as every other advance-day resolver.
-SkillsCompetitionResult resolveSkillsCompetitionDay(
+/// [SkillsCompetitionResult]'s own doc comment), runs all 3
+/// [SkillsEvent]s, and grants the real [Achievement]s that come with
+/// either (see [SkillsCompetitionAdvance]'s own doc comment). Deterministic
+/// for a given [random] stream, same contract as every other advance-day
+/// resolver -- the event score rolls consume it first, then the same
+/// stream continues into the achievement grants' own randomness (neon
+/// hair color, on a 2nd+ achievement), same sequencing
+/// [resolveAllStarGame] already uses for its own MVP grant.
+SkillsCompetitionAdvance resolveSkillsCompetitionDay(
   Random random,
   Franchise franchise,
 ) {
@@ -58,51 +82,75 @@ SkillsCompetitionResult resolveSkillsCompetitionDay(
     for (final team in leagueTeams) ...?rosters[team.abbreviation],
   ];
 
-  return SkillsCompetitionResult(
+  final events = [
+    _runEvent(
+      random,
+      SkillsEvent.fullPressFrenzy,
+      // Deliberately drawn from every team in the league, not just the
+      // 20 All-Star honorees [_topByRating] otherwise pulls from below --
+      // the whole point of a physical-ratings event (a direct GM ask) is
+      // that an elite athlete who isn't a scoring All-Star can still win
+      // it, same as a real speedy role player can out-run a star in a
+      // real combine drill.
+      _topByRating(
+        leaguePlayers,
+        (p) =>
+            p.ratings.speed +
+            p.ratings.agility +
+            p.ratings.strength +
+            p.ratings.stamina,
+      ),
+    ),
+    _runEvent(
+      random,
+      SkillsEvent.horse,
+      _topByRating(honorees, (p) => p.ratings.perimeterOffense),
+    ),
+    _runEvent(
+      random,
+      SkillsEvent.defensiveSkillsChallenge,
+      _topByRating(
+        honorees,
+        // The GM's own shorthand for the DPOY composite is real
+        // box-score steals+blocks, but a skills-contest heat has no box
+        // score to draw from -- disruption + blocking (the 2 rating
+        // fields those box-score stats derive from in the first place)
+        // is the closest real analog available here.
+        (p) => p.ratings.disruption + p.ratings.blocking,
+      ),
+    ),
+  ];
+
+  final result = SkillsCompetitionResult(
     week: kAllStarWeek,
     squads: {
       for (final entry in squadsByConference.entries)
         entry.key: [for (final player in entry.value) player.id],
     },
-    events: [
-      _runEvent(
-        random,
-        SkillsEvent.fullPressFrenzy,
-        // Deliberately drawn from every team in the league, not just the
-        // 20 All-Star honorees [_topByRating] otherwise pulls from below --
-        // the whole point of a physical-ratings event (a direct GM ask) is
-        // that an elite athlete who isn't a scoring All-Star can still win
-        // it, same as a real speedy role player can out-run a star in a
-        // real combine drill.
-        _topByRating(
-          leaguePlayers,
-          (p) =>
-              p.ratings.speed +
-              p.ratings.agility +
-              p.ratings.strength +
-              p.ratings.stamina,
-        ),
-      ),
-      _runEvent(
-        random,
-        SkillsEvent.horse,
-        _topByRating(honorees, (p) => p.ratings.perimeterOffense),
-      ),
-      _runEvent(
-        random,
-        SkillsEvent.defensiveSkillsChallenge,
-        _topByRating(
-          honorees,
-          // The GM's own shorthand for the DPOY composite is real
-          // box-score steals+blocks, but a skills-contest heat has no box
-          // score to draw from -- disruption + blocking (the 2 rating
-          // fields those box-score stats derive from in the first place)
-          // is the closest real analog available here.
-          (p) => p.ratings.disruption + p.ratings.blocking,
-        ),
-      ),
-    ],
+    events: events,
   );
+
+  var updated = franchise;
+  for (final honoree in honorees) {
+    updated = applyAchievementGrant(
+      random,
+      updated,
+      playerId: honoree.id,
+      achievement: Achievement.allStarSelection,
+      season: franchise.season,
+    );
+  }
+  for (final event in events) {
+    updated = applyAchievementGrant(
+      random,
+      updated,
+      playerId: event.winnerPlayerId,
+      achievement: Achievement.skillsChallengeWinner,
+      season: franchise.season,
+    );
+  }
+
+  return SkillsCompetitionAdvance(franchise: updated, result: result);
 }
 
 /// The [_kSkillsEventFieldSize] players in [pool] ranked highest by

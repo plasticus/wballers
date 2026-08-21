@@ -24,7 +24,9 @@ import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/played_game_stat_line.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
+import 'package:womensbballmgr/features/training/domain/player_rating_field.dart';
 import 'package:womensbballmgr/features/training/domain/training_plan.dart';
+import 'package:womensbballmgr/features/training/domain/training_report.dart';
 
 import '../../../support/in_memory_save_repository.dart';
 import '../../../support/league_test_helpers.dart';
@@ -53,6 +55,8 @@ const _statLine = PlayedGameStatLine(
 Franchise _franchiseWith({
   required RosterMembership target,
   List<PlayedGame> playedGames = const [],
+  List<TrainingReport> trainingReports = const [],
+  List<PlayerGrowthResult> seasonEndAgingResults = const [],
 }) {
   final roster = [target, ...generateStartingRoster(1).skip(1)];
   final baseProgress = testSeasonProgress(
@@ -84,6 +88,8 @@ Franchise _franchiseWith({
     trainingCoaches: testTrainingCoaches(),
     trainingPlan: TrainingPlan.initial(),
     nextTrainingWeek: 1,
+    trainingReports: trainingReports,
+    seasonEndAgingResults: seasonEndAgingResults,
   );
 }
 
@@ -324,10 +330,90 @@ void main() {
     expect(find.text('Leader'), findsOneWidget);
     expect(find.text('No games played yet this season.'), findsOneWidget);
     expect(find.text('No awards earned yet.'), findsOneWidget);
+    expect(find.text('Trained This Season'), findsOneWidget);
+    expect(
+      find.text('No training activity recorded yet this season.'),
+      findsOneWidget,
+    );
     // Every individual rating field is listed, not just the group overalls.
     expect(find.text('Speed'), findsOneWidget);
     expect(find.text('Interior Offense'), findsOneWidget);
     expect(find.text('Potential'), findsOneWidget);
+  });
+
+  testWidgets(
+    'shows this season\'s real training growth for a roster player who '
+    'has some, between This Season and Awards (2026-08-21, a direct GM '
+    'ask: "a card that tells me how they\'ve trained this season -- '
+    'similar to the all-season training report")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final target = playerWithOverall(65, name: 'Riley Okafor');
+      final franchise = _franchiseWith(
+        target: RosterMembership(player: target, status: RosterStatus.active),
+        trainingReports: [
+          TrainingReport(
+            week: 3,
+            results: [
+              PlayerGrowthResult(
+                playerId: target.id,
+                fieldDeltas: const {PlayerRatingField.agility: 5},
+                overallBefore: 65,
+                overallAfter: 66,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: PlayerDetailScreen(franchise: franchise, playerId: target.id),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Trained This Season'), findsOneWidget);
+      expect(
+        find.text('No training activity recorded yet this season.'),
+        findsNothing,
+      );
+      expect(find.text('+5'), findsOneWidget);
+      expect(find.text('OVR 65 → 66'), findsOneWidget);
+    },
+  );
+
+  testWidgets('never shows a training section at all for an AI roster player '
+      '(2026-08-21, a direct GM ask -- "not AI rosters")', (tester) async {
+    tester.view.physicalSize = const Size(800, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final target = playerWithOverall(65, name: 'Riley Okafor');
+    final franchise = _franchiseWith(
+      target: RosterMembership(player: target, status: RosterStatus.active),
+    );
+    final aiPlayer = franchise.league.aiTeams.first.roster.first.player;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: PlayerDetailScreen(franchise: franchise, playerId: aiPlayer.id),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Trained This Season'), findsNothing);
+    expect(
+      find.text('No training activity recorded yet this season.'),
+      findsNothing,
+    );
   });
 
   testWidgets('aggregates this-season stats from played games', (tester) async {
