@@ -242,6 +242,30 @@ void main() {
       );
     });
 
+    test(
+      'rolls a real upcomingDraftClass right at creation -- previewable '
+      'from day one of season 0, not just once a draft actually happens '
+      '(2026-08-21, a direct GM ask: "roll it at the start of the season '
+      'instead of on draft day")',
+      () {
+        final franchise = createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.pacific,
+          replacedTeamAbbreviation: 'DEN',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        );
+
+        expect(franchise.upcomingDraftClass, isNotEmpty);
+        // Nothing's actually drafting yet -- that's still draftClass's
+        // job, and it stays empty until the season ends.
+        expect(franchise.draftClass, isEmpty);
+      },
+    );
+
     test('leaves every appearance null when portraitWeights is omitted', () {
       final franchise = createExpansionFranchise(
         gmName: 'Jordan Ellis',

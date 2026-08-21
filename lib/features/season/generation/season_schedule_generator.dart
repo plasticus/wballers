@@ -52,8 +52,11 @@ const kContinentalCupGameDay = GameDay.thursday;
 ///
 /// Produces:
 /// - **Preseason** (week [kPreseasonWeek]): 2 inter-conference games per
-///   team, via two independent random pairings between the conferences --
-///   one on [GameDay.sunday], one on [GameDay.thursday].
+///   team, via two random pairings between the conferences -- one on
+///   [GameDay.sunday], one on [GameDay.thursday] -- with the second pairing
+///   guaranteed to give every team a different opponent than the first
+///   (2026-08-21, a GM bug report: two fully independent shuffles can, and
+///   did, pair the same two teams together both times by chance).
 /// - **Regular season** (weeks [kRegularSeasonStartWeek]-
 ///   [kRegularSeasonEndWeek]): 28 games per team -- a full double
 ///   round-robin within each 10-team conference (18 games) plus a single
@@ -120,13 +123,33 @@ List<ScheduledGame> _generatePreseason(
   Random random,
 ) {
   final games = <ScheduledGame>[];
+  // Atlantic stays in a fixed order across both passes -- only Pacific
+  // gets reshuffled per pass -- which still produces a uniformly random
+  // pairing each time (shuffling one side against a fixed other is the
+  // same distribution as shuffling both). Keeping Atlantic's order fixed
+  // is what lets pass 2 be checked/repaired position-by-position against
+  // pass 1 below.
+  final pass1Pacific = List<Team>.of(pacific)..shuffle(random);
+  var pass2Pacific = List<Team>.of(pacific)..shuffle(random);
+  // Rejection-sample for a pairing where nobody repeats their pass-1
+  // opponent -- a plain independent shuffle can (and did) land the same
+  // pairing twice by chance. 10 teams a side converges in a handful of
+  // tries; the attempt cap is just a safety net against a pathological
+  // seed spinning forever, with a guaranteed pairwise-swap repair after.
+  var attempts = 0;
+  while (attempts < 200 &&
+      _repeatsAnyPairing(atlantic, pass1Pacific, pass2Pacific)) {
+    pass2Pacific = List<Team>.of(pacific)..shuffle(random);
+    attempts++;
+  }
+  pass2Pacific = _repairRepeatedPairings(atlantic, pass1Pacific, pass2Pacific);
+
   for (var pass = 0; pass < 2; pass++) {
-    final shuffledAtlantic = List<Team>.of(atlantic)..shuffle(random);
-    final shuffledPacific = List<Team>.of(pacific)..shuffle(random);
+    final shuffledPacific = pass == 0 ? pass1Pacific : pass2Pacific;
     final day = _regularSeasonGameDays[pass];
-    for (var i = 0; i < shuffledAtlantic.length; i++) {
-      final home = pass.isEven ? shuffledAtlantic[i] : shuffledPacific[i];
-      final away = pass.isEven ? shuffledPacific[i] : shuffledAtlantic[i];
+    for (var i = 0; i < atlantic.length; i++) {
+      final home = pass.isEven ? atlantic[i] : shuffledPacific[i];
+      final away = pass.isEven ? shuffledPacific[i] : atlantic[i];
       games.add(
         ScheduledGame(
           week: kPreseasonWeek,
@@ -139,6 +162,50 @@ List<ScheduledGame> _generatePreseason(
     }
   }
   return games;
+}
+
+/// Whether any Atlantic team's [pass2Pacific] opponent matches its
+/// [pass1Pacific] opponent, position-by-position (both lists are indexed
+/// the same way [atlantic] is).
+bool _repeatsAnyPairing(
+  List<Team> atlantic,
+  List<Team> pass1Pacific,
+  List<Team> pass2Pacific,
+) {
+  for (var i = 0; i < atlantic.length; i++) {
+    if (pass2Pacific[i] == pass1Pacific[i]) return true;
+  }
+  return false;
+}
+
+/// Deterministically fixes any leftover repeated pairing
+/// [_repeatsAnyPairing] would still flag after the rejection-sampling
+/// loop above gives up -- for each repeat at index `i`, swaps
+/// `pass2Pacific[i]` with another index whose own pass-2 opponent isn't
+/// `pass1Pacific[i]` (always found for a 10-team conference, since at
+/// most a handful of positions ever need repair). A no-op list copy when
+/// there's nothing left to fix, which is the overwhelmingly common case.
+List<Team> _repairRepeatedPairings(
+  List<Team> atlantic,
+  List<Team> pass1Pacific,
+  List<Team> pass2Pacific,
+) {
+  final repaired = List<Team>.of(pass2Pacific);
+  for (var i = 0; i < atlantic.length; i++) {
+    if (repaired[i] != pass1Pacific[i]) continue;
+    for (var j = 0; j < atlantic.length; j++) {
+      if (j == i) continue;
+      final wouldCreateNewRepeat = repaired[j] == pass1Pacific[i];
+      final swapStillBroken = repaired[i] == pass1Pacific[j];
+      if (!wouldCreateNewRepeat && !swapStillBroken) {
+        final temp = repaired[i];
+        repaired[i] = repaired[j];
+        repaired[j] = temp;
+        break;
+      }
+    }
+  }
+  return repaired;
 }
 
 List<(Team, Team)> _intraConferenceDoubleRoundRobin(
@@ -187,7 +254,43 @@ List<List<(int, int)>> _circleMethodRoundsIndices(int n) {
   return rounds;
 }
 
+/// How many times [_assignRegularSeasonWeeks] will reshuffle pair order
+/// and retry the whole greedy pack before giving up for real -- a bound
+/// against a pathological seed looping forever, not a number expected to
+/// matter in practice (see that function's own doc comment on why a
+/// reshuffle should essentially always resolve a stuck pack).
+const _kRegularSeasonPackAttempts = 50;
+
 List<ScheduledGame> _assignRegularSeasonWeeks(
+  List<(Team home, Team away)> pairs,
+  List<Team> leagueTeams,
+  Random random,
+) {
+  // Earliest-fit greedy packing is order-dependent -- a small fraction of
+  // orderings can genuinely paint a later pair into a corner with no
+  // valid (week, day) left for it, even though there's real slack overall
+  // (34 team-slots for 28 games/team). Caught by a GM bug report
+  // (2026-08-21) that turned out to be a pre-existing crash, not caused
+  // by whatever the GM was actually doing -- it just needed the right
+  // unlucky pair order to surface. Rather than let one bad order crash
+  // schedule generation outright, retry with a freshly reshuffled order;
+  // with this much slack, some order within a handful of attempts always
+  // works.
+  for (var attempt = 0; attempt < _kRegularSeasonPackAttempts; attempt++) {
+    final assigned = _tryAssignRegularSeasonWeeks(pairs, leagueTeams, random);
+    if (assigned != null) return assigned;
+  }
+  throw StateError(
+    'could not pack the regular season into $_kRegularSeasonPackAttempts '
+    'reshuffled attempts -- something structural is wrong (wrong team/pair '
+    'counts?), not just an unlucky ordering',
+  );
+}
+
+/// One greedy-pack attempt, in a freshly shuffled pair order -- `null` if
+/// any pair genuinely couldn't find a slot this time (see
+/// [_assignRegularSeasonWeeks]'s retry loop).
+List<ScheduledGame>? _tryAssignRegularSeasonWeeks(
   List<(Team home, Team away)> pairs,
   List<Team> leagueTeams,
   Random random,
@@ -213,16 +316,17 @@ List<ScheduledGame> _assignRegularSeasonWeeks(
   // (week, day) -- reserve it up front so the greedy pack below never
   // lands a regular-season game there too. 17 weeks x 2 days = 34
   // team-slots against 28 games/team, so losing 1 slot to the Cup still
-  // leaves comfortable slack (see the assert in
-  // [_assignOneGameWeekAndDay]).
+  // leaves comfortable slack.
   for (final team in leagueTeams) {
     book(team.abbreviation, kContinentalCupRound1Week, kContinentalCupGameDay);
   }
 
-  final assigned = [
-    for (final (home, away) in shuffledPairs)
-      _assignOneGameWeekAndDay(home, away, bookedDaysFor, book),
-  ];
+  final assigned = <ScheduledGame>[];
+  for (final (home, away) in shuffledPairs) {
+    final game = _assignOneGameWeekAndDay(home, away, bookedDaysFor, book);
+    if (game == null) return null;
+    assigned.add(game);
+  }
 
   // Earliest-fit above always finds *a* slot, but it finds the same
   // *earliest* one for everybody, which back-loads every team's bye days
@@ -243,7 +347,11 @@ List<ScheduledGame> _assignRegularSeasonWeeks(
   return _spreadGamesAcrossWeeks(assigned, bookedDaysFor, book, unbook);
 }
 
-ScheduledGame _assignOneGameWeekAndDay(
+/// `null` if no (week, day) is open for both teams anywhere in the
+/// regular-season window -- a real, if uncommon, outcome for this
+/// particular pair order (see [_assignRegularSeasonWeeks]'s retry loop),
+/// not something this function tries to recover from itself.
+ScheduledGame? _assignOneGameWeekAndDay(
   Team home,
   Team away,
   Set<GameDay> Function(String abbreviation, int week) bookedDaysFor,
@@ -266,15 +374,9 @@ ScheduledGame _assignOneGameWeekAndDay(
       }
     }
   }
-  assert(
-    assignedWeek != null,
-    'could not find a week/day for ${home.abbreviation} vs '
-    '${away.abbreviation} within the ${_regularSeasonGameDays.length} '
-    'game days per week -- the regular season\'s 17-week window should '
-    'always have enough slack for 28 games per team',
-  );
+  if (assignedWeek == null) return null;
 
-  book(home.abbreviation, assignedWeek!, assignedDay!);
+  book(home.abbreviation, assignedWeek, assignedDay!);
   book(away.abbreviation, assignedWeek, assignedDay);
   return ScheduledGame(
     week: assignedWeek,

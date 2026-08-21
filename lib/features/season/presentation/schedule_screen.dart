@@ -7,6 +7,7 @@ import '../application/franchise_rosters.dart';
 import '../domain/game_day.dart';
 import '../domain/played_game.dart';
 import '../domain/scheduled_game.dart';
+import '../../trade/domain/trade_window.dart' show kTradeDeadlineWeek;
 import '../generation/all_star_generator.dart' show kAllStarWeek;
 import '../generation/season_schedule_generator.dart' show weekLabel;
 import 'results_screen.dart';
@@ -136,15 +137,32 @@ class _MyTeamSchedule extends StatelessWidget {
     if (ownGames.isEmpty) {
       return const Center(child: Text('No games scheduled yet.'));
     }
+
+    // Splice the Trade Deadline card in at its real chronological
+    // position -- right after Week kTradeDeadlineWeek's own games, before
+    // Week kTradeDeadlineWeek + 1 begins.
+    final rows = <Widget>[];
+    var deadlineInserted = false;
+    for (final game in ownGames) {
+      if (!deadlineInserted && game.week > kTradeDeadlineWeek) {
+        rows.add(const _TradeDeadlineRow());
+        deadlineInserted = true;
+      }
+      rows.add(
+        _MyTeamRow(
+          franchise: franchise,
+          game: game,
+          played: playedByFixture[_fixtureKey(game)],
+        ),
+      );
+    }
+    if (!deadlineInserted) rows.add(const _TradeDeadlineRow());
+
     return ListView(
       children: [
-        for (var i = 0; i < ownGames.length; i++) ...[
-          _MyTeamRow(
-            franchise: franchise,
-            game: ownGames[i],
-            played: playedByFixture[_fixtureKey(ownGames[i])],
-          ),
-          if (i != ownGames.length - 1) const SizedBox(height: AppSpacing.sm),
+        for (var i = 0; i < rows.length; i++) ...[
+          rows[i],
+          if (i != rows.length - 1) const SizedBox(height: AppSpacing.sm),
         ],
       ],
     );
@@ -311,6 +329,71 @@ class _TypeLabel extends StatelessWidget {
   }
 }
 
+/// The Trade Deadline milestone -- same content/placement
+/// `TeamCalendarScreen`'s own `_MilestoneRow` already shows on the
+/// GM's "Calendar" screen, but this screen ("Schedule," reached from the
+/// League screen) never got it when the deadline first landed elsewhere
+/// (2026-08-19's "shown on both calendars" only meant the Dashboard and
+/// the Calendar screen -- a GM report, 2026-08-21, that this one still
+/// didn't show it). Shared by both the My Team and Full League views.
+class _TradeDeadlineRow extends StatelessWidget {
+  const _TradeDeadlineRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Row(
+        children: [
+          const _MilestoneDateColumn(week: kTradeDeadlineWeek),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Trade Deadline',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Trades close once Week ${kTradeDeadlineWeek + 1} begins',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A milestone row's date column -- just the week label, no day/weekday
+/// lines, since a milestone isn't pinned to one specific game day
+/// (mirrors `TeamCalendarScreen`'s own `_MilestoneDateColumn`).
+class _MilestoneDateColumn extends StatelessWidget {
+  const _MilestoneDateColumn({required this.week});
+
+  final int week;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 72,
+      child: Text(
+        weekLabel(week),
+        style: theme.textTheme.bodySmall,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
 class _ResultLabel extends StatelessWidget {
   const _ResultLabel({required this.isHome, required this.played});
 
@@ -360,6 +443,8 @@ class _GameItem extends _LeagueListItem {
   final PlayedGame? played;
 }
 
+class _MilestoneItem extends _LeagueListItem {}
+
 class _FullLeagueSchedule extends StatelessWidget {
   const _FullLeagueSchedule({required this.franchise});
 
@@ -380,13 +465,22 @@ class _FullLeagueSchedule extends StatelessWidget {
 
     final items = <_LeagueListItem>[];
     int? currentWeek;
+    var deadlineInserted = false;
     for (final game in games) {
       if (game.week != currentWeek) {
         currentWeek = game.week;
+        // Splice the Trade Deadline card in right before the first week
+        // header past kTradeDeadlineWeek -- same placement as the My Team
+        // view.
+        if (!deadlineInserted && currentWeek > kTradeDeadlineWeek) {
+          items.add(_MilestoneItem());
+          deadlineInserted = true;
+        }
         items.add(_WeekHeaderItem(game.week));
       }
       items.add(_GameItem(game, playedByFixture[_fixtureKey(game)]));
     }
+    if (!deadlineInserted) items.add(_MilestoneItem());
 
     return ListView.builder(
       itemCount: items.length,
@@ -394,6 +488,10 @@ class _FullLeagueSchedule extends StatelessWidget {
         final item = items[index];
         return switch (item) {
           _WeekHeaderItem() => _WeekHeader(week: item.week),
+          _MilestoneItem() => const Padding(
+            padding: EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _TradeDeadlineRow(),
+          ),
           _GameItem() => Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _LeagueGameRow(

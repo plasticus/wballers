@@ -166,16 +166,15 @@ List<PickTradeAsset> picksOwnedBy(
   ];
 }
 
-/// A short, GM-facing phrase for how far out [draftSeason] is from
-/// [currentSeason] -- "next draft" or "the draft after," matching
-/// [kTradeablePickHorizonSeasons]'s 2-deep horizon exactly. The fallback
-/// branch is defensive only: nothing should ever generate a trade offer
-/// for a pick outside that horizon in the first place.
-String pickHorizonLabel(int draftSeason, int currentSeason) {
-  final seasonsOut = draftSeason - currentSeason;
-  return switch (seasonsOut) {
-    1 => 'next draft',
-    2 => 'the draft after',
-    _ => 'draft season $draftSeason',
-  };
-}
+/// A short, GM-facing phrase naming which draft [draftSeason] is --
+/// "Season 2," matching the same `season + 1` display convention every
+/// other on-screen season number already uses (`dashboard_screen.dart`'s
+/// "Season ${franchise.season + 1}", `player_detail_screen.dart`'s draft
+/// year). Named the real season outright rather than relative "next
+/// draft"/"the draft after" wording -- a direct GM ask (2026-08-21):
+/// "don't say 'next draft' -- call it out specifically, like 3rd round
+/// pick (Season 2)." [currentSeason] is unused now that the label doesn't
+/// need to compare against it, kept only so callers don't all need a
+/// simultaneous signature change.
+String pickHorizonLabel(int draftSeason, int currentSeason) =>
+    'Season ${draftSeason + 1}';

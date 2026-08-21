@@ -16,8 +16,20 @@ import '../domain/trade_value.dart';
 const kTradeOfferSeedOffset = 22;
 
 /// How many offers the Trade Board shows at once
-/// (`trading-and-hidden-gems-notes.md`).
-const kTradeOfferCount = 5;
+/// (`trading-and-hidden-gems-notes.md`). 6th slot added 2026-08-21 (a
+/// direct GM ask, see [kConsolidationOfferSlotIndex]).
+const kTradeOfferCount = 6;
+
+/// The one slot [generateTradeOffers] always tries as a 2-for-1
+/// "consolidation" offer -- 2 of the GM's own bench-tier players for 1
+/// upgraded player back (`_tryBuildConsolidationOffer`'s own doc
+/// comment). A direct GM ask (2026-08-21): "I have a super deep bench,
+/// but I want to transition that to a better player... show me an option
+/// for that as a 6th trade slot." Always the *last* slot -- every other
+/// index keeps the exact same trade-block-targeting behavior it already
+/// had, so this purely adds on top rather than reshuffling what the
+/// first [kTradeOfferCount] - 1 slots already meant.
+const kConsolidationOfferSlotIndex = kTradeOfferCount - 1;
 
 /// Of [kTradeOfferCount] offers, how many should try to involve
 /// [Franchise.tradeBlockPlayerId] when one is set -- "the trade board
@@ -39,13 +51,19 @@ const kTradeBlockTargetedOfferCount = 3;
 /// for.
 const _kCharacterAgeGapThreshold = 4;
 
-/// The 5 real trade offers on the board right now -- deterministic for a
-/// given [franchise] state (same "regenerate fresh every time, nothing
-/// to persist" posture `player_market_preview_generator.dart` already
-/// uses for its own preview tabs), seeded off
+/// The [kTradeOfferCount] real trade offers on the board right now --
+/// deterministic for a given [franchise] state (same "regenerate fresh
+/// every time, nothing to persist" posture `player_market_preview_generator.dart`
+/// already uses for its own preview tabs), seeded off
 /// [Franchise.seasonSeed]/[kTradeOfferSeedOffset]/[SeasonProgress.nextGameDayIndex]
-/// so the same 5 offers stay stable for as long as the GM's still on the
-/// same game day, and change the moment a new one is advanced into.
+/// so the same offers stay stable for as long as the GM's still on the
+/// same game day, and change the moment a new one is advanced into. This
+/// function itself is still called fresh every time, but
+/// `player_market_screen.dart`'s `_TradeBoardTabState` only actually
+/// calls it once per screen visit and locally prunes from there --
+/// re-calling it after an accept would read the just-changed roster and
+/// silently reshuffle every other slot too, not just drop the accepted
+/// one (2026-08-21, a direct GM spec).
 ///
 /// Each offer comes from a distinct AI team where possible (shuffles
 /// [League.aiTeams] first) -- can repeat once every eligible team's had
@@ -57,12 +75,19 @@ const _kCharacterAgeGapThreshold = 4;
 ///
 /// Every offer keeps player counts equal on both sides (1-for-1, or
 /// occasionally 2-for-2) -- picks only ever adjust *value*, never
-/// headcount, so accepting an offer can never leave either roster over
-/// or under [kActiveRosterSize] active players by surprise (see
-/// `current_franchise_provider.dart`'s `acceptTradeOffer`). Any pick
-/// used to balance an offer is real, currently-held draft equity --
-/// either of the [tradeableDraftSeasons] horizon (2026-08-19, "at least
-/// one season out"), never conjured from thin air (`pick_ownership.dart`'s
+/// headcount -- except the one dedicated [kConsolidationOfferSlotIndex]
+/// slot, deliberately 2-for-1 (`_tryBuildConsolidationOffer`'s own doc
+/// comment). That's the one shape that can leave the AI side over
+/// [kActiveRosterSize] active players; `current_franchise_provider.dart`'s
+/// `acceptTradeOffer` is what actually keeps that safe (waives the AI's
+/// own weakest pre-existing player back to free agency if accepting
+/// would push them over), not anything checked here at generation time.
+/// Going *under* [kActiveRosterSize] active players is always fine
+/// either way -- there's no enforced minimum (`roster_legality.dart`'s
+/// own doc comment). Any pick used to balance
+/// an offer is real, currently-held draft equity -- either of the
+/// [tradeableDraftSeasons] horizon (2026-08-19, "at least one season
+/// out"), never conjured from thin air (`pick_ownership.dart`'s
 /// `picksOwnedBy`).
 List<TradeOffer> generateTradeOffers(Franchise franchise) {
   final random = Random(
@@ -117,6 +142,15 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
                 aiTeam: aiTeam,
                 ownActive: ownActive,
                 forcedTarget: tradeBlockPlayer,
+                ownTeamAbbreviation: franchise.team.abbreviation,
+                pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+                allTeamAbbreviations: allTeamAbbreviations,
+                draftSeasons: draftSeasons,
+              )
+            : slot == kConsolidationOfferSlotIndex
+            ? _tryBuildConsolidationOffer(
+                aiTeam: aiTeam,
+                ownActive: ownActive,
                 ownTeamAbbreviation: franchise.team.abbreviation,
                 pickOwnershipOverrides: franchise.pickOwnershipOverrides,
                 allTeamAbbreviations: allTeamAbbreviations,
@@ -408,6 +442,82 @@ TradeOffer? _tryBuildGuaranteedTradeBlockPickOffer(
     }
   }
   return null;
+}
+
+/// Builds [kConsolidationOfferSlotIndex]'s one guaranteed-attempt "consolidate
+/// the bench" offer -- the GM's own weakest 2 active players (by
+/// `skillPoints`, deliberately the bottom of the roster rather than a
+/// random 2, so it always reads as trading bench depth, never risking the
+/// GM's best players) for whichever 1 of [aiTeam]'s own players lands
+/// closest in combined value ([_closestCombo]) -- a direct GM ask
+/// (2026-08-21): "I have a super deep bench, but I want to transition
+/// that to a better player." Same value-balancing fallback
+/// ([_tryAddPickToBalance]) every other slot already uses when the raw
+/// player values alone don't land within [tradeSwing] of each other.
+///
+/// `null` under the same real conditions every other builder can already
+/// fail for -- fewer than 2 active players to offer, no AI player (or
+/// AI-player-plus-pick) combination lands close enough in value. Not
+/// tied to [Franchise.tradeBlockPlayerId] at all -- this slot always
+/// tries, independent of whether (or who) the GM has flagged.
+TradeOffer? _tryBuildConsolidationOffer({
+  required AiTeamRoster aiTeam,
+  required List<Player> ownActive,
+  required String ownTeamAbbreviation,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
+}) {
+  if (ownActive.length < 2) return null;
+  final aiActive = [
+    for (final m in aiTeam.roster)
+      if (m.status == RosterStatus.active) m.player,
+  ];
+  if (aiActive.isEmpty) return null;
+
+  final management = aiTeam.coach.stats.management;
+  final swing = tradeSwing(management);
+
+  final weakestTwo = [...ownActive]
+    ..sort((a, b) => a.ratings.skillPoints.compareTo(b.ratings.skillPoints));
+  final asked = weakestTwo.take(2).toList();
+  final askedValue = asked.fold(0, (sum, p) => sum + p.ratings.skillPoints);
+
+  final offeredPlayer = _closestCombo(aiActive, 1, askedValue).single;
+  var offered = <TradeAsset>[PlayerTradeAsset(offeredPlayer)];
+  var askedAssets = <TradeAsset>[for (final p in asked) PlayerTradeAsset(p)];
+
+  var gap = totalTradeValue(offered) - totalTradeValue(askedAssets);
+  if (gap.abs() > swing) {
+    final balanced = _tryAddPickToBalance(
+      offered: offered,
+      asked: askedAssets,
+      swing: swing,
+      ownTeamAbbreviation: ownTeamAbbreviation,
+      aiTeamAbbreviation: aiTeam.team.abbreviation,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      allTeamAbbreviations: allTeamAbbreviations,
+      draftSeasons: draftSeasons,
+    );
+    if (balanced == null) return null;
+    offered = balanced.offered;
+    askedAssets = balanced.asked;
+    gap = totalTradeValue(offered) - totalTradeValue(askedAssets);
+  }
+  if (gap.abs() > swing) return null;
+
+  return TradeOffer(
+    id: _offerId(aiTeam, offered, askedAssets),
+    offeringTeamAbbreviation: aiTeam.team.abbreviation,
+    offeredToYou: offered,
+    askedFromYou: askedAssets,
+    character: _characterFor(
+      offered: offered,
+      asked: askedAssets,
+      gap: gap,
+      swing: swing,
+    ),
+  );
 }
 
 /// [count] distinct players drawn from [pool] at random.

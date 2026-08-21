@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,7 +19,6 @@ import '../../trade/domain/trade_asset.dart';
 import '../../trade/domain/trade_offer.dart';
 import '../../trade/domain/trade_window.dart';
 import '../../trade/generation/trade_offer_generator.dart';
-import '../generation/player_market_preview_generator.dart';
 
 /// Free agents, the Trade Board, and this season's draft class -- one
 /// screen for everywhere a GM might look to bring in a player who isn't
@@ -31,19 +28,25 @@ import '../generation/player_market_preview_generator.dart';
 /// **Free Agents is real** -- `Franchise.freeAgents`, generated once at
 /// franchise creation and signable here (`CurrentFranchiseNotifier.signFreeAgent`).
 /// **Trade Board is real too** (`trading-and-hidden-gems-notes.md`): up
-/// to 5 live AI offers at a time, regenerated deterministically off the
-/// current game day (`generateTradeOffers`), accept-or-decline only --
-/// no player-initiated trades, no negotiating. Only open from right
-/// after the draft through the trade window (`isTradeWindowOpen`).
-/// **Draft stays preview only**: while a real draft-day flow now exists
-/// (`draft/presentation/draft_day_screen.dart`, 2026-08-11,
-/// `0D_Season_2_Roadmap.md`'s "The draft, for real" stage), it only ever
-/// runs once a season, right after a "Begin Next Season" -- this tab is
-/// for browsing a *hypothetical* class any time mid-season, not the real
-/// one. Every player shown there is flavor data from
-/// `generateDraftPreview`, regenerated fresh (but deterministically)
-/// every time the screen opens -- nothing on it is actually draftable
-/// from here, which is why it still opens with a banner saying so.
+/// to [kTradeOfferCount] live AI offers at a time, generated once per
+/// screen visit and only ever shrinking from there
+/// (`_TradeBoardTabState`'s own doc comment), accept-or-decline only --
+/// no player-initiated trades, no negotiating (one deliberate exception:
+/// [kConsolidationOfferSlotIndex]'s always-attempted 2-for-1 slot is
+/// still AI-generated and accept/decline-only, just shaped around what
+/// the GM would want to give up). Only open from right after the draft
+/// through the trade window (`isTradeWindowOpen`).
+/// **Draft tab shows the real upcoming class, but isn't itself draftable**:
+/// a real draft-day flow exists (`draft/presentation/draft_day_screen.dart`,
+/// 2026-08-11, `0D_Season_2_Roadmap.md`'s "The draft, for real" stage), and
+/// only runs once a season, right after "Begin Next Season" -- but the
+/// prospects who'll actually be on the board that day
+/// ([Franchise.upcomingDraftClass]) are rolled a full season early and
+/// previewable here the whole time (2026-08-21, a direct GM ask: "roll it
+/// at the start of the season instead of on draft day"), not a fake
+/// hypothetical class. Nothing's actually draftable from this tab, though
+/// -- it still opens with a banner saying so, and pointing at the real
+/// flow.
 class PlayerMarketScreen extends StatefulWidget {
   const PlayerMarketScreen({required this.franchise, super.key});
 
@@ -66,11 +69,6 @@ class _PlayerMarketScreenState extends State<PlayerMarketScreen>
   @override
   Widget build(BuildContext context) {
     final franchise = widget.franchise;
-    final seed = franchise.simulationSeed;
-
-    final draftClass = generateDraftPreview(
-      Random(seed + kDraftPreviewSeedOffset),
-    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Player Market')),
@@ -92,7 +90,10 @@ class _PlayerMarketScreenState extends State<PlayerMarketScreen>
                 children: [
                   _FreeAgentsTab(franchise: franchise),
                   _TradeBoardTab(franchise: franchise),
-                  _DraftTab(franchise: franchise, prospects: draftClass),
+                  _DraftTab(
+                    franchise: franchise,
+                    prospects: franchise.upcomingDraftClass,
+                  ),
                 ],
               ),
             ),
@@ -243,13 +244,19 @@ class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
 }
 
 /// The real Trade Board -- up to [kTradeOfferCount] live AI offers,
-/// regenerated deterministically off the current game day every time this
-/// tab rebuilds (`generateTradeOffers`). Watches [currentFranchiseProvider]
-/// directly (rather than trusting the static [franchise] snapshot every
-/// other tab on this screen gets away with) so accepting or declining an
-/// offer updates this list in place -- a GM reviewing 5 offers at once
-/// needs to act on several without the screen popping out from under them
-/// after each one, unlike Free Agents' one-and-done "Sign".
+/// generated once when this tab first opens and then only ever *shrinking*
+/// from there ([_offers], local state) -- not regenerated on every rebuild
+/// (2026-08-21, a direct GM spec: "don't immediately replace the deal...
+/// remove any deals containing the traded players too... you get more
+/// deals next week"). Accepting really does change the GM's own roster,
+/// though, and `generateTradeOffers` reads the current roster to build
+/// every slot -- recomputing fresh after an accept would silently reshuffle
+/// the *other* 4 offers into different ones entirely, not just drop the
+/// accepted slot, which is exactly the "why did my other offers change"
+/// confusion the GM's spec was trying to head off. A fresh board only ever
+/// shows up again once this whole tab is torn down and rebuilt -- in
+/// practice, the next time the GM opens the Trade Board after a real game
+/// day advance.
 class _TradeBoardTab extends ConsumerStatefulWidget {
   const _TradeBoardTab({required this.franchise});
 
@@ -261,6 +268,19 @@ class _TradeBoardTab extends ConsumerStatefulWidget {
 
 class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
   String? _busyOfferId;
+  late List<TradeOffer> _offers;
+
+  @override
+  void initState() {
+    super.initState();
+    final franchise =
+        ref.read(currentFranchiseProvider).value ?? widget.franchise;
+    _offers = isTradeWindowOpen(franchise)
+        ? generateTradeOffers(franchise)
+              .where((o) => !franchise.resolvedTradeOfferIds.contains(o.id))
+              .toList()
+        : const <TradeOffer>[];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -277,12 +297,6 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
         }
       }
     }
-
-    final offers = windowOpen
-        ? generateTradeOffers(franchise)
-              .where((o) => !franchise.resolvedTradeOfferIds.contains(o.id))
-              .toList()
-        : const <TradeOffer>[];
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -304,7 +318,7 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
         ),
         if (windowOpen) ...[
           const SizedBox(height: AppSpacing.md),
-          if (offers.isEmpty)
+          if (_offers.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
               child: Center(
@@ -315,25 +329,65 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
               ),
             )
           else
-            for (var i = 0; i < offers.length; i++) ...[
+            for (var i = 0; i < _offers.length; i++) ...[
               _TradeOfferCard(
                 franchise: franchise,
-                offer: offers[i],
-                busy: _busyOfferId == offers[i].id,
-                onAccept: () => _accept(offers[i]),
-                onDecline: () => _decline(offers[i]),
+                offer: _offers[i],
+                busy: _busyOfferId == _offers[i].id,
+                onAccept: () => _confirmAndAccept(_offers[i]),
+                onDecline: () => _decline(_offers[i]),
+                onViewDetails: () => _viewDetails(_offers[i]),
               ),
-              if (i != offers.length - 1) const SizedBox(height: AppSpacing.sm),
+              if (i != _offers.length - 1)
+                const SizedBox(height: AppSpacing.sm),
             ],
         ],
       ],
     );
   }
 
-  Future<void> _accept(TradeOffer offer) async {
+  /// The player ids [offer] moves on either side -- what a just-accepted
+  /// offer's own trade actually touches, used to sweep any *other* board
+  /// offer that also references one of them (the GM's own spec: "remove
+  /// any deals containing the traded players too").
+  Set<String> _playerIdsIn(TradeOffer offer) => {
+    for (final asset in [...offer.offeredToYou, ...offer.askedFromYou])
+      if (asset case PlayerTradeAsset(:final player)) player.id,
+  };
+
+  Future<void> _confirmAndAccept(TradeOffer offer) async {
+    final confirmed = await _showConfirmDialog();
+    if (confirmed != true || !mounted) return;
+
     setState(() => _busyOfferId = offer.id);
     await ref.read(currentFranchiseProvider.notifier).acceptTradeOffer(offer);
-    if (mounted) setState(() => _busyOfferId = null);
+    if (!mounted) return;
+    setState(() {
+      _pruneAfterAccept(offer);
+      _busyOfferId = null;
+    });
+    await _showCompletedDialog();
+  }
+
+  /// Pushes [TradeOfferDetailScreen], which owns its own confirm dialog
+  /// and does the real accept/decline itself -- this just reacts to
+  /// whatever it reports back (`true` accepted, `false` declined, `null`
+  /// backed out with neither) so the pinned [_offers] list stays in sync
+  /// regardless of which of the two screens the GM actually acted from.
+  Future<void> _viewDetails(TradeOffer offer) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            TradeOfferDetailScreen(franchise: widget.franchise, offer: offer),
+      ),
+    );
+    if (!mounted || result == null) return;
+    if (result) {
+      setState(() => _pruneAfterAccept(offer));
+      await _showCompletedDialog();
+    } else {
+      setState(() => _pruneAfterDecline(offer));
+    }
   }
 
   Future<void> _decline(TradeOffer offer) async {
@@ -341,8 +395,73 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
     await ref
         .read(currentFranchiseProvider.notifier)
         .declineTradeOffer(offer.id);
-    if (mounted) setState(() => _busyOfferId = null);
+    if (!mounted) return;
+    setState(() {
+      _pruneAfterDecline(offer);
+      _busyOfferId = null;
+    });
   }
+
+  /// Drops [offer] itself plus any other still-pinned offer that also
+  /// touches one of the same players, on either side -- the GM's own
+  /// spec: "remove any deals containing the traded players too." Must be
+  /// called inside a `setState`.
+  void _pruneAfterAccept(TradeOffer offer) {
+    final tradedPlayerIds = _playerIdsIn(offer);
+    _offers = [
+      for (final other in _offers)
+        if (other.id != offer.id &&
+            _playerIdsIn(other).intersection(tradedPlayerIds).isEmpty)
+          other,
+    ];
+  }
+
+  /// Drops just [offer] itself -- a decline doesn't touch anyone's
+  /// roster, so no other pinned offer is affected. Must be called inside
+  /// a `setState`.
+  void _pruneAfterDecline(TradeOffer offer) {
+    _offers = [
+      for (final other in _offers)
+        if (other.id != offer.id) other,
+    ];
+  }
+
+  Future<bool?> _showConfirmDialog() => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Accept this trade?'),
+      content: const Text(
+        'You won\'t be able to undo this once it goes through.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Accept'),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _showCompletedDialog() => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Trade Completed'),
+      content: const Text(
+        'The trade has gone through -- check your roster for the new '
+        'arrival.',
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Done'),
+        ),
+      ],
+    ),
+  );
 }
 
 /// The GM's own trade-block flag -- "put a player on the trade block
@@ -491,6 +610,7 @@ class _TradeOfferCard extends StatelessWidget {
     required this.busy,
     required this.onAccept,
     required this.onDecline,
+    required this.onViewDetails,
   });
 
   final Franchise franchise;
@@ -498,6 +618,7 @@ class _TradeOfferCard extends StatelessWidget {
   final bool busy;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+  final VoidCallback onViewDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -542,16 +663,7 @@ class _TradeOfferCard extends StatelessWidget {
           // per-player (full ratings/traits/season stats/awards) rather
           // than re-building any of that here.
           OutlinedButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TradeOfferDetailScreen(
-                    franchise: franchise,
-                    offer: offer,
-                  ),
-                ),
-              );
-            },
+            onPressed: onViewDetails,
             icon: const Icon(Icons.info_outline),
             label: const Text('View Full Details'),
           ),
@@ -704,13 +816,39 @@ class _TradeOfferDetailScreenState
     );
   }
 
+  /// Reports back to whoever pushed this screen via the pop result --
+  /// `true` accepted, `false` declined -- so the Trade Board's own pinned
+  /// offer list (`_TradeBoardTabState._offers`) can react the same way it
+  /// would to an accept/decline made directly from the list, regardless
+  /// of which of the two screens the GM actually acted from.
   Future<void> _accept() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Accept this trade?'),
+        content: const Text(
+          'You won\'t be able to undo this once it goes through.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     setState(() => _busy = true);
     await ref
         .read(currentFranchiseProvider.notifier)
         .acceptTradeOffer(widget.offer);
     if (!mounted) return;
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
   }
 
   Future<void> _decline() async {
@@ -719,7 +857,7 @@ class _TradeOfferDetailScreenState
         .read(currentFranchiseProvider.notifier)
         .declineTradeOffer(widget.offer.id);
     if (!mounted) return;
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(false);
   }
 }
 
@@ -832,9 +970,8 @@ class _TradeAssetColumn extends StatelessWidget {
   final String label;
   final List<TradeAsset> assets;
 
-  /// [Franchise.season] right now -- what [_TradeAssetTile] compares a
-  /// [PickTradeAsset.draftSeason] against to phrase "next draft" vs "the
-  /// draft after" (`pick_ownership.dart`'s `pickHorizonLabel`).
+  /// [Franchise.season] right now -- passed through to [_TradeAssetTile]
+  /// for [pickHorizonLabel] (`pick_ownership.dart`).
   final int currentSeason;
 
   @override
@@ -863,10 +1000,10 @@ class _TradeAssetColumn extends StatelessWidget {
 /// One [TradeAsset] row -- an OVR badge and identity line for a player,
 /// or a plain icon-and-label for a pick (there's no player underneath a
 /// pick to show a badge for). A pick's row also names which of the
-/// [kTradeablePickHorizonSeasons] upcoming drafts it's for
-/// (`pick_ownership.dart`'s `pickHorizonLabel`, compared against
-/// [currentSeason]) -- "next draft" reads very differently from "the
-/// draft after" to a GM deciding whether to take one.
+/// [kTradeablePickHorizonSeasons] upcoming drafts it's for, by real season
+/// number (`pick_ownership.dart`'s `pickHorizonLabel`) -- "Season 4" reads
+/// unambiguously to a GM deciding whether to take one, where relative
+/// "next draft"/"the draft after" wording didn't.
 class _TradeAssetTile extends StatelessWidget {
   const _TradeAssetTile({required this.asset, required this.currentSeason});
 
@@ -977,6 +1114,12 @@ class _DraftTab extends StatelessWidget {
   const _DraftTab({required this.franchise, required this.prospects});
 
   final Franchise franchise;
+
+  /// [Franchise.upcomingDraftClass] -- the real prospects for the draft
+  /// coming at the end of *this* season, not a fake regenerated-every-open
+  /// preview (2026-08-21, a direct GM ask: "roll it at the start of the
+  /// season instead of on draft day"). Every name here is exactly who's
+  /// on the board once Draft Day actually arrives.
   final List<DraftProspect> prospects;
 
   @override
@@ -987,11 +1130,10 @@ class _DraftTab extends StatelessWidget {
       children: [
         const _PreviewBanner(
           text:
-              'Preview only -- a fresh, hypothetical class regenerated '
-              'every time this tab opens, not this season\'s real draft '
-              'class. The real draft happens once the season ends -- '
-              'Season Recap\'s "Begin Next Season" button leads straight '
-              'into it.',
+              'This season\'s real upcoming draft class -- not draftable '
+              'from here, though. The real draft happens once the season '
+              'ends -- Season Recap\'s "Begin Next Season" button leads '
+              'straight into it.',
         ),
         for (var i = 0; i < prospects.length; i++) ...[
           _PlayerMarketRow(

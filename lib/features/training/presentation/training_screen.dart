@@ -41,8 +41,24 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
     super.initState();
     final plan = widget.franchise.trainingPlan;
     _teamFocus = plan.teamFocus;
+    // A coach slot's playerId can go stale -- traded away, released,
+    // retired, or just benched to RosterStatus.reserveInactive (an
+    // injury, say) -- without anything clearing the assignment that
+    // pointed at her (2026-08-21, a GM bug report: trading out a player
+    // mid-assignment blanked this whole screen). Treat a slot whose
+    // player isn't in [_eligiblePlayers] anymore as unassigned right at
+    // load time, the same eligibility bar the picker itself already
+    // enforces -- otherwise the dropdown below is handed an initialValue
+    // that matches none of its items, which is a hard Flutter assertion
+    // crash, not a graceful one.
+    final eligibleIds = {for (final player in _eligiblePlayers) player.id};
     _assignments = [
-      for (final slot in plan.coachSlots) _CoachAssignment.fromSlot(slot),
+      for (final slot in plan.coachSlots)
+        _CoachAssignment.fromSlot(
+          eligibleIds.contains(slot.playerId)
+              ? slot
+              : const TrainingCoachSlot(),
+        ),
     ];
   }
 

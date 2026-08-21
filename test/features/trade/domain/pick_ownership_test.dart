@@ -282,12 +282,10 @@ void main() {
   });
 
   group('pickHorizonLabel', () {
-    test('one season out reads as the next draft', () {
-      expect(pickHorizonLabel(3, 2), 'next draft');
-    });
-
-    test('two seasons out reads as the draft after', () {
-      expect(pickHorizonLabel(4, 2), 'the draft after');
+    test('names the real season outright, not "next draft"/relative '
+        'wording (2026-08-21, a direct GM ask)', () {
+      expect(pickHorizonLabel(3, 2), 'Season 4');
+      expect(pickHorizonLabel(4, 2), 'Season 5');
     });
   });
 }

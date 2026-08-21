@@ -234,6 +234,75 @@ void main() {
     },
   );
 
+  group('Trade Deadline shows on the Schedule screen (2026-08-21, a GM '
+      'report -- it already showed on the Team Roster\'s "Calendar" '
+      'screen and the Dashboard, but never made it to this one)', () {
+    testWidgets('My Team mode', (tester) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: ScheduleScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(find.text('Trade Deadline'), findsOneWidget);
+      expect(
+        find.text('Trades close once Week 7 begins'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Full League mode', (tester) async {
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: ScheduleScreen(franchise: franchise)),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Full League'));
+      await tester.pumpAndSettle();
+
+      await tester.dragUntilVisible(
+        find.text('Trade Deadline'),
+        find.byType(ListView),
+        const Offset(0, -1000),
+        maxIteration: 100,
+      );
+
+      expect(find.text('Trade Deadline'), findsOneWidget);
+      expect(
+        find.text('Trades close once Week 7 begins'),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('All-Star week on the schedule (2026-08-11, a direct GM ask -- the '
       'break "needs to show" on both schedule views)', () {
     testWidgets('My Team mode shows both All-Star placeholder games with '

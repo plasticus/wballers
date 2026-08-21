@@ -183,8 +183,8 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                   if (cupEliminationRound != null) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Eliminated from the Continental Cup in the '
-                      '${continentalCupRoundName(cupEliminationRound)}.',
+                      'Eliminated from the Continental Cup in '
+                      '${continentalCupRoundPhrase(cupEliminationRound)}.',
                     ),
                   ],
                 ],

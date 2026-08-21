@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../coach/domain/coach.dart';
 import '../../coach/domain/coach_lifecycle.dart';
 import '../../coach/generation/coach_generator.dart';
+import '../../draft/generation/draft_generator.dart';
 import '../../league/domain/team.dart';
 import '../../league/generation/league_generator.dart';
 import '../../portrait/domain/portrait_manifest.dart';
@@ -279,6 +280,18 @@ Franchise createExpansionFranchise({
     trainingPlan: TrainingPlan.initial(),
     nextTrainingWeek: kPreseasonWeek,
     freeAgents: freeAgents,
+    // The real prospects for this franchise's *first* draft (the one that
+    // resolves once season 0 wraps), rolled here rather than waiting for
+    // that transition -- same "seasoned a full season ahead" reasoning
+    // [Franchise.upcomingDraftClass]'s own doc comment covers.
+    // `kSeasonSeedSpan + kDraftClassSeedOffset` is season 1's own future
+    // [Franchise.seasonSeed] plus the real-class offset -- exactly what
+    // `beginNextSeason` would compute for `newDraftClass` when season 0
+    // transitions into season 1, just computed now instead of then.
+    upcomingDraftClass: generateDraftClass(
+      Random(simulationSeed + kSeasonSeedSpan + kDraftClassSeedOffset),
+      portraitWeights: portraitWeights,
+    ),
     narrativeVeteranPlayerId: narrativeVeteran.id,
     narrativeVeteranName: narrativeVeteran.name,
     narrativeVeteranAppearance: narrativeVeteran.appearance,

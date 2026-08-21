@@ -119,12 +119,24 @@ offers for the value math above to validate.
 - **Accept/decline only** — no player-initiated trades. A real,
   deliberate scope cut ("a whole can of worms I'm not sure I want to
   touch"). `CurrentFranchiseNotifier.acceptTradeOffer`/`declineTradeOffer`.
-- **5 offers visible at a time** (`kTradeOfferCount`), from any teams
-  around the league, regenerated deterministically off the current
-  game day every time the tab rebuilds
-  (`trade_offer_generator.dart`'s `generateTradeOffers`) — not
-  persisted, same "recompute, don't store" posture the Player Market's
-  other preview tabs already use.
+  One 2026-08-21 exception in spirit, not mechanism: `kConsolidationOfferSlotIndex`
+  is a 6th slot the generator always tries as a 2-for-1 (2 of the GM's
+  own weakest active players for 1 upgrade), shaped around what a GM
+  with deep bench depth would want — still AI-generated and
+  accept/decline only underneath, the GM never actually proposes it.
+- **6 offers visible at a time** (`kTradeOfferCount`), from any teams
+  around the league, generated once per Trade Board tab visit
+  (`trade_offer_generator.dart`'s `generateTradeOffers`) rather than
+  regenerated on every rebuild — accepting one only removes it (plus any
+  other offer touching the same players) from that fixed set instead of
+  re-deriving all 6 from the just-changed roster, which would otherwise
+  silently reshuffle every other slot too (2026-08-21, a direct GM spec:
+  confirm-before-accept and a completion popup, then no instant refill
+  until the next real game-day advance — "you get more deals next
+  week"). Accepting the 2-for-1 slot specifically can also push the AI
+  side over `kActiveRosterSize`; `acceptTradeOffer` auto-waives their own
+  weakest pre-existing player back to free agency to make room, the same
+  crash `targetMinutesForOrderedRoster`'s hard cap would otherwise risk.
 - **Trade window** (`trade_window.dart`): opens at the very start of a
   season (preseason included) and runs through **the end of Week
   `kTradeDeadlineWeek` (6)** — locked for real 2026-08-19, a direct GM

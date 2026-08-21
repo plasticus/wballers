@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,7 +8,6 @@ import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise_factory.dart';
 import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
-import 'package:womensbballmgr/features/market/generation/player_market_preview_generator.dart';
 import 'package:womensbballmgr/features/market/presentation/player_market_screen.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
@@ -298,7 +295,111 @@ void main() {
   );
 
   testWidgets(
-    'tapping Accept on a Trade Board offer resolves it and persists',
+    'tapping Cancel on the confirm dialog leaves the offer untouched',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Trade Board'));
+      await tester.pumpAndSettle();
+
+      final offers = generateTradeOffers(franchise);
+      final offerCountBefore = find.text('Accept').evaluate().length;
+
+      await tester.tap(find.text('Accept').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Accept this trade?'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Accept this trade?'), findsNothing);
+      // Still every offer, nothing resolved.
+      expect(find.text('Accept'), findsNWidgets(offerCountBefore));
+      final saved = await repository.readSave(kCurrentFranchiseSaveId);
+      final savedFranchise = franchiseFromJson(
+        SaveEnvelope.fromJson(saved!).payload,
+      );
+      expect(
+        savedFranchise.resolvedTradeOfferIds,
+        isNot(contains(offers.first.id)),
+      );
+    },
+  );
+
+  testWidgets(
+    'accepting one offer drops it (plus any other offer touching the same '
+    'players) -- the rest of the board stays exactly as it was, no '
+    'instant reshuffle or refill (2026-08-21, a direct GM spec: "remove '
+    'any deals containing the traded players too... you get more deals '
+    'next week")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Trade Board'));
+      await tester.pumpAndSettle();
+
+      final offers = generateTradeOffers(franchise);
+      expect(offers.length, greaterThan(1));
+      final accepted = offers.first;
+      final acceptedPlayerIds = {
+        for (final asset in [
+          ...accepted.offeredToYou,
+          ...accepted.askedFromYou,
+        ])
+          if (asset is PlayerTradeAsset) asset.player.id,
+      };
+      final expectedRemaining = offers.skip(1).where((offer) {
+        final ids = {
+          for (final asset in [...offer.offeredToYou, ...offer.askedFromYou])
+            if (asset is PlayerTradeAsset) asset.player.id,
+        };
+        return ids.intersection(acceptedPlayerIds).isEmpty;
+      }).length;
+
+      await tester.tap(find.text('Accept').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Accept').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+
+      // Exactly the surviving offers -- not regenerated from the
+      // post-trade roster, which could otherwise swap in a completely
+      // different set instead of just shrinking.
+      expect(find.text('Accept'), findsNWidgets(expectedRemaining));
+    },
+  );
+
+  testWidgets(
+    'tapping Accept on a Trade Board offer asks for confirmation, then '
+    'resolves and persists it, then shows a completion dialog '
+    '(2026-08-21, a direct GM spec)',
     (tester) async {
       tester.view.physicalSize = const Size(800, 4500);
       tester.view.devicePixelRatio = 1.0;
@@ -325,11 +426,29 @@ void main() {
       await tester.tap(find.text('Accept').first);
       await tester.pumpAndSettle();
 
-      final saved = await repository.readSave(kCurrentFranchiseSaveId);
-      final savedFranchise = franchiseFromJson(
+      // A confirm dialog first -- not resolved yet.
+      expect(find.text('Accept this trade?'), findsOneWidget);
+      var saved = await repository.readSave(kCurrentFranchiseSaveId);
+      var savedFranchise = franchiseFromJson(
         SaveEnvelope.fromJson(saved!).payload,
       );
+      expect(
+        savedFranchise.resolvedTradeOfferIds,
+        isNot(contains(acceptedOffer.id)),
+      );
+
+      // Confirming actually resolves it, then shows a completion dialog.
+      await tester.tap(find.text('Accept').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Trade Completed'), findsOneWidget);
+      saved = await repository.readSave(kCurrentFranchiseSaveId);
+      savedFranchise = franchiseFromJson(SaveEnvelope.fromJson(saved!).payload);
       expect(savedFranchise.resolvedTradeOfferIds, contains(acceptedOffer.id));
+
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+      expect(find.text('Trade Completed'), findsNothing);
     },
   );
 
@@ -416,8 +535,16 @@ void main() {
       await tester.tap(find.text('Accept'));
       await tester.pumpAndSettle();
 
-      // Back on the Trade Board.
+      // The detail screen's own confirm dialog first.
+      expect(find.text('Accept this trade?'), findsOneWidget);
+      await tester.tap(find.text('Accept').last);
+      await tester.pumpAndSettle();
+
+      // Back on the Trade Board, with a completion dialog up.
       expect(find.text('Trade Offer'), findsNothing);
+      expect(find.text('Trade Completed'), findsOneWidget);
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
 
       final saved = await repository.readSave(kCurrentFranchiseSaveId);
       final savedFranchise = franchiseFromJson(
@@ -464,41 +591,41 @@ void main() {
     expect(savedFranchise.tradeBlockPlayerId, target.id);
   });
 
-  testWidgets('the Draft tab shows a college per prospect, not a team', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 4500);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'the Draft tab shows the real upcoming draft class, a college per '
+    'prospect, not a team (2026-08-21: this used to be a fake regenerated '
+    '-every-open preview -- now it\'s Franchise.upcomingDraftClass, the '
+    'real prospects for this season\'s eventual draft)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    final franchise = _newFranchise();
-    final repository = await _seededRepository(franchise);
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
-      ),
-    );
-    await tester.pump();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
 
-    await tester.tap(find.text('Draft'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Draft'));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('Preview only -- a fresh, hypothetical class'),
-      findsOneWidget,
-    );
-    // The screen's own preview prospects, recomputed the same way --
-    // the first prospect's real college shows up as that row's subtitle.
-    final prospects = generateDraftPreview(
-      Random(franchise.simulationSeed + kDraftPreviewSeedOffset),
-    );
-    expect(
-      find.textContaining('${prospects.first.college.name} ·'),
-      findsWidgets,
-    );
-    expect(find.textContaining('Free Agent ·'), findsNothing);
-    expect(find.text('Sign'), findsNothing);
-  });
+      expect(
+        find.textContaining('This season\'s real upcoming draft class'),
+        findsOneWidget,
+      );
+      // Franchise.upcomingDraftClass's first prospect's real college shows
+      // up as that row's subtitle -- not some independently re-derived
+      // preview.
+      final prospect = franchise.upcomingDraftClass.first;
+      expect(find.textContaining('${prospect.college.name} ·'), findsWidgets);
+      expect(find.textContaining('Free Agent ·'), findsNothing);
+      expect(find.text('Sign'), findsNothing);
+    },
+  );
 }

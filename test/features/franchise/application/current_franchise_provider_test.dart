@@ -18,6 +18,7 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/portrait/domain/portrait_appearance.dart';
 import 'package:womensbballmgr/features/portrait/generation/portrait_generator.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_legality.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
@@ -2783,5 +2784,102 @@ void main() {
       );
       expect(updated.resolvedTradeOfferIds, contains('stale-pick-offer'));
     });
+
+    test(
+      'a 2-for-1 offer that would push the AI side over kActiveRosterSize '
+      'auto-waives their own weakest pre-existing player to free agency '
+      'to make room (2026-08-21, a direct GM ask -- the 2:1 consolidation '
+      'slot -- `targetMinutesForOrderedRoster` hard-caps at '
+      '`kActiveRosterSize`, so going over there is a real crash risk, '
+      'not a self-inflicted one the way going under is)',
+      () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+
+        final ownPlayers = franchise.roster
+            .where((m) => m.status == RosterStatus.active)
+            .take(2)
+            .map((m) => m.player)
+            .toList();
+        final aiTeam = franchise.league.aiTeams.first;
+        // A full 12-player active roster already, same as every
+        // freshly-generated AI team -- accepting a 2-for-1 here would
+        // leave them at 13 without the auto-waive.
+        expect(
+          aiTeam.roster.where((m) => m.status == RosterStatus.active).length,
+          kActiveRosterSize,
+        );
+        final aiPlayer = aiTeam.roster
+            .firstWhere((m) => m.status == RosterStatus.active)
+            .player;
+        final untouchedAiPlayerIds = aiTeam.roster
+            .where(
+              (m) =>
+                  m.status == RosterStatus.active && m.player.id != aiPlayer.id,
+            )
+            .map((m) => m.player.id)
+            .toSet();
+
+        await container.read(currentFranchiseProvider.notifier).acceptTradeOffer(
+          TradeOffer(
+            id: 'consolidation-offer',
+            offeringTeamAbbreviation: aiTeam.team.abbreviation,
+            offeredToYou: [PlayerTradeAsset(aiPlayer)],
+            askedFromYou: [for (final p in ownPlayers) PlayerTradeAsset(p)],
+            character: TradeOfferCharacter.value,
+          ),
+        );
+
+        final updated = container.read(currentFranchiseProvider).value!;
+        final updatedAiTeam = updated.league.aiTeams.firstWhere(
+          (t) => t.team.abbreviation == aiTeam.team.abbreviation,
+        );
+        final updatedAiActive = updatedAiTeam.roster
+            .where((m) => m.status == RosterStatus.active)
+            .toList();
+
+        // Still exactly at the cap, never over it.
+        expect(updatedAiActive, hasLength(kActiveRosterSize));
+        // Both of the GM's own traded-away players really did land there.
+        for (final p in ownPlayers) {
+          expect(updatedAiActive.any((m) => m.player.id == p.id), isTrue);
+        }
+        // Exactly one of the AI's own *other* pre-existing players got
+        // waived to make room -- never the player they just acquired in
+        // this exact trade.
+        final stillOnAiRoster = updatedAiActive
+            .map((m) => m.player.id)
+            .toSet();
+        final waivedIds = untouchedAiPlayerIds.difference(stillOnAiRoster);
+        expect(waivedIds, hasLength(1));
+        final waivedId = waivedIds.single;
+        expect(
+          updated.freeAgents.any((p) => p.id == waivedId),
+          isTrue,
+          reason: 'the waived player should land in free agency, not vanish',
+        );
+        for (final p in ownPlayers) {
+          expect(waivedId, isNot(p.id));
+        }
+      },
+    );
   });
 }

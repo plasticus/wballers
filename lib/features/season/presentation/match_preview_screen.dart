@@ -8,7 +8,6 @@ import '../../../core/widgets/app_card.dart';
 import '../../franchise/application/current_franchise_provider.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/team.dart';
-import '../../league/domain/team_identity.dart';
 import '../../match/presentation/live_game_lab_screen.dart';
 import '../../matchup/domain/analyst.dart';
 import '../../matchup/domain/defensive_tactic.dart';
@@ -117,9 +116,6 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     // needs a resolved 12-player target-minutes map) -- a lightweight
     // preview shouldn't have to satisfy that assertion.
     final ownAbbreviation = franchise.team.abbreviation;
-    final opponentTeam = game.homeTeamAbbreviation == ownAbbreviation
-        ? awayTeam
-        : homeTeam;
     final homeStartingFive = startingFiveFor(
       homePlayers,
       isBenchOrdered: game.homeTeamAbbreviation == ownAbbreviation,
@@ -264,8 +260,6 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
                       homeForm: homeForm,
                       homeOverall: homeOverall,
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _ScoutingReportSection(opponentTeam: opponentTeam),
                     const SizedBox(height: AppSpacing.sm),
                     _OffenseShapesSection(
                       awayTeam: awayTeam,
@@ -449,41 +443,6 @@ class _MatchupHeader extends StatelessWidget {
               fontWeight: game.countsTowardStandings ? null : FontWeight.bold,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// [opponentTeam]'s permanent `TeamIdentity` (`team_identity.dart`) --
-/// "they see they're about to play Cincinnati, and they're like, oh damn,
-/// I know I'm playing against a huge front court and huge defense today"
-/// (2026-08-20, a direct GM ask). The GM's own team never gets one of
-/// these -- there's no locked identity to show for the one team the GM
-/// actually controls (see [TeamIdentity]'s own doc comment).
-class _ScoutingReportSection extends StatelessWidget {
-  const _ScoutingReportSection({required this.opponentTeam});
-
-  final Team opponentTeam;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final identity = identityFor(opponentTeam.abbreviation);
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Scouting Report', style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            '${opponentTeam.emoji} ${opponentTeam.name}',
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(identity.styleLabel, style: theme.textTheme.bodyMedium),
         ],
       ),
     );

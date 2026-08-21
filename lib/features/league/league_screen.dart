@@ -424,7 +424,7 @@ class _CupRoundSection extends StatelessWidget {
         if (games.isEmpty)
           AppCard(
             child: Text(
-              'Set once ${continentalCupRoundName(round - 1)} finishes.',
+              'Set once ${continentalCupRoundPhrase(round - 1)} finishes.',
               style: theme.textTheme.bodyMedium,
             ),
           )

@@ -865,8 +865,8 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
               if (cupEliminationRound != null) ...[
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Your club was eliminated in the '
-                  '${continentalCupRoundName(cupEliminationRound)} -- '
+                  'Your club was eliminated in '
+                  '${continentalCupRoundPhrase(cupEliminationRound)} -- '
                   'these games are for the rest of the league.',
                   style: theme.textTheme.bodySmall,
                 ),

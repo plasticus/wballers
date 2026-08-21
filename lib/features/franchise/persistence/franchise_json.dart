@@ -57,6 +57,9 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
         .map(pendingRetirementToJson)
         .toList(),
     'draftClass': franchise.draftClass.map(draftProspectToJson).toList(),
+    'upcomingDraftClass': franchise.upcomingDraftClass
+        .map(draftProspectToJson)
+        .toList(),
     // Null nearly always -- only non-null while a draft is actually
     // mid-resolution (`0D_Season_2_Roadmap.md`'s "The draft, for real").
     'draftInProgress': franchise.draftInProgress == null
@@ -142,6 +145,9 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
         )
         .toList(),
     draftClass: (json['draftClass'] as List<dynamic>)
+        .map((value) => draftProspectFromJson(value as Map<String, dynamic>))
+        .toList(),
+    upcomingDraftClass: (json['upcomingDraftClass'] as List<dynamic>)
         .map((value) => draftProspectFromJson(value as Map<String, dynamic>))
         .toList(),
     draftInProgress: json['draftInProgress'] == null

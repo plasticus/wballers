@@ -362,12 +362,46 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       for (final p in incomingPlayers)
         RosterMembership(player: p, status: RosterStatus.active),
     ];
-    final newAiRoster = [
+    var newAiRoster = [
       for (final m in aiTeam.roster)
         if (!offeredPlayerIds.contains(m.player.id)) m,
       for (final p in outgoingPlayers)
         RosterMembership(player: p, status: RosterStatus.active),
     ];
+    // Every other offer shape keeps headcount equal on both sides, so
+    // this never fires in practice -- but the one 2-for-1 consolidation
+    // slot (`trade_offer_generator.dart`'s `kConsolidationOfferSlotIndex`)
+    // genuinely can leave the AI side with more active players than it
+    // started with. `targetMinutesForOrderedRoster`'s own hard assert
+    // caps active rosters at `kActiveRosterSize`, so going over there
+    // isn't a "self-inflicted disadvantage" the way the GM's own roster
+    // dropping under it is (`dropPlayer`'s own doc comment) -- it's a
+    // real crash risk the next time this AI team plays. Make room the
+    // same way a real front office would: waive the team's own weakest
+    // *pre-existing* active player (never one of [outgoingPlayers] --
+    // they just arrived, cutting them the same trade that brought them
+    // in would be a strange thing for the AI to do) back to
+    // [Franchise.freeAgents], same "released, not vanished" landing spot
+    // [dropPlayer] already uses.
+    final waivedToFreeAgency = <Player>[];
+    while (newAiRoster.where((m) => m.status == RosterStatus.active).length >
+        kActiveRosterSize) {
+      final preExistingActive = [
+        for (final m in newAiRoster)
+          if (m.status == RosterStatus.active &&
+              !outgoingPlayers.any((p) => p.id == m.player.id))
+            m.player,
+      ];
+      if (preExistingActive.isEmpty) break; // Shouldn't happen; safety net.
+      final weakest = preExistingActive.reduce(
+        (a, b) => a.ratings.skillPoints <= b.ratings.skillPoints ? a : b,
+      );
+      newAiRoster = [
+        for (final m in newAiRoster)
+          if (m.player.id != weakest.id) m,
+      ];
+      waivedToFreeAgency.add(weakest.copyWithJerseyNumber(null));
+    }
     final newAiTeams = [...franchise.league.aiTeams];
     newAiTeams[aiTeamIndex] = aiTeam.copyWithRoster(newAiRoster);
 
@@ -405,6 +439,12 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
         });
     if (blockPlayerTraded) {
       updated = updated.copyWithTradeBlockPlayerId(null);
+    }
+    if (waivedToFreeAgency.isNotEmpty) {
+      updated = updated.copyWithFreeAgents([
+        ...updated.freeAgents,
+        ...waivedToFreeAgency,
+      ]);
     }
     await _persist(updated);
   }

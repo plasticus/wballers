@@ -186,8 +186,8 @@ void main() {
       if (expectedEliminationRound != null) {
         expect(
           find.textContaining(
-            'Eliminated from the Continental Cup in the '
-            '${continentalCupRoundName(expectedEliminationRound)}',
+            'Eliminated from the Continental Cup in '
+            '${continentalCupRoundPhrase(expectedEliminationRound)}',
           ),
           findsOneWidget,
         );

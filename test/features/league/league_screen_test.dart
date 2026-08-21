@@ -382,12 +382,15 @@ void main() {
         find.text('Semifinals (${weekLabel(continentalCupRoundWeek(4))})'),
         findsOneWidget,
       );
-      expect(find.text('Set once Quarterfinals finishes.'), findsOneWidget);
+      expect(
+        find.text('Set once the Quarterfinals finishes.'),
+        findsOneWidget,
+      );
       expect(
         find.text('Final (${weekLabel(continentalCupRoundWeek(5))})'),
         findsOneWidget,
       );
-      expect(find.text('Set once Semifinals finishes.'), findsOneWidget);
+      expect(find.text('Set once the Semifinals finishes.'), findsOneWidget);
     },
   );
 

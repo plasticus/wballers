@@ -78,6 +78,7 @@ class Franchise {
     this.readMailIds = const {},
     this.pendingRetirements = const [],
     this.draftClass = const [],
+    this.upcomingDraftClass = const [],
     this.draftInProgress,
     this.seasonStartOverallByPlayerId = const {},
     this.narrativeVeteranPlayerId = '',
@@ -265,6 +266,23 @@ class Franchise {
   /// prospects don't stay draft-eligible into a new class.
   final List<DraftProspect> draftClass;
 
+  /// The real, persisted prospects for the *next* draft -- the one that'll
+  /// happen once the season currently being played wraps -- rolled a full
+  /// season early precisely so it can be previewed for real, months ahead
+  /// of the draft itself (2026-08-21, a direct GM ask: "roll it at the
+  /// start of the season instead of on draft day"). Generated once, at
+  /// franchise creation (for the very first season's eventual draft) and
+  /// again every `beginNextSeason` transition (for whichever draft comes
+  /// after *that*) -- seeded off the actual future season's own
+  /// [seasonSeed], so promoting this into [draftClass] once that season's
+  /// transition finally arrives reproduces exactly what a fresh roll at
+  /// that moment would have produced anyway; only *when* it's computed
+  /// changed, not what it resolves to. Distinct from [draftClass] itself,
+  /// which is transient -- only populated while a draft is actually
+  /// resolving, cleared the moment it finishes -- where this one stays
+  /// populated and stable for an entire season's worth of previewing.
+  final List<DraftProspect> upcomingDraftClass;
+
   /// This season's real draft, mid-resolution -- `0D_Season_2_Roadmap.md`'s
   /// "The draft, for real" stage. `null` whenever no draft is currently
   /// underway (the common case -- most of a season, and before the first
@@ -411,6 +429,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: newDraftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -451,6 +470,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: newSnapshot,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -491,6 +511,52 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: newDraftClass,
+      upcomingDraftClass: upcomingDraftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
+    );
+  }
+
+  /// Returns a copy with [newUpcomingDraftClass] replacing
+  /// [upcomingDraftClass] -- `season_transition_advancer.dart`'s
+  /// `beginNextSeason` is the only caller so far, rolling the *next*
+  /// draft's real class fresh every transition (see that field's own doc
+  /// comment).
+  Franchise copyWithUpcomingDraftClass(
+    List<DraftProspect> newUpcomingDraftClass,
+  ) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      upcomingDraftClass: newUpcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -530,6 +596,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -569,6 +636,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -608,6 +676,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -647,6 +716,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -696,6 +766,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -743,6 +814,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -783,6 +855,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -823,6 +896,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -868,6 +942,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -909,6 +984,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -955,6 +1031,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -998,6 +1075,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1038,6 +1116,7 @@ class Franchise {
       readMailIds: newReadMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1078,6 +1157,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1122,6 +1202,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1169,6 +1250,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1210,6 +1292,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1265,6 +1348,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: newPendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1327,6 +1411,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
@@ -1378,6 +1463,7 @@ class Franchise {
       readMailIds: readMailIds,
       pendingRetirements: pendingRetirements,
       draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,

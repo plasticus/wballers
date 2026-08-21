@@ -89,6 +89,15 @@ String postseasonRoundName(int round) => switch (round) {
   _ => 'Finals',
 };
 
+/// The grammatically-correct way to drop a Cup round into a sentence like
+/// "eliminated in ___": "Round 1" / "Round 2" take no article, but the
+/// named rounds do -- "the Quarterfinals", not "Quarterfinals". A GM report
+/// (2026-08-21) called out "eliminated in the Round 1" reading wrong.
+String continentalCupRoundPhrase(int round) => switch (round) {
+  1 || 2 => continentalCupRoundName(round),
+  _ => 'the ${continentalCupRoundName(round)}',
+};
+
 extension GameTypeLabel on ScheduledGame {
   /// "Preseason" / "Regular Season" / a named Continental Cup or postseason
   /// round -- promoted out of `schedule_screen.dart`'s private original so

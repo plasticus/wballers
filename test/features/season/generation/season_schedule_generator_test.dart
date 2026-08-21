@@ -54,6 +54,47 @@ void main() {
     }
   });
 
+  test('a team never faces the same preseason opponent twice (2026-08-21, '
+      'a GM bug report: two independent shuffles used to be able to repeat '
+      'a pairing by chance) -- checked across many seeds since it\'s a '
+      'chance-based bug', () {
+    final teams = _leagueTeams();
+    for (var seed = 0; seed < 200; seed++) {
+      final schedule = generateSeasonSchedule(teams, Random(seed));
+      final preseasonByTeam = _gamesByTeam(
+        schedule.games.where((g) => g.type == GameType.preseason).toList(),
+      );
+      for (final team in teams) {
+        final games = preseasonByTeam[team.abbreviation]!;
+        final opponents = games.map(
+          (game) => game.homeTeamAbbreviation == team.abbreviation
+              ? game.awayTeamAbbreviation
+              : game.homeTeamAbbreviation,
+        );
+        expect(
+          opponents.toSet(),
+          hasLength(2),
+          reason: 'seed $seed, team ${team.abbreviation} faced the same '
+              'preseason opponent twice',
+        );
+      }
+    }
+  });
+
+  test('never crashes across a wide sweep of seeds (2026-08-21, a real bug: '
+      'the regular-season greedy packer could paint itself into a corner '
+      'for an unlucky pair order and hit a null-check crash -- now retries '
+      'with a reshuffled order instead of ever throwing)', () {
+    final teams = _leagueTeams();
+    for (var seed = 0; seed < 500; seed++) {
+      expect(
+        () => generateSeasonSchedule(teams, Random(seed)),
+        returnsNormally,
+        reason: 'seed $seed crashed',
+      );
+    }
+  });
+
   test('every team gets exactly 28 regular-season games: 18 intra-conference '
       '(2x each of 9 opponents) + 10 inter-conference (1x each of 10)', () {
     final teams = _leagueTeams();

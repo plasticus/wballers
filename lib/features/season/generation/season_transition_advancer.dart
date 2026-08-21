@@ -35,7 +35,11 @@ bool seasonIsOver(Franchise franchise) {
 /// whatever's already unsigned in the pool (roster-legality waives from
 /// the season that just ended included -- never discarded just because a
 /// new season started), and a brand-new, fully-replacing draft class
-/// (Player pool refresh stage).
+/// (Player pool refresh stage) -- promoted from whatever
+/// [Franchise.upcomingDraftClass] already held (rolled a full season
+/// ahead, previewable this whole time), immediately followed by rolling
+/// *that* draft's own successor so the season now starting has a real
+/// preview from day one too (2026-08-21, a direct GM ask).
 ///
 /// [Franchise.roster]/[Franchise.league] rosters themselves aren't
 /// touched here at all -- aging, decline, retirement, and roster-legality
@@ -131,8 +135,23 @@ Franchise beginNextSeason(
     Random(newSeasonSeed + kFreeAgentPoolSeedOffset),
     portraitWeights: portraitWeights,
   );
-  final newDraftClass = generateDraftClass(
-    Random(newSeasonSeed + kDraftClassSeedOffset),
+  // The real class for the draft happening *right now* was already rolled
+  // a full season ago (at the previous transition, or at franchise
+  // creation for season 0 -> 1) and has been sitting in
+  // [Franchise.upcomingDraftClass] ever since, previewable the whole
+  // time -- promote it rather than rolling fresh (2026-08-21, a direct GM
+  // ask: "roll it at the start of the season instead of on draft day").
+  final newDraftClass = franchise.upcomingDraftClass;
+  // ...and immediately roll *that* draft's own successor -- the class for
+  // whichever draft comes after [newSeason] -- so the season about to
+  // start has a real preview available from its very first day too. Same
+  // seed formula [newDraftClass] itself always used
+  // (`newSeasonSeed + kDraftClassSeedOffset`), just one season further
+  // out (`newSeasonSeed + kSeasonSeedSpan`) -- so whenever this eventually
+  // gets promoted in turn, it reproduces exactly what a fresh roll at
+  // that later moment would have produced anyway.
+  final newUpcomingDraftClass = generateDraftClass(
+    Random(newSeasonSeed + kSeasonSeedSpan + kDraftClassSeedOffset),
     portraitWeights: portraitWeights,
   );
   final seasonStartSnapshot = <String, int>{
@@ -166,6 +185,7 @@ Franchise beginNextSeason(
       )
       .copyWithFreeAgents([...franchise.freeAgents, ...freshFreeAgents])
       .copyWithDraftClass(newDraftClass)
+      .copyWithUpcomingDraftClass(newUpcomingDraftClass)
       .copyWithDraftInProgress(
         DraftInProgress(
           order: draftOrder,

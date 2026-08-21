@@ -51,16 +51,4 @@ void main() {
       expect(a.map((p) => p.player.id), b.map((p) => p.player.id));
     });
   });
-
-  group('generateDraftPreview', () {
-    test('generates the requested count with real colleges assigned', () {
-      final prospects = generateDraftPreview(Random(5), count: 12);
-
-      expect(prospects, hasLength(12));
-      for (final prospect in prospects) {
-        expect(prospect.player.yearsOfService, 0);
-        expect(prospect.college.name, isNotEmpty);
-      }
-    });
-  });
 }

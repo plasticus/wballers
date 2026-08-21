@@ -766,7 +766,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Continental Cup Week'), findsOneWidget);
-      expect(find.textContaining('eliminated in the Round 1'), findsOneWidget);
+      expect(find.textContaining('eliminated in Round 1'), findsOneWidget);
     },
   );
 
