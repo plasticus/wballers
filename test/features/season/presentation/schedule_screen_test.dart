@@ -259,10 +259,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Trade Deadline'), findsOneWidget);
-      expect(
-        find.text('Trades close once Week 7 begins'),
-        findsOneWidget,
-      );
+      expect(find.text('Trades close once Week 7 begins'), findsOneWidget);
     });
 
     testWidgets('Full League mode', (tester) async {
@@ -296,10 +293,7 @@ void main() {
       );
 
       expect(find.text('Trade Deadline'), findsOneWidget);
-      expect(
-        find.text('Trades close once Week 7 begins'),
-        findsOneWidget,
-      );
+      expect(find.text('Trades close once Week 7 begins'), findsOneWidget);
     });
   });
 

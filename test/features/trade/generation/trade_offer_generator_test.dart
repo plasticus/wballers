@@ -45,71 +45,64 @@ void main() {
     }
   });
 
-  test(
-    'never asks for more players than it offers, or vice versa -- '
-    'headcount always matches on both sides, except the one dedicated '
-    '2-for-1 consolidation slot (2026-08-21, a direct GM ask)',
-    () {
-      final franchise = withFullActiveRoster(franchiseForPortraitTests());
-      final offers = generateTradeOffers(franchise);
+  test('never asks for more players than it offers, or vice versa -- '
+      'headcount always matches on both sides, except the one dedicated '
+      '2-for-1 consolidation slot (2026-08-21, a direct GM ask)', () {
+    final franchise = withFullActiveRoster(franchiseForPortraitTests());
+    final offers = generateTradeOffers(franchise);
+
+    for (final offer in offers) {
+      final offeredPlayers = offer.offeredToYou.whereType<PlayerTradeAsset>();
+      final askedPlayers = offer.askedFromYou.whereType<PlayerTradeAsset>();
+      // The consolidation slot is deliberately 2-for-1 (2 of the GM's
+      // own bench players for 1 upgrade back) -- everything else stays
+      // headcount-symmetric.
+      final isConsolidationShape =
+          offeredPlayers.length == 1 && askedPlayers.length == 2;
+      if (!isConsolidationShape) {
+        expect(offeredPlayers.length, askedPlayers.length);
+      }
+    }
+  });
+
+  test('the dedicated consolidation slot really does build a 2-for-1 -- 2 of '
+      'the GM\'s own weakest active players for 1 upgraded player back '
+      '(2026-08-21, a direct GM ask: "I have a super deep bench, but I '
+      'want to transition that to a better player... show me an option for '
+      'that as a 6th trade slot")', () {
+    final franchise = withFullActiveRoster(franchiseForPortraitTests());
+    final ownActiveBySkill = [
+      for (final m in franchise.roster)
+        if (m.status == RosterStatus.active) m.player,
+    ]..sort((a, b) => a.ratings.skillPoints.compareTo(b.ratings.skillPoints));
+    final weakestTwoIds = ownActiveBySkill.take(2).map((p) => p.id).toSet();
+
+    // Several distinct turns, same "not every draw happens to need a
+    // pick to balance, or find a close-enough AI player" reasoning the
+    // 2-for-2-with-a-pick test above already uses.
+    var sawConsolidationOffer = false;
+    for (var gameDayIndex = 0; gameDayIndex < 10; gameDayIndex++) {
+      final turn = franchise.copyWithSeasonProgress(
+        SeasonProgress(
+          schedule: franchise.seasonProgress.schedule,
+          playedGames: franchise.seasonProgress.playedGames,
+          nextGameDayIndex: gameDayIndex,
+        ),
+      );
+      final offers = generateTradeOffers(turn);
 
       for (final offer in offers) {
-        final offeredPlayers = offer.offeredToYou
-            .whereType<PlayerTradeAsset>();
-        final askedPlayers = offer.askedFromYou.whereType<PlayerTradeAsset>();
-        // The consolidation slot is deliberately 2-for-1 (2 of the GM's
-        // own bench players for 1 upgrade back) -- everything else stays
-        // headcount-symmetric.
-        final isConsolidationShape =
-            offeredPlayers.length == 1 && askedPlayers.length == 2;
-        if (!isConsolidationShape) {
-          expect(offeredPlayers.length, askedPlayers.length);
+        final offered = offer.offeredToYou.whereType<PlayerTradeAsset>();
+        final asked = offer.askedFromYou.whereType<PlayerTradeAsset>();
+        if (offered.length == 1 && asked.length == 2) {
+          sawConsolidationOffer = true;
+          final askedIds = asked.map((a) => a.player.id).toSet();
+          expect(askedIds, weakestTwoIds);
         }
       }
-    },
-  );
-
-  test(
-    'the dedicated consolidation slot really does build a 2-for-1 -- 2 of '
-    'the GM\'s own weakest active players for 1 upgraded player back '
-    '(2026-08-21, a direct GM ask: "I have a super deep bench, but I '
-    'want to transition that to a better player... show me an option for '
-    'that as a 6th trade slot")',
-    () {
-      final franchise = withFullActiveRoster(franchiseForPortraitTests());
-      final ownActiveBySkill = [
-        for (final m in franchise.roster)
-          if (m.status == RosterStatus.active) m.player,
-      ]..sort((a, b) => a.ratings.skillPoints.compareTo(b.ratings.skillPoints));
-      final weakestTwoIds = ownActiveBySkill.take(2).map((p) => p.id).toSet();
-
-      // Several distinct turns, same "not every draw happens to need a
-      // pick to balance, or find a close-enough AI player" reasoning the
-      // 2-for-2-with-a-pick test above already uses.
-      var sawConsolidationOffer = false;
-      for (var gameDayIndex = 0; gameDayIndex < 10; gameDayIndex++) {
-        final turn = franchise.copyWithSeasonProgress(
-          SeasonProgress(
-            schedule: franchise.seasonProgress.schedule,
-            playedGames: franchise.seasonProgress.playedGames,
-            nextGameDayIndex: gameDayIndex,
-          ),
-        );
-        final offers = generateTradeOffers(turn);
-
-        for (final offer in offers) {
-          final offered = offer.offeredToYou.whereType<PlayerTradeAsset>();
-          final asked = offer.askedFromYou.whereType<PlayerTradeAsset>();
-          if (offered.length == 1 && asked.length == 2) {
-            sawConsolidationOffer = true;
-            final askedIds = asked.map((a) => a.player.id).toSet();
-            expect(askedIds, weakestTwoIds);
-          }
-        }
-      }
-      expect(sawConsolidationOffer, isTrue);
-    },
-  );
+    }
+    expect(sawConsolidationOffer, isTrue);
+  });
 
   test('never asks for a player who isn\'t actually on the GM\'s active '
       'roster', () {

@@ -74,7 +74,8 @@ void main() {
         expect(
           opponents.toSet(),
           hasLength(2),
-          reason: 'seed $seed, team ${team.abbreviation} faced the same '
+          reason:
+              'seed $seed, team ${team.abbreviation} faced the same '
               'preseason opponent twice',
         );
       }

@@ -250,55 +250,52 @@ void main() {
     expect(next.draftClass, hasLength(kDefaultDraftClassSize));
   });
 
-  test(
-    'the new draftClass is promoted from upcomingDraftClass (rolled a '
-    'season ahead), not freshly generated at the transition itself -- and '
-    'a fresh upcomingDraftClass is rolled in turn for the season now '
-    'starting (2026-08-21, a direct GM ask: "roll it at the start of the '
-    'season instead of on draft day")',
-    () async {
-      final base = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      // Rolled at franchise creation already -- previewable from the very
-      // first day of season 0, not just once season 1 actually begins.
-      expect(base.upcomingDraftClass, hasLength(kDefaultDraftClassSize));
+  test('the new draftClass is promoted from upcomingDraftClass (rolled a '
+      'season ahead), not freshly generated at the transition itself -- and '
+      'a fresh upcomingDraftClass is rolled in turn for the season now '
+      'starting (2026-08-21, a direct GM ask: "roll it at the start of the '
+      'season instead of on draft day")', () async {
+    final base = withFullActiveRoster(
+      createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      ),
+    );
+    // Rolled at franchise creation already -- previewable from the very
+    // first day of season 0, not just once season 1 actually begins.
+    expect(base.upcomingDraftClass, hasLength(kDefaultDraftClassSize));
 
-      final playedOut = await _playedOutFranchise(base);
-      // Untouched all season -- the same stable class shown in the
-      // Player Market's Draft tab the whole time.
-      expect(
-        playedOut.upcomingDraftClass.map((p) => p.player.id),
-        base.upcomingDraftClass.map((p) => p.player.id),
-      );
+    final playedOut = await _playedOutFranchise(base);
+    // Untouched all season -- the same stable class shown in the
+    // Player Market's Draft tab the whole time.
+    expect(
+      playedOut.upcomingDraftClass.map((p) => p.player.id),
+      base.upcomingDraftClass.map((p) => p.player.id),
+    );
 
-      final next = beginNextSeason(playedOut);
+    final next = beginNextSeason(playedOut);
 
-      // Promoted, not rerolled -- next.draftClass IS the exact class that
-      // was already previewable all of last season.
-      expect(
-        next.draftClass.map((p) => p.player.id),
-        playedOut.upcomingDraftClass.map((p) => p.player.id),
-      );
-      // A genuinely fresh class lined up for the season now starting --
-      // different prospects than either the just-promoted draftClass or
-      // last season's own upcomingDraftClass.
-      expect(next.upcomingDraftClass, hasLength(kDefaultDraftClassSize));
-      expect(
-        next.upcomingDraftClass.map((p) => p.player.id),
-        isNot(next.draftClass.map((p) => p.player.id)),
-      );
-    },
-  );
+    // Promoted, not rerolled -- next.draftClass IS the exact class that
+    // was already previewable all of last season.
+    expect(
+      next.draftClass.map((p) => p.player.id),
+      playedOut.upcomingDraftClass.map((p) => p.player.id),
+    );
+    // A genuinely fresh class lined up for the season now starting --
+    // different prospects than either the just-promoted draftClass or
+    // last season's own upcomingDraftClass.
+    expect(next.upcomingDraftClass, hasLength(kDefaultDraftClassSize));
+    expect(
+      next.upcomingDraftClass.map((p) => p.player.id),
+      isNot(next.draftClass.map((p) => p.player.id)),
+    );
+  });
 
   test('sets up a fresh draftInProgress, ordered by the just-finished '
       'season\'s final standings (2026-08-11, 0D_Season_2_Roadmap.md: The '

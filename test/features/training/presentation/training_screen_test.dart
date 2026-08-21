@@ -319,42 +319,41 @@ void main() {
     expect(find.text('Unassigned'), findsNWidgets(2));
   });
 
-  testWidgets(
-    'a coach slot pointing at a player who has since left the roster '
-    '(traded, released, retired) loads as unassigned instead of crashing '
-    '(2026-08-21, a GM bug report: this used to blank the whole screen)',
-    (tester) async {
-      const staleId = 'no-longer-on-the-roster';
-      final franchise = _franchiseWith(
-        trainingPlan: TrainingPlan(
-          teamFocus: TrainingFocus.defense,
-          coachSlots: [
-            const TrainingCoachSlot(
-              playerId: staleId,
-              focus: IndividualTrainingFocus.specific(PlayerRatingField.speed),
-            ),
-            const TrainingCoachSlot(),
-            const TrainingCoachSlot(),
-          ],
-        ),
-      );
-      final repository = await _seededRepository(franchise);
+  testWidgets('a coach slot pointing at a player who has since left the roster '
+      '(traded, released, retired) loads as unassigned instead of crashing '
+      '(2026-08-21, a GM bug report: this used to blank the whole screen)', (
+    tester,
+  ) async {
+    const staleId = 'no-longer-on-the-roster';
+    final franchise = _franchiseWith(
+      trainingPlan: TrainingPlan(
+        teamFocus: TrainingFocus.defense,
+        coachSlots: [
+          const TrainingCoachSlot(
+            playerId: staleId,
+            focus: IndividualTrainingFocus.specific(PlayerRatingField.speed),
+          ),
+          const TrainingCoachSlot(),
+          const TrainingCoachSlot(),
+        ],
+      ),
+    );
+    final repository = await _seededRepository(franchise);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-          child: MaterialApp(home: TrainingScreen(franchise: franchise)),
-        ),
-      );
-      await tester.pump();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(home: TrainingScreen(franchise: franchise)),
+      ),
+    );
+    await tester.pump();
 
-      // No crash, and every one of the 3 slots reads unassigned -- the
-      // stale reference was dropped, not preserved as a broken assignment.
-      expect(tester.takeException(), isNull);
-      expect(find.text('Unassigned'), findsNWidgets(3));
-      expect(find.text('Specific'), findsNothing);
-    },
-  );
+    // No crash, and every one of the 3 slots reads unassigned -- the
+    // stale reference was dropped, not preserved as a broken assignment.
+    expect(tester.takeException(), isNull);
+    expect(find.text('Unassigned'), findsNWidgets(3));
+    expect(find.text('Specific'), findsNothing);
+  });
 }
 
 /// Mirrors `training_screen.dart`'s private `_CoachPickerMenuItem` identity
