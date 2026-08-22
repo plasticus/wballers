@@ -107,7 +107,18 @@ void main() {
           .where((t) => RegExp(r'^\d+$').hasMatch(t))
           .map(int.parse)
           .any((s) => s > 0);
-      final sawStealOrBlock = allText.any((t) => t == 'STEAL' || t == 'BLOCK');
+      // A real CI failure caught this (2026-08-22): the keyword tag is
+      // always "<TEAM> STEAL"/"<TEAM> BLOCK" (team-color badge, own doc
+      // comment in `live_game_lab_screen.dart`: `_KeywordTag`, "DSM
+      // 3PTS", "KCY STEAL"), never the bare word alone -- `t ==
+      // 'STEAL'`/`'BLOCK'` could never match a real badge, so this
+      // disjunct was silently always false. Landing on a steal/block
+      // before either team had scored yet (`sawScore` also false) made
+      // this genuinely fail, not just "unseeded-game flaky" the way the
+      // comment above assumed -- `contains` matches the real format.
+      final sawStealOrBlock = allText.any(
+        (t) => t.contains('STEAL') || t.contains('BLOCK'),
+      );
       expect(sawScore || sawStealOrBlock, isTrue, reason: '$allText');
     },
   );
