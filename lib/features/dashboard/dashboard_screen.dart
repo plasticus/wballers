@@ -24,7 +24,7 @@ import '../market/presentation/player_market_screen.dart';
 import '../roster/domain/roster_legality.dart';
 import '../roster/domain/roster_status.dart';
 import '../season/application/franchise_rosters.dart';
-import '../season/application/last_season_recap_provider.dart';
+import '../season/application/season_recap_history_provider.dart';
 import '../season/domain/game_day.dart';
 import '../season/domain/game_result.dart';
 import '../season/domain/scheduled_game.dart';
@@ -39,6 +39,7 @@ import '../season/generation/season_schedule_generator.dart'
 import '../season/presentation/all_star_game_result_screen.dart';
 import '../season/presentation/game_result_screen.dart';
 import '../season/presentation/match_preview_screen.dart';
+import '../season/presentation/season_recap_history_screen.dart';
 import '../season/presentation/season_recap_screen.dart';
 import '../season/presentation/skills_competition_result_screen.dart';
 import '../settings/presentation/settings_screen.dart';
@@ -241,7 +242,7 @@ class DashboardScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.lg),
                       _RecentNewsCard(franchise: value),
                       const SizedBox(height: AppSpacing.lg),
-                      const _LastSeasonRecapCard(),
+                      const _SeasonRecapsCard(),
                     ],
                   ),
                   AsyncData() => const _NoFranchiseCard(),
@@ -666,24 +667,27 @@ class _RecentNewsRow extends StatelessWidget {
   }
 }
 
-/// The Dashboard's own re-entry point back into a completed season's
-/// recap, once the next one is already underway (2026-08-22, a direct
-/// GM report: "Couldn't tell if my star player retired. I skimmed the
-/// end season report a little too fast. I need a way to re-open that
-/// report once season 2 has started"). Renders nothing at all -- not
-/// even an empty card -- until [lastSeasonRecapProvider] actually has a
-/// snapshot to show, which only happens after a real season transition
-/// (`last_season_recap_provider.dart`'s own doc comment); a fresh
-/// Season 1 franchise with no completed season yet has nothing to look
-/// back on.
-class _LastSeasonRecapCard extends ConsumerWidget {
-  const _LastSeasonRecapCard();
+/// The Dashboard's own re-entry point back into every completed
+/// season's recap, once the next one is already underway (2026-08-22,
+/// a direct GM report: "Couldn't tell if my star player retired. I
+/// skimmed the end season report a little too fast. I need a way to
+/// re-open that report once season 2 has started", plus a same-day
+/// follow-up: "I want to keep post season reports forever ... They all
+/// need to live somewhere"). Renders nothing at all -- not even an
+/// empty card -- until [seasonRecapSeasonsProvider] actually has at
+/// least one season saved, which only happens after a real season
+/// transition (`season_recap_history_provider.dart`'s own doc
+/// comment); a fresh Season 1 franchise with no completed season yet
+/// has nothing to look back on.
+class _SeasonRecapsCard extends ConsumerWidget {
+  const _SeasonRecapsCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final snapshot = ref.watch(lastSeasonRecapProvider);
-    final franchise = snapshot.value;
-    if (franchise == null) return const SizedBox.shrink();
+    final seasons = ref.watch(seasonRecapSeasonsProvider);
+    if (seasons.value == null || seasons.value!.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     final theme = Theme.of(context);
     return AppCard(
@@ -692,20 +696,13 @@ class _LastSeasonRecapCard extends ConsumerWidget {
           Icon(Icons.history, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            // [franchise.season] here is the completed season's own
-            // 0-indexed number, same "+1 for display" convention every
-            // other season label on this screen already follows.
-            child: Text(
-              'Season ${franchise.season + 1} Recap',
-              style: theme.textTheme.titleMedium,
-            ),
+            child: Text('Season Recaps', style: theme.textTheme.titleMedium),
           ),
           TextButton(
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) =>
-                      SeasonRecapScreen(franchise: franchise, readOnly: true),
+                  builder: (_) => const SeasonRecapHistoryScreen(),
                 ),
               );
             },

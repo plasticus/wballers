@@ -256,6 +256,47 @@ List<String> _weightedLotteryOrder(
   return order;
 }
 
+/// The observed best-to-worst spread of where [teamAbbreviation] could
+/// land, across [trials] independent re-rolls of [generateDraftOrder]
+/// against the same [standings] -- a direct GM ask (2026-08-22): "Give a
+/// range! Always disappointed when I see #2 estimate, but I pick 10th."
+/// A single seeded point-estimate (`SeasonRecapScreen`'s old
+/// `draftPosition`) reads as a promise the real, separately-seeded
+/// lottery (`kRealDraftOrderSeedOffset`) never made -- [_weightedLotteryOrder]
+/// only ever guarantees *more* weight for a worse record, never a floor
+/// or a ceiling, so a single roll landing well outside the "expected"
+/// pick isn't a bug, just an honest long tail this range surfaces
+/// instead of hiding.
+///
+/// A team that actually made the playoffs has no real lottery
+/// randomness at all (the playoff field's order is fixed, reverse
+/// final-standings -- [generateDraftOrder]'s own doc comment), so
+/// [min] and [max] naturally collapse to the same number for them
+/// across every trial -- callers don't need a separate playoff/lottery
+/// branch to know which case they're in.
+///
+/// [random] is consumed across all [trials] as one continuous stream
+/// (not a fresh `Random` per trial) -- still fully deterministic for a
+/// given starting seed, just like every other multi-draw generator in
+/// this codebase, so the same franchise snapshot always reports the
+/// same range on every rebuild.
+({int min, int max}) projectedDraftPositionRange(
+  Random random,
+  List<StandingsEntry> standings,
+  String teamAbbreviation, {
+  int trials = 300,
+}) {
+  var min = 1 << 30;
+  var max = 0;
+  for (var i = 0; i < trials; i++) {
+    final position =
+        generateDraftOrder(random, standings).indexOf(teamAbbreviation) + 1;
+    if (position < min) min = position;
+    if (position > max) max = position;
+  }
+  return (min: min, max: max);
+}
+
 /// Simulates the draft itself: [draftOrder] repeats for each of [rounds]
 /// rounds, and every team takes the best remaining prospect by rating --
 /// "best player available," with no team-needs modeling yet (a real GM AI

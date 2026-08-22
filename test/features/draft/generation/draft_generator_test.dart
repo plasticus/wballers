@@ -186,6 +186,52 @@ void main() {
     });
   });
 
+  group('projectedDraftPositionRange (2026-08-22, a direct GM ask: "Give a '
+      'range! Always disappointed when I see #2 estimate, but I pick '
+      '10th.")', () {
+    test('a playoff team has no real lottery randomness at all -- min '
+        'and max collapse to its one fixed, deterministic position', () {
+      final range = projectedDraftPositionRange(
+        Random(1),
+        _standings(20),
+        // Best playoff record -- picks dead last, same fixed spot
+        // `generateDraftOrder`'s own "worst-record playoff team picks
+        // before the best-record playoff team" test already confirms.
+        'T0',
+      );
+
+      expect(range.min, 20);
+      expect(range.max, 20);
+    });
+
+    test('a deep lottery team\'s range is a real spread, not a single '
+        'point -- bounded to the lottery field itself', () {
+      final range = projectedDraftPositionRange(
+        Random(1),
+        _standings(20),
+        'T19', // worst record -- the most lottery weight, still in play.
+      );
+
+      expect(range.min, greaterThanOrEqualTo(1));
+      expect(range.max, lessThanOrEqualTo(12));
+      expect(
+        range.min,
+        lessThan(range.max),
+        reason:
+            'a real weighted lottery, run enough times, should touch '
+            'more than exactly one outcome for a team that isn\'t '
+            'playoff-locked',
+      );
+    });
+
+    test('is deterministic for a given starting seed', () {
+      final a = projectedDraftPositionRange(Random(4), _standings(20), 'T19');
+      final b = projectedDraftPositionRange(Random(4), _standings(20), 'T19');
+
+      expect(a, b);
+    });
+  });
+
   group('simulateDraft', () {
     test('produces draftOrder.length * rounds picks, with sequential '
         'overall pick numbers', () {

@@ -21,7 +21,7 @@ import 'package:womensbballmgr/features/portrait/generation/portrait_generator.d
 import 'package:womensbballmgr/features/roster/domain/roster_legality.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
-import 'package:womensbballmgr/features/season/application/last_season_recap_provider.dart';
+import 'package:womensbballmgr/features/season/application/season_recap_history_provider.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/generation/postseason_generator.dart'
@@ -2571,19 +2571,47 @@ void main() {
     });
   });
 
-  group(
-    'beginNextSeasonAndPersist freezes a Season Recap snapshot (2026-08-22, '
-    'a direct GM ask: "I need a way to re-open that report once season 2 '
-    'has started")',
-    () {
-      test('lastSeasonRecapProvider has nothing before any season has ever '
-          'transitioned', () async {
-        final repository = InMemorySaveRepository();
-        final container = ProviderContainer(
-          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        );
-        addTearDown(container.dispose);
-        final franchise = createExpansionFranchise(
+  group('beginNextSeasonAndPersist freezes a Season Recap snapshot for every '
+      'completed season (2026-08-22, a direct GM ask: "I need a way to '
+      're-open that report once season 2 has started", plus a same-day '
+      'follow-up: "I want to keep post season reports forever ... They all '
+      'need to live somewhere")', () {
+    test('seasonRecapSeasonsProvider is empty before any season has '
+        'ever transitioned', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      final seasons = await container.read(seasonRecapSeasonsProvider.future);
+
+      expect(seasons, isEmpty);
+    });
+
+    test('holds the just-finished season exactly as it stood before the '
+        'transition, even though the live franchise\'s own season-scoped '
+        'fields get wiped the same call', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
           gmName: 'Jordan Ellis',
           clubName: 'Comets',
           homeCity: 'Springfield, IL',
@@ -2592,110 +2620,87 @@ void main() {
           colors: kStarterPalettes.first,
           emoji: '🏀',
           simulationSeed: 1,
-        );
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .createFranchise(franchise);
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      await _playSeasonToCompletion(container);
+      final beforeTransition = container.read(currentFranchiseProvider).value!;
+      expect(beforeTransition.season, 0);
+      expect(beforeTransition.seasonProgress.playedGames, isNotEmpty);
 
-        final snapshot = await container.read(lastSeasonRecapProvider.future);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
 
-        expect(snapshot, isNull);
-      });
+      final afterTransition = container.read(currentFranchiseProvider).value!;
+      expect(afterTransition.season, 1, reason: 'the live save moved on');
 
-      test('holds the just-finished season exactly as it stood before the '
-          'transition, even though the live franchise\'s own season-scoped '
-          'fields get wiped the same call', () async {
-        final repository = InMemorySaveRepository();
-        final container = ProviderContainer(
-          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        );
-        addTearDown(container.dispose);
-        final franchise = withFullActiveRoster(
-          createExpansionFranchise(
-            gmName: 'Jordan Ellis',
-            clubName: 'Comets',
-            homeCity: 'Springfield, IL',
-            conference: Conference.atlantic,
-            replacedTeamAbbreviation: 'BOS',
-            colors: kStarterPalettes.first,
-            emoji: '🏀',
-            simulationSeed: 1,
-          ),
-        );
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .createFranchise(franchise);
-        await _playSeasonToCompletion(container);
-        final beforeTransition = container
-            .read(currentFranchiseProvider)
-            .value!;
-        expect(beforeTransition.season, 0);
-        expect(beforeTransition.seasonProgress.playedGames, isNotEmpty);
+      final seasons = await container.read(seasonRecapSeasonsProvider.future);
+      expect(seasons, [0]);
+      final snapshot = await container.read(seasonRecapProvider(0).future);
+      expect(snapshot, isNotNull);
+      expect(snapshot!.season, 0, reason: 'the season that just ended');
+      // PlayedGame has no value equality, and the snapshot round-trips
+      // through JSON (a fresh, distinct object graph) -- compare each
+      // game's actual result instead of list identity.
+      List<(int, int)> scores(Franchise f) => [
+        for (final played in f.seasonProgress.playedGames)
+          (played.homeScore, played.awayScore),
+      ];
+      expect(
+        scores(snapshot),
+        scores(beforeTransition),
+        reason:
+            'the exact schedule/results as they stood right before the '
+            'transition, not the fresh one the new season now has',
+      );
+    });
 
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .beginNextSeasonAndPersist();
+    test('a second real transition adds a second entry rather than '
+        'overwriting the first -- every completed season stays '
+        'reachable, not just the latest one', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      await _playSeasonToCompletion(container);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+      await _playSeasonToCompletion(container);
 
-        final afterTransition = container.read(currentFranchiseProvider).value!;
-        expect(afterTransition.season, 1, reason: 'the live save moved on');
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
 
-        final snapshot = await container.read(lastSeasonRecapProvider.future);
-        expect(snapshot, isNotNull);
-        expect(snapshot!.season, 0, reason: 'the season that just ended');
-        // PlayedGame has no value equality, and the snapshot round-trips
-        // through JSON (a fresh, distinct object graph) -- compare each
-        // game's actual result instead of list identity.
-        List<(int, int)> scores(Franchise f) => [
-          for (final played in f.seasonProgress.playedGames)
-            (played.homeScore, played.awayScore),
-        ];
-        expect(
-          scores(snapshot),
-          scores(beforeTransition),
-          reason:
-              'the exact schedule/results as they stood right before the '
-              'transition, not the fresh one the new season now has',
-        );
-      });
-
-      test('a second real transition overwrites the snapshot rather than '
-          'keeping a growing history', () async {
-        final repository = InMemorySaveRepository();
-        final container = ProviderContainer(
-          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-        );
-        addTearDown(container.dispose);
-        final franchise = withFullActiveRoster(
-          createExpansionFranchise(
-            gmName: 'Jordan Ellis',
-            clubName: 'Comets',
-            homeCity: 'Springfield, IL',
-            conference: Conference.atlantic,
-            replacedTeamAbbreviation: 'BOS',
-            colors: kStarterPalettes.first,
-            emoji: '🏀',
-            simulationSeed: 1,
-          ),
-        );
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .createFranchise(franchise);
-        await _playSeasonToCompletion(container);
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .beginNextSeasonAndPersist();
-        await _playSeasonToCompletion(container);
-
-        await container
-            .read(currentFranchiseProvider.notifier)
-            .beginNextSeasonAndPersist();
-
-        final snapshot = await container.read(lastSeasonRecapProvider.future);
-        expect(snapshot, isNotNull);
-        expect(snapshot!.season, 1, reason: 'the most recently completed one');
-      });
-    },
-  );
+      final seasons = await container.read(seasonRecapSeasonsProvider.future);
+      expect(seasons, [1, 0], reason: 'most recently completed first');
+      final season0 = await container.read(seasonRecapProvider(0).future);
+      final season1 = await container.read(seasonRecapProvider(1).future);
+      expect(season0, isNotNull);
+      expect(season0!.season, 0);
+      expect(season1, isNotNull);
+      expect(season1!.season, 1);
+    });
+  });
 
   test(
     'markDraftScreenOpened does nothing when there is no current franchise',

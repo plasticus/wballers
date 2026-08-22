@@ -18,6 +18,7 @@ import 'package:womensbballmgr/features/franchise/persistence/franchise_json.dar
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
+import 'package:womensbballmgr/features/player/domain/draft_record.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
@@ -180,9 +181,11 @@ void main() {
   });
 
   testWidgets(
-    'shows a projected draft position matching a real lottery run, and a '
-    'Continental Cup elimination line exactly when the GM\'s own team was '
-    'actually eliminated (2026-08-10, TODO.md items 12/13)',
+    'shows a projected draft position range matching a real lottery run, '
+    'and a Continental Cup elimination line exactly when the GM\'s own '
+    'team was actually eliminated (2026-08-10, TODO.md items 12/13; range '
+    'added 2026-08-22, a direct GM ask: "Give a range! Always '
+    'disappointed when I see #2 estimate, but I pick 10th.")',
     (tester) async {
       final franchise = _playFullSeason(1);
       final playedGames = franchise.seasonProgress.playedGames;
@@ -192,12 +195,11 @@ void main() {
         for (final aiTeam in franchise.league.aiTeams) aiTeam.team,
       ];
       final standings = currentStandings(franchise.seasonProgress, leagueTeams);
-      final expectedDraftOrder = generateDraftOrder(
+      final expectedRange = projectedDraftPositionRange(
         Random(franchise.simulationSeed + kDraftOrderSeedOffset),
         standings,
+        franchise.team.abbreviation,
       );
-      final expectedPick =
-          expectedDraftOrder.indexOf(franchise.team.abbreviation) + 1;
       final expectedEliminationRound = continentalCupEliminationRound(
         playedGames,
         franchise.team.abbreviation,
@@ -209,7 +211,12 @@ void main() {
       await tester.pump();
 
       expect(
-        find.textContaining('Rough estimate: #$expectedPick overall'),
+        find.textContaining(
+          expectedRange.min == expectedRange.max
+              ? 'Projected: #${expectedRange.min} overall'
+              : 'Realistic range: #${expectedRange.min}-#${expectedRange.max} '
+                    'overall',
+        ),
         findsOneWidget,
       );
       if (expectedEliminationRound != null) {
@@ -226,6 +233,110 @@ void main() {
           findsNothing,
         );
       }
+    },
+  );
+
+  testWidgets(
+    'shows a New to the Roster section listing this season\'s real draft '
+    'picks, round and pick number included, but never a free-agent '
+    'signing who merely happens to be a rookie too (2026-08-22, a direct '
+    'GM ask: "Future post season reports should note who the drafted in '
+    'rookies are")',
+    (tester) async {
+      final rookie =
+          playerWithOverall(
+            65,
+            id: 'p1',
+            name: 'Casey Nwosu',
+            primaryPosition: Position.shootingGuard,
+          ).copyWithDraftRecord(
+            const PlayerDraftRecord(season: 0, round: 2, pickNumber: 14),
+          );
+      final undraftedRookie = playerWithOverall(
+        60,
+        id: 'p2',
+        name: 'Undrafted Rookie',
+        primaryPosition: Position.center,
+      );
+      final priorSeasonPick =
+          playerWithOverall(
+            68,
+            id: 'p3',
+            name: 'Veteran From An Earlier Draft',
+            primaryPosition: Position.pointGuard,
+          ).copyWithDraftRecord(
+            const PlayerDraftRecord(season: 2, round: 1, pickNumber: 3),
+          );
+      final franchise = Franchise(
+        id: 'franchise-1',
+        gmName: 'Taylor Reed',
+        team: kLeagueTeamPool.first,
+        coach: const Coach(
+          name: 'Jordan Ellis',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: [
+          RosterMembership(player: rookie, status: RosterStatus.active),
+          RosterMembership(
+            player: undraftedRookie,
+            status: RosterStatus.active,
+          ),
+          RosterMembership(
+            player: priorSeasonPick,
+            status: RosterStatus.active,
+          ),
+        ],
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: testLeague(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ),
+        seasonProgress: testSeasonProgress(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+          ownTeam: kLeagueTeamPool.first,
+        ),
+        trainingCoaches: testTrainingCoaches(),
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(find.text('New to the Roster'), findsOneWidget);
+      expect(
+        find.text('1 rookie joined the team in this season\'s draft.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Casey Nwosu (Round 2, Pick 14)'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Undrafted Rookie'), findsNothing);
+      expect(
+        find.textContaining('Veteran From An Earlier Draft'),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'omits the New to the Roster section when nobody was drafted onto '
+    'the roster this season',
+    (tester) async {
+      final franchise = _playFullSeason(1);
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(find.text('New to the Roster'), findsNothing);
     },
   );
 

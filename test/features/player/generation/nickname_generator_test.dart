@@ -2,10 +2,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:womensbballmgr/features/player/domain/achievement.dart';
 import 'package:womensbballmgr/features/player/generation/nickname_generator.dart';
 
+/// [Achievement.allStarSelection] and [Achievement.skillsChallengeWinner]
+/// deliberately have no [kNicknamePools] entry -- see that map's own doc
+/// comment (2026-08-22, a direct GM report: "the ones being given are
+/// not from my lists", traced to a pool invented for these two that was
+/// never actually part of `nicknames.md`).
+const _achievementsWithNoPool = {
+  Achievement.allStarSelection,
+  Achievement.skillsChallengeWinner,
+};
+
 void main() {
-  test('every achievement has a pool of exactly 25 nicknames, no '
-      'duplicates within a pool', () {
+  test('every achievement backed by nicknames.md has a pool of exactly '
+      '25 nicknames, no duplicates within a pool', () {
     for (final achievement in Achievement.values) {
+      if (_achievementsWithNoPool.contains(achievement)) continue;
       final pool = kNicknamePools[achievement];
       expect(pool, isNotNull);
       expect(pool, hasLength(25));
@@ -13,8 +24,16 @@ void main() {
     }
   });
 
+  test('allStarSelection and skillsChallengeWinner have no pool at all -- '
+      'nothing invented stands in for the GM\'s own list', () {
+    for (final achievement in _achievementsWithNoPool) {
+      expect(kNicknamePools.containsKey(achievement), isFalse);
+    }
+  });
+
   test('suggestNickname always returns a candidate from the right pool', () {
     for (final achievement in Achievement.values) {
+      if (_achievementsWithNoPool.contains(achievement)) continue;
       for (var occurrenceIndex = 0; occurrenceIndex < 30; occurrenceIndex++) {
         expect(
           kNicknamePools[achievement],

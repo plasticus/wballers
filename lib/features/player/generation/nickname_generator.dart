@@ -13,6 +13,23 @@ import '../domain/achievement.dart';
 /// comment) can get a player through 25 wins of the *same* achievement
 /// before it has to reuse one, a direct GM ask: "enough nicknames that a
 /// player could play 25 seasons before seeing repeats."
+///
+/// Only covers the 7 [Achievement] values `nicknames.md` actually
+/// supplied a pool for -- [Achievement.allStarSelection] and
+/// [Achievement.skillsChallengeWinner] deliberately have no entry here.
+/// An earlier pass invented a 25-candidate pool for each of those two
+/// (never sourced from `nicknames.md`) so every achievement had
+/// *something*; a direct GM report (2026-08-22) caught it directly --
+/// "Investigate nicknames - the ones being given are not from my
+/// lists" -- traced to exactly those two invented pools (one of them is
+/// where "The Craftsman", a nickname the GM specifically flagged as one
+/// she never wrote, came from). `achievement_grant.dart`'s
+/// `applyAchievementGrant` already stopped suggesting nicknames for
+/// both achievements for a separate reason (over-eager nickname churn
+/// for a merely-attended All-Star weekend); this removes the invented
+/// pools outright so there's nothing left to accidentally wire back up
+/// -- every candidate a player can actually be suggested now traces
+/// back to a real line in `nicknames.md`.
 const Map<Achievement, List<String>> kNicknamePools = {
   Achievement.leagueMvp: [
     'Golden',
@@ -202,60 +219,6 @@ const Map<Achievement, List<String>> kNicknamePools = {
     'Headturner',
     'The Gala',
     'Sparkler',
-  ],
-  Achievement.allStarSelection: [
-    'Invited',
-    'The Nod',
-    'Recognized',
-    'Honor Roll',
-    'All-League',
-    'The Selection',
-    'Front Row',
-    'Roll Call',
-    'The Nominee',
-    'Standout',
-    'Signature',
-    'Top Tier',
-    'The Pick',
-    'Blue Ribbon',
-    'Elite Company',
-    'The Ballot',
-    'Vote Getter',
-    'Fan Favorite',
-    'Rising Star',
-    'The Honoree',
-    'All-Conference',
-    'Top Billing',
-    'The Shortlist',
-    'Household Name',
-    'Deserving',
-  ],
-  Achievement.skillsChallengeWinner: [
-    'Trick Shot',
-    'Circuit Breaker',
-    'The Specialist',
-    'Quickdraw',
-    'The Technician',
-    'Fancy Footwork',
-    'The Showman',
-    'Sharpshooter',
-    'Clutch Gene',
-    'The Natural',
-    'Prime Cut',
-    'The Virtuoso',
-    'Highlight Reel',
-    'The Craftsman',
-    'Full Send',
-    'No Hesitation',
-    'The Wildcard',
-    'Ace',
-    'The Finisher',
-    'The Sizzle',
-    'Fast Hands',
-    'The Contender',
-    'Champion Form',
-    'The Exhibition',
-    'Skills Kid',
   ],
 };
 

@@ -39,11 +39,13 @@ class SeasonRecapScreen extends ConsumerStatefulWidget {
   final Franchise franchise;
 
   /// True when this is reopened after the fact -- the Dashboard's
-  /// "Season N Recap" card (2026-08-22, a direct GM ask: "I need a way
-  /// to re-open that report once season 2 has started"), rather than
+  /// "Season Recaps" card and its history list (2026-08-22, a direct GM
+  /// ask: "I need a way to re-open that report once season 2 has
+  /// started" plus a same-day follow-up, "I want to keep post season
+  /// reports forever ... They all need to live somewhere"), rather than
   /// the live, still-current-season champion-crowned flow. [franchise]
   /// here is a frozen snapshot from before that transition
-  /// (`last_season_recap_provider.dart`), so "Begin Season N" has
+  /// (`season_recap_history_provider.dart`), so "Begin Season N" has
   /// already happened for real and must not be offered again.
   final bool readOnly;
 
@@ -133,25 +135,47 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
       franchise.team.abbreviation,
     );
 
-    // Still just a projection, not the real pick -- this re-derives its
-    // own lottery roll off kDraftOrderSeedOffset (the preview-only
-    // stream), separate from the real draft order beginNextSeason
-    // actually computes off kRealDraftOrderSeedOffset once the GM taps
-    // "Begin Season N" below (2026-08-11, 0D_Season_2_Roadmap.md's
-    // "The draft, for real" stage) -- the two seeds are deliberately
-    // different streams, so this number can land close to, but isn't
-    // guaranteed to exactly match, the real pick. `generateDraftOrder`
-    // needs a real lottery field (more teams than make the playoffs) to
-    // work at all -- guards a full league always satisfies, but a
-    // handful of tests build a deliberately thin standings table that
-    // wouldn't.
-    final draftPosition = standings.length > kPostseasonTeamCount
-        ? generateDraftOrder(
-                Random(franchise.seasonSeed + kDraftOrderSeedOffset),
-                standings,
-              ).indexOf(franchise.team.abbreviation) +
-              1
+    // Still just a projection, not the real pick -- re-derived off
+    // kDraftOrderSeedOffset (the preview-only stream), separate from the
+    // real draft order beginNextSeason actually computes off
+    // kRealDraftOrderSeedOffset once the GM taps "Begin Season N" below
+    // (2026-08-11, 0D_Season_2_Roadmap.md's "The draft, for real"
+    // stage). A single point-estimate used to read as a promise the
+    // real, separately-seeded lottery never made -- a direct GM report
+    // (2026-08-22): "Give a range! Always disappointed when I see #2
+    // estimate, but I pick 10th." -- so this now reports the observed
+    // best-to-worst spread across many re-rolls instead
+    // (`projectedDraftPositionRange`'s own doc comment covers why a
+    // playoff team's own range still collapses to one confident
+    // number). `generateDraftOrder` needs a real lottery field (more
+    // teams than make the playoffs) to work at all -- guards a full
+    // league always satisfies, but a handful of tests build a
+    // deliberately thin standings table that wouldn't.
+    final draftPositionRange = standings.length > kPostseasonTeamCount
+        ? projectedDraftPositionRange(
+            Random(franchise.seasonSeed + kDraftOrderSeedOffset),
+            standings,
+            franchise.team.abbreviation,
+          )
         : null;
+
+    // Rookies who actually joined via this exact season's draft --
+    // `PlayerDraftRecord.season` is set once, at the real pick
+    // (`draft_advancer.dart`'s `finalizeDraft`), so this is never
+    // confused with a free-agent signing who merely happens to have 0
+    // years of service (2026-08-22, a direct GM ask: "Future post
+    // season reports should note who the drafted in rookies are").
+    // Sorted by pick number -- reads like a real draft recap, earliest
+    // pick first, not roster order.
+    final draftedRookies =
+        [
+          for (final membership in franchise.roster)
+            if (membership.player.draftRecord?.season == franchise.season)
+              membership.player,
+        ]..sort(
+          (a, b) =>
+              a.draftRecord!.pickNumber.compareTo(b.draftRecord!.pickNumber),
+        );
 
     final seasonGrowth =
         aggregateSeasonGrowth(
@@ -256,6 +280,38 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                 ),
               ),
             ],
+            if (draftedRookies.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Text('New to the Roster', style: theme.textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                draftedRookies.length == 1
+                    ? '1 rookie joined the team in this season\'s draft.'
+                    : '${draftedRookies.length} rookies joined the team in '
+                          'this season\'s draft.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < draftedRookies.length; i++)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: i == 0 ? 0 : AppSpacing.sm,
+                        ),
+                        child: Text(
+                          '${draftedRookies[i].primaryPosition.abbreviation} '
+                          '${draftedRookies[i].name} '
+                          '(Round ${draftedRookies[i].draftRecord!.round}, '
+                          'Pick ${draftedRookies[i].draftRecord!.pickNumber})',
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             Text('Player Development', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.xs),
@@ -289,7 +345,7 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
               if (i != seasonGrowth.length - 1)
                 const SizedBox(height: AppSpacing.sm),
             ],
-            if (draftPosition != null && !widget.readOnly) ...[
+            if (draftPositionRange != null && !widget.readOnly) ...[
               const SizedBox(height: AppSpacing.lg),
               AppCard(
                 child: Column(
@@ -298,10 +354,17 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                     Text('Next Draft', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Rough estimate: #$draftPosition overall, off this '
-                      'season\'s final standings -- the real lottery runs '
-                      'when you begin the next season below, so the exact '
-                      'pick may land a little differently.',
+                      draftPositionRange.min == draftPositionRange.max
+                          ? 'Projected: #${draftPositionRange.min} overall, '
+                                'off this season\'s final standings -- the '
+                                'playoff field\'s order isn\'t subject to '
+                                'the lottery, so this one\'s locked in.'
+                          : 'Realistic range: #${draftPositionRange.min}-'
+                                '#${draftPositionRange.max} overall, off '
+                                'this season\'s final standings -- the real '
+                                'lottery runs when you begin the next '
+                                'season below, and it can land anywhere in '
+                                'that range.',
                     ),
                   ],
                 ),
