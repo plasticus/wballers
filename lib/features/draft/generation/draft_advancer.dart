@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../franchise/domain/draft_waived_player.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
@@ -276,6 +277,19 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
   updated = updated
       .copyWithLeague(League(aiTeams: aiTeams))
       .copyWithFreeAgents(freeAgents);
+
+  // Snapshotted here, not re-derived later -- [ownWaive.waived] is the
+  // only place this exact list of players ever exists, gone from
+  // [freeAgents] the instant anyone signs one of them
+  // (`mailbox.dart`'s draft-recap mail is the one reader, 2026-08-22,
+  // a direct GM ask: "lament the loss of some good bench players").
+  updated = updated.copyWithDraftWaivedPlayers([
+    for (final player in ownWaive.waived)
+      DraftWaivedPlayer(
+        name: player.name,
+        primaryPosition: player.primaryPosition,
+      ),
+  ]);
 
   return updated.copyWithDraftInProgress(null).copyWithDraftClass(const []);
 }

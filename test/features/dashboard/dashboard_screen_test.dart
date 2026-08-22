@@ -369,6 +369,43 @@ void main() {
     },
   );
 
+  testWidgets(
+    'lists every pick the GM currently owns and hasn\'t made yet, one per '
+    'round, naming the real trade partner for one acquired via trade '
+    '(2026-08-22, a direct GM ask: "it should say all of my picks '
+    'remaining, and their overall number")',
+    (tester) async {
+      final ownAbbreviation = kLeagueTeamPool.first.abbreviation;
+      final baseFranchise = _franchiseWith();
+      final tradePartner = baseFranchise.league.aiTeams.first.team;
+      final franchise = _franchiseWith(
+        draftInProgress: DraftInProgress(
+          order: [ownAbbreviation, tradePartner.abbreviation, 'CCC'],
+          rounds: 2,
+          pickOwnershipOverrides: {
+            2: {tradePartner.abbreviation: ownAbbreviation},
+          },
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Picks Remaining'), findsOneWidget);
+      expect(find.text('Rd1 pick 1'), findsOneWidget);
+      expect(
+        find.text('Rd2 pick 5 (from ${tradePartner.name})'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('shows the current fictional date and week on the Season card '
       '(2026-08-09, a direct GM ask)', (tester) async {
     // Nothing played yet -- "current" is the season's very first game

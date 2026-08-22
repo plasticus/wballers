@@ -106,5 +106,75 @@ void main() {
       // Round 2 has no override for AAA -- back to the natal owner.
       expect(draft.onTheClock, 'AAA');
     });
+
+    group('remainingPicksFor (2026-08-22, a direct GM ask: "it should say all '
+        'of my picks remaining, and their overall number")', () {
+      test('lists every not-yet-made natal slot, one per round, in round '
+          'order', () {
+        final draft = DraftInProgress(
+          order: const ['AAA', 'BBB', 'CCC'],
+          rounds: 3,
+        );
+
+        final remaining = draft.remainingPicksFor('AAA');
+
+        expect(remaining, [
+          (round: 1, overallPickNumber: 1, natalTeamAbbreviation: 'AAA'),
+          (round: 2, overallPickNumber: 4, natalTeamAbbreviation: 'AAA'),
+          (round: 3, overallPickNumber: 7, natalTeamAbbreviation: 'AAA'),
+        ]);
+      });
+
+      test('omits a slot that\'s already been made, even by someone '
+          'else entirely', () {
+        final draft = DraftInProgress(
+          order: const ['AAA', 'BBB', 'CCC'],
+          rounds: 2,
+          picks: [_pick(1, 1, 'AAA'), _pick(1, 2, 'BBB'), _pick(1, 3, 'CCC')],
+        );
+
+        final remaining = draft.remainingPicksFor('AAA');
+
+        expect(remaining, [
+          (round: 2, overallPickNumber: 4, natalTeamAbbreviation: 'AAA'),
+        ]);
+      });
+
+      test('includes a slot acquired via trade, naming the real natal '
+          'team it came from -- and no longer includes it for the team '
+          'that traded it away', () {
+        final draft = DraftInProgress(
+          order: const ['AAA', 'BBB', 'CCC'],
+          rounds: 2,
+          pickOwnershipOverrides: const {
+            2: {'BBB': 'AAA'},
+          },
+        );
+
+        final aaaRemaining = draft.remainingPicksFor('AAA');
+        final bbbRemaining = draft.remainingPicksFor('BBB');
+
+        expect(aaaRemaining, [
+          (round: 1, overallPickNumber: 1, natalTeamAbbreviation: 'AAA'),
+          // AAA's own natal round-2 slot, untouched by the trade.
+          (round: 2, overallPickNumber: 4, natalTeamAbbreviation: 'AAA'),
+          // Plus BBB's round-2 slot, acquired via the trade.
+          (round: 2, overallPickNumber: 5, natalTeamAbbreviation: 'BBB'),
+        ]);
+        expect(bbbRemaining, [
+          (round: 1, overallPickNumber: 2, natalTeamAbbreviation: 'BBB'),
+        ]);
+      });
+
+      test('is empty for a team with no picks left at all', () {
+        final draft = DraftInProgress(
+          order: const ['AAA', 'BBB'],
+          rounds: 1,
+          picks: [_pick(1, 1, 'AAA'), _pick(1, 2, 'BBB')],
+        );
+
+        expect(draft.remainingPicksFor('AAA'), isEmpty);
+      });
+    });
   });
 }

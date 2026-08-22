@@ -1,9 +1,10 @@
+import '../../franchise/domain/draft_waived_player.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../franchise/domain/franchise_legality.dart';
 import '../../franchise/domain/injury_report_entry.dart';
 import '../../franchise/domain/league_retirement.dart';
+import '../../player/domain/player.dart';
 import '../../player/domain/player_injury.dart';
-import '../../player/domain/position.dart';
 import '../../player/domain/retirement_reason.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
@@ -140,6 +141,26 @@ List<MailItem> mailboxFor(Franchise franchise) {
           subject: '${retirement.name} Has Retired',
           body: assistantGmOwnRetirementMessage(retirement),
         ),
+    // A real, per-draft recap -- a direct GM ask (2026-08-22): "I need
+    // to get an email after the draft noting who I drafted, and how
+    // excited she is for them to join the team. Advise to make use of
+    // development slots, and lament the loss of some good bench
+    // players to maintain a legal roster." [_draftedThisSeason] and
+    // [Franchise.draftWaivedPlayers] both naturally go stale the moment
+    // the *next* season's own draft finishes (the former no longer
+    // matches [Franchise.season], the latter's already been reset by
+    // `copyWithNewSeason`), so this needs no separate "already
+    // announced" flag of its own.
+    if (_draftedThisSeason(franchise) case final drafted
+        when drafted.isNotEmpty)
+      AssistantGmMailItem(
+        id: draftRecapMailId(franchise.season),
+        subject: 'Draft Recap',
+        body: assistantGmDraftRecapMessage(
+          drafted: drafted,
+          waived: franchise.draftWaivedPlayers,
+        ),
+      ),
     if (evaluateFranchiseLegality(franchise) case final legality
         when !legality.isLegal)
       RosterLegalityMailItem(legality: legality),
@@ -230,6 +251,32 @@ const _kInjuryRecommendationPrefix = 'injury_recommendation_';
 /// [_kInjuryRecommendationPrefix].
 const _kOwnRetirementPrefix = 'own_retirement_';
 
+/// Shared with [draftRecapMailId] -- same reasoning as
+/// [_kInjuryRecommendationPrefix], used by [_recencyWeek]'s own prefix
+/// match rather than [_isPinned] (the draft recap isn't actionable, so
+/// it sorts by recency like any other report instead of pinning).
+const _kDraftRecapPrefix = 'draft_recap_';
+
+/// Stable id for one season's draft-recap mail -- exported so
+/// `mailboxFor` and any test asserting on it share the exact same
+/// format. See [assistantGmDraftRecapMessage].
+String draftRecapMailId(int season) => '$_kDraftRecapPrefix$season';
+
+/// Every player [franchise]'s own roster picked up in this exact
+/// season's own draft, sorted earliest pick first -- [PlayerDraftRecord]
+/// is the real signal (`draft_advancer.dart`'s `finalizeDraft`), never
+/// just `yearsOfService == 0`, so a free-agent rookie signing is never
+/// miscredited as a draft pick here.
+List<Player> _draftedThisSeason(Franchise franchise) {
+  return [
+    for (final membership in franchise.roster)
+      if (membership.player.draftRecord?.season == franchise.season)
+        membership.player,
+  ]..sort(
+    (a, b) => a.draftRecord!.pickNumber.compareTo(b.draftRecord!.pickNumber),
+  );
+}
+
 /// Stable id for the GM's own roster player's retirement mail, one per
 /// [Player.id] -- exported so `mailboxFor` and any test asserting on it
 /// share the exact same format. See [assistantGmOwnRetirementMessage].
@@ -258,6 +305,10 @@ int? _recencyWeek(MailItem item) => switch (item) {
   LeagueRetirementsMailItem() => kPostseasonFinalsWeek,
   InjuryReportMailItem(:final week) => week,
   AssistantGmMailItem(id: kRosterCompleteMailId) => -1,
+  // Same off-season bucket as [LeagueRetirementsMailItem] above -- the
+  // draft has no real calendar week of its own to key off either.
+  AssistantGmMailItem(:final id) when id.startsWith(_kDraftRecapPrefix) =>
+    kPostseasonFinalsWeek,
   AssistantGmMailItem() ||
   RetirementDecisionMailItem() ||
   RosterLegalityMailItem() ||
@@ -376,3 +427,40 @@ const assistantGmRosterCompleteMessage =
     'reads the way you want it to), Training (a focus for the group, '
     'and whether anyone should get one-on-one attention), and Bench '
     'Order (who\'s actually getting minutes). Let\'s build something.';
+
+/// The Assistant GM's real draft recap, naming every [drafted] player
+/// (round/pick included) with genuine enthusiasm, a nudge toward
+/// [RosterStatus.developmental] slots, and -- only when [waived] isn't
+/// empty -- an honest note about who had to go to make room (2026-08-22,
+/// a direct GM ask: "I need to get an email after the draft noting who
+/// I drafted, and how excited she is for them to join the team. Advise
+/// to make use of development slots, and lament the loss of some good
+/// bench players to maintain a legal roster.").
+String assistantGmDraftRecapMessage({
+  required List<Player> drafted,
+  required List<DraftWaivedPlayer> waived,
+}) {
+  final names = [
+    for (final player in drafted)
+      '${player.primaryPosition.abbreviation} ${player.name} '
+          '(Round ${player.draftRecord!.round}, '
+          'Pick ${player.draftRecord!.pickNumber})',
+  ];
+  final intro = drafted.length == 1
+      ? 'Boss -- welcome the newest addition to the roster:'
+      : 'Boss -- welcome the ${drafted.length} newest additions to the '
+            'roster:';
+  final waivedNote = waived.isEmpty
+      ? ''
+      : '\n\nTo make room, we had to let '
+            '${waived.map((p) => '${p.primaryPosition.abbreviation} ${p.name}').join(', ')} '
+            'go. Tough call${waived.length == 1 ? '' : 's'}, but good '
+            'depth -- the roster\'s legal again.';
+
+  return '$intro\n\n'
+      '${names.join('\n')}\n\n'
+      'I\'m genuinely excited about this class. Get them into camp and '
+      'make good use of the Developmental slots on the ones with '
+      'real upside -- that\'s exactly what those spots are there for.'
+      '$waivedNote';
+}

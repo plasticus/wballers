@@ -13,6 +13,7 @@ import '../../training/domain/training_coach.dart';
 import '../../training/domain/training_plan.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../training/domain/training_report.dart';
+import 'draft_waived_player.dart';
 import 'former_player_record.dart';
 import 'injury_report_entry.dart';
 import 'league_retirement.dart';
@@ -89,6 +90,7 @@ class Franchise {
     this.pickOwnershipOverrides = const {},
     this.narrativeVeteranRetired = false,
     this.formerPlayers = const [],
+    this.draftWaivedPlayers = const [],
   }) : assert(season >= 0, 'season must not be negative'),
        assert(
          _replacedTeamIsInSameConference(team, replacedTeamAbbreviation),
@@ -401,6 +403,57 @@ class Franchise {
   /// yet regardless.
   final List<FormerPlayerRecord> formerPlayers;
 
+  /// Set exactly once per draft, the instant `draft_advancer.dart`'s
+  /// `finalizeDraft` finishes (its own `_waiveDownToLegal` waive-down for
+  /// the GM's own team) -- see [DraftWaivedPlayer]'s own doc comment for
+  /// why this exists (2026-08-22, a direct GM ask: "lament the loss of
+  /// some good bench players to maintain a legal roster") and why it
+  /// resets every new season rather than accumulating.
+  final List<DraftWaivedPlayer> draftWaivedPlayers;
+
+  /// Returns a copy with [newWaived] replacing [draftWaivedPlayers]
+  /// outright -- unlike [copyWithLeagueRetirements], this never appends:
+  /// `finalizeDraft` computes the *complete* waived-for-this-draft list
+  /// in one pass, so there's nothing to accumulate onto.
+  Franchise copyWithDraftWaivedPlayers(List<DraftWaivedPlayer> newWaived) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
+      draftInProgress: draftInProgress,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
+      draftWaivedPlayers: newWaived,
+    );
+  }
+
   /// Returns a copy with [newDraftInProgress] replacing [draftInProgress] --
   /// `draft_advancer.dart` is the only caller so far, both to advance AI
   /// picks and to record the GM's own, and finally to clear it (`null`)
@@ -440,6 +493,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -481,6 +535,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -522,6 +577,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -567,6 +623,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -607,6 +664,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -647,6 +705,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -687,6 +746,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -727,6 +787,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -777,6 +838,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -825,6 +887,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -866,6 +929,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -911,6 +975,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -957,6 +1022,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -999,6 +1065,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1046,6 +1113,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1090,6 +1158,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1131,6 +1200,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1172,6 +1242,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1217,6 +1288,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1265,6 +1337,7 @@ class Franchise {
       pickOwnershipOverrides: newPickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1307,6 +1380,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: newNarrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1363,6 +1437,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 
@@ -1426,6 +1501,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: formerPlayers,
+      draftWaivedPlayers: const [],
     );
   }
 
@@ -1478,6 +1554,7 @@ class Franchise {
       pickOwnershipOverrides: pickOwnershipOverrides,
       narrativeVeteranRetired: narrativeVeteranRetired,
       formerPlayers: [...formerPlayers, record],
+      draftWaivedPlayers: draftWaivedPlayers,
     );
   }
 }

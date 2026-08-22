@@ -94,4 +94,34 @@ class DraftInProgress {
   /// *next* pick will be -- matches [DraftPick.pickNumber]'s own
   /// numbering.
   int get nextOverallPick => picks.length + 1;
+
+  /// Every slot [teamAbbreviation] currently actually owns and hasn't
+  /// been made yet -- their own natal slot in a round not yet reached,
+  /// or one acquired via a trade ([pickOwnershipOverrides]), in round
+  /// order (2026-08-22, a direct GM ask: "it should say all of my
+  /// picks remaining, and their overall number"). [natalTeamAbbreviation]
+  /// is [teamAbbreviation] itself for an untraded slot -- callers that
+  /// want to name the trade partner only when there actually was one
+  /// (`_DraftScheduleRow`'s "(from Cincinnati)" phrasing) compare the
+  /// two rather than this getter deciding that for them.
+  ///
+  /// A slot already made (its overall pick number is `<= picks.length`)
+  /// never appears here, regardless of who made it -- "remaining" means
+  /// remaining across the *whole* draft, not just this team's own
+  /// already-resolved turns.
+  List<({int round, int overallPickNumber, String natalTeamAbbreviation})>
+  remainingPicksFor(String teamAbbreviation) {
+    return [
+      for (var round = 1; round <= rounds; round++)
+        for (var slot = 0; slot < order.length; slot++)
+          if ((round - 1) * order.length + slot + 1 > picks.length &&
+              currentPickOwner(pickOwnershipOverrides, round, order[slot]) ==
+                  teamAbbreviation)
+            (
+              round: round,
+              overallPickNumber: (round - 1) * order.length + slot + 1,
+              natalTeamAbbreviation: order[slot],
+            ),
+    ];
+  }
 }

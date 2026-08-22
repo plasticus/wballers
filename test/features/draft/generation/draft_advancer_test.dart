@@ -672,6 +672,94 @@ void main() {
           );
           expect(finalized.freeAgents.any((p) => p.id == weakestId), isTrue);
         }
+        // An AI team's own roster crunch is invisible to the GM --
+        // `Franchise.draftWaivedPlayers` only ever names the GM's *own*
+        // roster's casualties (`mailbox.dart`'s draft-recap mail is the
+        // one reader).
+        expect(finalized.draftWaivedPlayers, isEmpty);
+      });
+    });
+
+    group('draftWaivedPlayers (2026-08-22, a direct GM ask: "lament the loss '
+        'of some good bench players to maintain a legal roster")', () {
+      test('names exactly the GM\'s own weakest pre-existing players '
+          'waived to fit the draft class, never a drafted rookie', () {
+        final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
+        final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
+        final fullRoster = [
+          RosterMembership(
+            player: playerWithOverall(
+              50,
+              id: 'vet-weakest',
+              name: 'Riley Okafor',
+              primaryPosition: Position.center,
+            ),
+            status: RosterStatus.active,
+          ),
+          for (var i = 1; i < kActiveRosterSize; i++)
+            RosterMembership(
+              player: playerWithOverall(50 + i, id: 'vet-$i'),
+              status: RosterStatus.active,
+            ),
+        ];
+        final franchise = base.copyWithRoster(fullRoster);
+        final prospect = _prospect('rookie-1', 60);
+        final draft = DraftInProgress(
+          order: [ownAbbreviation],
+          rounds: 1,
+          picks: [
+            DraftPick(
+              round: 1,
+              pickNumber: 1,
+              teamAbbreviation: ownAbbreviation,
+              prospect: prospect,
+            ),
+          ],
+        );
+        final withDraft = franchise
+            .copyWithDraftInProgress(draft)
+            .copyWithDraftClass([prospect]);
+
+        final finalized = finalizeDraft(Random(1), withDraft);
+
+        expect(finalized.draftWaivedPlayers, hasLength(1));
+        expect(finalized.draftWaivedPlayers.single.name, 'Riley Okafor');
+        expect(
+          finalized.draftWaivedPlayers.single.primaryPosition,
+          Position.center,
+        );
+      });
+
+      test('is empty when the draft never actually pushed the GM\'s own '
+          'roster over the legal cap', () {
+        final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
+        final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
+        final franchise = base.copyWithRoster([
+          RosterMembership(
+            player: playerWithOverall(60, id: 'vet-1'),
+            status: RosterStatus.active,
+          ),
+        ]);
+        final prospect = _prospect('rookie-1', 60);
+        final draft = DraftInProgress(
+          order: [ownAbbreviation],
+          rounds: 1,
+          picks: [
+            DraftPick(
+              round: 1,
+              pickNumber: 1,
+              teamAbbreviation: ownAbbreviation,
+              prospect: prospect,
+            ),
+          ],
+        );
+        final withDraft = franchise
+            .copyWithDraftInProgress(draft)
+            .copyWithDraftClass([prospect]);
+
+        final finalized = finalizeDraft(Random(1), withDraft);
+
+        expect(finalized.draftWaivedPlayers, isEmpty);
       });
     });
   });

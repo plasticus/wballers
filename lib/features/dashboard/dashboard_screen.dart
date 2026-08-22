@@ -784,6 +784,13 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
             franchise.team.abbreviation,
           ) +
           1;
+      // Every slot the GM currently owns and hasn't made yet -- trades
+      // included, unlike [ownDraftPosition] above (2026-08-22, a direct
+      // GM ask: "it should say all of my picks remaining, and their
+      // overall number").
+      final remainingPicks = franchise.draftInProgress!.remainingPicksFor(
+        franchise.team.abbreviation,
+      );
       return AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -809,6 +816,20 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+            ],
+            if (remainingPicks.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text('Picks Remaining', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 2),
+              for (final pick in remainingPicks)
+                Text(
+                  pick.natalTeamAbbreviation == franchise.team.abbreviation
+                      ? 'Rd${pick.round} pick ${pick.overallPickNumber}'
+                      : 'Rd${pick.round} pick ${pick.overallPickNumber} '
+                            '(from '
+                            '${teamByAbbreviation(franchise, pick.natalTeamAbbreviation).name})',
+                  style: theme.textTheme.bodySmall,
+                ),
             ],
             // Placeholder flavor dates -- a direct GM ask (2026-08-21):
             // "shows me the date of the trade window opening, and the

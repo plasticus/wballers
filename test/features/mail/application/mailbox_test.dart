@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/franchise/domain/draft_waived_player.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/franchise/domain/league_retirement.dart';
 import 'package:womensbballmgr/features/franchise/domain/pending_retirement.dart';
@@ -6,6 +7,7 @@ import 'package:womensbballmgr/features/franchise/onboarding/expansion_franchise
 import 'package:womensbballmgr/features/league/domain/team.dart';
 import 'package:womensbballmgr/features/mail/application/mailbox.dart';
 import 'package:womensbballmgr/features/mail/domain/mail_item.dart';
+import 'package:womensbballmgr/features/player/domain/draft_record.dart';
 import 'package:womensbballmgr/features/player/domain/player_injury.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
@@ -289,6 +291,128 @@ void main() {
         (i) => i.id.startsWith('own_retirement_'),
       );
       expect(ownMails, hasLength(2));
+    });
+  });
+
+  group('draft recap mail (2026-08-22, a direct GM ask: "I need to get an '
+      'email after the draft noting who I drafted, and how excited she is '
+      'for them to join the team. Advise to make use of development '
+      'slots, and lament the loss of some good bench players to maintain '
+      'a legal roster.")', () {
+    test('includes a real AssistantGmMailItem naming every rookie '
+        'drafted this exact season, round and pick included, with a '
+        'nudge toward Developmental slots', () {
+      final base = _franchise();
+      final rookie =
+          playerWithOverall(
+            60,
+            id: 'rookie-1',
+            name: 'Casey Nwosu',
+            primaryPosition: Position.shootingGuard,
+          ).copyWithDraftRecord(
+            const PlayerDraftRecord(season: 0, round: 2, pickNumber: 14),
+          );
+      final franchise = base.copyWithRoster([
+        ...base.roster,
+        RosterMembership(player: rookie, status: RosterStatus.active),
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      final mail = items
+          .whereType<AssistantGmMailItem>()
+          .where((i) => i.id == draftRecapMailId(0))
+          .single;
+      expect(mail.subject, 'Draft Recap');
+      expect(mail.body, contains('Casey Nwosu'));
+      expect(mail.body, contains('Round 2, Pick 14'));
+      expect(mail.body, contains('Developmental'));
+    });
+
+    test('lists a lament naming the GM\'s own waived players when the '
+        'draft pushed the roster over the legal cap', () {
+      final base = _franchise();
+      final rookie = playerWithOverall(60, id: 'rookie-1', name: 'Casey Nwosu')
+          .copyWithDraftRecord(
+            const PlayerDraftRecord(season: 0, round: 1, pickNumber: 1),
+          );
+      final franchise = base
+          .copyWithRoster([
+            ...base.roster,
+            RosterMembership(player: rookie, status: RosterStatus.active),
+          ])
+          .copyWithDraftWaivedPlayers(const [
+            DraftWaivedPlayer(
+              name: 'Old Bench Player',
+              primaryPosition: Position.center,
+            ),
+          ]);
+
+      final items = mailboxFor(franchise);
+
+      final mail = items
+          .whereType<AssistantGmMailItem>()
+          .where((i) => i.id == draftRecapMailId(0))
+          .single;
+      expect(mail.body, contains('Old Bench Player'));
+    });
+
+    test('says nothing about waived players when the draft never '
+        'actually pushed anyone off the roster', () {
+      final base = _franchise();
+      final rookie = playerWithOverall(60, id: 'rookie-1').copyWithDraftRecord(
+        const PlayerDraftRecord(season: 0, round: 1, pickNumber: 1),
+      );
+      final franchise = base.copyWithRoster([
+        ...base.roster,
+        RosterMembership(player: rookie, status: RosterStatus.active),
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      final mail = items
+          .whereType<AssistantGmMailItem>()
+          .where((i) => i.id == draftRecapMailId(0))
+          .single;
+      expect(mail.body, isNot(contains('let')));
+    });
+
+    test('omits it entirely when nobody was drafted onto the roster '
+        'this season', () {
+      final items = mailboxFor(_franchise());
+
+      expect(
+        items.whereType<AssistantGmMailItem>().where(
+          (i) => i.id.startsWith('draft_recap_'),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('goes stale once the season moves on -- a prior season\'s '
+        'rookies never trigger a later season\'s draft recap mail', () {
+      final base = _franchise();
+      final rookie = playerWithOverall(60, id: 'rookie-1').copyWithDraftRecord(
+        const PlayerDraftRecord(season: 0, round: 1, pickNumber: 1),
+      );
+      final franchise = base
+          .copyWithRoster([
+            ...base.roster,
+            RosterMembership(player: rookie, status: RosterStatus.active),
+          ])
+          .copyWithNewSeason(
+            newSeason: 1,
+            newSeasonProgress: base.seasonProgress,
+          );
+
+      final items = mailboxFor(franchise);
+
+      expect(
+        items.whereType<AssistantGmMailItem>().where(
+          (i) => i.id.startsWith('draft_recap_'),
+        ),
+        isEmpty,
+      );
     });
   });
 
