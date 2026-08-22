@@ -142,6 +142,31 @@ void main() {
     }
   });
 
+  test('the franchise vet\'s overall lands at or above 95 regardless of '
+      'which position the shuffle assigns her, across every real position '
+      '(2026-08-22, a direct GM report: "so how do I keep getting a '
+      '91/92?" -- the per-position rating-bias table\'s own asymmetric '
+      'clamping at 99 was pulling a Center or Point Guard\'s real overall '
+      'a few points under qualityCenter, with no matching floor relief on '
+      'the negative side)', () {
+    final seenPositions = <Position>{};
+    for (var seed = 0; seed < 200; seed++) {
+      final vet = generateStartingRoster(seed)[0].player;
+      seenPositions.add(vet.primaryPosition);
+      expect(
+        vet.ratings.overall,
+        greaterThanOrEqualTo(95),
+        reason:
+            'seed $seed, position ${vet.primaryPosition}: '
+            'overall ${vet.ratings.overall}',
+      );
+    }
+    // Every one of the 5 standard positions -- Center and Point Guard
+    // (the widest bias spreads) included -- actually got exercised by
+    // this sweep, not just the easy, low-bias ones.
+    expect(seenPositions, hasLength(Position.values.length));
+  });
+
   test('the young-solid slot\'s potential spans a real 10-point window, '
       'not a tight one (2026-08-14, a GM preference: "I think I prefer '
       'the 10 point spread for her")', () {

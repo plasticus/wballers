@@ -1,6 +1,7 @@
 import 'dart:math';
 
-import '../../player/domain/position.dart';
+import '../../../core/ratings/rating_scale.dart';
+import '../../player/domain/player.dart';
 import '../../player/generation/player_generator.dart';
 import '../../portrait/domain/portrait_weights.dart';
 import '../domain/roster_membership.dart';
@@ -209,6 +210,102 @@ List<RosterMembership> _promoteMissingPositionStarter(
   return updated;
 }
 
+enum _RatingField {
+  speed,
+  agility,
+  strength,
+  stamina,
+  ballControl,
+  passing,
+  interiorOffense,
+  perimeterOffense,
+  perimeterDefense,
+  interiorDefense,
+  disruption,
+  blocking,
+}
+
+/// Tops [player]'s overall back up to [_veteranQualityCenter] whenever it
+/// landed below that -- `player_generator.dart`'s per-position rating-bias
+/// table hands out deltas as large as +/-12, and [kMaxRating] (99)
+/// asymmetrically clamps the upside on a strongly-positive-biased stat
+/// (a Center's `strength +12`/`interiorDefense +10`/`blocking +10`, a
+/// Point Guard's `ballControl +12`/`passing +12`) far more than the
+/// negative-biased stats on the same position ever get clamped at the
+/// floor, since 95 minus even the largest negative delta stays nowhere
+/// near [kMinRating]. Left alone, that asymmetry regularly landed the
+/// star veteran's real overall in the low 90s regardless of
+/// [_veteranQualityCenter] itself (2026-08-22, a direct GM report: "so
+/// how do I keep getting a 91/92?", confirmed by hand-working a Center
+/// roll: 95 + bias clamped per stat averages to 92.17, four different
+/// stats losing 2-8 points each to the ceiling with no matching floor
+/// relief on the negative side).
+///
+/// Distributes the shortfall one point at a time onto a random
+/// still-under-[kMaxRating] stat -- same mechanic
+/// `coach_generator.dart`'s `_distributeStats` already uses for a
+/// conceptually identical problem (hit an exact total without any one
+/// stat exceeding its own ceiling) -- rather than forcing an exact
+/// value on every single roll: a position/archetype combo with a much
+/// smaller bias spread (Small Forward's biases are all +/-2) can still
+/// clear [_veteranQualityCenter] on its own natural roll and keeps that
+/// real number untouched, so she reads at *or above* 95 most of the
+/// time rather than *exactly* 95 every time -- "I want to see her at 95
+/// most of the time," not a second "no wiggle room" rule layered on top
+/// of the one [PlayerRatings.potential] already has just below this.
+Player _boostVeteranOverall(Random random, Player player) {
+  final ratings = player.ratings;
+  if (ratings.overall >= _veteranQualityCenter) return player;
+
+  final values = {
+    _RatingField.speed: ratings.speed,
+    _RatingField.agility: ratings.agility,
+    _RatingField.strength: ratings.strength,
+    _RatingField.stamina: ratings.stamina,
+    _RatingField.ballControl: ratings.ballControl,
+    _RatingField.passing: ratings.passing,
+    _RatingField.interiorOffense: ratings.interiorOffense,
+    _RatingField.perimeterOffense: ratings.perimeterOffense,
+    _RatingField.perimeterDefense: ratings.perimeterDefense,
+    _RatingField.interiorDefense: ratings.interiorDefense,
+    _RatingField.disruption: ratings.disruption,
+    _RatingField.blocking: ratings.blocking,
+  };
+  final targetSum = _veteranQualityCenter * 12;
+  var currentSum = ratings.skillPoints;
+  while (currentSum < targetSum) {
+    final eligible = [
+      for (final field in _RatingField.values)
+        if (values[field]! < kMaxRating) field,
+    ];
+    // Every stat maxed at 99 (skillPoints up to 1188) comfortably above
+    // any real targetSum (95 * 12 = 1140) -- never expected to actually
+    // run out, but bailing out is still correct over an infinite loop
+    // if it somehow ever did.
+    if (eligible.isEmpty) break;
+    final chosen = eligible[random.nextInt(eligible.length)];
+    values[chosen] = values[chosen]! + 1;
+    currentSum++;
+  }
+
+  return player.copyWithRatings(
+    ratings.copyWith(
+      speed: values[_RatingField.speed],
+      agility: values[_RatingField.agility],
+      strength: values[_RatingField.strength],
+      stamina: values[_RatingField.stamina],
+      ballControl: values[_RatingField.ballControl],
+      passing: values[_RatingField.passing],
+      interiorOffense: values[_RatingField.interiorOffense],
+      perimeterOffense: values[_RatingField.perimeterOffense],
+      perimeterDefense: values[_RatingField.perimeterDefense],
+      interiorDefense: values[_RatingField.interiorDefense],
+      disruption: values[_RatingField.disruption],
+      blocking: values[_RatingField.blocking],
+    ),
+  );
+}
+
 /// Generates a new expansion franchise's starting active roster.
 /// Deterministic: the same [seed] always produces the same 11 players in
 /// the same order (positions are shuffled from the seeded stream, so which
@@ -312,12 +409,15 @@ List<RosterMembership> generateStartingRoster(
       ),
   ];
 
-  // The franchise vet's potential, pinned to exactly her own overall --
-  // `generatePlayer` has no "potential == overall exactly" mode (its own
-  // `potentialOverride` always jitters toward a separate target), so this
-  // is done directly, once, right here rather than by fighting that
-  // mechanism into producing a zero gap.
-  final vet = roster[0].player;
+  // Boosted back up to _veteranQualityCenter first (see
+  // _boostVeteranOverall's own doc comment for why her raw roll
+  // regularly landed a few points under it), *then* potential is pinned
+  // to exactly her own -- now corrected -- overall. `generatePlayer` has
+  // no "potential == overall exactly" mode (its own `potentialOverride`
+  // always jitters toward a separate target), so the pin is done
+  // directly, once, right here rather than by fighting that mechanism
+  // into producing a zero gap.
+  final vet = _boostVeteranOverall(random, roster[0].player);
   roster[0] = RosterMembership(
     player: vet.copyWithRatings(
       vet.ratings.copyWith(potential: vet.ratings.overall),
