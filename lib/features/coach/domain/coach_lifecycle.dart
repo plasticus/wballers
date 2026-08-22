@@ -8,14 +8,33 @@
 library;
 
 /// The age a coach enters the league at -- "coaches... enter into the
-/// game around 45," a direct GM call. What every *replacement* hire uses
-/// (`kCoachEntryMinAge`-`kCoachEntryMaxAge`) -- as opposed to
-/// [kCoachInitialLeagueMinAge]/[kCoachInitialLeagueMaxAge], which is
+/// game around 45," a direct GM call. [kCoachEntryAge] alone (used only
+/// by [coachSkillTotalForAge]'s own formula, and by tests checking that
+/// formula's exact anchor point) is untouched by the widening below.
+const kCoachEntryAge = 45;
+
+/// What every *replacement* hire (the GM's own voluntary hires off
+/// [AvailableHeadCoachesScreen], and an AI team's fired-and-rehired or
+/// mandatory-retirement replacements) draws its age from -- as opposed
+/// to [kCoachInitialLeagueMinAge]/[kCoachInitialLeagueMaxAge], which is
 /// specifically for the one-time moment every team's very first coach is
 /// generated (league/franchise creation).
-const kCoachEntryAge = 45;
-const kCoachEntryMinAge = 44;
-const kCoachEntryMaxAge = 46;
+///
+/// Originally a tight 44-46 band around [kCoachEntryAge] -- every
+/// replacement hire deliberately reading as the *same* just-entering
+/// coach, philosophy (`CoachArchetype`) aside, so the only way to field
+/// an established, higher-skill coach again was to grow one over time.
+/// Widened here (2026-08-22, a direct GM ask: "Off-season coach hires
+/// -- needs more options, bigger variety in age") -- a real, direct
+/// trade-off against that original reasoning: a lucky hire at the new
+/// ceiling (55, [coachSkillTotalForAge] 300) can now start meaningfully
+/// stronger than a freshly generated original coach at the bottom of
+/// [kCoachInitialLeagueMinAge]-[kCoachInitialLeagueMaxAge] (49,
+/// [coachSkillTotalForAge] 270) -- accepted deliberately, in exchange for
+/// a hiring pool of 10 that doesn't read as "the same coach, 8 different
+/// labels."
+const kCoachEntryMinAge = 40;
+const kCoachEntryMaxAge = 55;
 
 /// The age band every team's *original* head coach (GM's own and all 19
 /// AI teams, generated once at league/franchise creation) is rolled

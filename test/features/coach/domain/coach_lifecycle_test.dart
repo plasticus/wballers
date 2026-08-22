@@ -41,4 +41,21 @@ void main() {
       'kCoachRetirementAge', () {
     expect(kCoachMandatoryRetirementAge, kCoachRetirementAge + 1);
   });
+
+  test('kCoachEntryMinAge/kCoachEntryMaxAge give every replacement hire real '
+      'age/skill spread, not the original tight band clustered around '
+      'kCoachEntryAge (2026-08-22, a direct GM ask: "Off-season coach '
+      'hires -- needs more options, bigger variety in age")', () {
+    expect(kCoachEntryMaxAge - kCoachEntryMinAge, greaterThan(10));
+    expect(kCoachEntryMinAge, lessThanOrEqualTo(kCoachEntryAge));
+    expect(kCoachEntryMaxAge, greaterThanOrEqualTo(kCoachEntryAge));
+    // A real spread in coachSkillTotalForAge follows directly from the
+    // wider age band -- this is the actual "variety" a GM would feel
+    // browsing the hiring pool, not the age numbers themselves.
+    expect(
+      coachSkillTotalForAge(kCoachEntryMaxAge) -
+          coachSkillTotalForAge(kCoachEntryMinAge),
+      greaterThan(50),
+    );
+  });
 }
