@@ -2368,17 +2368,53 @@ void main() {
       expect(ownPicksMade, kDraftRounds);
       expect(franchise.draftInProgress, isNull);
       expect(franchise.draftClass, isEmpty);
-      expect(franchise.roster.length, rosterCountBeforeDraft + kDraftRounds);
-      // Every AI team should also have gained players -- a real draft
-      // refreshes the whole league, not just the GM's own roster.
-      final aiRosterCountAfterDraft = franchise.league.aiTeams.fold<int>(
-        0,
-        (sum, aiTeam) => sum + aiTeam.roster.length,
+      // `playedOutContainer`'s roster is already a full, legal 12
+      // active going into the draft -- `finalizeDraft`'s own waive-down
+      // safety net (2026-08-22, a direct GM report: 15 active after a
+      // full draft crashed the very first game of the new season)
+      // means the real end state is capped at kActiveRosterSize, not a
+      // simple +kDraftRounds -- draft_advancer_test.dart's own
+      // dedicated group covers that mechanism directly; this just
+      // confirms the real end-to-end flow lands on a legal roster too.
+      expect(
+        franchise.roster.where((m) => m.status == RosterStatus.active).length,
+        lessThanOrEqualTo(kActiveRosterSize),
       );
       expect(
-        aiRosterCountAfterDraft,
-        aiRosterCountBeforeDraft + 19 * kDraftRounds,
+        franchise.roster.length,
+        greaterThanOrEqualTo(rosterCountBeforeDraft),
       );
+      // Every AI team should also have gained real rookies -- a real
+      // draft refreshes the whole league, not just the GM's own roster
+      // -- even though a fully-legal team also gets waived back down to
+      // the same cap.
+      for (final aiTeam in franchise.league.aiTeams) {
+        expect(
+          aiTeam.roster.where((m) => m.status == RosterStatus.active).length,
+          lessThanOrEqualTo(kActiveRosterSize),
+        );
+      }
+      expect(
+        franchise.league.aiTeams.fold<int>(
+          0,
+          (sum, aiTeam) => sum + aiTeam.roster.length,
+        ),
+        greaterThanOrEqualTo(aiRosterCountBeforeDraft),
+      );
+
+      // The exact real-world sequence a direct GM report traced this
+      // bug through (2026-08-22): "All the off-season stuff worked...
+      // But the first preseason game won't start. I get the game
+      // preview, click to start the match and it just spins." A legal
+      // post-draft roster (guaranteed above) is what makes this call
+      // actually simulate instead of throwing inside
+      // targetMinutesForOrderedRoster and leaving the GM's own UI stuck
+      // on a spinner forever (`match_preview_screen.dart`'s `_playGame`
+      // had no error handling for exactly this).
+      final firstPreseasonResults = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+      expect(firstPreseasonResults, isNotNull);
     });
 
     group('markDraftScreenOpened (2026-08-21, a direct GM ask: distinguish '

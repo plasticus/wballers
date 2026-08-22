@@ -718,6 +718,21 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
       final firstPreseasonDay = newSeasonGameDays.isEmpty
           ? null
           : newSeasonGameDays.first;
+      // Your own natal Round 1 slot -- how the just-finished season's
+      // standings/lottery actually shook out, confirmed for real once
+      // the draft order exists, not just the recap screen's own
+      // pre-draft lottery *projection* (2026-08-22, a direct GM ask: "I
+      // want it to also confirm my draft pick position"). Doesn't
+      // account for a slot traded away/acquired
+      // (`pickOwnershipOverrides`) -- this answers "how did we finish,"
+      // the same question the recap screen's own projection already
+      // answers, not "who's actually on the clock for pick 1" (which
+      // `DraftInProgress.onTheClock` already handles, trades included).
+      final ownDraftPosition =
+          franchise.draftInProgress!.order.indexOf(
+            franchise.team.abbreviation,
+          ) +
+          1;
       return AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -735,6 +750,15 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
               'continue.',
               style: theme.textTheme.bodySmall,
             ),
+            if (ownDraftPosition > 0) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'You pick #$ownDraftPosition in Round 1.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
             // Placeholder flavor dates -- a direct GM ask (2026-08-21):
             // "shows me the date of the trade window opening, and the
             // date of the first pre-season game." None of these are

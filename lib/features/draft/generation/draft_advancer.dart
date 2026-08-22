@@ -6,6 +6,7 @@ import '../../league/domain/league.dart';
 import '../../league/domain/team_identity.dart';
 import '../../player/domain/draft_record.dart';
 import '../../player/domain/player.dart';
+import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../roster/generation/jersey_number_assignment.dart';
@@ -194,12 +195,30 @@ DraftInProgress makeOwnPick({
 /// this draft belongs to by the time it resolves (`beginNextSeason` sets
 /// [Franchise.draftInProgress] as part of the same transition), so
 /// [updated.season] here is exactly right.
+///
+/// Every rookie lands straight onto the active roster with no size check
+/// mid-loop, then a final pass waives any team back down to
+/// [kActiveRosterSize] if the draft pushed it over -- a real, direct GM
+/// report (2026-08-22): entering the draft at a full, legal 12 active (a
+/// perfectly normal, even disciplined, thing for a GM to do) and taking
+/// 3 rookies in [kDraftRounds] left 15 active players, which crashed the
+/// very first game of the new season (`targetMinutesForOrderedRoster`'s
+/// hard 12-player assumption) with no error surfaced at all -- the
+/// GM just saw the Play Game button spin forever. Every AI team hits the
+/// exact same math every single draft, not just an unlucky GM edge case.
+/// Waives the weakest *pre-existing* active player (skill points, same
+/// metric `acceptTradeOffer`'s own AI-consolidation waive-down already
+/// uses for the identical "a roster move legally could overflow 12"
+/// problem) -- never one of this exact draft's own rookies, since
+/// cutting someone the instant she's picked would be a strange thing for
+/// any front office, human or AI, to do.
 Franchise finalizeDraft(Random random, Franchise franchise) {
   final draft = franchise.draftInProgress;
   assert(draft != null, 'no draft is in progress to finalize');
   assert(draft!.isComplete, 'the draft still has outstanding picks');
 
   var updated = franchise;
+  final draftedIdsByTeam = <String, Set<String>>{};
   for (final pick in draft!.picks) {
     final draftedPlayer = pick.prospect.player.copyWithDraftRecord(
       PlayerDraftRecord(
@@ -208,6 +227,7 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
         pickNumber: pick.pickNumber,
       ),
     );
+    (draftedIdsByTeam[pick.teamAbbreviation] ??= {}).add(draftedPlayer.id);
 
     if (pick.teamAbbreviation == updated.team.abbreviation) {
       final signed = assignJerseyNumberAvoiding(
@@ -232,7 +252,63 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
     updated = updated.copyWithLeague(League(aiTeams: aiTeams));
   }
 
+  final ownWaive = _waiveDownToLegal(
+    updated.roster,
+    draftedIdsByTeam[updated.team.abbreviation] ?? const {},
+  );
+  updated = updated.copyWithRoster(ownWaive.roster);
+  var freeAgents = [...updated.freeAgents, ...ownWaive.waived];
+
+  final aiTeams = [
+    for (final aiTeam in updated.league.aiTeams)
+      if ((draftedIdsByTeam[aiTeam.team.abbreviation] ?? const {}).isEmpty)
+        aiTeam
+      else
+        aiTeam.copyWithRoster(() {
+          final result = _waiveDownToLegal(
+            aiTeam.roster,
+            draftedIdsByTeam[aiTeam.team.abbreviation]!,
+          );
+          freeAgents = [...freeAgents, ...result.waived];
+          return result.roster;
+        }()),
+  ];
+  updated = updated
+      .copyWithLeague(League(aiTeams: aiTeams))
+      .copyWithFreeAgents(freeAgents);
+
   return updated.copyWithDraftInProgress(null).copyWithDraftClass(const []);
+}
+
+/// Waives [roster]'s weakest active player back to free agency,
+/// repeatedly, until active headcount is legal again -- [protectedIds]
+/// (this exact draft's own newly-picked rookies) are never candidates,
+/// no matter how weak; see [finalizeDraft]'s own doc comment for why.
+({List<RosterMembership> roster, List<Player> waived}) _waiveDownToLegal(
+  List<RosterMembership> roster,
+  Set<String> protectedIds,
+) {
+  var updatedRoster = roster;
+  final waived = <Player>[];
+  while (updatedRoster.where((m) => m.status == RosterStatus.active).length >
+      kActiveRosterSize) {
+    final eligible = [
+      for (final m in updatedRoster)
+        if (m.status == RosterStatus.active &&
+            !protectedIds.contains(m.player.id))
+          m.player,
+    ];
+    if (eligible.isEmpty) break; // Shouldn't happen; safety net.
+    final weakest = eligible.reduce(
+      (a, b) => a.ratings.skillPoints <= b.ratings.skillPoints ? a : b,
+    );
+    updatedRoster = [
+      for (final m in updatedRoster)
+        if (m.player.id != weakest.id) m,
+    ];
+    waived.add(weakest.copyWithJerseyNumber(null));
+  }
+  return (roster: updatedRoster, waived: waived);
 }
 
 AiTeamRoster _addToAiRoster(

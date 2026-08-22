@@ -10,8 +10,11 @@ import 'package:womensbballmgr/features/draft/domain/draft_prospect.dart';
 import 'package:womensbballmgr/features/draft/generation/draft_advancer.dart';
 import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/league/domain/initial_league.dart';
+import 'package:womensbballmgr/features/league/domain/league.dart';
 import 'package:womensbballmgr/features/league/domain/team_identity.dart';
 import 'package:womensbballmgr/features/player/domain/player.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_legality.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/domain/season_schedule.dart';
@@ -420,6 +423,18 @@ void main() {
       final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
       final franchise = _franchise(ownTeamAbbreviation: ownAbbreviation);
       final aiAbbreviation = franchise.league.aiTeams.first.team.abbreviation;
+      // One below the legal cap -- this test is about the pick landing on
+      // the right roster with the right draft record, not the waive-down
+      // safety net (see the dedicated group below for that); starting
+      // already-full would trigger it as an unrelated side effect.
+      final aiTeamWithRoom = franchise.league.aiTeams.first.copyWithRoster(
+        franchise.league.aiTeams.first.roster
+            .take(kActiveRosterSize - 1)
+            .toList(),
+      );
+      final withRoom = franchise.copyWithLeague(
+        League(aiTeams: [aiTeamWithRoom, ...franchise.league.aiTeams.skip(1)]),
+      );
       final prospect = _prospect('p1', 80);
       final draft = DraftInProgress(
         order: [aiAbbreviation],
@@ -433,10 +448,10 @@ void main() {
           ),
         ],
       );
-      final withDraft = franchise
+      final withDraft = withRoom
           .copyWithDraftInProgress(draft)
           .copyWithDraftClass([prospect]);
-      final beforeCount = franchise.league.aiTeams.first.roster.length;
+      final beforeCount = aiTeamWithRoom.roster.length;
 
       final finalized = finalizeDraft(Random(1), withDraft);
 
@@ -514,6 +529,150 @@ void main() {
         () => finalizeDraft(Random(1), withDraft),
         throwsA(isA<AssertionError>()),
       );
+    });
+
+    group('waives back down to kActiveRosterSize when a full draft pushes a '
+        'team over (2026-08-22, a direct GM report: entering the draft at '
+        'a full, legal 12 active and taking 3 rookies in kDraftRounds left '
+        '15 active, which crashed the very first game of the new season '
+        'with no error surfaced -- "click to start the match and it just '
+        'spins")', () {
+      test('the GM\'s own full roster ends the draft at exactly '
+          'kActiveRosterSize, every drafted rookie protected', () {
+        final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
+        final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
+        // A full, legal 12 -- varied overall so "weakest" is unambiguous.
+        final fullRoster = [
+          for (var i = 0; i < kActiveRosterSize; i++)
+            RosterMembership(
+              player: playerWithOverall(50 + i, id: 'vet-$i'),
+              status: RosterStatus.active,
+            ),
+        ];
+        final franchise = base.copyWithRoster(fullRoster);
+        final prospects = [
+          _prospect('rookie-1', 60),
+          _prospect('rookie-2', 60),
+          _prospect('rookie-3', 60),
+        ];
+        final draft = DraftInProgress(
+          order: [ownAbbreviation],
+          rounds: 3,
+          picks: [
+            for (var round = 1; round <= 3; round++)
+              DraftPick(
+                round: round,
+                pickNumber: round,
+                teamAbbreviation: ownAbbreviation,
+                prospect: prospects[round - 1],
+              ),
+          ],
+        );
+        final withDraft = franchise
+            .copyWithDraftInProgress(draft)
+            .copyWithDraftClass(prospects);
+
+        final finalized = finalizeDraft(Random(1), withDraft);
+
+        expect(
+          finalized.roster.where((m) => m.status == RosterStatus.active).length,
+          kActiveRosterSize,
+        );
+        // All 3 rookies survived -- only pre-existing veterans were
+        // ever eligible to be waived.
+        for (final rookieId in ['rookie-1', 'rookie-2', 'rookie-3']) {
+          expect(
+            finalized.roster.any((m) => m.player.id == rookieId),
+            isTrue,
+            reason:
+                '$rookieId should never be waived the instant she\'s '
+                'drafted',
+          );
+        }
+        // Exactly the 3 weakest veterans (vet-0/1/2, overalls 50-52)
+        // got waived to free agency, released (no jersey number).
+        for (final weakestId in ['vet-0', 'vet-1', 'vet-2']) {
+          expect(
+            finalized.roster.any((m) => m.player.id == weakestId),
+            isFalse,
+            reason: '$weakestId should have been waived',
+          );
+          final waived = finalized.freeAgents.firstWhere(
+            (p) => p.id == weakestId,
+          );
+          expect(waived.jerseyNumber, isNull);
+        }
+        // The stronger veterans (vet-3 and up) were never touched.
+        for (var i = 3; i < kActiveRosterSize; i++) {
+          expect(finalized.roster.any((m) => m.player.id == 'vet-$i'), isTrue);
+        }
+      });
+
+      test('an AI team\'s full roster gets the identical treatment', () {
+        final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
+        final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
+        final aiTeam = base.league.aiTeams.first;
+        final aiAbbreviation = aiTeam.team.abbreviation;
+        final fullAiRoster = [
+          for (var i = 0; i < kActiveRosterSize; i++)
+            RosterMembership(
+              player: playerWithOverall(50 + i, id: 'ai-vet-$i'),
+              status: RosterStatus.active,
+            ),
+        ];
+        final franchise = base.copyWithLeague(
+          League(
+            aiTeams: [
+              aiTeam.copyWithRoster(fullAiRoster),
+              ...base.league.aiTeams.skip(1),
+            ],
+          ),
+        );
+        final prospects = [
+          _prospect('ai-rookie-1', 60),
+          _prospect('ai-rookie-2', 60),
+          _prospect('ai-rookie-3', 60),
+        ];
+        final draft = DraftInProgress(
+          order: [aiAbbreviation],
+          rounds: 3,
+          picks: [
+            for (var round = 1; round <= 3; round++)
+              DraftPick(
+                round: round,
+                pickNumber: round,
+                teamAbbreviation: aiAbbreviation,
+                prospect: prospects[round - 1],
+              ),
+          ],
+        );
+        final withDraft = franchise
+            .copyWithDraftInProgress(draft)
+            .copyWithDraftClass(prospects);
+
+        final finalized = finalizeDraft(Random(1), withDraft);
+
+        final updatedAiTeam = finalized.league.aiTeams.first;
+        expect(
+          updatedAiTeam.roster
+              .where((m) => m.status == RosterStatus.active)
+              .length,
+          kActiveRosterSize,
+        );
+        for (final rookieId in ['ai-rookie-1', 'ai-rookie-2', 'ai-rookie-3']) {
+          expect(
+            updatedAiTeam.roster.any((m) => m.player.id == rookieId),
+            isTrue,
+          );
+        }
+        for (final weakestId in ['ai-vet-0', 'ai-vet-1', 'ai-vet-2']) {
+          expect(
+            updatedAiTeam.roster.any((m) => m.player.id == weakestId),
+            isFalse,
+          );
+          expect(finalized.freeAgents.any((p) => p.id == weakestId), isTrue);
+        }
+      });
     });
   });
 }

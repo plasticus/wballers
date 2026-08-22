@@ -1110,7 +1110,7 @@ class _CharacterChip extends StatelessWidget {
   }
 }
 
-class _DraftTab extends StatelessWidget {
+class _DraftTab extends StatefulWidget {
   const _DraftTab({required this.franchise, required this.prospects});
 
   final Franchise franchise;
@@ -1123,8 +1123,29 @@ class _DraftTab extends StatelessWidget {
   final List<DraftProspect> prospects;
 
   @override
+  State<_DraftTab> createState() => _DraftTabState();
+}
+
+class _DraftTabState extends State<_DraftTab> {
+  Position? _position;
+  var _sortKey = PlayerSortKey.overall;
+  var _descending = true;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Same sort/filter bar and keys `DraftDayScreen`'s real prospect
+    // list already offers -- a direct GM ask (2026-08-22): "I want to be
+    // able to sort the draft preview, same as I can sort the actual
+    // draft." Purely a display-order change: [widget.prospects] itself
+    // (and what actually lands on the board come Draft Day) is untouched.
+    final prospects = sortAndFilterPlayers(
+      widget.prospects,
+      (prospect) => prospect.player,
+      position: _position,
+      sortKey: _sortKey,
+      descending: _descending,
+    );
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
@@ -1135,16 +1156,34 @@ class _DraftTab extends StatelessWidget {
               'ends -- Season Recap\'s "Begin Season N" button leads '
               'straight into it.',
         ),
-        for (var i = 0; i < prospects.length; i++) ...[
-          _PlayerMarketRow(
-            franchise: franchise,
-            player: prospects[i].player,
-            subtitle: prospects[i].college.name,
-            accentColor: theme.colorScheme.primary,
-            jersey: null,
-          ),
-          if (i != prospects.length - 1) const SizedBox(height: AppSpacing.sm),
-        ],
+        PlayerSortFilterBar(
+          position: _position,
+          onPositionChanged: (value) => setState(() => _position = value),
+          sortKey: _sortKey,
+          descending: _descending,
+          onSortChanged: (key, descending) => setState(() {
+            _sortKey = key;
+            _descending = descending;
+          }),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (prospects.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            child: Center(child: Text('No prospects match that filter.')),
+          )
+        else
+          for (var i = 0; i < prospects.length; i++) ...[
+            _PlayerMarketRow(
+              franchise: widget.franchise,
+              player: prospects[i].player,
+              subtitle: prospects[i].college.name,
+              accentColor: theme.colorScheme.primary,
+              jersey: null,
+            ),
+            if (i != prospects.length - 1)
+              const SizedBox(height: AppSpacing.sm),
+          ],
       ],
     );
   }

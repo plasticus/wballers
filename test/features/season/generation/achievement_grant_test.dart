@@ -185,5 +185,67 @@ void main() {
         isNotNull,
       );
     });
+
+    test('suggestNickname: false grants the real achievement but leaves '
+        'Player.nickname untouched (2026-08-22, a direct GM ask: "Not all '
+        'all-star players should get a nickname. Only the game mvp.")', () {
+      final player = playerWithOverall(80, id: 'p1', name: 'Jane Doe');
+      final franchise =
+          _franchise(
+            ownTeamAbbreviation: kLeagueTeamPool[1].abbreviation,
+          ).copyWithRoster([
+            RosterMembership(player: player, status: RosterStatus.active),
+          ]);
+      expect(player.nickname, isNull);
+
+      final updated = applyAchievementGrant(
+        Random(1),
+        franchise,
+        playerId: 'p1',
+        achievement: Achievement.allStarSelection,
+        season: 2,
+        suggestNickname: false,
+      );
+
+      final updatedPlayer = updated.roster.single.player;
+      expect(updatedPlayer.achievements, hasLength(1));
+      expect(
+        updatedPlayer.achievements.single.achievement,
+        Achievement.allStarSelection,
+      );
+      expect(updatedPlayer.nickname, isNull);
+    });
+
+    test('suggestNickname: false never overwrites a nickname the player '
+        'already earned from an earlier grant', () {
+      final player = playerWithOverall(80, id: 'p1', name: 'Jane Doe');
+      final franchise =
+          _franchise(
+            ownTeamAbbreviation: kLeagueTeamPool[1].abbreviation,
+          ).copyWithRoster([
+            RosterMembership(player: player, status: RosterStatus.active),
+          ]);
+
+      final afterMvp = applyAchievementGrant(
+        Random(1),
+        franchise,
+        playerId: 'p1',
+        achievement: Achievement.allStarMvp,
+        season: 0,
+      );
+      final earnedNickname = afterMvp.roster.single.player.nickname;
+      expect(earnedNickname, isNotNull);
+
+      final afterSelection = applyAchievementGrant(
+        Random(1),
+        afterMvp,
+        playerId: 'p1',
+        achievement: Achievement.allStarSelection,
+        season: 1,
+        suggestNickname: false,
+      );
+
+      expect(afterSelection.roster.single.player.nickname, earnedNickname);
+    });
   });
 }

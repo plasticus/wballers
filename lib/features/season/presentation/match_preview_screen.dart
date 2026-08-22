@@ -373,9 +373,30 @@ class _MatchPreviewScreenState extends ConsumerState<MatchPreviewScreen> {
     }
 
     setState(() => _isPlaying = true);
-    final results = await ref
-        .read(currentFranchiseProvider.notifier)
-        .advanceGameDay(ownDefenseTactic: _tactic);
+    List<GameResult>? results;
+    try {
+      results = await ref
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay(ownDefenseTactic: _tactic);
+    } catch (error) {
+      // A real, direct GM report (2026-08-22): "I get the game preview,
+      // click to start the match and it just spins" -- an unhandled
+      // exception mid-simulation used to leave `_isPlaying` stuck `true`
+      // forever with nothing on screen to say why (the actual root
+      // cause that day -- a roster pushed over 12 active by the draft --
+      // is fixed at the source now, `draft_advancer.dart`'s
+      // `finalizeDraft`, but this is the honest safety net for whatever
+      // the *next* one turns out to be: fail loud and recoverable
+      // instead of silent and stuck).
+      if (!mounted) return;
+      setState(() => _isPlaying = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Something went wrong simulating this game: $error'),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
 
     final ownAbbreviation = widget.franchise.team.abbreviation;

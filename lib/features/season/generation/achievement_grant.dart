@@ -28,12 +28,26 @@ import '../../roster/domain/roster_membership.dart';
 /// candidate 0 of that player's own shuffled order (see
 /// `nickname_generator.dart`'s `suggestNickname`).
 ///
+/// [suggestNickname] (default `true`) lets a caller grant the real
+/// [Achievement] record without touching [Player.nickname] at all --
+/// [Achievement.allStarSelection]/[Achievement.skillsChallengeWinner] pass
+/// `false` (2026-08-22, a direct GM report: "Not all all-star players
+/// should get a nickname. Only the game mvp" -- every All-Star weekend
+/// achievement was unconditionally overwriting whatever nickname a
+/// player already had, on top of being far too easy to earn for
+/// something a GM should feel was actually *earned*). A merely-selected
+/// honoree or a single skills-event winner still gets the real
+/// achievement (shows up in Awards, counts toward the neon-hair-color
+/// unlock below), just no nickname churn from it.
+///
 /// If this is that player's *second* [Achievement] ever (any type), also
 /// auto-assigns a random neon hair color and unlocks the neon palette
 /// for them going forward -- a direct GM rule (`SeasonAwardsAnswers.md`
 /// #4) superseding the portrait editor's old "unlocked on the first
 /// achievement" gate (see `portrait_editor_screen.dart`'s
-/// `_specialColorsUnlocked`).
+/// `_specialColorsUnlocked`). Untouched by [suggestNickname] -- that
+/// flag is specifically about nickname churn, not about whether the
+/// achievement counts at all.
 ///
 /// A no-op if [playerId] isn't found on any roster at all (never
 /// expected in practice -- every caller resolves awards against players
@@ -45,6 +59,7 @@ Franchise applyAchievementGrant(
   required String playerId,
   required Achievement achievement,
   required int season,
+  bool suggestNickname = true,
 }) {
   Player apply(Player player) {
     final occurrenceIndex = player.achievements
@@ -56,9 +71,10 @@ Franchise applyAchievementGrant(
       playerId: player.id,
       occurrenceIndex: occurrenceIndex,
     );
-    var updated = player
-        .copyWithAchievement(grant.record)
-        .copyWithNickname(grant.suggestedNickname);
+    var updated = player.copyWithAchievement(grant.record);
+    if (suggestNickname) {
+      updated = updated.copyWithNickname(grant.suggestedNickname);
+    }
     final appearance = updated.appearance;
     if (updated.achievements.length >= 2 && appearance != null) {
       final neonKeys = kNeonHairColors.keys.toList();

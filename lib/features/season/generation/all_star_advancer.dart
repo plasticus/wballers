@@ -138,6 +138,10 @@ SkillsCompetitionAdvance resolveSkillsCompetitionDay(
       playerId: honoree.id,
       achievement: Achievement.allStarSelection,
       season: franchise.season,
+      // A direct GM ask (2026-08-22): "Not all all-star players should
+      // get a nickname. Only the game mvp." -- selection alone is real
+      // (it still lands in Awards), just not nickname-worthy on its own.
+      suggestNickname: false,
     );
   }
   for (final event in events) {
@@ -147,6 +151,9 @@ SkillsCompetitionAdvance resolveSkillsCompetitionDay(
       playerId: event.winnerPlayerId,
       achievement: Achievement.skillsChallengeWinner,
       season: franchise.season,
+      // Same reasoning as [Achievement.allStarSelection] above -- a
+      // single skills event isn't nickname-worthy on its own either.
+      suggestNickname: false,
     );
   }
 

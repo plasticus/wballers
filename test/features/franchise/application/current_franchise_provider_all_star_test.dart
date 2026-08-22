@@ -96,27 +96,43 @@ void main() {
     ];
     Player playerById(String id) =>
         everyPlayerAfterSkills.firstWhere((p) => p.id == id);
+    // Selection/a single skills event is real (shows up in Awards), but
+    // -- unlike the Game MVP below -- neither is nickname-worthy on its
+    // own (2026-08-22, a direct GM ask: "Not all all-star players should
+    // get a nickname. Only the game mvp").
     for (final honoreeId in {
       ...skillsResult.squads[Conference.atlantic]!,
       ...skillsResult.squads[Conference.pacific]!,
     }) {
+      final honoree = playerById(honoreeId);
       expect(
-        playerById(honoreeId).achievements.any(
+        honoree.achievements.any(
           (a) => a.achievement == Achievement.allStarSelection,
         ),
         isTrue,
         reason: 'honoree $honoreeId should have Achievement.allStarSelection',
       );
+      expect(
+        honoree.nickname,
+        isNull,
+        reason: 'mere selection should not suggest a nickname',
+      );
     }
     for (final event in skillsResult.events) {
+      final winner = playerById(event.winnerPlayerId);
       expect(
-        playerById(event.winnerPlayerId).achievements.any(
+        winner.achievements.any(
           (a) => a.achievement == Achievement.skillsChallengeWinner,
         ),
         isTrue,
         reason:
             '${event.event} winner ${event.winnerPlayerId} should have '
             'Achievement.skillsChallengeWinner',
+      );
+      expect(
+        winner.nickname,
+        isNull,
+        reason: 'a single skills event should not suggest a nickname',
       );
     }
 

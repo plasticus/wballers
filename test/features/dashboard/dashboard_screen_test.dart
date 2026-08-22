@@ -283,6 +283,34 @@ void main() {
     expect(find.text('First Preseason Game:'), findsOneWidget);
   });
 
+  testWidgets(
+    'confirms the GM\'s own real Round 1 draft position on the Draft In '
+    'Progress card (2026-08-22, a direct GM ask, following up on the '
+    'card\'s date rows: "I want it to also confirm my draft pick '
+    'position")',
+    (tester) async {
+      // 4th slot (index 3) -- distinct from 1st, so this can't pass by
+      // coincidence the way a hardcoded "#1" would.
+      final franchise = _franchiseWith(
+        draftInProgress: DraftInProgress(
+          order: ['AAA', 'BBB', 'CCC', kLeagueTeamPool.first.abbreviation],
+          rounds: 3,
+        ),
+      );
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('You pick #4 in Round 1.'), findsOneWidget);
+    },
+  );
+
   testWidgets('shows the current fictional date and week on the Season card '
       '(2026-08-09, a direct GM ask)', (tester) async {
     // Nothing played yet -- "current" is the season's very first game
