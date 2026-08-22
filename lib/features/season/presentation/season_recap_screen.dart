@@ -30,9 +30,22 @@ import '../generation/postseason_generator.dart'
 /// than a flashier animated moment, same posture every other
 /// season-boundary system this pass built already carries.
 class SeasonRecapScreen extends ConsumerStatefulWidget {
-  const SeasonRecapScreen({required this.franchise, super.key});
+  const SeasonRecapScreen({
+    required this.franchise,
+    this.readOnly = false,
+    super.key,
+  });
 
   final Franchise franchise;
+
+  /// True when this is reopened after the fact -- the Dashboard's
+  /// "Season N Recap" card (2026-08-22, a direct GM ask: "I need a way
+  /// to re-open that report once season 2 has started"), rather than
+  /// the live, still-current-season champion-crowned flow. [franchise]
+  /// here is a frozen snapshot from before that transition
+  /// (`last_season_recap_provider.dart`), so "Begin Season N" has
+  /// already happened for real and must not be offered again.
+  final bool readOnly;
 
   @override
   ConsumerState<SeasonRecapScreen> createState() => _SeasonRecapScreenState();
@@ -276,7 +289,7 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
               if (i != seasonGrowth.length - 1)
                 const SizedBox(height: AppSpacing.sm),
             ],
-            if (draftPosition != null) ...[
+            if (draftPosition != null && !widget.readOnly) ...[
               const SizedBox(height: AppSpacing.lg),
               AppCard(
                 child: Column(
@@ -294,42 +307,64 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: AppSpacing.lg),
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('What\'s Next', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: AppSpacing.sm),
-                  const Text(
-                    'Starting the new season: every roster ages up, a '
-                    'fresh batch of free agents and draft prospects '
-                    'arrives, and the draft plays out for real -- '
-                    'you\'ll pick for your own team, and every AI team '
-                    'fills out their roster too.',
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  FilledButton.icon(
-                    onPressed: _isBeginning ? null : _beginNextSeason,
-                    icon: _isBeginning
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.arrow_forward),
-                    // "Begin Season N" -- a direct GM ask (2026-08-21):
-                    // "there's a button that says Begin Season 2." +2, not
-                    // +1: [franchise.season] is still the just-finished
-                    // season's own 0-indexed number here (the transition
-                    // this button triggers is what bumps it), so the
-                    // season about to start reads one further than this
-                    // screen's own "Season N" recap header does.
-                    label: Text('Begin Season ${franchise.season + 2}'),
-                  ),
-                ],
+            if (widget.readOnly) ...[
+              const SizedBox(height: AppSpacing.lg),
+              AppCard(
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.history,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        'Season ${franchise.season + 2} is already '
+                        'underway -- this is a look back.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ] else ...[
+              const SizedBox(height: AppSpacing.lg),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('What\'s Next', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.sm),
+                    const Text(
+                      'Starting the new season: every roster ages up, a '
+                      'fresh batch of free agents and draft prospects '
+                      'arrives, and the draft plays out for real -- '
+                      'you\'ll pick for your own team, and every AI team '
+                      'fills out their roster too.',
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton.icon(
+                      onPressed: _isBeginning ? null : _beginNextSeason,
+                      icon: _isBeginning
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.arrow_forward),
+                      // "Begin Season N" -- a direct GM ask (2026-08-21):
+                      // "there's a button that says Begin Season 2." +2, not
+                      // +1: [franchise.season] is still the just-finished
+                      // season's own 0-indexed number here (the transition
+                      // this button triggers is what bumps it), so the
+                      // season about to start reads one further than this
+                      // screen's own "Season N" recap header does.
+                      label: Text('Begin Season ${franchise.season + 2}'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

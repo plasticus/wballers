@@ -23,6 +23,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/roster/generation/free_agent_pool_generator.dart';
 import 'package:womensbballmgr/features/roster/generation/starting_roster_generator.dart';
+import 'package:womensbballmgr/features/season/application/last_season_recap_provider.dart';
 import 'package:womensbballmgr/features/season/domain/game_day.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
@@ -166,6 +167,59 @@ Future<InMemorySaveRepository> _seededRepository(Franchise franchise) async {
 }
 
 void main() {
+  testWidgets(
+    'shows a Season Recap card once a season has actually transitioned, '
+    'and it reopens SeasonRecapScreen read-only (2026-08-22, a direct GM '
+    'ask: "I need a way to re-open that report once season 2 has '
+    'started")',
+    (tester) async {
+      final franchise = _franchiseWith(season: 1);
+      final repository = await _seededRepository(franchise);
+      await saveLastSeasonRecap(
+        repository,
+        kCurrentFranchiseSaveId,
+        _franchiseWith(season: 0),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Season 1 Recap'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Season 1 Recap'), 200);
+      await tester.pump();
+      await tester.tap(find.text('View'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Season Recap'), findsOneWidget);
+      // read-only: the live franchise already moved on to season 1, so
+      // "Begin Season N" must not be offered again from this snapshot.
+      expect(find.text('What\'s Next', skipOffstage: false), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'omits the Season Recap card before any season has ever transitioned',
+    (tester) async {
+      final franchise = _franchiseWith();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Recap'), findsNothing);
+    },
+  );
+
   testWidgets('shows the season record and an upcoming-games preview', (
     tester,
   ) async {

@@ -22,6 +22,8 @@ import '../../roster/domain/roster_status.dart';
 import '../../roster/generation/jersey_number_assignment.dart';
 import '../../roster/generation/roster_legality_advancer.dart';
 import '../../season/application/franchise_rosters.dart';
+import '../../season/application/last_season_recap_provider.dart'
+    show saveLastSeasonRecap;
 import '../../season/domain/game_result.dart';
 import '../../season/domain/scheduled_game.dart';
 import '../../season/domain/season_progress.dart';
@@ -1181,6 +1183,14 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   Future<void> beginNextSeasonAndPersist() async {
     final franchise = await future;
     if (franchise == null || !seasonIsOver(franchise)) return;
+
+    // Freeze the just-finished season exactly as it stood, before
+    // anything below wipes its season-scoped fields -- the Dashboard's
+    // "Season N Recap" card reads this back later
+    // (`last_season_recap_provider.dart`'s own doc comment).
+    final repository = ref.read(saveRepositoryProvider);
+    final slotId = await ref.read(activeSaveSlotProvider.future);
+    await saveLastSeasonRecap(repository, slotId, franchise);
 
     final portraitWeights = await ref.read(portraitWeightsProvider.future);
     final next = beginNextSeason(franchise, portraitWeights: portraitWeights);

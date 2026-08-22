@@ -107,6 +107,35 @@ void main() {
   });
 
   testWidgets(
+    'readOnly hides "Begin Season N" and the draft-position projection -- '
+    'both would be stale/wrong once reopened after the real transition '
+    'already happened (2026-08-22, the Dashboard\'s own re-access card)',
+    (tester) async {
+      final franchise = _playFullSeason(1);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SeasonRecapScreen(franchise: franchise, readOnly: true),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Season Recap'), findsOneWidget);
+      expect(find.textContaining('Final record:'), findsOneWidget);
+      expect(find.text('What\'s Next', skipOffstage: false), findsNothing);
+      expect(find.text('Begin Season 2', skipOffstage: false), findsNothing);
+      expect(
+        find.textContaining('Rough estimate:', skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('already underway', skipOffstage: false),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
     'shows a League Retirements section listing this season\'s AI-team '
     'retirements (2026-08-20, a direct GM ask: "I\'d prefer to see that '
     '[retirement] in an off season report")',
