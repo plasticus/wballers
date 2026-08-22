@@ -9,6 +9,7 @@ import '../../coach/generation/coach_aging_advancer.dart';
 import '../../coach/generation/coach_free_agency_advancer.dart';
 import '../../draft/generation/draft_advancer.dart';
 import '../../league/domain/league.dart';
+import '../../league/domain/team.dart';
 import '../../match/domain/match_result.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../player/domain/player.dart';
@@ -26,7 +27,8 @@ import '../../season/domain/season_progress.dart';
 import '../../season/domain/skills_competition.dart';
 import '../../season/generation/all_star_advancer.dart';
 import '../../season/generation/injury_advancer.dart';
-import '../../season/generation/postseason_generator.dart' show seasonChampion;
+import '../../season/generation/postseason_generator.dart'
+    show growPostseasonSchedule, seasonChampion;
 import '../../season/generation/retirement_advancer.dart';
 import '../../season/generation/season_advancer.dart';
 import '../../season/generation/season_awards_advancer.dart';
@@ -828,6 +830,58 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     return advance.gamesPlayed;
   }
 
+  /// Folds in whatever [growPostseasonSchedule] says should be appended
+  /// after [advancedProgress]'s own game day, against [leagueTeams] --
+  /// the exact same "grow the schedule as needed" step [advanceToNextGameDay]
+  /// runs unconditionally every single day, extracted so
+  /// [advanceSkillsCompetitionDay]/[advanceAllStarGameDay] can run it too.
+  /// [growPostseasonSchedule] is already idempotent/self-gating (only
+  /// grows anything once [SeasonProgress.nextGameDayIndex] has genuinely
+  /// caught up to the schedule's current length -- its own doc comment),
+  /// so calling it here is a safe no-op on the Skills Competition day
+  /// (the All-Star Game day is still right there, already scheduled) and
+  /// only ever does real work on the All-Star Game day itself, once
+  /// nothing else is left on the calendar.
+  ///
+  /// [_growContinentalCup]'s own growth isn't run here -- neither of
+  /// these 2 special days can ever *be* a Continental Cup game
+  /// (`_growContinentalCup` only ever reacts to a completed Cup round's
+  /// own results), so there's genuinely nothing for it to do at either
+  /// call site, unlike postseason growth which very much can trigger
+  /// right after the All-Star Game.
+  ///
+  /// Missing this exact step was a real bug (2026-08-21, a direct GM
+  /// report): the initial schedule ends at the All-Star Game day by
+  /// design (only the regular season/Cup/All-Star break are pre-scheduled
+  /// up front -- see [advanceToNextGameDay]'s own doc comment), so
+  /// without growing the postseason in here too, [SeasonProgress.
+  /// isComplete] read a false-positive `true` the instant the All-Star
+  /// Game was advanced through this dedicated path -- [nextGameDayIndex]
+  /// had genuinely caught up to the schedule's current length, but only
+  /// because nothing had grown it further yet, not because the season
+  /// was actually over. [advanceGameDay]'s own early `isComplete` guard
+  /// then refused to do anything at all on the very next tap, reading as
+  /// "Advance to Next Game Day" doing nothing, stuck right at the
+  /// All-Star break, every single time -- entirely missing the
+  /// postseason, not just delaying it.
+  SeasonProgress _withPostseasonGrown(
+    SeasonProgress advancedProgress,
+    List<Team> leagueTeams,
+  ) {
+    final postseasonAdditions = growPostseasonSchedule(
+      advancedProgress,
+      leagueTeams: leagueTeams,
+    );
+    if (postseasonAdditions.isEmpty) return advancedProgress;
+    return SeasonProgress(
+      schedule: advancedProgress.schedule.copyWithAppendedGames(
+        postseasonAdditions,
+      ),
+      playedGames: advancedProgress.playedGames,
+      nextGameDayIndex: advancedProgress.nextGameDayIndex,
+    );
+  }
+
   /// Advances through the All-Star break's Skills Competition day
   /// (2026-08-10, TODO.md item 6) -- the generic [advanceGameDay] can't
   /// resolve this day at all (`season_advancer.dart`'s `_simulatable`
@@ -839,7 +893,9 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// (`resolveSkillsCompetitionDay`), persists the result, and manually
   /// advances [SeasonProgress.nextGameDayIndex] the same way
   /// [SeasonProgress.copyWithGameDayPlayed] always does -- with an empty
-  /// [PlayedGame] list, since this day never produces one.
+  /// [PlayedGame] list, since this day never produces one. See
+  /// [_withPostseasonGrown]'s own doc comment for why the schedule also
+  /// needs a chance to grow right here, not just in [advanceGameDay].
   ///
   /// Returns `null` if there's no current franchise, or if the next game
   /// day isn't actually the Skills Competition -- same "shouldn't happen
@@ -863,8 +919,9 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       franchise,
     );
 
-    final advancedProgress = franchise.seasonProgress.copyWithGameDayPlayed(
-      const [],
+    final advancedProgress = _withPostseasonGrown(
+      franchise.seasonProgress.copyWithGameDayPlayed(const []),
+      allLeagueTeams(franchise),
     );
     await _persist(
       advance.franchise
@@ -882,7 +939,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// goes through [advanceToNextGameDay] after all, just with those 2
   /// synthetic squads injected into its roster map -- [_catchUpTraining]
   /// runs afterward too, same as [advanceGameDay], so the week's training
-  /// resolves on schedule regardless of it being an All-Star week.
+  /// resolves on schedule regardless of it being an All-Star week. See
+  /// [_withPostseasonGrown]'s own doc comment for why the schedule also
+  /// needs a chance to grow right here -- this is, in practice, the one
+  /// call site that actually matters: the postseason begins the instant
+  /// this exact day resolves.
   ///
   /// Returns `null` under the same conditions
   /// [advanceSkillsCompetitionDay] does, substituting
@@ -909,9 +970,10 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     // already-computed PlayedGame just folds the one game it produced
     // into SeasonProgress the same way every other game day does, so
     // `gameDaysInOrder`/`isComplete` bookkeeping stays correct.
-    final advancedProgress = franchise.seasonProgress.copyWithGameDayPlayed([
-      gameAdvance.playedGame,
-    ]);
+    final advancedProgress = _withPostseasonGrown(
+      franchise.seasonProgress.copyWithGameDayPlayed([gameAdvance.playedGame]),
+      allLeagueTeams(franchise),
+    );
     final withTraining = _catchUpTraining(
       gameAdvance.franchise.copyWithSeasonProgress(advancedProgress),
     );

@@ -9,6 +9,7 @@ import 'package:womensbballmgr/features/player/domain/player.dart';
 import 'package:womensbballmgr/features/season/domain/scheduled_game.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/season/generation/all_star_generator.dart';
+import 'package:womensbballmgr/features/season/generation/postseason_generator.dart';
 
 import '../../../support/franchise_test_helpers.dart';
 import '../../../support/in_memory_save_repository.dart';
@@ -150,6 +151,21 @@ void main() {
 
     // The season keeps advancing normally afterward, straight through
     // to the postseason -- the All-Star break doesn't derail anything.
+    //
+    // `progress.isComplete` alone used to be a false-positive trap right
+    // here (2026-08-21, a direct GM report: "stuck on... week 19" --
+    // "Advance to Next Game Day" did nothing, every time, right after
+    // the All-Star Game): the initial schedule ends at the All-Star Game
+    // day by design, and `advanceAllStarGameDay` never grew the
+    // postseason onto it the way `advanceGameDay` grows every other
+    // day's schedule, so `nextGameDayIndex` caught up to the schedule's
+    // *current* length the instant the All-Star Game resolved --
+    // `isComplete` read `true` immediately, this loop's condition was
+    // already false on its very first check, and the assertion below
+    // passed for entirely the wrong reason (no games ever played, no
+    // champion ever crowned) -- exactly why this test didn't already
+    // catch the bug. `seasonChampion` is the real, unambiguous signal
+    // the season actually finished, not just `isComplete` on its own.
     progress = afterGame.seasonProgress;
     guard = 0;
     while (!progress.isComplete && guard < 60) {
@@ -158,5 +174,18 @@ void main() {
       guard++;
     }
     expect(progress.isComplete, isTrue);
+    expect(
+      seasonChampion(progress.playedGames),
+      isNotNull,
+      reason:
+          'the postseason must have actually grown and played out for '
+          'real after the All-Star Game -- not just an early, false '
+          'isComplete the moment nextGameDayIndex happened to catch up '
+          'to a schedule that was never grown further',
+    );
+    expect(
+      progress.schedule.games.any((g) => g.type == GameType.postseason),
+      isTrue,
+    );
   });
 }
