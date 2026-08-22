@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../league/domain/league_draw.dart';
+import '../../portrait/persistence/portrait_catalog_loader.dart';
 import '../../season/domain/season_progress.dart';
 import '../onboarding/expansion_franchise_factory.dart';
 import 'current_franchise_provider.dart';
@@ -56,6 +57,17 @@ Future<void> generateNearEndOfSeasonTestSave(WidgetRef ref) async {
   final team = drawnTeams[random.nextInt(drawnTeams.length)];
   final colors = kStarterPalettes[random.nextInt(kStarterPalettes.length)];
 
+  // Same 2 providers real onboarding awaits (`coach_selection_screen.dart`)
+  // before ever calling `createExpansionFranchise` -- omitting them is a
+  // real, documented fallback (`expansion_franchise_factory.dart`: "omit
+  // it (e.g. in tests) to skip portrait generation... `appearance: null`"),
+  // meant for plain unit tests, not a real dev tool a GM actually looks
+  // at. Missing this was a real gap (2026-08-21, a direct GM report: "test
+  // game didn't have portraits") -- every player in a test save had no
+  // face at all.
+  final portraitWeights = await ref.read(portraitWeightsProvider.future);
+  final portraitManifest = await ref.read(portraitManifestProvider.future);
+
   await ref
       .read(activeSaveSlotProvider.notifier)
       .setActiveSlot(_kDebugTestSaveSlotId);
@@ -69,6 +81,8 @@ Future<void> generateNearEndOfSeasonTestSave(WidgetRef ref) async {
     colors: colors,
     emoji: '🧪',
     simulationSeed: seed,
+    portraitWeights: portraitWeights,
+    portraitManifest: portraitManifest,
   );
   final notifier = ref.read(currentFranchiseProvider.notifier);
   await notifier.createFranchise(franchise);
