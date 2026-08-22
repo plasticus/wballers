@@ -85,27 +85,37 @@ List<MailItem> mailboxFor(Franchise franchise) {
       .length;
 
   final items = <MailItem>[
-    // Both messages are a scripted Day-0 onboarding beat, not a recurring
-    // "you're short a player" nudge -- a direct GM report (2026-08-20):
-    // a mid-career retirement reopened a roster spot and resurrected the
-    // exact same "Last Roster Spot" email a fresh expansion team gets on
-    // day one, which read as though the game thought this was still a
-    // brand-new franchise. `leagueRetirements`/a real off-season report
-    // is the actual notification a later-season roster gap deserves, not
-    // this one. See [kRosterGapMailId]'s own doc comment.
-    if (franchise.season == 0)
-      if (activeCount < kActiveRosterSize)
-        AssistantGmMailItem(
-          id: kRosterGapMailId,
-          subject: 'Last Roster Spot',
-          body: assistantGmRosterGapMessage(franchise),
-        )
-      else
-        AssistantGmMailItem(
-          id: kRosterCompleteMailId,
-          subject: 'Roster Set',
-          body: assistantGmRosterCompleteMessage,
-        ),
+    // [kRosterGapMailId] is a scripted Day-0 onboarding beat, not a
+    // recurring "you're short a player" nudge -- a direct GM report
+    // (2026-08-20): a mid-career retirement reopened a roster spot and
+    // resurrected the exact same "Last Roster Spot" email a fresh
+    // expansion team gets on day one, which read as though the game
+    // thought this was still a brand-new franchise. A second report
+    // (2026-08-21) found `franchise.season == 0` alone still wasn't
+    // tight enough -- season 0 itself runs a full ~24 weeks, so an
+    // ordinary mid-season roster dip (an injury benching, say) kept
+    // resurrecting it too. [isFranchiseDayZero] is the real, narrow gate
+    // now -- see its own doc comment. `leagueRetirements`/a real
+    // off-season report is the actual notification a later gap
+    // deserves, not this one; a same-season, non-Day-0 gap has no
+    // notification of its own yet beyond whatever specific cause (an
+    // injury) already gets one (`assistantGmInjuryRecommendationMessage`).
+    // [kRosterCompleteMailId]'s own condition is untouched -- it isn't
+    // part of this bug, and stays keyed to the whole of season 0 (its
+    // own doc comment already explains why it needs to persist, not
+    // vanish, once shown).
+    if (isFranchiseDayZero(franchise) && activeCount < kActiveRosterSize)
+      AssistantGmMailItem(
+        id: kRosterGapMailId,
+        subject: 'Last Roster Spot',
+        body: assistantGmRosterGapMessage(franchise),
+      )
+    else if (franchise.season == 0 && activeCount >= kActiveRosterSize)
+      AssistantGmMailItem(
+        id: kRosterCompleteMailId,
+        subject: 'Roster Set',
+        body: assistantGmRosterCompleteMessage,
+      ),
     if (franchise.leagueRetirements.isNotEmpty)
       LeagueRetirementsMailItem(
         season: franchise.season,

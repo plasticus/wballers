@@ -502,7 +502,12 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('League MVP (Season 0)'), findsOneWidget);
+    // +1 -- the stored achievement season is 0-indexed (`season: 0`
+    // above), display is season+1, same convention every other season
+    // number in this app follows (2026-08-21, a direct GM report: an
+    // All-Star selection in the franchise's first season showed "Season
+    // 0" instead of "Season 1").
+    expect(find.text('League MVP (Season 1)'), findsOneWidget);
   });
 
   group('Drop from Roster', () {

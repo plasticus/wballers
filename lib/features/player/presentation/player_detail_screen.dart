@@ -661,7 +661,16 @@ class _AwardsCard extends StatelessWidget {
           for (var i = 0; i < player.achievements.length; i++) ...[
             Text(
               '${player.achievements[i].achievement.label} '
-              '(Season ${player.achievements[i].season})',
+              // +1 -- `PlayerAchievementRecord.season` stores the raw
+              // 0-indexed `Franchise.season` value by design (its own
+              // doc comment), same as every other stored season number
+              // in this app; every OTHER season display already adds
+              // the +1 (dashboard_screen.dart's "Season N", this same
+              // screen's own draft-record line) except this one had been
+              // missed (2026-08-21, a direct GM report: an All-Star
+              // selection in the franchise's first season showed
+              // "Season 0" instead of "Season 1").
+              '(Season ${player.achievements[i].season + 1})',
               style: theme.textTheme.bodyLarge,
             ),
             if (i != player.achievements.length - 1)

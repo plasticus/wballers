@@ -629,16 +629,16 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// (`generateStartingRoster`'s doc comment), and the season shouldn't be
   /// advanceable until the GM fills that Day-0 gap with a free agent.
   ///
-  /// Narrowed (2026-08-20, following the injuries design pass) to exactly
-  /// that Day-0 case -- `franchise.season == 0` and still short a player --
-  /// so that parking a player or two in Reserve/Inactive for an injury,
-  /// later in a season, no longer blocks play the same way. The Dashboard's
-  /// own button already hides itself in the Day-0 situation
-  /// (`dashboard_screen.dart`'s `_SeasonAdvanceCard`), so a real GM should
-  /// never hit this guard -- it's here so nothing else that might call
-  /// [advanceGameDay] directly could accidentally bypass the gate.
+  /// Narrowed (2026-08-20, following the injuries design pass; further
+  /// narrowed 2026-08-21 -- see [isFranchiseDayZero]'s own doc comment
+  /// for why `franchise.season == 0` alone wasn't tight enough) to
+  /// exactly the genuine Day-0 case. The Dashboard's own button already
+  /// hides itself in the Day-0 situation (`dashboard_screen.dart`'s
+  /// `_SeasonAdvanceCard`), so a real GM should never hit this guard --
+  /// it's here so nothing else that might call [advanceGameDay] directly
+  /// could accidentally bypass the gate.
   bool _blockedByRosterGap(Franchise franchise) {
-    if (franchise.season != 0) return false;
+    if (!isFranchiseDayZero(franchise)) return false;
     final activeCount = franchise.roster
         .where((m) => m.status == RosterStatus.active)
         .length;

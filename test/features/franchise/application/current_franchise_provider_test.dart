@@ -1110,6 +1110,63 @@ void main() {
       },
     );
 
+    test('does NOT block advancing on a mid-season roster dip within season '
+        '0 itself, once the real Day-0 game day has already been played '
+        '(2026-08-21, a direct GM report: "Once again I have 11 players on '
+        'the roster, can\'t advance... 11 players should be legal" -- the '
+        'earlier fix only covered a later *season*, not just a later game '
+        'day within the same, still-season-0 franchise)', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final started = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(started);
+
+      // Play the real Day 0 game day for real -- nextGameDayIndex is
+      // genuinely past 0 now, still within season 0.
+      await container.read(currentFranchiseProvider.notifier).advanceGameDay();
+      final active = container
+          .read(currentFranchiseProvider)
+          .value!
+          .roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player
+          .id;
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .moveRosterStatus(active, RosterStatus.reserveInactive);
+      expect(
+        container
+            .read(currentFranchiseProvider)
+            .value!
+            .roster
+            .where((m) => m.status == RosterStatus.active)
+            .length,
+        11,
+      );
+
+      final results = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+
+      expect(results, isNotNull);
+    });
+
     test('simulates the next game day, persists a lean SeasonProgress, and '
         'returns the full game results for that day', () async {
       final repository = InMemorySaveRepository();

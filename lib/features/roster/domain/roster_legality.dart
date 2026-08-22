@@ -1,3 +1,4 @@
+import '../../franchise/domain/franchise.dart';
 import '../../player/domain/player.dart';
 import 'roster_status.dart';
 import 'star_tier.dart';
@@ -8,6 +9,30 @@ import 'star_tier.dart';
 /// disadvantage, not something the game blocks (decision 22: we're not
 /// modeling the real CBA's fill-the-roster deadlines).
 const kActiveRosterSize = 12;
+
+/// True only during a franchise's genuine Day 0 -- season 0, *and* no
+/// game day has ever been advanced yet. The scripted "sign a free
+/// agent" system message and its matching advance-block
+/// (`mailbox.dart`'s `kRosterGapMailId`, `current_franchise_provider.
+/// dart`'s `advanceGameDay`, `dashboard_screen.dart`'s own mail
+/// card/button gate) are meant to fire exactly once, at the very start
+/// of a franchise's life -- not "any point during season 0."
+///
+/// [Franchise.season] alone used to be the whole check across all 3 of
+/// those call sites -- reasonable the first time this was narrowed
+/// (2026-08-20, fixing a mid-career *retirement* resurrecting the
+/// script in a *later* season), but season 0 itself runs a full ~24
+/// weeks, and a roster dip from any ordinary mid-season action (an
+/// injury benching, a waive) during that stretch wrongly resurrected
+/// the exact same Day-0 framing and blocked advancing all over again
+/// (2026-08-21, a direct GM report: "Once again I have 11 players on
+/// the roster, can't advance... 11 players should be legal"). Once the
+/// franchise's very first game day has been advanced even once,
+/// [SeasonProgress.nextGameDayIndex] can never read `0` again this
+/// season, so this naturally never re-fires after that -- no separate
+/// "has Day 0 already happened" flag needed.
+bool isFranchiseDayZero(Franchise franchise) =>
+    franchise.season == 0 && franchise.seasonProgress.nextGameDayIndex == 0;
 
 /// Revised 2026-08-10 (`season2roadmap.md` answer 1) alongside [StarTier]'s
 /// own tier shift -- was `kMaxFiveStarPlayers`, cap unchanged at 2, just

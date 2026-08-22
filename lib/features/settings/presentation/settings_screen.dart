@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_preferences.dart';
 import '../../../app/app_spacing.dart';
+import '../../../app/build_info.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../dashboard/dashboard_screen.dart';
+import '../../franchise/application/debug_test_save.dart';
 import '../../franchise/presentation/main_menu_screen.dart';
 import '../../match/presentation/live_game_lab_screen.dart';
 import '../../training/presentation/coach_picker_lab_screen.dart';
@@ -21,11 +24,54 @@ import '../../training/presentation/coach_picker_lab_screen.dart';
 /// save and start over," reframed into the softer, non-destructive
 /// `MainMenuScreen` slot picker instead, per the GM's own "or better
 /// yet" follow-up in the same message.
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  var _isGeneratingTestSave = false;
+
+  Future<void> _loadNearEndOfSeasonTestSave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Load Test Save?'),
+        content: Text(
+          'Generates a fresh franchise, fast-forwarded to '
+          '$kDebugTestSaveGameDaysRemaining games left before the '
+          'postseason, and switches to it -- overwrites whatever is in '
+          'Slot 3. Your other 2 save slots are untouched.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Load'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isGeneratingTestSave = true);
+    await generateNearEndOfSeasonTestSave(ref);
+    if (!mounted) return;
+    setState(() => _isGeneratingTestSave = false);
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AppShell()),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textScale = ref.watch(textScaleProvider);
     final themeModePreference = ref.watch(themeModeProvider);
@@ -36,6 +82,20 @@ class SettingsScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
+            // At the very top, deliberately -- a direct GM report
+            // (2026-08-21): "I feel like [an install not landing] has
+            // happened a few times, now... Maybe we could put a version
+            // number on the settings menu, and I can check it after
+            // every build." [kAppBuildStamp] is the git commit a build
+            // was actually cut from, so it's independently checkable
+            // against `git log` -- not a monotonic build counter, which
+            // would only prove *a* build landed, not *which* one.
+            Text('App Version', style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.sm),
+            AppCard(
+              child: Text(kAppBuildStamp, style: theme.textTheme.bodyMedium),
+            ),
+            const SizedBox(height: AppSpacing.xl),
             Text('Display', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             AppCard(
@@ -150,6 +210,33 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     icon: const Icon(Icons.science_outlined),
                     label: const Text('Coach Picker Lab'),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  // A direct GM ask (2026-08-21): "I need to develop an
+                  // admin save-game that fires up with like... 3 games
+                  // left in the season. So I can test off-season
+                  // faster." Unlike the 2 labs above, this one DOES have
+                  // a real save-file effect -- see
+                  // `generateNearEndOfSeasonTestSave`'s own doc comment
+                  // for why it's confined to a fixed scratch slot rather
+                  // than risking a real playthrough.
+                  OutlinedButton.icon(
+                    onPressed: _isGeneratingTestSave
+                        ? null
+                        : _loadNearEndOfSeasonTestSave,
+                    icon: _isGeneratingTestSave
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.fast_forward_outlined),
+                    label: Text(
+                      _isGeneratingTestSave
+                          ? 'Generating...'
+                          : 'Load Test Save ($kDebugTestSaveGameDaysRemaining '
+                                'Games Left)',
+                    ),
                   ),
                 ],
               ),

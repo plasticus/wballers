@@ -408,17 +408,19 @@ int _activeRosterCount(Franchise franchise) =>
 
 /// Whether the Dashboard's own roster-gap mail card/advance-block should
 /// show -- mirrors `current_franchise_provider.dart`'s `_blockedByRosterGap`
-/// exactly (season 0, still short a player), which is the real gate
-/// [advanceGameDay] itself enforces. This file's own two gates
+/// exactly ([isFranchiseDayZero], still short a player), which is the
+/// real gate [advanceGameDay] itself enforces. This file's own two gates
 /// (`_AssistantGmMailCard`'s visibility, [_SeasonAdvanceCard]'s button)
-/// used to just check [_activeRosterCount] alone, with no season guard --
-/// stale ever since the provider's own guard was narrowed to Day 0 only
-/// (2026-08-20), so parking an injured player in Reserve/Inactive later in
-/// a season wrongly resurrected the Day-0 "sign a free agent" framing and
-/// fully blocked the Advance button, even though [advanceGameDay] itself
-/// would have gone through fine if pressed (2026-08-21, a GM bug report).
+/// used to just check [_activeRosterCount] alone, with no Day-0 guard at
+/// all, then later just `franchise.season == 0` -- both too loose,
+/// wrongly resurrecting the Day-0 "sign a free agent" framing (and fully
+/// blocking the Advance button) for any ordinary mid-season roster dip,
+/// even well after the franchise's real Day 0 had passed (2026-08-20 and
+/// 2026-08-21, 2 separate GM bug reports of the same underlying gap --
+/// see [isFranchiseDayZero]'s own doc comment for the second one).
 bool _blockedByRosterGap(Franchise franchise) =>
-    franchise.season == 0 && _activeRosterCount(franchise) < kActiveRosterSize;
+    isFranchiseDayZero(franchise) &&
+    _activeRosterCount(franchise) < kActiveRosterSize;
 
 /// "You need to hire a free agent before we can advance" -- a direct GM
 /// ask for a real Day-0 hook: a fresh expansion roster starts one player

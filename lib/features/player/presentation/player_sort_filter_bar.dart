@@ -7,13 +7,31 @@ import '../domain/player.dart';
 /// just the handful of numbers/text a GM actually scans a prospect or
 /// free-agent list for (2026-08-11, a direct GM ask: "I need to be able
 /// to sort by all the stuff, or filter. Like filter for position, then
-/// sort by potential, that kind of thing").
-enum PlayerSortKey { overall, potential, age, name }
+/// sort by potential, that kind of thing"). [offense]/[defense]/
+/// [physical]/[difference] added 2026-08-21, a direct GM ask on the
+/// Draft Day screen specifically ("sort the draft list by pot, off, def,
+/// phys, ovr, and maybe a fresh one called difference (pot-ovr)") --
+/// shared here rather than duplicated onto `DraftDayScreen` alone, so
+/// the Free Agents tab picks up the same 4 new options for free.
+enum PlayerSortKey {
+  overall,
+  potential,
+  offense,
+  defense,
+  physical,
+  difference,
+  age,
+  name,
+}
 
 extension PlayerSortKeyLabel on PlayerSortKey {
   String get label => switch (this) {
     PlayerSortKey.overall => 'Overall',
     PlayerSortKey.potential => 'Potential',
+    PlayerSortKey.offense => 'Offense',
+    PlayerSortKey.defense => 'Defense',
+    PlayerSortKey.physical => 'Physical',
+    PlayerSortKey.difference => 'Difference',
     PlayerSortKey.age => 'Age',
     PlayerSortKey.name => 'Name',
   };
@@ -29,6 +47,24 @@ int comparePlayersBy(PlayerSortKey key, Player a, Player b) {
     PlayerSortKey.potential => a.ratings.potential.compareTo(
       b.ratings.potential,
     ),
+    PlayerSortKey.offense => a.ratings.offenseOverall.compareTo(
+      b.ratings.offenseOverall,
+    ),
+    PlayerSortKey.defense => a.ratings.defenseOverall.compareTo(
+      b.ratings.defenseOverall,
+    ),
+    PlayerSortKey.physical => a.ratings.physicalOverall.compareTo(
+      b.ratings.physicalOverall,
+    ),
+    // How much further a player's own ceiling sits above where she
+    // already is -- a high value flags a real project/lottery-ticket
+    // prospect worth the risk; a low (or negative, for a veteran free
+    // agent past her peak) value flags someone who's already close to
+    // what she'll ever be.
+    PlayerSortKey.difference =>
+      (a.ratings.potential - a.ratings.overall).compareTo(
+        b.ratings.potential - b.ratings.overall,
+      ),
     PlayerSortKey.age => a.age.compareTo(b.age),
     PlayerSortKey.name => a.name.compareTo(b.name),
   };
@@ -43,6 +79,10 @@ extension PlayerSortKeyDefaultDirection on PlayerSortKey {
   bool get defaultDescending => switch (this) {
     PlayerSortKey.overall => true,
     PlayerSortKey.potential => true,
+    PlayerSortKey.offense => true,
+    PlayerSortKey.defense => true,
+    PlayerSortKey.physical => true,
+    PlayerSortKey.difference => true,
     PlayerSortKey.age => false,
     PlayerSortKey.name => false,
   };

@@ -159,8 +159,154 @@ void main() {
         'default to ascending', () {
       expect(PlayerSortKey.overall.defaultDescending, isTrue);
       expect(PlayerSortKey.potential.defaultDescending, isTrue);
+      expect(PlayerSortKey.offense.defaultDescending, isTrue);
+      expect(PlayerSortKey.defense.defaultDescending, isTrue);
+      expect(PlayerSortKey.physical.defaultDescending, isTrue);
+      expect(PlayerSortKey.difference.defaultDescending, isTrue);
       expect(PlayerSortKey.age.defaultDescending, isFalse);
       expect(PlayerSortKey.name.defaultDescending, isFalse);
+    });
+  });
+
+  group('comparePlayersBy offense/defense/physical/difference (2026-08-21, a '
+      'direct GM ask: "sort the draft list by pot, off, def, phys, ovr, '
+      'and maybe a fresh one called difference (pot-ovr)")', () {
+    // Independently controllable per-category ratings -- the shared
+    // `_player` helper above sets every rating field to the same
+    // `overall` value, which can't tell offense/defense/physical apart
+    // from each other or from plain Overall.
+    Player playerWith({
+      required String id,
+      required int offense,
+      required int defense,
+      required int physical,
+      int potential = 60,
+    }) {
+      return Player(
+        id: id,
+        name: id,
+        age: 24,
+        yearsOfService: 3,
+        hometown: 'Fictional City',
+        primaryPosition: Position.pointGuard,
+        secondaryPositions: const {},
+        handedness: Handedness.right,
+        biography: '',
+        heightInches: 73,
+        archetype: kArchetypesByPosition[Position.pointGuard]!.first,
+        traits: const {},
+        achievements: const [],
+        ratings: PlayerRatings(
+          speed: physical,
+          agility: physical,
+          strength: physical,
+          stamina: physical,
+          ballControl: offense,
+          passing: offense,
+          interiorOffense: offense,
+          perimeterOffense: offense,
+          perimeterDefense: defense,
+          interiorDefense: defense,
+          disruption: defense,
+          blocking: defense,
+          potential: potential,
+        ),
+      );
+    }
+
+    test('offense compares PlayerRatings.offenseOverall specifically', () {
+      final weakOffense = playerWith(
+        id: 'a',
+        offense: 50,
+        defense: 90,
+        physical: 90,
+      );
+      final strongOffense = playerWith(
+        id: 'b',
+        offense: 90,
+        defense: 50,
+        physical: 50,
+      );
+      expect(
+        comparePlayersBy(PlayerSortKey.offense, weakOffense, strongOffense),
+        lessThan(0),
+      );
+    });
+
+    test('defense compares PlayerRatings.defenseOverall specifically', () {
+      final weakDefense = playerWith(
+        id: 'a',
+        offense: 90,
+        defense: 50,
+        physical: 90,
+      );
+      final strongDefense = playerWith(
+        id: 'b',
+        offense: 50,
+        defense: 90,
+        physical: 50,
+      );
+      expect(
+        comparePlayersBy(PlayerSortKey.defense, weakDefense, strongDefense),
+        lessThan(0),
+      );
+    });
+
+    test('physical compares PlayerRatings.physicalOverall specifically', () {
+      final weakPhysical = playerWith(
+        id: 'a',
+        offense: 90,
+        defense: 90,
+        physical: 50,
+      );
+      final strongPhysical = playerWith(
+        id: 'b',
+        offense: 50,
+        defense: 50,
+        physical: 90,
+      );
+      expect(
+        comparePlayersBy(PlayerSortKey.physical, weakPhysical, strongPhysical),
+        lessThan(0),
+      );
+    });
+
+    test('difference compares (potential - overall), not either alone', () {
+      // A lower-overall player with a much higher ceiling should sort
+      // above a higher-overall player who's already close to her own
+      // potential, even though her raw overall is lower.
+      final rawProspect = playerWith(
+        id: 'raw',
+        offense: 50,
+        defense: 50,
+        physical: 50,
+        potential: 90,
+      ); // overall ~50, potential 90 -> difference ~40
+      final finishedVeteran = playerWith(
+        id: 'vet',
+        offense: 85,
+        defense: 85,
+        physical: 85,
+        potential: 87,
+      ); // overall ~85, potential 87 -> difference ~2
+
+      expect(
+        comparePlayersBy(
+          PlayerSortKey.difference,
+          rawProspect,
+          finishedVeteran,
+        ),
+        greaterThan(0),
+      );
+
+      final sorted = sortAndFilterPlayers(
+        [finishedVeteran, rawProspect],
+        (p) => p,
+        position: null,
+        sortKey: PlayerSortKey.difference,
+        descending: true,
+      );
+      expect(sorted.map((p) => p.id), ['raw', 'vet']);
     });
   });
 }

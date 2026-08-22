@@ -400,6 +400,23 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
       setState(() {
         _playing = false;
         _gameOver = true;
+        // Reconcile against the real, authoritative final score -- a
+        // direct GM report (2026-08-21): "the live game gives a
+        // different result than the final score after the game." The
+        // running `_home`/`_away` scoreboard is rebuilt beat-by-beat as
+        // the GM watches (`_onSegmentComplete`), and a made shot's
+        // points are deliberately deferred until its ball-flight
+        // animation lands (`_FullCourtPanel.shotTravelMs`); stepping or
+        // resuming past that beat before the delay fires drops those
+        // points from the *displayed* running total for good (see that
+        // deferred `setState` below its own "already superseded" guard)
+        // -- `result.homeScore`/`awayScore` is what `simulateMatchLive`
+        // actually computed and is what gets persisted everywhere else
+        // (schedule, standings, box score), so it's always the correct
+        // final answer regardless of what the live scoreboard drifted to
+        // along the way.
+        _home = result.homeScore;
+        _away = result.awayScore;
       });
       if (isReal) await _finishDayAndShowResult(franchise, result);
     });
@@ -500,13 +517,21 @@ class _LiveGameLabScreenState extends ConsumerState<LiveGameLabScreen> {
         final travelMs = _FullCourtPanel.shotTravelMs(_intervalMsFor(_speed));
         Future.delayed(Duration(milliseconds: travelMs), () {
           if (!mounted) return;
-          // The game could have been reset (or, in principle, another
-          // beat could have already superseded this one) before the
-          // ball's travel animation finished -- don't bump a score that's
-          // no longer this beat's own board.
-          if (_beatHistory.isEmpty || !identical(_beatHistory.last, beat)) {
-            return;
-          }
+          // Only a real reset for a fresh replay (`_startGame`'s own
+          // `_beatHistory.clear()`) should ever drop these points -- that
+          // clears this exact beat instance out of [_beatHistory]
+          // entirely, so it's checked for membership, not for still
+          // being the *last* one. The GM stepping/resuming past this
+          // beat before the ball's travel animation finished (Step's
+          // Next, or Play-resume right after a Pause) is a completely
+          // normal, expected way to watch, and used to silently and
+          // permanently drop this made shot's points from the running
+          // score when it did (2026-08-21, a direct GM report: "the live
+          // game gives a different result than the final score after
+          // the game") -- those points are just as real as any other
+          // beat's, they just still need applying once, even to a board
+          // that's already moved on to a later beat.
+          if (!_beatHistory.contains(beat)) return;
           setState(() {
             _home += beat.deltaHome;
             _away += beat.deltaAway;
