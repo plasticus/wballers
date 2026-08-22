@@ -2091,6 +2091,83 @@ void main() {
       expect(updated.pendingRetirements, isEmpty);
     });
 
+    test('letting a player retire appends a real LeagueRetirement, with the '
+        'GM\'s own team abbreviation, so a real Mail item and the season '
+        'recap can both surface it (2026-08-22, a direct GM report: '
+        '"Couldn\'t tell if my star player retired... a mail from my asst '
+        'that the star player retired")', () async {
+      final player = playerWithOverall(
+        70,
+        id: 'p1',
+        age: 38,
+        name: 'Star Player',
+      );
+      final container = await containerWithPending(
+        player: player,
+        motivation: 50,
+      );
+      final ownAbbreviation = container
+          .read(currentFranchiseProvider)
+          .value!
+          .team
+          .abbreviation;
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .resolvePendingRetirement('p1', attemptPersuasion: false);
+
+      final updated = container.read(currentFranchiseProvider).value!;
+      final retirement = updated.leagueRetirements.singleWhere(
+        (r) => r.playerId == 'p1',
+      );
+      expect(retirement.name, 'Star Player');
+      expect(retirement.primaryPosition, player.primaryPosition);
+      expect(retirement.teamAbbreviation, ownAbbreviation);
+      expect(retirement.reason, RetirementReason.hitMandatoryAge);
+      expect(retirement.season, updated.season);
+    });
+
+    test('a persuaded player (still on the roster) does NOT get a '
+        'LeagueRetirement entry -- she never actually retired; a failed '
+        'persuasion does get one, same as letting her go outright', () async {
+      // No seed control over the provider's internal Random() (see the
+      // "attempting persuasion..." test above) -- retries until both
+      // branches are actually observed, asserting the invariant on each.
+      final seenOutcomes = <RetirementDecisionOutcome>{};
+      for (var i = 0; i < 40 && seenOutcomes.length < 2; i++) {
+        final player = playerWithOverall(70, id: 'p1', age: 38);
+        final container = await containerWithPending(
+          player: player,
+          motivation: 50,
+        );
+
+        final outcome = await container
+            .read(currentFranchiseProvider.notifier)
+            .resolvePendingRetirement('p1', attemptPersuasion: true);
+        final updated = container.read(currentFranchiseProvider).value!;
+        final hasRetirementEntry = updated.leagueRetirements.any(
+          (r) => r.playerId == 'p1',
+        );
+
+        if (outcome == RetirementDecisionOutcome.persuadedToStay) {
+          expect(hasRetirementEntry, isFalse);
+        } else {
+          expect(outcome, RetirementDecisionOutcome.persuasionFailed);
+          expect(hasRetirementEntry, isTrue);
+        }
+        seenOutcomes.add(outcome!);
+      }
+
+      expect(
+        seenOutcomes,
+        {
+          RetirementDecisionOutcome.persuadedToStay,
+          RetirementDecisionOutcome.persuasionFailed,
+        },
+        reason: 'expected both outcomes to occur within 40 fresh attempts',
+      );
+    });
+
     test('letting a player retire snapshots her name/position/jersey into '
         'Franchise.formerPlayers, so a later report can still show a real '
         'name instead of "Former Player" (2026-08-19, a direct GM '

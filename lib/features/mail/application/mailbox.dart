@@ -1,8 +1,10 @@
 import '../../franchise/domain/franchise.dart';
 import '../../franchise/domain/franchise_legality.dart';
 import '../../franchise/domain/injury_report_entry.dart';
+import '../../franchise/domain/league_retirement.dart';
 import '../../player/domain/player_injury.dart';
 import '../../player/domain/position.dart';
+import '../../player/domain/retirement_reason.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
@@ -116,11 +118,28 @@ List<MailItem> mailboxFor(Franchise franchise) {
         subject: 'Roster Set',
         body: assistantGmRosterCompleteMessage,
       ),
-    if (franchise.leagueRetirements.isNotEmpty)
+    if (franchise.leagueRetirements
+            .where((r) => r.teamAbbreviation != franchise.team.abbreviation)
+            .toList()
+        case final aiRetirements when aiRetirements.isNotEmpty)
       LeagueRetirementsMailItem(
         season: franchise.season,
-        retirements: franchise.leagueRetirements,
+        retirements: aiRetirements,
       ),
+    // One real, per-player mail for the GM's own roster specifically --
+    // a direct GM report (2026-08-22): "Couldn't tell if my star player
+    // retired. I skimmed the end season report a little too fast...
+    // possibly also a mail from my asst that the star player retired,
+    // and will need to be replaced asap." [LeagueRetirement]'s own doc
+    // comment explains why this one list now covers both AI and the
+    // GM's own roster, filtered apart right here.
+    for (final retirement in franchise.leagueRetirements)
+      if (retirement.teamAbbreviation == franchise.team.abbreviation)
+        AssistantGmMailItem(
+          id: ownRetirementMailId(retirement.playerId),
+          subject: '${retirement.name} Has Retired',
+          body: assistantGmOwnRetirementMessage(retirement),
+        ),
     if (evaluateFranchiseLegality(franchise) case final legality
         when !legality.isLegal)
       RosterLegalityMailItem(legality: legality),
@@ -199,12 +218,23 @@ bool _isPinned(MailItem item) =>
     item is InjuryRecoveredMailItem ||
     (item is AssistantGmMailItem &&
         (item.id == kRosterGapMailId ||
-            item.id.startsWith(_kInjuryRecommendationPrefix)));
+            item.id.startsWith(_kInjuryRecommendationPrefix) ||
+            item.id.startsWith(_kOwnRetirementPrefix)));
 
 /// Shared with [injuryRecommendationMailId] -- kept as its own constant so
 /// [_isPinned]'s prefix check can never drift out of sync with the id
 /// format that function actually produces.
 const _kInjuryRecommendationPrefix = 'injury_recommendation_';
+
+/// Shared with [ownRetirementMailId] -- same reasoning as
+/// [_kInjuryRecommendationPrefix].
+const _kOwnRetirementPrefix = 'own_retirement_';
+
+/// Stable id for the GM's own roster player's retirement mail, one per
+/// [Player.id] -- exported so `mailboxFor` and any test asserting on it
+/// share the exact same format. See [assistantGmOwnRetirementMessage].
+String ownRetirementMailId(String playerId) =>
+    '$_kOwnRetirementPrefix$playerId';
 
 /// The season week a given [MailItem] is "about", for newest-first
 /// sorting -- `null` for [RetirementDecisionMailItem], [RosterLegalityMailItem],
@@ -315,6 +345,23 @@ String assistantGmInjuryRecommendationMessage(RosterMembership membership) {
       '${injury.gamesRemainingAtSeverity == 1 ? '' : 's'} until she\'s '
       'back to full strength. $recommendation If you need to cover the '
       'spot in the meantime, a short-term free-agent signing works too.';
+}
+
+/// The Assistant GM's real notice that [retirement] -- a GM's-own-roster
+/// player -- has actually retired, naming her, her position, why, and
+/// recommending a replacement (2026-08-22, a direct GM ask: "a mail from
+/// my asst that the star player retired, and will need to be replaced
+/// asap"). [RetirementReasonLabel.label] is written as a GM-facing
+/// *pending*-decision sentence ("She's hit the age... ready to call it a
+/// career") -- reused here as-is rather than a separate past-tense
+/// wording, since it still reads sensibly as the reason a done decision
+/// was made.
+String assistantGmOwnRetirementMessage(LeagueRetirement retirement) {
+  return 'Boss -- ${retirement.name} '
+      '(${retirement.primaryPosition.abbreviation}) has retired. '
+      '${retirement.reason.label} We\'re down a player at that spot now '
+      '-- take a look at the Player Market to fill it, sooner rather '
+      'than later.';
 }
 
 /// The Assistant GM's follow-up once the roster's actually full

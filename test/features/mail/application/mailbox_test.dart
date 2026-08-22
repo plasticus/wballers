@@ -182,6 +182,114 @@ void main() {
 
       expect(items.whereType<LeagueRetirementsMailItem>(), isEmpty);
     });
+
+    test(
+      'excludes the GM\'s own roster from LeagueRetirementsMailItem -- '
+      'that\'s the dedicated own-retirement mail\'s job now (2026-08-22)',
+      () {
+        final base = _franchise();
+        final franchise = base.copyWithLeagueRetirements([
+          const LeagueRetirement(
+            playerId: 'ai-1',
+            name: 'Alex Rivera',
+            primaryPosition: Position.center,
+            teamAbbreviation: 'CHI',
+            reason: RetirementReason.hitMandatoryAge,
+            season: 0,
+          ),
+          LeagueRetirement(
+            playerId: 'own-1',
+            name: 'Star Player',
+            primaryPosition: Position.pointGuard,
+            teamAbbreviation: base.team.abbreviation,
+            reason: RetirementReason.declinedFromPeak,
+            season: 0,
+          ),
+        ]);
+
+        final items = mailboxFor(franchise);
+
+        final retirementItem = items
+            .whereType<LeagueRetirementsMailItem>()
+            .single;
+        expect(retirementItem.retirements, hasLength(1));
+        expect(retirementItem.retirements.single.playerId, 'ai-1');
+      },
+    );
+  });
+
+  group('own-roster retirement mail (2026-08-22, a direct GM report: '
+      '"Couldn\'t tell if my star player retired... possibly also a mail '
+      'from my asst that the star player retired, and will need to be '
+      'replaced asap")', () {
+    test('includes a real AssistantGmMailItem naming the retiree, her '
+        'position, and the reason, once she actually retires', () {
+      final base = _franchise();
+      final franchise = base.copyWithLeagueRetirements([
+        LeagueRetirement(
+          playerId: 'own-1',
+          name: 'Star Player',
+          primaryPosition: Position.pointGuard,
+          teamAbbreviation: base.team.abbreviation,
+          reason: RetirementReason.hitMandatoryAge,
+          season: 0,
+        ),
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      final ownMail = items
+          .whereType<AssistantGmMailItem>()
+          .where((i) => i.id == ownRetirementMailId('own-1'))
+          .single;
+      expect(ownMail.subject, 'Star Player Has Retired');
+      expect(ownMail.body, contains('Star Player'));
+      expect(ownMail.body, contains('PG'));
+      expect(ownMail.body, contains('ready to call it a career'));
+      expect(ownMail.body, contains('Player Market'));
+    });
+
+    test('omits it entirely when nobody on the GM\'s own roster has '
+        'retired this season', () {
+      final items = mailboxFor(_franchise());
+
+      expect(
+        items.whereType<AssistantGmMailItem>().where(
+          (i) => i.id.startsWith('own_retirement_'),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('one mail per retiree, if more than one retires the same '
+        'season', () {
+      final base = _franchise();
+      final franchise = base.copyWithLeagueRetirements([
+        LeagueRetirement(
+          playerId: 'own-1',
+          name: 'Star Player',
+          primaryPosition: Position.pointGuard,
+          teamAbbreviation: base.team.abbreviation,
+          reason: RetirementReason.hitMandatoryAge,
+          season: 0,
+        ),
+        LeagueRetirement(
+          playerId: 'own-2',
+          name: 'Bench Veteran',
+          primaryPosition: Position.center,
+          teamAbbreviation: base.team.abbreviation,
+          reason: RetirementReason.declinedFromPeak,
+          season: 0,
+        ),
+      ]);
+
+      final items = mailboxFor(franchise);
+
+      final ownMails = items.whereType<AssistantGmMailItem>().where(
+        (i) => i.id.startsWith('own_retirement_'),
+      );
+      expect(ownMails, hasLength(2));
+    });
   });
 
   group('All-Star week mail (2026-08-10, TODO.md items 5/6)', () {

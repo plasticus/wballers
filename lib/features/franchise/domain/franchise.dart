@@ -870,8 +870,12 @@ class Franchise {
   }
 
   /// Returns a copy with [newRetirements] appended to [leagueRetirements]
-  /// -- `current_franchise_provider.dart`'s `simulatePostseasonAndPersist`
-  /// is the only producer, once per postseason resolution.
+  /// -- `current_franchise_provider.dart`'s off-season retirement pass
+  /// produces the AI-team batch once per postseason resolution;
+  /// `_retirePlayer` (2026-08-22) is a second producer, appending exactly
+  /// one entry the moment the GM's own roster player actually retires --
+  /// see [LeagueRetirement]'s own doc comment for why this one list now
+  /// covers both.
   Franchise copyWithLeagueRetirements(List<LeagueRetirement> newRetirements) {
     return Franchise(
       id: id,

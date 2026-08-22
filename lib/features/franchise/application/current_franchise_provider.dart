@@ -13,6 +13,7 @@ import '../../league/domain/team.dart';
 import '../../match/domain/match_result.dart';
 import '../../matchup/domain/defensive_tactic.dart';
 import '../../player/domain/player.dart';
+import '../../player/domain/retirement_reason.dart';
 import '../../portrait/domain/portrait_appearance.dart';
 import '../../portrait/persistence/portrait_catalog_loader.dart';
 import '../../roster/domain/roster_legality.dart';
@@ -42,6 +43,7 @@ import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
 import '../domain/former_player_record.dart';
+import '../domain/league_retirement.dart';
 import '../domain/franchise.dart';
 import '../domain/pending_retirement.dart';
 import '../persistence/franchise_json.dart';
@@ -516,19 +518,25 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       for (final pending in franchise.pendingRetirements)
         if (pending.playerId != playerId) pending,
     ];
+    final reason = franchise.pendingRetirements
+        .firstWhere((p) => p.playerId == playerId)
+        .reason;
 
     if (!attemptPersuasion) {
       await _persist(
         _retirePlayer(
           franchise,
           playerId,
+          reason,
         ).copyWithPendingRetirements(newPending),
       );
       return RetirementDecisionOutcome.letRetire;
     }
 
     final succeeded = attemptRetirementPersuasion(Random(), franchise.coach);
-    final updated = succeeded ? franchise : _retirePlayer(franchise, playerId);
+    final updated = succeeded
+        ? franchise
+        : _retirePlayer(franchise, playerId, reason);
     await _persist(updated.copyWithPendingRetirements(newPending));
     return succeeded
         ? RetirementDecisionOutcome.persuadedToStay
@@ -543,21 +551,56 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// season's own training reports can still show a real name for her
   /// afterward instead of the generic "Former Player" fallback -- a
   /// direct GM report (2026-08-19), see [FormerPlayerRecord]'s own doc
-  /// comment. A no-op beyond the removal itself if [playerId] somehow
-  /// isn't actually on [franchise]'s roster (never expected in practice
-  /// -- every caller resolves this against a real [PendingRetirement]).
-  Franchise _retirePlayer(Franchise franchise, String playerId) {
+  /// comment.
+  ///
+  /// Also appends a [LeagueRetirement] onto [Franchise.leagueRetirements]
+  /// -- the exact same season-scoped list AI-team retirements already
+  /// land in, just with [Franchise.team]'s own abbreviation instead of an
+  /// AI one (2026-08-22, a direct GM report: "Couldn't tell if my star
+  /// player retired. I skimmed the end season report a little too
+  /// fast... possibly also a mail from my asst that the star player
+  /// retired"). `mailboxFor`/`LeagueRetirementsMailItem` filter this list
+  /// down to AI-only (that mail is deliberately about *other* teams'
+  /// news -- [LeagueRetirement]'s own doc comment); a new,
+  /// GM's-own-roster-only [AssistantGmMailItem] reads the other half.
+  /// `SeasonRecapScreen`'s own "League Retirements" section is left
+  /// unfiltered on purpose -- the GM's own retiree showing up right
+  /// alongside the rest of the league's news is exactly the visibility
+  /// this report asked for, not something to hide from that summary.
+  ///
+  /// A no-op beyond the removal itself if [playerId] somehow isn't
+  /// actually on [franchise]'s roster (never expected in practice --
+  /// every caller resolves this against a real [PendingRetirement]).
+  Franchise _retirePlayer(
+    Franchise franchise,
+    String playerId,
+    RetirementReason reason,
+  ) {
     final membership = franchise.roster.where((m) => m.player.id == playerId);
     if (membership.isEmpty) return franchise;
     final player = membership.first.player;
-    return franchise.copyWithRetiredPlayer(
-      FormerPlayerRecord(
-        playerId: player.id,
-        name: player.name,
-        primaryPosition: player.primaryPosition,
-        jerseyNumber: player.jerseyNumber,
-      ),
-    );
+    return franchise
+        .copyWithRetiredPlayer(
+          FormerPlayerRecord(
+            playerId: player.id,
+            name: player.name,
+            primaryPosition: player.primaryPosition,
+            jerseyNumber: player.jerseyNumber,
+          ),
+        )
+        .copyWithLeagueRetirements([
+          // copyWithLeagueRetirements already appends onto the existing
+          // list itself -- passing just the new entry, not the full
+          // combined list (see that method's own doc comment).
+          LeagueRetirement(
+            playerId: player.id,
+            name: player.name,
+            primaryPosition: player.primaryPosition,
+            teamAbbreviation: franchise.team.abbreviation,
+            reason: reason,
+            season: franchise.season,
+          ),
+        ]);
   }
 
   /// Replaces the coach's portrait appearance and persists it. Same
