@@ -263,6 +263,14 @@ function asset_label(array $a): string {
 // ---------------------------------------------------------------------
 // Request handling
 // ---------------------------------------------------------------------
+
+// Never let a browser cache this page -- it's dynamic (new trades, new
+// ratings) on every request, and a stale cached copy is exactly how a
+// CSS change like the forced-dark-mode styling can silently fail to
+// show up on a device even after the file on disk is already fixed.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 $count = 20;
 $viewMode = isset($_GET['view']);
 
@@ -330,6 +338,7 @@ function h(string $s): string {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WBL Trade Value Study</title>
 <style>
   :root {
@@ -349,26 +358,33 @@ function h(string $s): string {
     --link: #e0b13f;
   }
   html { color-scheme: dark; }
-  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; background: var(--bg); color: var(--text); }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 17px; max-width: 900px; margin: 0 auto; padding: 20px 14px 90px; background: var(--bg); color: var(--text); }
   h1 { font-size: 1.4rem; }
   a { color: var(--link); }
   .muted { color: var(--muted); font-size: 0.9rem; }
   .flash { background: var(--flash-bg); border: 1px solid var(--flash-border); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
   .top-nav { margin-bottom: 20px; }
-  .top-nav a { margin-right: 16px; }
+  .top-nav a { margin-right: 16px; display: inline-block; padding: 4px 0; }
   .trade { border: 1px solid var(--card-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; background: var(--card-bg); }
-  .trade h3 { margin: 0 0 8px; font-size: 1rem; }
+  .trade h3 { margin: 0 0 8px; font-size: 1.05rem; }
   .sides { display: flex; gap: 16px; flex-wrap: wrap; }
-  .side { flex: 1; min-width: 260px; }
+  .side { flex: 1; min-width: 220px; }
   .side h4 { margin: 0 0 4px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--label); }
   .side ul { margin: 0; padding-left: 18px; }
   .value-line { font-size: 0.85rem; color: var(--value-line); margin-top: 8px; }
-  .rate-row { margin-top: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  select, textarea { font-size: 0.95rem; padding: 4px 6px; background: var(--card-bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 4px; }
+  .rate-row { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .skip-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--muted); cursor: pointer; }
+  .skip-toggle input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--button-bg); }
+  .slider-wrap { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; min-width: 0; height: 32px; accent-color: var(--button-bg); }
+  .rating-out { font-weight: bold; min-width: 5em; text-align: right; }
+  select, textarea { font-size: 1rem; padding: 8px; background: var(--card-bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 4px; }
   textarea { width: 100%; margin-top: 8px; box-sizing: border-box; min-height: 44px; }
   .submit-bar { position: sticky; bottom: 0; background: var(--bg); padding: 14px 0; border-top: 1px solid var(--card-border); }
-  button { font-size: 1rem; padding: 10px 18px; border-radius: 8px; border: none; background: var(--button-bg); color: var(--button-text); cursor: pointer; }
+  button { font-size: 1.05rem; padding: 14px 18px; width: 100%; border-radius: 8px; border: none; background: var(--button-bg); color: var(--button-text); cursor: pointer; }
   button:hover { background: var(--button-bg-hover); }
+  .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-top: 12px; }
   th, td { border: 1px solid var(--card-border); padding: 6px 8px; font-size: 0.85rem; text-align: left; vertical-align: top; }
   th { background: var(--th-bg); }
@@ -402,7 +418,7 @@ function h(string $s): string {
   ?>
   <div class="stat-cards">
     <div class="stat-card"><div class="big"><?= $total ?></div><div class="muted">rated trades</div></div>
-    <div class="stat-card"><div class="big"><?= number_format($avg, 2) ?></div><div class="muted">avg rating (-5 = you win big, +5 = they win big)</div></div>
+    <div class="stat-card"><div class="big"><?= number_format($avg, 2) ?></div><div class="muted">avg rating (-5 = Team A wins big, +5 = Team B wins big)</div></div>
     <div class="stat-card"><div class="big"><?= $avgWithin === null ? '—' : number_format($avgWithin, 2) ?></div><div class="muted">avg rating, within engine tolerance (<?= count($within) ?>)</div></div>
     <div class="stat-card"><div class="big"><?= $avgOutside === null ? '—' : number_format($avgOutside, 2) ?></div><div class="muted">avg rating, outside engine tolerance (<?= count($outside) ?>)</div></div>
   </div>
@@ -411,11 +427,12 @@ function h(string $s): string {
   <?php if ($total === 0): ?>
     <p>No ratings saved yet -- <a href="?">go rate some trades</a>.</p>
   <?php else: ?>
+    <div class="table-wrap">
     <table>
       <tr>
         <th>When</th>
-        <th>You Give</th>
-        <th>You Get</th>
+        <th>Team A Sends</th>
+        <th>Team B Sends</th>
         <th>Value Gap</th>
         <th>In Tolerance?</th>
         <th>Rating</th>
@@ -433,6 +450,7 @@ function h(string $s): string {
         </tr>
       <?php endforeach; ?>
     </table>
+    </div>
   <?php endif; ?>
 
 <?php else: ?>
@@ -440,12 +458,16 @@ function h(string $s): string {
   <h1>WBL Trade Value Study</h1>
   <p class="muted">
     <?= count($trades) ?> generated trades, coach Management <?= ASSUMED_MANAGEMENT ?>
-    (swing tolerance ±<?= $swing ?> value points). Rate each on how lopsided it feels --
-    <strong>-5</strong> means your team wins big, <strong>0</strong> is dead even,
-    <strong>+5</strong> means the other team wins big. Leave a trade set to "skip" to
-    leave it out of what gets saved. Reloading this page keeps the same batch;
-    submitting rolls a brand new one.
+    (swing tolerance ±<?= $swing ?> value points). Team A is the left side of each card,
+    Team B the right. Slide left for <strong>Team A</strong> winning the trade, right for
+    <strong>Team B</strong>, center for dead even -- every trade is assumed rated at
+    whatever the slider shows unless you check "skip this one." Reloading this page
+    keeps the same batch; submitting rolls a brand new one.
   </p>
+
+  <datalist id="ratingTicks">
+    <?php for ($v = -5; $v <= 5; $v++): ?><option value="<?= $v ?>"></option><?php endfor; ?>
+  </datalist>
 
   <form method="post" action="?seed=<?= $seed ?>">
     <?php foreach ($trades as $i => $trade): ?>
@@ -453,7 +475,7 @@ function h(string $s): string {
         <h3>Trade <?= $i + 1 ?></h3>
         <div class="sides">
           <div class="side">
-            <h4>You Give</h4>
+            <h4>Team A Sends</h4>
             <ul>
               <?php foreach ($trade['give'] as $a): ?>
                 <li><?= h(asset_label($a)) ?></li>
@@ -461,7 +483,7 @@ function h(string $s): string {
             </ul>
           </div>
           <div class="side">
-            <h4>You Get</h4>
+            <h4>Team B Sends</h4>
             <ul>
               <?php foreach ($trade['get'] as $a): ?>
                 <li><?= h(asset_label($a)) ?></li>
@@ -470,17 +492,20 @@ function h(string $s): string {
           </div>
         </div>
         <div class="value-line">
-          Value: you give <?= $trade['give_value'] ?>, you get <?= $trade['get_value'] ?>
+          Value: Team A sends <?= $trade['give_value'] ?>, Team B sends <?= $trade['get_value'] ?>
           (gap <?= $trade['gap'] >= 0 ? '+' : '' ?><?= $trade['gap'] ?>, swing ±<?= $trade['swing'] ?>)
         </div>
         <div class="rate-row">
-          <label for="rating_<?= $i ?>">Rating:</label>
-          <select name="rating_<?= $i ?>" id="rating_<?= $i ?>">
-            <option value="skip" selected>skip</option>
-            <?php for ($v = -5; $v <= 5; $v++): ?>
-              <option value="<?= $v ?>"><?= $v > 0 ? '+' . $v : $v ?></option>
-            <?php endfor; ?>
-          </select>
+          <div class="slider-wrap" id="wrap_<?= $i ?>">
+            <input type="range" name="rating_<?= $i ?>" id="rating_<?= $i ?>"
+                   min="-5" max="5" step="1" value="0" list="ratingTicks"
+                   oninput="wblUpdateReadout(<?= $i ?>)">
+            <span class="rating-out" id="out_<?= $i ?>">even</span>
+          </div>
+          <label class="skip-toggle">
+            <input type="checkbox" onchange="wblToggleSkip(<?= $i ?>, this.checked)">
+            Skip this one
+          </label>
         </div>
         <textarea name="notes_<?= $i ?>" placeholder="Notes (optional) -- why this rating?"></textarea>
       </div>
@@ -492,6 +517,20 @@ function h(string $s): string {
   </form>
 
 <?php endif; ?>
+
+<script>
+function wblToggleSkip(i, skipped) {
+  var wrap = document.getElementById('wrap_' + i);
+  var slider = document.getElementById('rating_' + i);
+  wrap.hidden = skipped;
+  slider.disabled = skipped;
+}
+function wblUpdateReadout(i) {
+  var v = parseInt(document.getElementById('rating_' + i).value, 10);
+  var out = document.getElementById('out_' + i);
+  out.textContent = v === 0 ? 'even' : (v > 0 ? '+' + v + ' Team B' : v + ' Team A');
+}
+</script>
 
 </body>
 </html>
