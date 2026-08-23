@@ -206,6 +206,70 @@ function try_build_trade(int $swing): ?array {
                 'get_value' => total_value($get),
                 'swing' => $swing,
                 'gap' => $gap,
+                'forced_pick' => false,
+            ];
+        }
+    }
+    return null;
+}
+
+/** Mirrors trade_offer_generator.dart's _tryBuildGuaranteedTradeBlockPickOffer
+ * + _forceAddPick: a real 2-for-2 that gets a pick thrown in *unconditionally*
+ * (not just when the raw player values miss swing on their own) -- prefers
+ * sweetening the "get" side first (the friendlier "they threw in a pick"
+ * framing), falling back to the "give" side only if that doesn't land within
+ * swing. In the real game this is the one guaranteed Trade Board slot
+ * whenever a trade-block player is set; every other offer stays purely
+ * opportunistic (try_build_trade above). This standalone tool has no trade
+ * block, so generate_batch below just oversamples this bucket directly --
+ * a deliberate choice (2026-08-23, a direct GM ask: "so many garbo trades
+ * ... [with picks] ... that's where I see most of the egregious stuff") to
+ * give more of exactly the shape worth scrutinizing, not an attempt to
+ * match real in-game frequency. */
+function try_build_forced_pick_trade(int $swing): ?array {
+    for ($attempt = 0; $attempt < 8; $attempt++) {
+        $yourRoster = [];
+        for ($i = 0; $i < 12; $i++) $yourRoster[] = generate_player();
+        $theirRoster = [];
+        for ($i = 0; $i < 12; $i++) $theirRoster[] = generate_player();
+
+        shuffle($yourRoster);
+        $give = array_slice($yourRoster, 0, 2);
+        $giveValue = total_value($give);
+
+        $get = closest_combo($theirRoster, 2, $giveValue);
+        $getValue = total_value($get);
+
+        $pick = generate_pick();
+
+        // Prefer sweetening "get" (their side) first.
+        $getWithPick = array_merge($get, [$pick]);
+        $gap = total_value($getWithPick) - $giveValue;
+        if (abs($gap) <= $swing) {
+            return [
+                'give' => $give,
+                'get' => $getWithPick,
+                'give_value' => $giveValue,
+                'get_value' => total_value($getWithPick),
+                'swing' => $swing,
+                'gap' => $gap,
+                'forced_pick' => true,
+            ];
+        }
+
+        // Fall back to sweetening "give" (your side) instead.
+        $giveWithPick = array_merge($give, [$pick]);
+        $giveWithPickValue = total_value($giveWithPick);
+        $gap = $getValue - $giveWithPickValue;
+        if (abs($gap) <= $swing) {
+            return [
+                'give' => $giveWithPick,
+                'get' => $get,
+                'give_value' => $giveWithPickValue,
+                'get_value' => $getValue,
+                'swing' => $swing,
+                'gap' => $gap,
+                'forced_pick' => true,
             ];
         }
     }
@@ -217,6 +281,21 @@ function generate_batch(int $seed, int $count): array {
     $swing = trade_swing(ASSUMED_MANAGEMENT);
     $trades = [];
     $guard = 0;
+
+    // Oversample the guaranteed-pick 2-for-2 pattern -- about a quarter of
+    // the batch -- since that's the shape worth scrutinizing (see
+    // try_build_forced_pick_trade's doc comment). Falls back to the
+    // ordinary opportunistic builder if it can't land one, same "try,
+    // don't force it" posture the real generator uses.
+    $forcedPickTarget = (int) round($count / 4);
+    while (count($trades) < $forcedPickTarget && $guard < $forcedPickTarget * 10) {
+        $guard++;
+        $trade = try_build_forced_pick_trade($swing);
+        if ($trade !== null) {
+            $trades[] = $trade;
+        }
+    }
+
     while (count($trades) < $count && $guard < $count * 10) {
         $guard++;
         $trade = try_build_trade($swing);
@@ -224,6 +303,7 @@ function generate_batch(int $seed, int $count): array {
             $trades[] = $trade;
         }
     }
+    shuffle($trades);
     return $trades;
 }
 
@@ -250,6 +330,12 @@ function save_ratings(array $ratings): void {
     fflush($fp);
     flock($fp, LOCK_UN);
     fclose($fp);
+}
+
+function trade_has_pick(array $give, array $get): bool {
+    foreach ($give as $a) if ($a['type'] === 'pick') return true;
+    foreach ($get as $a) if ($a['type'] === 'pick') return true;
+    return false;
 }
 
 function asset_label(array $a): string {
@@ -310,6 +396,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'swing' => $trade['swing'],
             'gap' => $trade['gap'],
             'within_tolerance' => abs($trade['gap']) <= $trade['swing'],
+            'forced_pick' => $trade['forced_pick'] ?? false,
             'rating' => $rating,
             'notes' => $notes,
         ];
@@ -368,6 +455,7 @@ function h(string $s): string {
   .top-nav a { margin-right: 16px; display: inline-block; padding: 4px 0; }
   .trade { border: 1px solid var(--card-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; background: var(--card-bg); }
   .trade h3 { margin: 0 0 8px; font-size: 1.05rem; }
+  .pick-badge { display: inline-block; font-size: 0.7rem; font-weight: bold; letter-spacing: 0.03em; background: var(--button-bg); color: var(--button-text); border-radius: 4px; padding: 2px 6px; vertical-align: middle; }
   .sides { display: flex; gap: 16px; flex-wrap: wrap; }
   .side { flex: 1; min-width: 220px; }
   .side h4 { margin: 0 0 4px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--label); }
@@ -415,14 +503,20 @@ function h(string $s): string {
     $outside = array_filter($all, fn($r) => !$r['within_tolerance']);
     $avgWithin = count($within) > 0 ? array_sum(array_column($within, 'rating')) / count($within) : null;
     $avgOutside = count($outside) > 0 ? array_sum(array_column($outside, 'rating')) / count($outside) : null;
+    $withPick = array_filter($all, fn($r) => trade_has_pick($r['give'], $r['get']));
+    $withoutPick = array_filter($all, fn($r) => !trade_has_pick($r['give'], $r['get']));
+    $avgWithPick = count($withPick) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $withPick)) / count($withPick) : null;
+    $avgWithoutPick = count($withoutPick) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $withoutPick)) / count($withoutPick) : null;
   ?>
   <div class="stat-cards">
     <div class="stat-card"><div class="big"><?= $total ?></div><div class="muted">rated trades</div></div>
     <div class="stat-card"><div class="big"><?= number_format($avg, 2) ?></div><div class="muted">avg rating (-5 = Team A wins big, +5 = Team B wins big)</div></div>
     <div class="stat-card"><div class="big"><?= $avgWithin === null ? '—' : number_format($avgWithin, 2) ?></div><div class="muted">avg rating, within engine tolerance (<?= count($within) ?>)</div></div>
     <div class="stat-card"><div class="big"><?= $avgOutside === null ? '—' : number_format($avgOutside, 2) ?></div><div class="muted">avg rating, outside engine tolerance (<?= count($outside) ?>)</div></div>
+    <div class="stat-card"><div class="big"><?= $avgWithPick === null ? '—' : number_format($avgWithPick, 2) ?></div><div class="muted">avg |rating| for trades with a pick (<?= count($withPick) ?>)</div></div>
+    <div class="stat-card"><div class="big"><?= $avgWithoutPick === null ? '—' : number_format($avgWithoutPick, 2) ?></div><div class="muted">avg |rating| for trades without one (<?= count($withoutPick) ?>)</div></div>
   </div>
-  <p class="muted">"Within engine tolerance" means the trade math (Management <?= ASSUMED_MANAGEMENT ?>, swing ±<?= $swing ?>) would let this trade actually happen in-game. If those two averages read far apart from 0 in opposite directions, or the "outside tolerance" trades aren't reading much worse to you than the "within" ones, that's a sign the swing number itself may need retuning.</p>
+  <p class="muted">"Within engine tolerance" means the trade math (Management <?= ASSUMED_MANAGEMENT ?>, swing ±<?= $swing ?>) would let this trade actually happen in-game. If those two averages read far apart from 0 in opposite directions, or the "outside tolerance" trades aren't reading much worse to you than the "within" ones, that's a sign the swing number itself may need retuning. The pick-vs-no-pick pair compares by <strong>magnitude</strong> (how lopsided, regardless of direction) -- if pick trades run consistently more lopsided, that's a sign the flat pick-value ladder (<?= DRAFT_PICK_VALUE[1] ?>/<?= DRAFT_PICK_VALUE[2] ?>/<?= DRAFT_PICK_VALUE[3] ?> by round) is coarser than it should be.</p>
 
   <?php if ($total === 0): ?>
     <p>No ratings saved yet -- <a href="?">go rate some trades</a>.</p>
@@ -433,6 +527,7 @@ function h(string $s): string {
         <th>When</th>
         <th>Team A Sends</th>
         <th>Team B Sends</th>
+        <th>Pick?</th>
         <th>Value Gap</th>
         <th>In Tolerance?</th>
         <th>Rating</th>
@@ -443,6 +538,7 @@ function h(string $s): string {
           <td><?= h($r['timestamp']) ?></td>
           <td><?php foreach ($r['give'] as $a) echo h(asset_label($a)) . '<br>'; ?></td>
           <td><?php foreach ($r['get'] as $a) echo h(asset_label($a)) . '<br>'; ?></td>
+          <td><?= trade_has_pick($r['give'], $r['get']) ? 'Yes' : '' ?></td>
           <td><?= $r['gap'] >= 0 ? '+' : '' ?><?= $r['gap'] ?> (swing ±<?= $r['swing'] ?>)</td>
           <td><?= $r['within_tolerance'] ? 'Yes' : 'No' ?></td>
           <td><strong><?= $r['rating'] >= 0 ? '+' : '' ?><?= $r['rating'] ?></strong></td>
@@ -461,8 +557,10 @@ function h(string $s): string {
     (swing tolerance ±<?= $swing ?> value points). Team A is the left side of each card,
     Team B the right. Slide left for <strong>Team A</strong> winning the trade, right for
     <strong>Team B</strong>, center for dead even -- every trade is assumed rated at
-    whatever the slider shows unless you check "skip this one." Reloading this page
-    keeps the same batch; submitting rolls a brand new one.
+    whatever the slider shows unless you check "skip this one." About a quarter of this
+    batch is deliberately oversampled to include a draft pick (marked <span class="pick-badge">PICK</span>)
+    since that's the shape most worth scrutinizing. Reloading this page keeps the same
+    batch; submitting rolls a brand new one.
   </p>
 
   <datalist id="ratingTicks">
@@ -472,7 +570,7 @@ function h(string $s): string {
   <form method="post" action="?seed=<?= $seed ?>">
     <?php foreach ($trades as $i => $trade): ?>
       <div class="trade">
-        <h3>Trade <?= $i + 1 ?></h3>
+        <h3>Trade <?= $i + 1 ?><?php if (trade_has_pick($trade['give'], $trade['get'])): ?> <span class="pick-badge">PICK</span><?php endif; ?></h3>
         <div class="sides">
           <div class="side">
             <h4>Team A Sends</h4>
