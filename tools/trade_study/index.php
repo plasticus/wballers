@@ -333,39 +333,22 @@ function h(string $s): string {
 <title>WBL Trade Value Study</title>
 <style>
   :root {
-    --bg: #fdf9f2;
-    --text: #1a1a2e;
-    --muted: #666;
-    --flash-bg: #dff5df;
-    --flash-border: #8fcf8f;
-    --card-bg: #fff;
-    --card-border: #ddd;
-    --label: #555;
-    --value-line: #777;
-    --button-bg: #6b5411;
-    --button-bg-hover: #55420d;
-    --button-text: #fff;
-    --th-bg: #f3ead9;
-    --link: #6b5411;
+    --bg: #1b1a17;
+    --text: #ede8db;
+    --muted: #a39c8a;
+    --flash-bg: #1f3320;
+    --flash-border: #3f6b41;
+    --card-bg: #262420;
+    --card-border: #45403a;
+    --label: #c2bba9;
+    --value-line: #a39c8a;
+    --button-bg: #c99b2e;
+    --button-bg-hover: #e0b13f;
+    --button-text: #1b1a17;
+    --th-bg: #33302a;
+    --link: #e0b13f;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #1b1a17;
-      --text: #ede8db;
-      --muted: #a39c8a;
-      --flash-bg: #1f3320;
-      --flash-border: #3f6b41;
-      --card-bg: #262420;
-      --card-border: #45403a;
-      --label: #c2bba9;
-      --value-line: #a39c8a;
-      --button-bg: #c99b2e;
-      --button-bg-hover: #e0b13f;
-      --button-text: #1b1a17;
-      --th-bg: #33302a;
-      --link: #e0b13f;
-    }
-  }
+  html { color-scheme: dark; }
   body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; background: var(--bg); color: var(--text); }
   h1 { font-size: 1.4rem; }
   a { color: var(--link); }
