@@ -30,12 +30,21 @@ import '../../player/domain/retirement_reason.dart';
 /// intent) filter this list down themselves rather than the type
 /// enforcing it -- `SeasonRecapScreen`'s "League Retirements" section
 /// deliberately stays unfiltered, since the GM's own retiree showing up
-/// there too is exactly the visibility this report asked for. The
-/// narrative veteran's scripted retirement
-/// (`resolveNarrativeVeteranRetirement`) is left out of this list either
-/// way, on purpose -- she gets her own dedicated in-fiction treatment
-/// (the Analyst-seat swap, `match_preview_screen.dart`), and folding her
-/// into a generic list here would undercut that.
+/// there too is exactly the visibility this report asked for.
+///
+/// The narrative veteran's scripted retirement
+/// (`resolveNarrativeVeteranRetirement`) was originally left out of this
+/// list on purpose -- the reasoning being she already gets her own
+/// dedicated in-fiction treatment (the Analyst-seat swap,
+/// `match_preview_screen.dart`), and folding her into a generic list
+/// here would undercut that. A direct GM report (2026-08-23) found that
+/// reasoning didn't hold either: "I saw another team's player retire --
+/// I got an email and it was so. The report. That's what I want for my
+/// scripted star player!" -- the Analyst-seat payoff and a real
+/// retirement record aren't actually in tension; a GM can want both.
+/// She's now a normal [LeagueRetirement] entry too
+/// ([RetirementReason.narrativeVeteran] names her specifically), same
+/// AI-vs-own-team split as everyone else.
 class LeagueRetirement {
   const LeagueRetirement({
     required this.playerId,

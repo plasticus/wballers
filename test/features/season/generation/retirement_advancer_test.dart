@@ -434,6 +434,34 @@ void main() {
       );
     });
 
+    test('snapshots her into formerPlayers and appends a real '
+        'LeagueRetirement (own team, narrativeVeteran reason) when she '
+        'retires off the GM\'s own roster (2026-08-23, a direct GM '
+        'report: "I saw another team\'s player retire -- I got an email '
+        'and it was so. The report. That\'s what I want for my scripted '
+        'star player!")', () {
+      final franchise = newFranchise();
+      final veteran = franchise.roster
+          .firstWhere((m) => m.player.id == franchise.narrativeVeteranPlayerId)
+          .player;
+
+      final updated = resolveNarrativeVeteranRetirement(franchise);
+
+      final record = updated.formerPlayers.singleWhere(
+        (r) => r.playerId == veteran.id,
+      );
+      expect(record.name, veteran.name);
+      expect(record.primaryPosition, veteran.primaryPosition);
+
+      final retirement = updated.leagueRetirements.singleWhere(
+        (r) => r.playerId == veteran.id,
+      );
+      expect(retirement.name, veteran.name);
+      expect(retirement.teamAbbreviation, franchise.team.abbreviation);
+      expect(retirement.reason, RetirementReason.narrativeVeteran);
+      expect(retirement.season, 0);
+    });
+
     test('retires her off whichever AI team she was traded to, not just '
         'the GM\'s own roster', () {
       final franchise = newFranchise();
@@ -472,6 +500,13 @@ void main() {
         updatedAiTeam.roster.any((m) => m.player.id == veteran.id),
         isFalse,
       );
+      // A real LeagueRetirement lands for her here too, credited to the
+      // AI team she'd actually been traded to -- not the GM's own team.
+      final retirement = updated.leagueRetirements.singleWhere(
+        (r) => r.playerId == veteran.id,
+      );
+      expect(retirement.teamAbbreviation, aiTeam.team.abbreviation);
+      expect(retirement.reason, RetirementReason.narrativeVeteran);
     });
 
     test('retires her out of freeAgents if she was dropped there', () {

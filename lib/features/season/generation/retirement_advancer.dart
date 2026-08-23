@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../../../core/ratings/rating_scale.dart';
 import '../../coach/domain/coach.dart';
+import '../../franchise/domain/former_player_record.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../franchise/domain/league_retirement.dart';
 import '../../league/domain/ai_team_roster.dart';
@@ -242,6 +243,18 @@ AiTeamRetirementAdvance resolveAiTeamRetirements(
 /// seat 1 swap has a real, trade-proof signal to key off instead of the
 /// old "not found on the GM's own roster" proxy (which broke the instant
 /// she was traded away, retired or not).
+///
+/// Also snapshots her into [Franchise.formerPlayers] (when she's on the
+/// GM's own roster) and appends a real [LeagueRetirement]
+/// ([RetirementReason.narrativeVeteran], either team's abbreviation) --
+/// originally skipped on the reasoning that the Analyst-seat swap was
+/// enough of her own dedicated treatment; a direct GM report (2026-08-23)
+/// found that left her showing up as the generic "Former Player" on the
+/// season recap, with no retirement mail at all, unlike every other
+/// retirement in the league (see [LeagueRetirement]'s own doc comment for
+/// the fuller story). The free-agent branch below is left as-is -- she
+/// isn't really "someone's retiring player" at that point, and this is
+/// already a rare edge case no real playthrough is expected to hit.
 Franchise resolveNarrativeVeteranRetirement(Franchise franchise) {
   if (franchise.narrativeVeteranRetired) return franchise;
   if (franchise.season != 0) return franchise;
@@ -249,16 +262,46 @@ Franchise resolveNarrativeVeteranRetirement(Franchise franchise) {
   if (veteranId.isEmpty) return franchise;
 
   if (franchise.roster.any((m) => m.player.id == veteranId)) {
+    final player = franchise.roster
+        .firstWhere((m) => m.player.id == veteranId)
+        .player;
     return franchise
         .copyWithRoster([
           for (final m in franchise.roster)
             if (m.player.id != veteranId) m,
+        ])
+        // Real name/position/mail from here on, same treatment every
+        // other retirement already gets -- a direct GM report
+        // (2026-08-23): "she's supposed to retire normally... That's
+        // what I want for my scripted star player!" (she was showing
+        // up as "Former Player" on the season recap, and got no
+        // retirement mail at all, before this).
+        .copyWithRetiredPlayer(
+          FormerPlayerRecord(
+            playerId: player.id,
+            name: player.name,
+            primaryPosition: player.primaryPosition,
+            jerseyNumber: player.jerseyNumber,
+          ),
+        )
+        .copyWithLeagueRetirements([
+          LeagueRetirement(
+            playerId: player.id,
+            name: player.name,
+            primaryPosition: player.primaryPosition,
+            teamAbbreviation: franchise.team.abbreviation,
+            reason: RetirementReason.narrativeVeteran,
+            season: franchise.season,
+          ),
         ])
         .copyWithNarrativeVeteranRetired(true);
   }
 
   for (final aiTeam in franchise.league.aiTeams) {
     if (!aiTeam.roster.any((m) => m.player.id == veteranId)) continue;
+    final player = aiTeam.roster
+        .firstWhere((m) => m.player.id == veteranId)
+        .player;
     final newAiTeams = [
       for (final team in franchise.league.aiTeams)
         if (team.team.abbreviation == aiTeam.team.abbreviation)
@@ -271,6 +314,16 @@ Franchise resolveNarrativeVeteranRetirement(Franchise franchise) {
     ];
     return franchise
         .copyWithLeague(League(aiTeams: newAiTeams))
+        .copyWithLeagueRetirements([
+          LeagueRetirement(
+            playerId: player.id,
+            name: player.name,
+            primaryPosition: player.primaryPosition,
+            teamAbbreviation: aiTeam.team.abbreviation,
+            reason: RetirementReason.narrativeVeteran,
+            season: franchise.season,
+          ),
+        ])
         .copyWithNarrativeVeteranRetired(true);
   }
 
