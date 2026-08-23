@@ -13,4 +13,4 @@
 /// independently checkable against `git log`/the clock, so a GM (or a
 /// future session) can tell at a glance whether Settings is showing a
 /// stale install or the build that was actually just pushed.
-const kAppBuildStamp = '2b300bc -- 2026-08-23 12:41 CDT';
+const kAppBuildStamp = 'dd73368 -- 2026-08-23 12:49 CDT';
