@@ -210,7 +210,10 @@ TradeOffer? _tryBuildOffer(
     final asked = forcedTarget != null
         ? [forcedTarget]
         : _randomDistinct(random, ownActive, wantCount);
-    final askedValue = asked.fold(0, (s, p) => s + p.ratings.skillPoints);
+    final askedValue = asked.fold(
+      0,
+      (s, p) => s + PlayerTradeAsset(p).tradeValue,
+    );
 
     final offeredPlayers = _closestCombo(aiActive, wantCount, askedValue);
     var offered = <TradeAsset>[
@@ -298,7 +301,10 @@ TradeOffer? _tryBuildGuaranteedTradeBlockPickOffer(
   for (var attempt = 0; attempt < kMaxAttempts; attempt++) {
     final second = ownOthers[random.nextInt(ownOthers.length)];
     final asked = [forcedTarget, second];
-    final askedValue = asked.fold(0, (s, p) => s + p.ratings.skillPoints);
+    final askedValue = asked.fold(
+      0,
+      (s, p) => s + PlayerTradeAsset(p).tradeValue,
+    );
 
     final offeredPlayers = _closestCombo(aiActive, 2, askedValue);
     final offered = <TradeAsset>[
@@ -446,10 +452,11 @@ TradeOffer? _tryBuildGuaranteedTradeBlockPickOffer(
 
 /// Builds [kConsolidationOfferSlotIndex]'s one guaranteed-attempt "consolidate
 /// the bench" offer -- the GM's own weakest 2 active players (by
-/// `skillPoints`, deliberately the bottom of the roster rather than a
-/// random 2, so it always reads as trading bench depth, never risking the
-/// GM's best players) for whichever 1 of [aiTeam]'s own players lands
-/// closest in combined value ([_closestCombo]) -- a direct GM ask
+/// [PlayerTradeAsset.tradeValue], deliberately the bottom of the roster
+/// rather than a random 2, so it always reads as trading bench depth,
+/// never risking the GM's best players) for whichever 1 of [aiTeam]'s
+/// own players lands closest in combined value ([_closestCombo]) -- a
+/// direct GM ask
 /// (2026-08-21): "I have a super deep bench, but I want to transition
 /// that to a better player." Same value-balancing fallback
 /// ([_tryAddPickToBalance]) every other slot already uses when the raw
@@ -479,9 +486,16 @@ TradeOffer? _tryBuildConsolidationOffer({
   final swing = tradeSwing(management);
 
   final weakestTwo = [...ownActive]
-    ..sort((a, b) => a.ratings.skillPoints.compareTo(b.ratings.skillPoints));
+    ..sort(
+      (a, b) => PlayerTradeAsset(
+        a,
+      ).tradeValue.compareTo(PlayerTradeAsset(b).tradeValue),
+    );
   final asked = weakestTwo.take(2).toList();
-  final askedValue = asked.fold(0, (sum, p) => sum + p.ratings.skillPoints);
+  final askedValue = asked.fold(
+    0,
+    (sum, p) => sum + PlayerTradeAsset(p).tradeValue,
+  );
 
   final offeredPlayer = _closestCombo(aiActive, 1, askedValue).single;
   var offered = <TradeAsset>[PlayerTradeAsset(offeredPlayer)];
@@ -527,17 +541,18 @@ List<Player> _randomDistinct(Random random, List<Player> pool, int count) {
 }
 
 /// The [count]-player combination from [pool] whose combined
-/// `skillPoints` lands closest to [targetValue] -- a brute-force search
-/// (at most a roster's worth of single players, or pairs of one, both
-/// cheap at a 12-player active roster) rather than a random guess, so
-/// generated offers actually read as sensible trades instead of wildly
-/// mismatched ones the pick-balancing step then has to paper over.
+/// [PlayerTradeAsset.tradeValue] lands closest to [targetValue] -- a
+/// brute-force search (at most a roster's worth of single players, or
+/// pairs of one, both cheap at a 12-player active roster) rather than a
+/// random guess, so generated offers actually read as sensible trades
+/// instead of wildly mismatched ones the pick-balancing step then has to
+/// paper over.
 List<Player> _closestCombo(List<Player> pool, int count, int targetValue) {
   if (count == 1) {
     var best = pool.first;
-    var bestDiff = (best.ratings.skillPoints - targetValue).abs();
+    var bestDiff = (PlayerTradeAsset(best).tradeValue - targetValue).abs();
     for (final p in pool.skip(1)) {
-      final diff = (p.ratings.skillPoints - targetValue).abs();
+      final diff = (PlayerTradeAsset(p).tradeValue - targetValue).abs();
       if (diff < bestDiff) {
         best = p;
         bestDiff = diff;
@@ -551,7 +566,9 @@ List<Player> _closestCombo(List<Player> pool, int count, int targetValue) {
   var bestDiff = 1 << 30;
   for (var i = 0; i < pool.length; i++) {
     for (var j = i + 1; j < pool.length; j++) {
-      final sum = pool[i].ratings.skillPoints + pool[j].ratings.skillPoints;
+      final sum =
+          PlayerTradeAsset(pool[i]).tradeValue +
+          PlayerTradeAsset(pool[j]).tradeValue;
       final diff = (sum - targetValue).abs();
       if (diff < bestDiff) {
         bestDiff = diff;

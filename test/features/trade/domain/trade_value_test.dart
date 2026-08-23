@@ -38,10 +38,106 @@ void main() {
     });
   });
 
+  group('playerTradeValue', () {
+    // Re-tuned 2026-08-23 against tools/trade_study/'s 25 real ratings --
+    // see the file-level doc comment. Every case below traces back to a
+    // real note from that dataset, not an arbitrary pick.
+
+    test('at or below replacement (60), potential and age never move the '
+        'value at all -- real junk stays worth exactly its skillPoints, '
+        'regardless of birth year or ceiling ("Nakamura is junk and '
+        'doesn\'t factor in," "who cares at mid-50s")', () {
+      final junkNoUpside = playerTradeValue(
+        overall: 55,
+        potential: 56,
+        skillPoints: 660,
+        age: 34,
+      );
+      expect(junkNoUpside, 660);
+
+      // Same current overall, but a real ceiling -- still gated off,
+      // since a 55 OVR/56 POT isn't a real prospect either. Contrast
+      // with the next test, where potential alone clears the gate.
+      final junkFlatPotential = playerTradeValue(
+        overall: 55,
+        potential: 60,
+        skillPoints: 660,
+        age: 20,
+      );
+      expect(junkFlatPotential, 660);
+    });
+
+    test('the gate is max(overall, potential), not overall alone -- a low-'
+        'current, high-ceiling prospect still gets full credit (a real '
+        'tuning bug: an early pass zeroed out a 59 OVR/89 POT 20-year-old '
+        'this way by mistake)', () {
+      final rawProspect = playerTradeValue(
+        overall: 59,
+        potential: 89,
+        skillPoints: 708, // 59 * 12
+        age: 20,
+      );
+      // Gate is on potential (89, clears kTradeValueFullWeightOverall),
+      // so the full upside premium applies: 4 * (89 - 59) = 120.
+      expect(rawProspect, 708 + 120);
+    });
+
+    test('two players with identical current overall and potential, only '
+        'age differs -- the older one loses real value once both clear '
+        'replacement level ("In the 70s, age matters. Nwosu is a solid '
+        'bench option for 5+ seasons, Petrova might retire anytime.")', () {
+      final youngerSameSkill = playerTradeValue(
+        overall: 76,
+        potential: 77,
+        skillPoints: 912,
+        age: 25,
+      );
+      final olderSameSkill = playerTradeValue(
+        overall: 76,
+        potential: 77,
+        skillPoints: 912,
+        age: 33,
+      );
+      expect(olderSameSkill, lessThan(youngerSameSkill));
+    });
+
+    test('a near-max-potential young player traded for a similar-overall '
+        'older one is a real, meaningful value gap, not a wash -- the '
+        'GM\'s own worst-rated (+5, "egregious") study trade was exactly '
+        'this shape', () {
+      final phenom = playerTradeValue(
+        overall: 77,
+        potential: 99,
+        skillPoints: 924,
+        age: 20,
+      );
+      final establishedVet = playerTradeValue(
+        overall: 75,
+        potential: 78,
+        skillPoints: 900,
+        age: 28,
+      );
+      // Raw skillPoints alone call this a 24-point gap the other way --
+      // the phenom should come out ahead once potential is credited.
+      expect(phenom, greaterThan(establishedVet));
+    });
+
+    test('rounds to the nearest whole skill point', () {
+      final value = playerTradeValue(
+        overall: 65,
+        potential: 70,
+        skillPoints: 780,
+        age: 22,
+      );
+      expect(value, isA<int>());
+    });
+  });
+
   group('draftPickTradeValue', () {
-    test('the locked ladder: round 1/2/3 -> 290/150/50', () {
-      expect(draftPickTradeValue(1), 290);
-      expect(draftPickTradeValue(2), 150);
+    test('the locked ladder: round 1/2/3 -> 400/220/50 (re-tuned '
+        '2026-08-23 against the trade study\'s 25 real ratings)', () {
+      expect(draftPickTradeValue(1), 400);
+      expect(draftPickTradeValue(2), 220);
       expect(draftPickTradeValue(3), 50);
     });
 

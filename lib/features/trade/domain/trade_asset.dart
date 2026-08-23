@@ -21,7 +21,12 @@ class PlayerTradeAsset extends TradeAsset {
   final Player player;
 
   @override
-  int get tradeValue => player.ratings.skillPoints;
+  int get tradeValue => playerTradeValue(
+    overall: player.ratings.overall,
+    potential: player.ratings.potential,
+    skillPoints: player.ratings.skillPoints,
+    age: player.age,
+  );
 
   @override
   String get label => player.name;

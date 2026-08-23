@@ -71,11 +71,16 @@ void main() {
       'want to transition that to a better player... show me an option for '
       'that as a 6th trade slot")', () {
     final franchise = withFullActiveRoster(franchiseForPortraitTests());
-    final ownActiveBySkill = [
-      for (final m in franchise.roster)
-        if (m.status == RosterStatus.active) m.player,
-    ]..sort((a, b) => a.ratings.skillPoints.compareTo(b.ratings.skillPoints));
-    final weakestTwoIds = ownActiveBySkill.take(2).map((p) => p.id).toSet();
+    final ownActiveByValue =
+        [
+          for (final m in franchise.roster)
+            if (m.status == RosterStatus.active) m.player,
+        ]..sort(
+          (a, b) => PlayerTradeAsset(
+            a,
+          ).tradeValue.compareTo(PlayerTradeAsset(b).tradeValue),
+        );
+    final weakestTwoIds = ownActiveByValue.take(2).map((p) => p.id).toSet();
 
     // Several distinct turns, same "not every draw happens to need a
     // pick to balance, or find a close-enough AI player" reasoning the

@@ -7,25 +7,129 @@
 /// for the full worked cases and reasoning. This file is deliberately
 /// just the value math -- it says nothing about *which* teams offer
 /// *what* to whom (the still-unbuilt Trade Board/offer-generation piece).
+///
+/// [playerTradeValue]'s potential/age terms and the [kDraftPickTradeValue]
+/// ladder were re-tuned 2026-08-23 against `tools/trade_study/`'s real
+/// dataset -- 25 hand-rated generated trades, a direct GM ask ("let's try
+/// it, and later if I don't like it, we'll collect more ratings. build it
+/// in."). The original [PlayerRatings.skillPoints]-only value ignored
+/// potential and age entirely, which the GM's own notes flagged
+/// repeatedly and consistently as the single biggest source of
+/// "egregious" trades (a near-max-potential 20-year-old traded for a
+/// similar-overall 28-year-old registered as fine; the reverse never
+/// showed up as the blowout it should have been). Fitting the new terms'
+/// weights against the 25 real ratings (Pearson correlation between
+/// signed value gap and the GM's own -5..+5 rating) took the fit from
+/// 0.20 (skillPoints alone) to ~0.86 -- see the tool's own `ratings.json`
+/// for the underlying data if these ever need re-tuning.
 library;
 
-/// A draft pick's flat trade value, in [skillPoints]-style points --
-/// `PlayerRatings.skillPoints`' currency, not [PlayerRatings.overall].
-/// Deliberately *not* the real average overall a pick actually turns
-/// into once drafted (`draft_generator.dart`'s real generated classes
-/// average ~889/803/754 skill points for rounds 1/2/3) -- those numbers
-/// are close enough to each other that no single pick could ever
-/// meaningfully offset a real star-level value gap, and far enough
-/// above a modest gap that adding one to an ordinary trade blows right
-/// past it (a full pick reads as almost a whole extra player). This
-/// ladder is hand-tuned instead: small enough that a pick is a real
-/// sweetener rather than a headline asset, and spread widely enough
-/// (a flat 120-point step between adjacent rounds, uneven above that --
-/// round 1 is a bigger jump from round 2 than round 2 is from round 3,
-/// matching the real generated data's own shape: 7.2 OVR-worth of gap
-/// vs. 4.0) that swapping a better pick for a worse one can genuinely
-/// offset a real star-for-prospect trade on its own.
-const Map<int, int> kDraftPickTradeValue = {1: 290, 2: 150, 3: 50};
+/// Current ability at or below this contributes no [playerTradeValue]
+/// upside premium or age-risk discount at all -- real generated junk
+/// regardless of birth year or ceiling, per several independent notes
+/// from the same trade study: "Nakamura is junk and doesn't factor in,"
+/// "who cares at mid-50s," "sub-50 OVR should just quit and get a job."
+/// Gated on `max(overall, potential)`, not overall alone -- an
+/// undeveloped high-ceiling prospect (low current OVR, high potential)
+/// is exactly who this system exists to credit, not exclude on a
+/// technicality (an early tuning pass zeroed out a 59 OVR/89 POT
+/// 20-year-old this way by mistake).
+const kTradeValueReplacementOverall = 60;
+
+/// [playerTradeValue]'s upside premium and age-risk discount apply at
+/// full strength once `max(overall, potential)` reaches this --
+/// "unambiguously a real, current rotation-quality piece." Linear ramp
+/// between [kTradeValueReplacementOverall] and here.
+const kTradeValueFullWeightOverall = 75;
+
+/// Skill points of [playerTradeValue] credited per point [potential]
+/// exceeds [overall] by, once [_tradeValueQualityRamp] has scaled it in.
+/// Roughly a third of a guaranteed current-overall point's own weight
+/// (12 skill points per [PlayerRatings.overall] point) -- unrealized
+/// potential is a real asset but a discounted one, not a sure thing.
+const kTradeValueUpsideWeight = 4;
+
+/// Skill points of [playerTradeValue] discounted per point of
+/// [_tradeValueAgeRiskFactor] (0.0-1.0), scaled by the player's own
+/// [overall] so the discount stays proportionate -- an aging star has
+/// more real value at stake than an aging bench piece with an identical
+/// birth year.
+const kTradeValueAgeRiskWeight = 1.5;
+
+/// 0.0 (no real decline risk yet) to 1.0 (deep into it) -- shares its
+/// band boundaries with `training_advancer.dart`'s own private
+/// `_ageCurveFactor` (peak at 27, real decline underway by 30, steep by
+/// 33+) so trade value and the actual growth/decline simulation agree on
+/// roughly the same aging story, without [playerTradeValue] importing
+/// that file's unrelated weekly-growth internals.
+double _tradeValueAgeRiskFactor(int age) {
+  if (age <= 26) return 0.0;
+  if (age <= 27) return 0.1;
+  if (age <= 29) return 0.3;
+  if (age <= 32) return 0.6;
+  return 1.0;
+}
+
+/// 0.0 at/below [kTradeValueReplacementOverall], 1.0 at/above
+/// [kTradeValueFullWeightOverall], linear between -- how much of
+/// [playerTradeValue]'s upside premium and age-risk discount actually
+/// apply. [gate] should be `max(overall, potential)`, never overall
+/// alone (see [kTradeValueReplacementOverall]'s doc comment).
+double _tradeValueQualityRamp(int gate) {
+  if (gate <= kTradeValueReplacementOverall) return 0.0;
+  if (gate >= kTradeValueFullWeightOverall) return 1.0;
+  return (gate - kTradeValueReplacementOverall) /
+      (kTradeValueFullWeightOverall - kTradeValueReplacementOverall);
+}
+
+/// What one player is worth in a trade -- [PlayerRatings.skillPoints]
+/// (current ability, the original and still-dominant term) plus a real
+/// premium for unrealized [PlayerRatings.potential] and a real discount
+/// for age-related decline/retirement risk, both ramped to zero for
+/// anyone who isn't a real prospect or a real current piece either way
+/// (see [kTradeValueReplacementOverall]). Takes the raw ratings/age
+/// rather than a [Player] directly so callers (`trade_asset.dart`, the
+/// standalone `tools/trade_study/` PHP port) don't need the whole
+/// domain object.
+int playerTradeValue({
+  required int overall,
+  required int potential,
+  required int skillPoints,
+  required int age,
+}) {
+  final ramp = _tradeValueQualityRamp(
+    overall > potential ? overall : potential,
+  );
+  final upside =
+      kTradeValueUpsideWeight *
+      (potential > overall ? potential - overall : 0) *
+      ramp;
+  final ageRisk =
+      kTradeValueAgeRiskWeight * _tradeValueAgeRiskFactor(age) * overall * ramp;
+  return (skillPoints + upside - ageRisk).round();
+}
+
+/// A draft pick's flat trade value, in [playerTradeValue]-style skill
+/// points. Deliberately *not* the real average overall a pick actually
+/// turns into once drafted (`draft_generator.dart`'s real generated
+/// classes average ~889/803/754 skill points for rounds 1/2/3) -- this
+/// ladder is hand-tuned so a pick reads as a real, substantial asset
+/// (the 2026-08-23 re-tuning pass's whole point -- the GM's own notes on
+/// the original 290/150/50 ladder: "you don't trade a first for a 77/80
+/// and a 75/75," "1st round pick is worth more than [two mediocre
+/// veterans] combined") without swamping every ordinary trade (a full
+/// 1st-rounder is still well short of what a real current star is worth
+/// under [playerTradeValue]). Re-fit against the same 25-trade dataset
+/// [playerTradeValue]'s weights were -- round 1 moved the least of the
+/// three (the original number was already close to right once player
+/// values stopped being the bigger error source); round 2 moved the
+/// most (a full 47% bump, the clearest signal in the data); round 3 has
+/// only one real data point so far and was left alone rather than
+/// over-fit to it. Round 1 is still deliberately kept a bigger jump from
+/// round 2 than round 2 is from round 3 (180 vs. 170, matching the
+/// original ladder's own shape/reasoning), even though round 2's move
+/// alone would have inverted that.
+const Map<int, int> kDraftPickTradeValue = {1: 400, 2: 220, 3: 50};
 
 /// [kDraftPickTradeValue] for [round], or `0` for anything outside the
 /// 3 real rounds (`draft_generator.dart`'s `kDraftRounds`) -- a
@@ -33,12 +137,19 @@ const Map<int, int> kDraftPickTradeValue = {1: 290, 2: 150, 3: 50};
 int draftPickTradeValue(int round) => kDraftPickTradeValue[round] ?? 0;
 
 /// The tightest a trade's value gap can ever be forced to, regardless of
-/// how poor the offering coach's Management is -- deliberately set so
-/// two players who display the exact same rounded OVR can *always* be
-/// traded, no matter the coach. A [PlayerRatings.overall] band is 12
-/// skill points wide (e.g. every sum from 894-905 rounds to 75), so the
-/// widest possible gap between two same-OVR players is 11 -- that's
-/// this floor, not a round number picked by feel.
+/// how poor the offering coach's Management is -- originally set so two
+/// players who display the exact same rounded OVR could *always* be
+/// traded, no matter the coach (a [PlayerRatings.overall] band is 12
+/// skill points wide -- e.g. every sum from 894-905 rounds to 75 -- so
+/// the widest possible [PlayerRatings.skillPoints] gap between two
+/// same-OVR players is 11). [playerTradeValue]'s potential/age terms
+/// (2026-08-23) mean that guarantee no longer strictly holds once two
+/// same-OVR players genuinely differ in potential or age -- deliberately
+/// so, since treating a same-OVR 20-year-old phenom and 33-year-old
+/// journeyman as automatically interchangeable is exactly the blind spot
+/// that re-tuning fixed. This floor stays as the general "never
+/// impossibly tight" guarantee for ordinary, similar players -- not a
+/// same-OVR-specific promise anymore.
 const kMinTradeSwing = 11;
 
 /// How wide a value gap [tradeSwing] can ever produce, at every coach a
@@ -58,7 +169,8 @@ const kMaxCoachManagement = 79;
 /// coach can pull off real lopsided "cheat the AI a little" deals; the
 /// real floor (Management 29, `coach_generator.dart`) still always
 /// clears [kMinTradeSwing] thanks to the floor, so even the worst coach
-/// in the game can make a same-OVR trade. Yields 11/24/47/60 at
+/// in the game can make an ordinary, similar-players trade. Yields
+/// 11/24/47/60 at
 /// Management 30/50/70/[kMaxCoachManagement].
 int tradeSwing(int management) {
   final raw = ((management * management) / 104).round();
@@ -66,8 +178,8 @@ int tradeSwing(int management) {
 }
 
 /// Whether a trade offering [offeredValue] (the sum of every asset --
-/// players at [PlayerRatings.skillPoints], picks at
-/// [draftPickTradeValue] -- one side is giving up) for [requestedValue]
+/// players at [playerTradeValue], picks at [draftPickTradeValue] -- one
+/// side is giving up) for [requestedValue]
 /// (the same sum for what that side receives) fits inside a coach with
 /// [management] Management's tolerance ([tradeSwing]). Symmetric -- it
 /// doesn't matter which side is "getting the better end," only how far
