@@ -48,9 +48,19 @@ import '../../trade/generation/trade_offer_generator.dart';
 /// -- it still opens with a banner saying so, and pointing at the real
 /// flow.
 class PlayerMarketScreen extends StatefulWidget {
-  const PlayerMarketScreen({required this.franchise, super.key});
+  const PlayerMarketScreen({
+    required this.franchise,
+    this.initialTabIndex = 0,
+    super.key,
+  });
 
   final Franchise franchise;
+
+  /// Which tab opens first -- 0 Free Agents, 1 Trade Board, 2 Draft.
+  /// Defaults to Free Agents (every existing caller). The Dashboard's
+  /// Trade Week card (2026-08-23) passes 1 so tapping through from there
+  /// lands right on the Trade Board, not a tab away from it.
+  final int initialTabIndex;
 
   @override
   State<PlayerMarketScreen> createState() => _PlayerMarketScreenState();
@@ -58,7 +68,11 @@ class PlayerMarketScreen extends StatefulWidget {
 
 class _PlayerMarketScreenState extends State<PlayerMarketScreen>
     with SingleTickerProviderStateMixin {
-  late final _tabController = TabController(length: 3, vsync: this);
+  late final _tabController = TabController(
+    length: 3,
+    vsync: this,
+    initialIndex: widget.initialTabIndex,
+  );
 
   @override
   void dispose() {

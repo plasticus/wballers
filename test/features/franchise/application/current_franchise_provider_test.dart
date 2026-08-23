@@ -2560,6 +2560,31 @@ void main() {
         greaterThanOrEqualTo(aiRosterCountBeforeDraft),
       );
 
+      // A finalized draft opens 2 non-game Trade Weeks before Preseason
+      // can actually start (2026-08-23, Franchise.postDraftTradeWeeksRemaining's
+      // own doc comment) -- advanceGameDay refuses to run at all until
+      // both are used up.
+      expect(franchise.postDraftTradeWeeksRemaining, kPostDraftTradeWeeks);
+      expect(
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advanceGameDay(),
+        isNull,
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .advancePostDraftTradeWeek();
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .advancePostDraftTradeWeek();
+      expect(
+        container
+            .read(currentFranchiseProvider)
+            .value!
+            .postDraftTradeWeeksRemaining,
+        isNull,
+      );
+
       // The exact real-world sequence a direct GM report traced the
       // original crash through (2026-08-22): "All the off-season stuff
       // worked... But the first preseason game won't start. I get the
@@ -2577,6 +2602,84 @@ void main() {
           .read(currentFranchiseProvider.notifier)
           .advanceGameDay();
       expect(firstPreseasonResults, isNotNull);
+    });
+
+    group('advancePostDraftTradeWeek (2026-08-23, a direct GM ask: "insert '
+        'a couple of non-game weeks to run trades, prior to pre-season")', () {
+      Future<Franchise> playThroughDraft(ProviderContainer container) async {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .beginNextSeasonAndPersist();
+        var franchise = container.read(currentFranchiseProvider).value!;
+        var guard = 0;
+        while (franchise.draftInProgress != null && guard < 10) {
+          final pickedIds = {
+            for (final pick in franchise.draftInProgress!.picks)
+              pick.prospect.player.id,
+          };
+          final best = franchise.draftClass
+              .where((p) => !pickedIds.contains(p.player.id))
+              .reduce(
+                (a, b) =>
+                    draftProspectValue(a) >= draftProspectValue(b) ? a : b,
+              );
+          await container
+              .read(currentFranchiseProvider.notifier)
+              .makeDraftPick(best.player.id);
+          franchise = container.read(currentFranchiseProvider).value!;
+          guard++;
+        }
+        return franchise;
+      }
+
+      test(
+        'counts down one week at a time and clears back to null at 0',
+        () async {
+          final container = await playedOutContainer();
+          final afterDraft = await playThroughDraft(container);
+          expect(afterDraft.postDraftTradeWeeksRemaining, kPostDraftTradeWeeks);
+
+          await container
+              .read(currentFranchiseProvider.notifier)
+              .advancePostDraftTradeWeek();
+          expect(
+            container
+                .read(currentFranchiseProvider)
+                .value!
+                .postDraftTradeWeeksRemaining,
+            kPostDraftTradeWeeks - 1,
+          );
+
+          await container
+              .read(currentFranchiseProvider.notifier)
+              .advancePostDraftTradeWeek();
+          expect(
+            container
+                .read(currentFranchiseProvider)
+                .value!
+                .postDraftTradeWeeksRemaining,
+            isNull,
+          );
+        },
+      );
+
+      test('a no-op once no Trade Week is actually open (never went '
+          'negative, never blocks anything further)', () async {
+        final container = await playedOutContainer();
+        final franchise = container.read(currentFranchiseProvider).value!;
+        expect(franchise.postDraftTradeWeeksRemaining, isNull);
+
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .advancePostDraftTradeWeek();
+        expect(
+          container
+              .read(currentFranchiseProvider)
+              .value!
+              .postDraftTradeWeeksRemaining,
+          isNull,
+        );
+      });
     });
 
     group('markDraftScreenOpened (2026-08-21, a direct GM ask: distinguish '

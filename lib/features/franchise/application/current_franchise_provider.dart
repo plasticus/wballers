@@ -693,6 +693,31 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     return activeCount < kActiveRosterSize;
   }
 
+  /// Uses up one of the 2 non-game Trade Weeks sitting between a just-
+  /// finalized draft and Preseason (`draft_advancer.dart`'s
+  /// `finalizeDraft` opens them, `advanceGameDay` refuses to run while
+  /// any remain) -- no game is simulated, this just counts down
+  /// [Franchise.postDraftTradeWeeksRemaining] and clears it to `null`
+  /// once it hits 0, unlocking the normal advance flow into Preseason. A
+  /// direct GM ask (2026-08-23): "insert a couple of non-game weeks to
+  /// run trades, prior to pre-season... needs labels so the GM knows
+  /// what's happening" -- dedicated room to fix a rough draft's roster
+  /// fallout via real trades before Preseason (and eventually Week 1's
+  /// hard [blockedByIllegalActiveRoster] gate) start counting.
+  ///
+  /// A no-op (returns without persisting) if there's no current
+  /// franchise or no Trade Week is actually open right now.
+  Future<void> advancePostDraftTradeWeek() async {
+    final franchise = await future;
+    if (franchise == null) return;
+    final remaining = franchise.postDraftTradeWeeksRemaining;
+    if (remaining == null) return;
+    final next = remaining - 1;
+    await _persist(
+      franchise.copyWithPostDraftTradeWeeksRemaining(next > 0 ? next : null),
+    );
+  }
+
   /// Simulates the next scheduled game day and persists the result.
   /// Returns the full [GameResult]s for that game day -- box scores and
   /// all -- so the caller can do something with them (show the GM's own
@@ -703,9 +728,12 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// Returns `null` if there's no current franchise, if the season has no
   /// game days left to advance to ([SeasonProgress.isComplete]), if
   /// [_blockedByRosterGap] -- see that method's doc comment for exactly
-  /// which roster gaps block advancing and which don't -- or if
-  /// [blockedByIllegalActiveRoster] (an illegal roster trying to advance
-  /// past the preseason; see that function's own doc comment).
+  /// which roster gaps block advancing and which don't -- if
+  /// [Franchise.postDraftTradeWeeksRemaining] is still set (there's no
+  /// game to simulate until [advancePostDraftTradeWeek] has used up both
+  /// Trade Weeks), or if [blockedByIllegalActiveRoster] (an illegal
+  /// roster trying to advance past the preseason; see that function's
+  /// own doc comment).
   ///
   /// The [Random] stream is reseeded from [Franchise.seasonSeed] plus
   /// the game day index being advanced, not carried forward across calls
@@ -727,6 +755,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       return null;
     }
     if (_blockedByRosterGap(franchise)) return null;
+    if (franchise.postDraftTradeWeeksRemaining != null) return null;
     if (blockedByIllegalActiveRoster(franchise)) return null;
 
     final advance = advanceToNextGameDay(
@@ -835,6 +864,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       return null;
     }
     if (_blockedByRosterGap(franchise)) return null;
+    if (franchise.postDraftTradeWeeksRemaining != null) return null;
     if (blockedByIllegalActiveRoster(franchise)) return null;
 
     final advance = advanceToNextGameDay(

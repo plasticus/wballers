@@ -2,9 +2,11 @@ import 'dart:math';
 
 import '../../draft/generation/draft_generator.dart' show kDraftRounds;
 import '../../franchise/domain/franchise.dart';
+import '../../franchise/domain/franchise_legality.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../player/domain/player.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../roster/domain/star_tier.dart';
 import '../domain/pick_ownership.dart';
 import '../domain/trade_asset.dart';
 import '../domain/trade_offer.dart';
@@ -43,6 +45,31 @@ const kConsolidationOfferSlotIndex = kTradeOfferCount - 1;
 /// pick"), falling back to the same "try" shape as the other 2 slots only
 /// if that specific offer genuinely can't be built.
 const kTradeBlockTargetedOfferCount = 3;
+
+/// Extra Trade Board slots [generateTradeOffers] adds on top of
+/// [kTradeOfferCount] whenever the GM's active roster is oversized
+/// (`RosterLegality.hasLegalActiveRosterSize`) -- half sell-for-picks
+/// ([_tryBuildSellForPicksOffer]), half an extra 2-for-1 consolidation
+/// ([_tryBuildConsolidationOffer], same shape the fixed slot already
+/// uses). A direct GM ask (2026-08-23): "if your roster is illegal with
+/// too many players, other teams are more likely to offer you picks for
+/// players, and 2:1 trades where you get rid of two players for one
+/// incoming. The other team recognizes that you're trying to sell off
+/// players, so they'll make offers."
+const kOversizedRosterExtraSlots = 4;
+
+/// Extra Trade Board slots [generateTradeOffers] adds on top of
+/// [kTradeOfferCount] whenever the GM's active roster is over either
+/// star-tier cap (`RosterLegality.hasLegalFourStarCount`/
+/// `hasLegalThreeStarAndUpCount`) -- each one specifically asks for one
+/// of the GM's own 3-star-or-better players
+/// ([_starTierOverflowCandidates]), same real-return shape
+/// [_tryBuildOffer] already builds for a trade-block-targeted slot, just
+/// forced onto a star instead. Same GM ask as
+/// [kOversizedRosterExtraSlots]: "if your roster is illegal based on
+/// having too many star-tier, you should find yourself getting more
+/// offers that'd help you get out of that situation."
+const kTooManyStarsExtraSlots = 3;
 
 /// A years-of-age gap past which an offer's headline players read as a
 /// deliberate youth-for-experience swap, for [TradeOfferCharacter]
@@ -121,11 +148,79 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
   ];
   final draftSeasons = tradeableDraftSeasons(franchise.season);
 
+  // How much more desperate the board should look -- see
+  // [kOversizedRosterExtraSlots]/[kTooManyStarsExtraSlots]'s own doc
+  // comments. Both can apply at once (an oversized roster stuffed with
+  // stars is a real, if uncommon, shape); each contributes its own slots
+  // independently.
+  final legality = evaluateFranchiseLegality(franchise);
+  final oversizedExtraSlots = legality.hasLegalActiveRosterSize
+      ? 0
+      : kOversizedRosterExtraSlots;
+  final tooManyStarsExtraSlots =
+      legality.hasLegalFourStarCount && legality.hasLegalThreeStarAndUpCount
+      ? 0
+      : kTooManyStarsExtraSlots;
+  final starOverflowCandidates = _starTierOverflowCandidates(ownActive);
+  final totalSlots =
+      kTradeOfferCount + oversizedExtraSlots + tooManyStarsExtraSlots;
+
   final offers = <TradeOffer>[];
-  for (var slot = 0; slot < kTradeOfferCount; slot++) {
+  for (var slot = 0; slot < totalSlots; slot++) {
+    final aiTeam = aiTeams[slot % aiTeams.length];
+
+    if (slot >= kTradeOfferCount + oversizedExtraSlots) {
+      // A star-tier-overflow relief slot -- reuses [_tryBuildOffer]'s
+      // ordinary "forced target, real return" shape, just forced onto
+      // one of the GM's own excess 3-star-or-better players instead of
+      // whatever's on the trade block.
+      if (starOverflowCandidates.isEmpty) continue;
+      final target =
+          starOverflowCandidates[random.nextInt(starOverflowCandidates.length)];
+      final offer = _tryBuildOffer(
+        random,
+        aiTeam: aiTeam,
+        ownActive: ownActive,
+        forcedTarget: target,
+        slotIndex: slot,
+        ownTeamAbbreviation: franchise.team.abbreviation,
+        pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+        allTeamAbbreviations: allTeamAbbreviations,
+        draftSeasons: draftSeasons,
+      );
+      if (offer != null) offers.add(offer);
+      continue;
+    }
+
+    if (slot >= kTradeOfferCount) {
+      // An oversized-roster relief slot -- half sell-for-picks, half an
+      // extra consolidation (both reduce the GM's own headcount, unlike
+      // every other slot).
+      final wantsPicksOnly = (slot - kTradeOfferCount).isEven;
+      final offer = wantsPicksOnly
+          ? _tryBuildSellForPicksOffer(
+              random,
+              aiTeam: aiTeam,
+              ownActive: ownActive,
+              ownTeamAbbreviation: franchise.team.abbreviation,
+              pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+              allTeamAbbreviations: allTeamAbbreviations,
+              draftSeasons: draftSeasons,
+            )
+          : _tryBuildConsolidationOffer(
+              aiTeam: aiTeam,
+              ownActive: ownActive,
+              ownTeamAbbreviation: franchise.team.abbreviation,
+              pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+              allTeamAbbreviations: allTeamAbbreviations,
+              draftSeasons: draftSeasons,
+            );
+      if (offer != null) offers.add(offer);
+      continue;
+    }
+
     final wantsTradeBlockPlayer =
         tradeBlockPlayer != null && slot < kTradeBlockTargetedOfferCount;
-    final aiTeam = aiTeams[slot % aiTeams.length];
     // Slot 0 is the one guaranteed 2-for-2-with-a-pick offer, whenever a
     // trade-block player is set -- a direct GM ask (2026-08-19): "I want
     // to see at least one trade that's a 2:2 and involved a draft pick."
@@ -171,6 +266,21 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
     if (offer != null) offers.add(offer);
   }
   return offers;
+}
+
+/// [active]'s own 3-star-or-better players -- the pool
+/// [generateTradeOffers]' star-tier-overflow relief slots target, since
+/// that's exactly who a `hasLegalFourStarCount`/`hasLegalThreeStarAndUpCount`
+/// violation is actually about. Empty (never actually reached, since
+/// [generateTradeOffers] only adds those slots when a real violation
+/// exists) if [active] happens to hold none.
+List<Player> _starTierOverflowCandidates(List<Player> active) {
+  return [
+    for (final player in active)
+      if (StarTier.of(player) == StarTier.fourStar ||
+          StarTier.of(player) == StarTier.threeStar)
+        player,
+  ];
 }
 
 /// One attempt at a valid offer from [aiTeam] -- picks (or uses
@@ -532,6 +642,132 @@ TradeOffer? _tryBuildConsolidationOffer({
       swing: swing,
     ),
   );
+}
+
+/// How much wider than the ordinary [tradeSwing] a
+/// [_tryBuildSellForPicksOffer] deal is allowed to run -- a real,
+/// below-market discount, not a bug to route around. Even the best 2
+/// real picks combined ([kDraftPickTradeValue] rounds 1+2, 620) sit
+/// below almost any real active player's value (a fresh 12-player
+/// starting roster ranges ~700-1000), so gating this shape at the same
+/// tight tolerance ordinary trades use would make it nearly unreachable
+/// -- and the GM's own framing for this whole feature already expects a
+/// discount: "the other team recognizes that you're trying to sell off
+/// players, so they'll make offers" (2026-08-23) describes an AI team
+/// taking advantage of a desperate seller, not a fair-value swap. Wide
+/// enough that most of a real roster's weaker-to-middling players are
+/// reachable at any coach, while a genuine star still generally isn't
+/// (own doc comment's own worked numbers).
+const kSellForPicksExtraTolerance = 250;
+
+/// Builds one of [generateTradeOffers]' oversized-roster relief slots --
+/// pure "picks for a player," the other real shape a direct GM ask
+/// (2026-08-23) called for: "other teams are more likely to offer you
+/// picks for players." Goes out for *only* real picks [aiTeam] currently
+/// owns -- one if that alone lands within [tradeSwing] (widened by
+/// [kSellForPicksExtraTolerance] -- see that constant's own doc
+/// comment), the closest-value pair of two otherwise.
+///
+/// Tries the GM's own active players from weakest upward (same
+/// deliberate "bottom of the roster first" posture
+/// [_tryBuildConsolidationOffer] uses), not just the single weakest, so
+/// a genuinely bottom-of-the-roster player isn't the only one ever
+/// considered. `null` if nothing in the first few candidates works
+/// either -- e.g. an AI team down to a single low pick, or already
+/// traded every pick it had.
+TradeOffer? _tryBuildSellForPicksOffer(
+  Random random, {
+  required AiTeamRoster aiTeam,
+  required List<Player> ownActive,
+  required String ownTeamAbbreviation,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
+}) {
+  if (ownActive.isEmpty) return null;
+
+  final management = aiTeam.coach.stats.management;
+  final swing = tradeSwing(management);
+  final tolerance = swing + kSellForPicksExtraTolerance;
+
+  final ownedPicks = picksOwnedBy(
+    aiTeam.team.abbreviation,
+    pickOwnershipOverrides,
+    allTeamAbbreviations,
+    draftSeasons: draftSeasons,
+    rounds: kDraftRounds,
+  );
+  if (ownedPicks.isEmpty) return null;
+
+  final byValue = [...ownActive]
+    ..sort(
+      (a, b) => PlayerTradeAsset(
+        a,
+      ).tradeValue.compareTo(PlayerTradeAsset(b).tradeValue),
+    );
+  const kMaxCandidates = 6;
+
+  for (final target in byValue.take(kMaxCandidates)) {
+    final askedAssets = <TradeAsset>[PlayerTradeAsset(target)];
+    final targetValue = PlayerTradeAsset(target).tradeValue;
+
+    // A single pick close enough on its own, tried in a shuffled order
+    // so the same pick isn't always the one offered when several would
+    // work.
+    final shuffledPicks = List<TradeAsset>.of(ownedPicks)..shuffle(random);
+    for (final pick in shuffledPicks) {
+      final gap = pick.tradeValue - targetValue;
+      if (gap.abs() <= tolerance) {
+        return TradeOffer(
+          id: _offerId(aiTeam, [pick], askedAssets),
+          offeringTeamAbbreviation: aiTeam.team.abbreviation,
+          offeredToYou: [pick],
+          askedFromYou: askedAssets,
+          character: _characterFor(
+            offered: [pick],
+            asked: askedAssets,
+            gap: gap,
+            swing: swing,
+          ),
+        );
+      }
+    }
+    if (ownedPicks.length < 2) continue;
+
+    // Otherwise the closest-value pair of 2 distinct owned picks.
+    TradeAsset? bestFirst;
+    TradeAsset? bestSecond;
+    var bestDiff = 1 << 30;
+    for (var i = 0; i < ownedPicks.length; i++) {
+      for (var j = i + 1; j < ownedPicks.length; j++) {
+        final sum = ownedPicks[i].tradeValue + ownedPicks[j].tradeValue;
+        final diff = (sum - targetValue).abs();
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestFirst = ownedPicks[i];
+          bestSecond = ownedPicks[j];
+        }
+      }
+    }
+    if (bestFirst == null || bestSecond == null || bestDiff > tolerance) {
+      continue;
+    }
+    final offered = [bestFirst, bestSecond];
+    final gap = totalTradeValue(offered) - targetValue;
+    return TradeOffer(
+      id: _offerId(aiTeam, offered, askedAssets),
+      offeringTeamAbbreviation: aiTeam.team.abbreviation,
+      offeredToYou: offered,
+      askedFromYou: askedAssets,
+      character: _characterFor(
+        offered: offered,
+        asked: askedAssets,
+        gap: gap,
+        swing: swing,
+      ),
+    );
+  }
+  return null;
 }
 
 /// [count] distinct players drawn from [pool] at random.

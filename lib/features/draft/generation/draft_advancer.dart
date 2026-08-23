@@ -286,7 +286,12 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
       .copyWithLeague(League(aiTeams: aiTeams))
       .copyWithFreeAgents(freeAgents);
 
-  return updated.copyWithDraftInProgress(null).copyWithDraftClass(const []);
+  return updated
+      .copyWithDraftInProgress(null)
+      .copyWithDraftClass(const [])
+      // Opens the 2 non-game Trade Weeks between this draft and Preseason
+      // -- see [Franchise.postDraftTradeWeeksRemaining]'s own doc comment.
+      .copyWithPostDraftTradeWeeksRemaining(kPostDraftTradeWeeks);
 }
 
 /// Waives [roster]'s weakest active player back to free agency,

@@ -65,6 +65,7 @@ Map<String, dynamic> franchiseToJson(Franchise franchise) {
     'draftInProgress': franchise.draftInProgress == null
         ? null
         : draftInProgressToJson(franchise.draftInProgress!),
+    'postDraftTradeWeeksRemaining': franchise.postDraftTradeWeeksRemaining,
     'seasonStartOverallByPlayerId': franchise.seasonStartOverallByPlayerId,
     'narrativeVeteranPlayerId': franchise.narrativeVeteranPlayerId,
     'narrativeVeteranName': franchise.narrativeVeteranName,
@@ -155,6 +156,7 @@ Franchise franchiseFromJson(Map<String, dynamic> json) {
         : draftInProgressFromJson(
             json['draftInProgress'] as Map<String, dynamic>,
           ),
+    postDraftTradeWeeksRemaining: json['postDraftTradeWeeksRemaining'] as int?,
     seasonStartOverallByPlayerId:
         (json['seasonStartOverallByPlayerId'] as Map<String, dynamic>).map(
           (key, value) => MapEntry(key, value as int),

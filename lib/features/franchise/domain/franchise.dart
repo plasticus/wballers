@@ -46,6 +46,10 @@ import 'pending_retirement.dart';
 /// generators/offsets get added later.
 const kSeasonSeedSpan = 10000;
 
+/// How many non-game Trade Weeks sit between a draft finalizing and
+/// Preseason starting -- see [Franchise.postDraftTradeWeeksRemaining].
+const kPostDraftTradeWeeks = 2;
+
 /// Roster legality isn't enforced here — see `evaluateFranchiseLegality`.
 /// There's no separate starting-lineup concept anymore: the top 5 players
 /// in `roster`'s own active-roster order (the same order Bench Order
@@ -81,6 +85,7 @@ class Franchise {
     this.draftClass = const [],
     this.upcomingDraftClass = const [],
     this.draftInProgress,
+    this.postDraftTradeWeeksRemaining,
     this.seasonStartOverallByPlayerId = const {},
     this.narrativeVeteranPlayerId = '',
     this.narrativeVeteranName = '',
@@ -294,6 +299,25 @@ class Franchise {
   /// roster.
   final DraftInProgress? draftInProgress;
 
+  /// How many of the 2 post-draft Trade Weeks are still ahead of
+  /// Preseason -- `null` whenever there's no such gate active (before a
+  /// draft ever finishes, mid-season, or once both weeks are used up and
+  /// Preseason has actually begun). Set to [kPostDraftTradeWeeks] the
+  /// moment `draft_advancer.dart`'s `finalizeDraft` lands every pick on a
+  /// roster, decremented one at a time by
+  /// `current_franchise_provider.dart`'s `advancePostDraftTradeWeek`
+  /// (a real GM-driven step, not a game day -- no game gets simulated),
+  /// and cleared back to `null` once it reaches 0, unlocking the normal
+  /// `advanceGameDay` flow into Preseason. A direct GM ask (2026-08-23):
+  /// "insert a couple of non-game weeks to run trades, prior to
+  /// pre-season... needs labels so the GM knows what's happening" --
+  /// dedicated breathing room to fix a just-finished draft's roster
+  /// fallout via real trades before the games start counting, on top of
+  /// (not instead of) the existing "roll it through Preseason, then get
+  /// blocked before Week 1 if still illegal" safety net
+  /// (`franchise_legality.dart`'s `blockedByIllegalActiveRoster`).
+  final int? postDraftTradeWeeksRemaining;
+
   /// Every player's [PlayerRatings.overall] snapshotted the moment *this*
   /// season began -- `season_transition_advancer.dart`'s `beginNextSeason`
   /// is the only writer, capturing it fresh (fully replacing, not merging)
@@ -445,6 +469,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -488,6 +513,54 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: newDraftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
+      seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
+      narrativeVeteranPlayerId: narrativeVeteranPlayerId,
+      narrativeVeteranName: narrativeVeteranName,
+      narrativeVeteranAppearance: narrativeVeteranAppearance,
+      tradeBlockPlayerId: tradeBlockPlayerId,
+      resolvedTradeOfferIds: resolvedTradeOfferIds,
+      pickOwnershipOverrides: pickOwnershipOverrides,
+      narrativeVeteranRetired: narrativeVeteranRetired,
+      formerPlayers: formerPlayers,
+      draftWaivedPlayers: draftWaivedPlayers,
+    );
+  }
+
+  /// Returns a copy with [newPostDraftTradeWeeksRemaining] replacing
+  /// [postDraftTradeWeeksRemaining] -- `draft_advancer.dart`'s
+  /// `finalizeDraft` sets it to [kPostDraftTradeWeeks],
+  /// `current_franchise_provider.dart`'s `advancePostDraftTradeWeek`
+  /// counts it down one at a time and clears it to `null` at 0.
+  Franchise copyWithPostDraftTradeWeeksRemaining(
+    int? newPostDraftTradeWeeksRemaining,
+  ) {
+    return Franchise(
+      id: id,
+      gmName: gmName,
+      team: team,
+      coach: coach,
+      roster: roster,
+      simulationSeed: simulationSeed,
+      replacedTeamAbbreviation: replacedTeamAbbreviation,
+      league: league,
+      seasonProgress: seasonProgress,
+      trainingCoaches: trainingCoaches,
+      trainingPlan: trainingPlan,
+      nextTrainingWeek: nextTrainingWeek,
+      season: season,
+      trainingReports: trainingReports,
+      seasonEndAgingResults: seasonEndAgingResults,
+      skillsCompetitionResults: skillsCompetitionResults,
+      leagueRetirements: leagueRetirements,
+      injuryReports: injuryReports,
+      freeAgents: freeAgents,
+      readMailIds: readMailIds,
+      pendingRetirements: pendingRetirements,
+      draftClass: draftClass,
+      upcomingDraftClass: upcomingDraftClass,
+      draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: newPostDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -530,6 +603,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: newSnapshot,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -572,6 +646,7 @@ class Franchise {
       draftClass: newDraftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -618,6 +693,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: newUpcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -659,6 +735,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -700,6 +777,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -741,6 +819,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -782,6 +861,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -833,6 +913,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -882,6 +963,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -924,6 +1006,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -970,6 +1053,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1017,6 +1101,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1060,6 +1145,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1108,6 +1194,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1153,6 +1240,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1195,6 +1283,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1237,6 +1326,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1283,6 +1373,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1332,6 +1423,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1375,6 +1467,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1432,6 +1525,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1496,6 +1590,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,
@@ -1549,6 +1644,7 @@ class Franchise {
       draftClass: draftClass,
       upcomingDraftClass: upcomingDraftClass,
       draftInProgress: draftInProgress,
+      postDraftTradeWeeksRemaining: postDraftTradeWeeksRemaining,
       seasonStartOverallByPlayerId: seasonStartOverallByPlayerId,
       narrativeVeteranPlayerId: narrativeVeteranPlayerId,
       narrativeVeteranName: narrativeVeteranName,

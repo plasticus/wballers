@@ -887,6 +887,85 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
       );
     }
 
+    final tradeWeeksRemaining = franchise.postDraftTradeWeeksRemaining;
+    if (tradeWeeksRemaining != null) {
+      // The 2 non-game weeks between a just-finished draft and Preseason
+      // -- a direct GM ask (2026-08-23): "insert a couple of non-game
+      // weeks to run trades, prior to pre-season... needs labels so the
+      // GM knows what's happening." No game to preview/simulate here --
+      // this card's only job is to name the week and point at the Trade
+      // Board. `advanceGameDay` itself already refuses to run while
+      // [tradeWeeksRemaining] is set (`current_franchise_provider.dart`),
+      // so this card is the *only* way through.
+      final weekNumber = kPostDraftTradeWeeks - tradeWeeksRemaining + 1;
+      final isLastTradeWeek = tradeWeeksRemaining == 1;
+      final isLegal = evaluateFranchiseLegality(franchise).isLegal;
+      return AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.swap_horiz_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  'Trade Week $weekNumber of $kPostDraftTradeWeeks',
+                  style: theme.textTheme.titleLarge,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'No games this week -- work the Trade Board to shape your '
+              'roster before Preseason starts.',
+              style: theme.textTheme.bodySmall,
+            ),
+            if (!isLegal) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Your active roster is illegal right now -- other teams '
+                'know it, and the Trade Board should reflect that.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PlayerMarketScreen(
+                      franchise: franchise,
+                      initialTabIndex: 1,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.storefront_outlined),
+              label: const Text('Open Trade Board'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton(
+              onPressed: () async {
+                await ref
+                    .read(currentFranchiseProvider.notifier)
+                    .advancePostDraftTradeWeek();
+              },
+              child: Text(
+                isLastTradeWeek
+                    ? 'Continue to Preseason'
+                    : 'Continue to Trade Week ${weekNumber + 1}',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final progress = franchise.seasonProgress;
     final leagueTeams = [
       franchise.team,

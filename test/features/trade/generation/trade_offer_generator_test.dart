@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/trade/domain/pick_ownership.dart';
@@ -7,6 +8,7 @@ import 'package:womensbballmgr/features/trade/domain/trade_value.dart';
 import 'package:womensbballmgr/features/trade/generation/trade_offer_generator.dart';
 
 import '../../../support/franchise_test_helpers.dart';
+import '../../../support/match_test_players.dart';
 import '../../../support/portrait_test_helpers.dart';
 
 void main() {
@@ -322,5 +324,120 @@ void main() {
     // secretly always targeting someone -- not asserting on which
     // player(s), just that there's real variety when nothing is forced.
     expect(askedPlayerIds.length, greaterThan(1));
+  });
+
+  group('roster-legality desperation scaling (2026-08-23, a direct GM ask: '
+      '"if your roster is illegal with too many players, other teams are '
+      'more likely to offer you picks for players, and 2:1 trades... '
+      'if your roster is illegal based on having too many star-tier, you '
+      'should find yourself getting more offers")', () {
+    test('an oversized active roster gets more offers than a legal one, '
+        'including a real picks-only sell-off shape', () {
+      final legal = withFullActiveRoster(franchiseForPortraitTests());
+      final oversized = legal.copyWithRoster([
+        ...legal.roster,
+        for (var i = 0; i < 3; i++)
+          RosterMembership(
+            player: testPlayer(id: 'extra-bench-$i', rating: 45),
+            status: RosterStatus.active,
+          ),
+      ]);
+
+      var sawMoreOffers = false;
+      var sawPicksOnlySale = false;
+      for (var gameDayIndex = 0; gameDayIndex < 10; gameDayIndex++) {
+        final legalTurn = legal.copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: legal.seasonProgress.schedule,
+            playedGames: legal.seasonProgress.playedGames,
+            nextGameDayIndex: gameDayIndex,
+          ),
+        );
+        final oversizedTurn = oversized.copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: oversized.seasonProgress.schedule,
+            playedGames: oversized.seasonProgress.playedGames,
+            nextGameDayIndex: gameDayIndex,
+          ),
+        );
+        final legalOffers = generateTradeOffers(legalTurn);
+        final oversizedOffers = generateTradeOffers(oversizedTurn);
+        if (oversizedOffers.length > legalOffers.length) {
+          sawMoreOffers = true;
+        }
+        for (final offer in oversizedOffers) {
+          final offeredPlayers = offer.offeredToYou
+              .whereType<PlayerTradeAsset>();
+          final offeredPicks = offer.offeredToYou.whereType<PickTradeAsset>();
+          final askedPlayers = offer.askedFromYou.whereType<PlayerTradeAsset>();
+          if (offeredPlayers.isEmpty &&
+              offeredPicks.isNotEmpty &&
+              askedPlayers.length == 1) {
+            sawPicksOnlySale = true;
+          }
+        }
+      }
+      expect(sawMoreOffers, isTrue);
+      expect(sawPicksOnlySale, isTrue);
+    });
+
+    test('a roster over a star-tier cap gets more offers than a legal '
+        'one, some of them specifically targeting one of the excess '
+        'star-tier players', () {
+      final legal = withFullActiveRoster(franchiseForPortraitTests());
+      // Every roster member here is active (`generateStartingRoster`
+      // never produces any other status) -- replace 7 of the 12 with
+      // 85-OVR (three-star) players, one over kMaxThreeStarAndUpPlayers
+      // (6).
+      expect(
+        legal.roster.every((m) => m.status == RosterStatus.active),
+        isTrue,
+      );
+      final starIds = <String>{for (var i = 0; i < 7; i++) 'star-$i'};
+      final swapped = [
+        for (var i = 0; i < legal.roster.length; i++)
+          if (i < 7)
+            RosterMembership(
+              player: testPlayer(id: 'star-$i', rating: 85),
+              status: RosterStatus.active,
+            )
+          else
+            legal.roster[i],
+      ];
+      final tooManyStars = legal.copyWithRoster(swapped);
+
+      var sawMoreOffers = false;
+      var sawStarTargeted = false;
+      for (var gameDayIndex = 0; gameDayIndex < 10; gameDayIndex++) {
+        final legalTurn = legal.copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: legal.seasonProgress.schedule,
+            playedGames: legal.seasonProgress.playedGames,
+            nextGameDayIndex: gameDayIndex,
+          ),
+        );
+        final starTurn = tooManyStars.copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: tooManyStars.seasonProgress.schedule,
+            playedGames: tooManyStars.seasonProgress.playedGames,
+            nextGameDayIndex: gameDayIndex,
+          ),
+        );
+        final legalOffers = generateTradeOffers(legalTurn);
+        final starOffers = generateTradeOffers(starTurn);
+        if (starOffers.length > legalOffers.length) {
+          sawMoreOffers = true;
+        }
+        for (final offer in starOffers) {
+          for (final asset in offer.askedFromYou) {
+            if (asset case PlayerTradeAsset(:final player)) {
+              if (starIds.contains(player.id)) sawStarTargeted = true;
+            }
+          }
+        }
+      }
+      expect(sawMoreOffers, isTrue);
+      expect(sawStarTargeted, isTrue);
+    });
   });
 }
