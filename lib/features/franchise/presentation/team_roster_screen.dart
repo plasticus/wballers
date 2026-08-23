@@ -588,13 +588,16 @@ class _EmptySlot extends StatelessWidget {
 }
 
 /// Whether [franchise] has room for [player] at [destination] -- mirrors
-/// `current_franchise_provider.dart`'s own private `_hasOpenSlot` guard,
-/// duplicated here (rather than shared) purely so this screen can show
-/// *why* a move is disabled instead of just silently no-op-ing on tap.
+/// `current_franchise_provider.dart`'s own private `_hasOpenSlot` guard
+/// (see that one's own doc comment for why [RosterStatus.active] always
+/// has room -- a legality warning, not a structural cap, handles it
+/// instead), duplicated here (rather than shared) purely so this screen
+/// can show *why* a move is disabled instead of just silently no-op-ing
+/// on tap.
 bool _hasRoomFor(Franchise franchise, RosterStatus destination, Player player) {
   final count = franchise.roster.where((m) => m.status == destination).length;
   return switch (destination) {
-    RosterStatus.active => count < kActiveRosterSize,
+    RosterStatus.active => true,
     RosterStatus.developmental =>
       count < kMaxDevelopmentalRosterSpots && isDevelopmentalEligible(player),
     RosterStatus.reserveInactive => count < kMaxInactiveRosterSpots,

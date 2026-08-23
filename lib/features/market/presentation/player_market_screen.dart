@@ -182,6 +182,13 @@ class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
     final activeCount = franchise.roster
         .where((m) => m.status == RosterStatus.active)
         .length;
+    // No hard cap here anymore -- [kActiveRosterSize] is a legality
+    // ceiling (`roster_legality.dart`), not a structural one, same as
+    // `current_franchise_provider.dart`'s `_hasOpenSlot` now treats it.
+    // Signing over it is allowed; the roster just reads as illegal
+    // afterward (a constant warning, never a game-blocking crash outside
+    // the regular season -- `franchise_legality.dart`'s
+    // `blockedByIllegalActiveRoster`).
     final hasOpenSpot = activeCount < kActiveRosterSize;
     final freeAgents = sortAndFilterPlayers(
       franchise.freeAgents,
@@ -199,9 +206,10 @@ class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
               ? 'Your active roster has an open spot -- sign a free agent '
                     'to fill it. Signing is instant and permanent for now; '
                     'there\'s no salary cap or contract length modeled yet.'
-              : 'Your active roster is full ($activeCount/$kActiveRosterSize) '
-                    '-- browse for reference, but there\'s no open spot to '
-                    'sign into right now.',
+              : 'Your active roster is already at $activeCount/'
+                    '$kActiveRosterSize -- you can still sign, but you\'ll '
+                    'carry a roster legality warning until you trim back '
+                    'down.',
         ),
         PlayerSortFilterBar(
           position: _position,
@@ -227,20 +235,18 @@ class _FreeAgentsTabState extends ConsumerState<_FreeAgentsTab> {
               subtitle: 'Free Agent',
               accentColor: theme.colorScheme.outline,
               jersey: null,
-              trailing: hasOpenSpot
-                  ? FilledButton(
-                      onPressed: _isSigning
-                          ? null
-                          : () => _sign(freeAgents[i].id),
-                      child: _isSigning
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Sign'),
-                    )
-                  : null,
+              // Always offered now, even past [kActiveRosterSize] -- see
+              // [hasOpenSpot]'s own comment above.
+              trailing: FilledButton(
+                onPressed: _isSigning ? null : () => _sign(freeAgents[i].id),
+                child: _isSigning
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Sign'),
+              ),
             ),
             if (i != freeAgents.length - 1)
               const SizedBox(height: AppSpacing.sm),
@@ -607,10 +613,17 @@ class _TradeBlockCard extends StatelessWidget {
   }
 }
 
-/// Every active-roster player, tap to flag her as the trade block --
-/// mirrors `team_roster_screen.dart`'s `_AssignPlayerSheet` shape (a
-/// title, a scrollable candidate list, tap-to-act-and-pop) without
-/// reusing that class directly since it's private to its own file.
+/// Every active *or developmental* roster player, tap to flag her as the
+/// trade block -- mirrors `team_roster_screen.dart`'s `_AssignPlayerSheet`
+/// shape (a title, a scrollable candidate list, tap-to-act-and-pop)
+/// without reusing that class directly since it's private to its own
+/// file. Used to be active-only, a real gap a direct GM report caught
+/// (2026-08-23): "I don't think I'm currently allowed to trade my
+/// development slot players?! Or at least I can't put them on the trade
+/// block. I should be able to." Injured/Inactive players stay excluded --
+/// nothing in this GM ask named them, and every trade builder in
+/// `trade_offer_generator.dart` still assumes active-or-developmental is
+/// the full tradeable universe.
 class _TradeBlockPickerSheet extends ConsumerWidget {
   const _TradeBlockPickerSheet({required this.franchise});
 
@@ -620,7 +633,13 @@ class _TradeBlockPickerSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final candidates =
-        franchise.roster.where((m) => m.status == RosterStatus.active).toList()
+        franchise.roster
+            .where(
+              (m) =>
+                  m.status == RosterStatus.active ||
+                  m.status == RosterStatus.developmental,
+            )
+            .toList()
           ..sort(
             (a, b) =>
                 b.player.ratings.overall.compareTo(a.player.ratings.overall),
@@ -650,7 +669,8 @@ class _TradeBlockPickerSheet extends ConsumerWidget {
                       title: Text(membership.player.name),
                       subtitle: Text(
                         '${membership.player.primaryPosition.abbreviation} '
-                        '· Age ${membership.player.age}',
+                        '· Age ${membership.player.age}'
+                        '${membership.status == RosterStatus.developmental ? ' · Developmental' : ''}',
                       ),
                       trailing:
                           membership.player.id == franchise.tradeBlockPlayerId

@@ -110,14 +110,15 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   ///
   /// A no-op if there's no current franchise, [playerId] isn't actually
   /// in [Franchise.freeAgents], or [status]'s own slot is already full
-  /// ([kActiveRosterSize] for active, [kMaxDevelopmentalRosterSpots] for
-  /// developmental -- plus [isDevelopmentalEligible], since a free agent
-  /// with too many years of service can't go there at all --
-  /// [kMaxInactiveRosterSpots] for reserve/inactive) -- defensive guards,
-  /// not paths the real UI should ever hit (the Player Market screen's
-  /// Free Agents tab and the Team screen's Development/Inactive slot
-  /// pickers only ever offer a slot/player combination that's actually
-  /// legal).
+  /// ([kMaxDevelopmentalRosterSpots] for developmental -- plus
+  /// [isDevelopmentalEligible], since a free agent with too many years of
+  /// service can't go there at all -- [kMaxInactiveRosterSpots] for
+  /// reserve/inactive). Active has no such cap -- see [_hasOpenSlot]'s own
+  /// doc comment for why -- so this can only actually no-op for
+  /// developmental/reserve-inactive; defensive guards either way, not
+  /// paths the real UI should ever hit (the Player Market screen's Free
+  /// Agents tab and the Team screen's Development/Inactive slot pickers
+  /// only ever offer a slot/player combination that's actually legal).
   Future<void> signFreeAgent(
     String playerId, {
     RosterStatus status = RosterStatus.active,
@@ -196,6 +197,23 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// [moveRosterStatus] checking a slot the mover might already occupy
   /// under a different status, which should never count against
   /// themselves.
+  ///
+  /// [RosterStatus.active] always has room -- [kActiveRosterSize] is a
+  /// *legality* ceiling (`roster_legality.dart`), not a structural one,
+  /// same "no enforced minimum" posture that constant's own doc comment
+  /// already takes for running under it. A direct GM report (2026-08-23):
+  /// "I need to be able to put more than 12 players on my active roster.
+  /// So I can swap people around. I can't move an inactive player up to
+  /// the active roster, because I'm full up there. But I'm in a trade
+  /// week, so who cares who is on my roster. Don't restrict it to 12,
+  /// just don't let me play a regular season game if my roster is
+  /// illegal. I'm good with it being like a constant legality warning on
+  /// top, like 14/12 beware." That warning
+  /// (`franchise_legality.dart`'s `blockedByIllegalActiveRoster`,
+  /// `team_roster_screen.dart`'s `_RosterLegalityWarning`) already exists
+  /// and already does exactly this job -- this guard was the one
+  /// remaining place still hard-blocking the GM from ever getting there
+  /// in the first place.
   bool _hasOpenSlot(
     Franchise franchise,
     RosterStatus status, {
@@ -206,7 +224,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
         .where((m) => m.status == status && m.player.id != excludingPlayerId)
         .length;
     return switch (status) {
-      RosterStatus.active => count < kActiveRosterSize,
+      RosterStatus.active => true,
       RosterStatus.developmental =>
         count < kMaxDevelopmentalRosterSpots &&
             isDevelopmentalEligible(candidate),
@@ -232,16 +250,25 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
 
   /// Sets (or, given `null`, clears) [Franchise.tradeBlockPlayerId] --
   /// exactly one at a time, per `trading-and-hidden-gems-notes.md`. A
-  /// no-op if [playerId] isn't actually one of the GM's own *active*
-  /// roster players (developmental/reserve players, or a stale id,
-  /// silently don't set anything, rather than the Trade Board later
+  /// no-op if [playerId] isn't actually one of the GM's own active *or
+  /// developmental* roster players (reserve/inactive players, or a stale
+  /// id, silently don't set anything, rather than the Trade Board later
   /// having to cope with a block player who was never really tradeable).
+  /// Developmental included as of 2026-08-23, a direct GM report: "I
+  /// don't think I'm currently allowed to trade my development slot
+  /// players?! Or at least I can't put them on the trade block. I should
+  /// be able to." -- `trade_offer_generator.dart`'s `generateTradeOffers`
+  /// already builds real offers around whoever this names, active or
+  /// developmental alike.
   Future<void> setTradeBlockPlayer(String? playerId) async {
     final franchise = await future;
     if (franchise == null) return;
     if (playerId != null &&
         !franchise.roster.any(
-          (m) => m.player.id == playerId && m.status == RosterStatus.active,
+          (m) =>
+              m.player.id == playerId &&
+              (m.status == RosterStatus.active ||
+                  m.status == RosterStatus.developmental),
         )) {
       return;
     }

@@ -661,12 +661,16 @@ void main() {
 
     test('every offer is still objectively legal for the offering '
         'team\'s own coach Management, across every non-anything intent '
-        '-- except gainPicks, which deliberately reuses '
-        '_tryBuildSellForPicksOffer\'s own wider discount tolerance '
-        '(kSellForPicksExtraTolerance, that constant\'s own doc comment)', () {
+        '-- except shedPicks/gainPicks, which deliberately spend/collect '
+        'picks at a wider discount tolerance than an ordinary trade '
+        '(kPickSpendExtraTolerance/kSellForPicksExtraTolerance, those '
+        'constants\' own doc comments)', () {
       final franchise = withFullActiveRoster(franchiseForPortraitTests());
       for (final intent in TradeBoardIntent.values) {
-        if (intent == TradeBoardIntent.gainPicks) continue;
+        if (intent == TradeBoardIntent.shedPicks ||
+            intent == TradeBoardIntent.gainPicks) {
+          continue;
+        }
         for (final offer in generateTradeOffersForIntent(franchise, intent)) {
           final aiTeam = franchise.league.aiTeams.firstWhere(
             (t) => t.team.abbreviation == offer.offeringTeamAbbreviation,
@@ -705,6 +709,108 @@ void main() {
         TradeBoardIntent.shedPicks,
       ).map((o) => o.id).toSet();
       expect(shedPicksIds.intersection(plainIds), isEmpty);
+    });
+
+    test('shedPicks -- the actual shape is "spend only picks, get one '
+        'real player back" (_tryBuildPickForTalentOffer), never a '
+        'sweetened ordinary trade', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      final offers = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.shedPicks,
+      );
+      expect(offers, isNotEmpty);
+      for (final offer in offers) {
+        expect(offer.askedFromYou.whereType<PlayerTradeAsset>(), isEmpty);
+        expect(offer.offeredToYou.whereType<PlayerTradeAsset>().length, 1);
+      }
+    });
+
+    test('gainPicks -- moving up the board is a real, reachable shape too, '
+        'not just flat 3rd-rounder sales (2026-08-23, a direct GM ask: '
+        '"I don\'t just want 3rd rounders, man... move up in the picks")', () {
+      final base = withFullActiveRoster(franchiseForPortraitTests());
+      final seenRounds = <int>{};
+      var sawSpentPick = false;
+
+      // Several distinct turns, same "vary nextGameDayIndex" pattern the
+      // rest of this file already uses -- one draw alone isn't guaranteed
+      // to hit both dedicated builders' own random matches.
+      for (var gameDayIndex = 0; gameDayIndex < 15; gameDayIndex++) {
+        final franchise = base.copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: base.seasonProgress.schedule,
+            playedGames: base.seasonProgress.playedGames,
+            nextGameDayIndex: gameDayIndex,
+          ),
+        );
+        for (final offer in generateTradeOffersForIntent(
+          franchise,
+          TradeBoardIntent.gainPicks,
+        )) {
+          expect(offer.offeredToYou.whereType<PickTradeAsset>(), isNotEmpty);
+          for (final asset in offer.offeredToYou) {
+            if (asset case PickTradeAsset(:final round)) seenRounds.add(round);
+          }
+          if (offer.askedFromYou.whereType<PickTradeAsset>().isNotEmpty) {
+            sawSpentPick = true;
+          }
+        }
+      }
+
+      expect(seenRounds, isNotEmpty);
+      // At least one better-than-3rd-round pick actually turned up --
+      // the whole point of adding [_tryBuildPickUpgradeOffer] in the
+      // first place.
+      expect(seenRounds.any((round) => round < 3), isTrue);
+      // And at least one offer really did spend one of the GM's own
+      // picks to get there, the "move up" shape's own signature (a flat
+      // sell-for-picks offer never asks for a pick back).
+      expect(sawSpentPick, isTrue);
+    });
+  });
+
+  group('trade block eligibility (2026-08-23, a direct GM report: "I don\'t '
+      'think I\'m currently allowed to trade my development slot '
+      'players?! ... I should be able to.")', () {
+    test('a developmental player set as the trade block is found and '
+        'actually targeted by real offers', () {
+      final base = withFullActiveRoster(franchiseForPortraitTests());
+      // Move one active player to developmental, same status the Team
+      // screen's own "move in/out" action would produce.
+      final devPlayer = base.roster
+          .firstWhere((m) => m.status == RosterStatus.active)
+          .player;
+      final withDev = base.copyWithRoster([
+        for (final m in base.roster)
+          if (m.player.id == devPlayer.id)
+            RosterMembership(
+              player: m.player,
+              status: RosterStatus.developmental,
+            )
+          else
+            m,
+      ]);
+      final franchise = withDev.copyWithTradeBlockPlayerId(devPlayer.id);
+
+      var sawDevPlayerInAnOffer = false;
+      for (var gameDayIndex = 0; gameDayIndex < 10; gameDayIndex++) {
+        final turn = franchise.copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: franchise.seasonProgress.schedule,
+            playedGames: franchise.seasonProgress.playedGames,
+            nextGameDayIndex: gameDayIndex,
+          ),
+        );
+        for (final offer in generateTradeOffers(turn)) {
+          if (offer.askedFromYou.whereType<PlayerTradeAsset>().any(
+            (a) => a.player.id == devPlayer.id,
+          )) {
+            sawDevPlayerInAnOffer = true;
+          }
+        }
+      }
+      expect(sawDevPlayerInAnOffer, isTrue);
     });
   });
 }

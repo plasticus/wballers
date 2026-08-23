@@ -488,38 +488,50 @@ void main() {
       );
     });
 
-    test('is a no-op once the active roster is already full', () async {
-      final repository = InMemorySaveRepository();
-      final container = ProviderContainer(
-        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
-      final franchise = withFullActiveRoster(
-        createExpansionFranchise(
-          gmName: 'Jordan Ellis',
-          clubName: 'Comets',
-          homeCity: 'Springfield, IL',
-          conference: Conference.atlantic,
-          replacedTeamAbbreviation: 'BOS',
-          colors: kStarterPalettes.first,
-          emoji: '🏀',
-          simulationSeed: 1,
-        ),
-      );
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .createFranchise(franchise);
-      final stillAvailable = franchise.freeAgents.first;
+    // [kActiveRosterSize] used to hard-block signing past it -- a direct
+    // GM report (2026-08-23) caught this as *too* strict: "I need to be
+    // able to put more than 12 players on my active roster... Don't
+    // restrict it to 12, just don't let me play a regular season game if
+    // my roster is illegal." Signing over it now succeeds; the roster
+    // just reads as illegal afterward (`roster_legality.dart`).
+    test(
+      'still signs even once the active roster is already at the cap',
+      () async {
+        final repository = InMemorySaveRepository();
+        final container = ProviderContainer(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
+        final franchise = withFullActiveRoster(
+          createExpansionFranchise(
+            gmName: 'Jordan Ellis',
+            clubName: 'Comets',
+            homeCity: 'Springfield, IL',
+            conference: Conference.atlantic,
+            replacedTeamAbbreviation: 'BOS',
+            colors: kStarterPalettes.first,
+            emoji: '🏀',
+            simulationSeed: 1,
+          ),
+        );
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .createFranchise(franchise);
+        final stillAvailable = franchise.freeAgents.first;
 
-      await container
-          .read(currentFranchiseProvider.notifier)
-          .signFreeAgent(stillAvailable.id);
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .signFreeAgent(stillAvailable.id);
 
-      final updated = container.read(currentFranchiseProvider).value!;
-      // Nothing moved -- the roster was already at the cap.
-      expect(updated.roster.length, franchise.roster.length);
-      expect(updated.freeAgents.length, franchise.freeAgents.length);
-    });
+        final updated = container.read(currentFranchiseProvider).value!;
+        expect(updated.roster.length, franchise.roster.length + 1);
+        expect(updated.freeAgents.length, franchise.freeAgents.length - 1);
+        expect(
+          updated.roster.any((m) => m.player.id == stillAvailable.id),
+          isTrue,
+        );
+      },
+    );
 
     test('is a no-op when the given id isn\'t actually a free agent', () async {
       final repository = InMemorySaveRepository();
@@ -2950,7 +2962,7 @@ void main() {
       );
     });
 
-    test('is a no-op for a player not on the active roster', () async {
+    test('is a no-op for a player not on the roster at all', () async {
       final repository = InMemorySaveRepository();
       final container = ProviderContainer(
         overrides: [saveRepositoryProvider.overrideWithValue(repository)],
@@ -2973,6 +2985,93 @@ void main() {
       await container
           .read(currentFranchiseProvider.notifier)
           .setTradeBlockPlayer('not-a-real-player-id');
+
+      expect(
+        container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,
+        isNull,
+      );
+    });
+
+    // 2026-08-23, a direct GM report: "I don't think I'm currently
+    // allowed to trade my development slot players?! Or at least I
+    // can't put them on the trade block. I should be able to."
+    test('a developmental player can be set as the trade block', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final base = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      final target = base.roster
+          .firstWhere((m) => isDevelopmentalEligible(m.player))
+          .player;
+      final franchise = base.copyWithRoster([
+        for (final m in base.roster)
+          if (m.player.id == target.id)
+            RosterMembership(
+              player: m.player,
+              status: RosterStatus.developmental,
+            )
+          else
+            m,
+      ]);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .setTradeBlockPlayer(target.id);
+
+      expect(
+        container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,
+        target.id,
+      );
+    });
+
+    test('is still a no-op for a reserve/inactive player', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final base = createExpansionFranchise(
+        gmName: 'Jordan Ellis',
+        clubName: 'Comets',
+        homeCity: 'Springfield, IL',
+        conference: Conference.atlantic,
+        replacedTeamAbbreviation: 'BOS',
+        colors: kStarterPalettes.first,
+        emoji: '🏀',
+        simulationSeed: 1,
+      );
+      final target = base.roster.first.player;
+      final franchise = base.copyWithRoster([
+        for (final m in base.roster)
+          if (m.player.id == target.id)
+            RosterMembership(
+              player: m.player,
+              status: RosterStatus.reserveInactive,
+            )
+          else
+            m,
+      ]);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .setTradeBlockPlayer(target.id);
 
       expect(
         container.read(currentFranchiseProvider).value!.tradeBlockPlayerId,

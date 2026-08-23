@@ -130,11 +130,20 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
   ];
   if (ownActive.isEmpty) return const [];
 
+  // Scans the *whole* roster, not just [ownActive] -- a direct GM report
+  // (2026-08-23): "I don't think I'm currently allowed to trade my
+  // development slot players?! Or at least I can't put them on the trade
+  // block. I should be able to." A developmental trade-block player still
+  // only ever appears as [_tryBuildOffer]'s `forcedTarget` (never added to
+  // [ownActive] itself, which every other slot's random-pick pool still
+  // deliberately stays active-only for) -- that's already enough on its
+  // own, since `forcedTarget` is used directly rather than drawn from
+  // [ownActive].
   Player? tradeBlockPlayer;
   if (franchise.tradeBlockPlayerId != null) {
-    for (final p in ownActive) {
-      if (p.id == franchise.tradeBlockPlayerId) {
-        tradeBlockPlayer = p;
+    for (final m in franchise.roster) {
+      if (m.player.id == franchise.tradeBlockPlayerId) {
+        tradeBlockPlayer = m.player;
         break;
       }
     }
@@ -307,26 +316,33 @@ const kTradeBoardIntentMaxDraws = 120;
 /// [kTradeBoardIntentMaxDraws] is exhausted -- genuinely real, legal
 /// offers the exact same builders already used everywhere else in this
 /// file produce, just kept only when they happen to match what the GM
-/// actually asked to see. [TradeBoardIntent.offloadDepth]/[gainPicks]
-/// reuse [_tryBuildConsolidationOffer]/[_tryBuildSellForPicksOffer]
-/// directly -- each is *always* the matching shape when it succeeds at
-/// all, so there's nothing to filter. [shedPicks]/[getYounger] reuse
-/// the ordinary [_tryBuildOffer] and keep only the draws whose real,
-/// already-computed assets happen to satisfy the intent (never invents
-/// a shape [_tryBuildOffer] itself couldn't produce on its own) --
-/// [_tryBuildOffer] alone would have made [gainPicks] nearly
-/// unreachable in practice too (a direct GM report, 2026-08-23: "when I
-/// put on a filter, I'm only seeing like 2 trades"; measured root
-/// cause: AI rosters run ~7% stronger on average than the GM's own
-/// starting roster, `starting_roster_generator.dart`/`league_generator.dart`
-/// -- see that finding's own note in the git history for the full
-/// numbers -- which makes "the AI needs to sweeten *its own* offer with
-/// a pick" the rare direction and "the GM needs to sweeten *theirs*"
-/// the common one, entirely by chance rather than by the GM's own
-/// intent). Can come back shorter than [kTradeBoardIntentTargetCount]
-/// -- a real, honest outcome when the league genuinely doesn't have
-/// enough of what the GM's looking for right now, not a bug to paper
-/// over.
+/// actually asked to see.
+///
+/// [TradeBoardIntent.offloadDepth]/[shedPicks] each reuse one dedicated
+/// builder ([_tryBuildConsolidationOffer]/[_tryBuildPickForTalentOffer]) --
+/// always the matching shape when it succeeds at all, so there's nothing
+/// to filter. [gainPicks] alternates between *two* dedicated builders
+/// draw-to-draw ([_tryBuildSellForPicksOffer]'s flat "sell a player for
+/// whatever picks fit" and [_tryBuildPickUpgradeOffer]'s "spend a worse
+/// pick [+ a player] to move up"), a direct GM ask (2026-08-23): "I don't
+/// just want 3rd rounders, man... I'm ready to move pieces to acquire
+/// first, seconds, and most importantly -- move up in the picks." Only
+/// [getYounger] still reuses the ordinary [_tryBuildOffer] and filters --
+/// there's no single dedicated shape "sends someone older than she
+/// receives" could mean, unlike every other intent here.
+///
+/// [_tryBuildOffer] alone would have made [gainPicks] nearly unreachable
+/// in practice too (a direct GM report, 2026-08-23: "when I put on a
+/// filter, I'm only seeing like 2 trades"; measured root cause: AI
+/// rosters run ~7% stronger on average than the GM's own starting
+/// roster, `starting_roster_generator.dart`/`league_generator.dart` --
+/// see that finding's own note in the git history for the full numbers
+/// -- which makes "the AI needs to sweeten *its own* offer with a pick"
+/// the rare direction and "the GM needs to sweeten *theirs*" the common
+/// one, entirely by chance rather than by the GM's own intent). Can come
+/// back shorter than [kTradeBoardIntentTargetCount] -- a real, honest
+/// outcome when the league genuinely doesn't have enough of what the
+/// GM's looking for right now, not a bug to paper over.
 List<TradeOffer> generateTradeOffersForIntent(
   Franchise franchise,
   TradeBoardIntent intent,
@@ -358,12 +374,10 @@ List<TradeOffer> generateTradeOffersForIntent(
 
   bool matches(TradeOffer offer) => switch (intent) {
     TradeBoardIntent.anything => true,
-    TradeBoardIntent.shedPicks => offer.askedFromYou.any(
-      (a) => a is PickTradeAsset,
-    ),
-    TradeBoardIntent.gainPicks => offer.offeredToYou.any(
-      (a) => a is PickTradeAsset,
-    ),
+    // Both dedicated builders below are always the matching shape when
+    // they succeed at all -- nothing left to filter for either.
+    TradeBoardIntent.shedPicks => true,
+    TradeBoardIntent.gainPicks => true,
     TradeBoardIntent.offloadDepth =>
       offer.askedFromYou.whereType<PlayerTradeAsset>().length >
           offer.offeredToYou.whereType<PlayerTradeAsset>().length,
@@ -387,17 +401,39 @@ List<TradeOffer> generateTradeOffersForIntent(
         allTeamAbbreviations: allTeamAbbreviations,
         draftSeasons: draftSeasons,
       ),
-      TradeBoardIntent.gainPicks => _tryBuildSellForPicksOffer(
+      TradeBoardIntent.shedPicks => _tryBuildPickForTalentOffer(
         random,
         aiTeam: aiTeam,
-        ownActive: ownActive,
         ownTeamAbbreviation: franchise.team.abbreviation,
         pickOwnershipOverrides: franchise.pickOwnershipOverrides,
         allTeamAbbreviations: allTeamAbbreviations,
         draftSeasons: draftSeasons,
       ),
+      // Alternates draw-to-draw between the flat "sell for whatever
+      // picks fit" shape and the "spend a worse pick to move up" shape --
+      // see this function's own doc comment for why [gainPicks] gets two
+      // dedicated builders instead of one.
+      TradeBoardIntent.gainPicks =>
+        draws.isOdd
+            ? _tryBuildSellForPicksOffer(
+                random,
+                aiTeam: aiTeam,
+                ownActive: ownActive,
+                ownTeamAbbreviation: franchise.team.abbreviation,
+                pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+                allTeamAbbreviations: allTeamAbbreviations,
+                draftSeasons: draftSeasons,
+              )
+            : _tryBuildPickUpgradeOffer(
+                random,
+                aiTeam: aiTeam,
+                ownActive: ownActive,
+                ownTeamAbbreviation: franchise.team.abbreviation,
+                pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+                allTeamAbbreviations: allTeamAbbreviations,
+                draftSeasons: draftSeasons,
+              ),
       TradeBoardIntent.anything ||
-      TradeBoardIntent.shedPicks ||
       TradeBoardIntent.getYounger => _tryBuildOffer(
         random,
         aiTeam: aiTeam,
@@ -1131,6 +1167,270 @@ TradeOffer? _trySellPlayerForPicks(
       swing: swing,
     ),
   );
+}
+
+/// How much wider than the ordinary [tradeSwing] the GM's own *buying*
+/// side is allowed to run when picks are the thing being spent --
+/// [_tryBuildPickForTalentOffer] (picks for a player) and
+/// [_tryBuildPickUpgradeOffer] (picks [+ a player] for a single better
+/// pick). Mirrors [kSellForPicksExtraTolerance]'s own reasoning
+/// (real picks and real players don't line up within an ordinary
+/// [tradeSwing] margin), just for the direction where the GM is the one
+/// spending picks rather than collecting them -- a direct GM ask
+/// (2026-08-23): "When I choose that I want more draft picks.... I don't
+/// just want 3rd rounders, man. It means I'm ready to move pieces to
+/// acquire first, seconds, and most importantly -- move up in the picks
+/// ... When I choose that I'm looking to get rid of picks, I'm looking to
+/// spend picks to improve my talent!"
+const kPickSpendExtraTolerance = 250;
+
+/// [TradeBoardIntent.shedPicks]'s own dedicated builder -- the GM spending
+/// real, currently-held picks (1, or the closest-value pair of 2) to
+/// acquire one of [aiTeam]'s own active players, widened by
+/// [kPickSpendExtraTolerance]. The literal reverse of
+/// [_tryBuildSellForPicksOffer]: tries [aiTeam]'s players from *strongest*
+/// value downward (up to [kMaxCandidates]) rather than the GM's own
+/// weakest upward, since "spend picks to improve my talent" means aiming
+/// for the best player the GM's picks can actually reach, not just any
+/// player at all.
+///
+/// `null` under the same real conditions [_tryBuildSellForPicksOffer] can
+/// already fail for -- the GM holds no tradeable picks at all, or none of
+/// [aiTeam]'s first few candidates land within [tradeSwing] +
+/// [kPickSpendExtraTolerance] even with 2 picks combined.
+TradeOffer? _tryBuildPickForTalentOffer(
+  Random random, {
+  required AiTeamRoster aiTeam,
+  required String ownTeamAbbreviation,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
+}) {
+  final ownedGmPicks = picksOwnedBy(
+    ownTeamAbbreviation,
+    pickOwnershipOverrides,
+    allTeamAbbreviations,
+    draftSeasons: draftSeasons,
+    rounds: kDraftRounds,
+  );
+  if (ownedGmPicks.isEmpty) return null;
+
+  final aiActive = [
+    for (final m in aiTeam.roster)
+      if (m.status == RosterStatus.active) m.player,
+  ];
+  if (aiActive.isEmpty) return null;
+
+  final byValueDesc = [...aiActive]
+    ..sort(
+      (a, b) => PlayerTradeAsset(
+        b,
+      ).tradeValue.compareTo(PlayerTradeAsset(a).tradeValue),
+    );
+  const kMaxCandidates = 6;
+
+  for (final target in byValueDesc.take(kMaxCandidates)) {
+    final offer = _tryBuyPlayerWithPicks(
+      random,
+      aiTeam: aiTeam,
+      target: target,
+      ownedGmPicks: ownedGmPicks,
+    );
+    if (offer != null) return offer;
+  }
+  return null;
+}
+
+/// One [target] player, spending only [ownedGmPicks] -- the actual
+/// per-player matching [_tryBuildPickForTalentOffer] (any of [aiTeam]'s
+/// strongest players) and a future targeted caller could both reuse, same
+/// "shared per-target helper" shape [_trySellPlayerForPicks] already
+/// established for the opposite direction. `null` if neither a single
+/// pick nor the closest-value pair of 2 lands within [tradeSwing] +
+/// [kPickSpendExtraTolerance].
+TradeOffer? _tryBuyPlayerWithPicks(
+  Random random, {
+  required AiTeamRoster aiTeam,
+  required Player target,
+  required List<TradeAsset> ownedGmPicks,
+}) {
+  final management = aiTeam.coach.stats.management;
+  final swing = tradeSwing(management);
+  final tolerance = swing + kPickSpendExtraTolerance;
+
+  final offeredAssets = <TradeAsset>[PlayerTradeAsset(target)];
+  final targetValue = PlayerTradeAsset(target).tradeValue;
+
+  final shuffledPicks = List<TradeAsset>.of(ownedGmPicks)..shuffle(random);
+  for (final pick in shuffledPicks) {
+    if ((targetValue - pick.tradeValue).abs() <= tolerance) {
+      final asked = [pick];
+      return TradeOffer(
+        id: _offerId(aiTeam, offeredAssets, asked),
+        offeringTeamAbbreviation: aiTeam.team.abbreviation,
+        offeredToYou: offeredAssets,
+        askedFromYou: asked,
+        character: _characterFor(
+          offered: offeredAssets,
+          asked: asked,
+          gap: targetValue - pick.tradeValue,
+          swing: swing,
+        ),
+      );
+    }
+  }
+  if (ownedGmPicks.length < 2) return null;
+
+  TradeAsset? bestFirst;
+  TradeAsset? bestSecond;
+  var bestDiff = 1 << 30;
+  for (var i = 0; i < ownedGmPicks.length; i++) {
+    for (var j = i + 1; j < ownedGmPicks.length; j++) {
+      final sum = ownedGmPicks[i].tradeValue + ownedGmPicks[j].tradeValue;
+      final diff = (sum - targetValue).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestFirst = ownedGmPicks[i];
+        bestSecond = ownedGmPicks[j];
+      }
+    }
+  }
+  if (bestFirst == null || bestSecond == null || bestDiff > tolerance) {
+    return null;
+  }
+  final asked = [bestFirst, bestSecond];
+  return TradeOffer(
+    id: _offerId(aiTeam, offeredAssets, asked),
+    offeringTeamAbbreviation: aiTeam.team.abbreviation,
+    offeredToYou: offeredAssets,
+    askedFromYou: asked,
+    character: _characterFor(
+      offered: offeredAssets,
+      asked: asked,
+      gap: targetValue - totalTradeValue(asked),
+      swing: swing,
+    ),
+  );
+}
+
+/// [TradeBoardIntent.gainPicks]'s *other* dedicated builder, alongside
+/// [_tryBuildSellForPicksOffer] -- the actual "move up the draft board"
+/// shape a direct GM ask (2026-08-23) specifically called out as missing:
+/// "I don't just want 3rd rounders, man... I'm ready to move pieces to
+/// acquire first, seconds, and most importantly -- move up in the picks.
+/// Let me send a player and a 3rd to get a 2nd. Then I'll send a pick and
+/// a 2nd to get a 1st!"
+///
+/// For each of [aiTeam]'s own real picks (shuffled), only ever considers
+/// it if the GM holds at least one *worse*-round pick to trade up from
+/// (trading a 2nd down to a 3rd would be backwards) -- spends either one
+/// asset alone (a worse pick, or one of the GM's own weakest 2 active
+/// players) or the closest-value pair of 2 from that combined pool,
+/// widened by [kPickSpendExtraTolerance] same as [_tryBuildPickForTalentOffer].
+/// `null` if the GM holds no worse-round pick at all, or nothing in
+/// [aiTeam]'s own pick(s) is reachable even so.
+TradeOffer? _tryBuildPickUpgradeOffer(
+  Random random, {
+  required AiTeamRoster aiTeam,
+  required List<Player> ownActive,
+  required String ownTeamAbbreviation,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
+}) {
+  final ownPicks = picksOwnedBy(
+    ownTeamAbbreviation,
+    pickOwnershipOverrides,
+    allTeamAbbreviations,
+    draftSeasons: draftSeasons,
+    rounds: kDraftRounds,
+  ).whereType<PickTradeAsset>().toList();
+  if (ownPicks.isEmpty) return null;
+
+  final aiPicks = picksOwnedBy(
+    aiTeam.team.abbreviation,
+    pickOwnershipOverrides,
+    allTeamAbbreviations,
+    draftSeasons: draftSeasons,
+    rounds: kDraftRounds,
+  ).whereType<PickTradeAsset>().toList()..shuffle(random);
+  if (aiPicks.isEmpty) return null;
+
+  final management = aiTeam.coach.stats.management;
+  final swing = tradeSwing(management);
+  final tolerance = swing + kPickSpendExtraTolerance;
+
+  final weakestOwnPlayers = [...ownActive]
+    ..sort(
+      (a, b) => PlayerTradeAsset(
+        a,
+      ).tradeValue.compareTo(PlayerTradeAsset(b).tradeValue),
+    );
+
+  for (final wanted in aiPicks) {
+    final worseOwnPicks = [
+      for (final p in ownPicks)
+        if (p.round > wanted.round) p,
+    ];
+    if (worseOwnPicks.isEmpty) continue;
+
+    final spendPool = <TradeAsset>[
+      ...worseOwnPicks,
+      for (final p in weakestOwnPlayers.take(2)) PlayerTradeAsset(p),
+    ];
+    final wantedValue = wanted.tradeValue;
+
+    final shuffledSpendPool = List<TradeAsset>.of(spendPool)..shuffle(random);
+    for (final spend in shuffledSpendPool) {
+      if ((spend.tradeValue - wantedValue).abs() <= tolerance) {
+        final asked = [spend];
+        return TradeOffer(
+          id: _offerId(aiTeam, [wanted], asked),
+          offeringTeamAbbreviation: aiTeam.team.abbreviation,
+          offeredToYou: [wanted],
+          askedFromYou: asked,
+          character: _characterFor(
+            offered: [wanted],
+            asked: asked,
+            gap: wantedValue - spend.tradeValue,
+            swing: swing,
+          ),
+        );
+      }
+    }
+
+    TradeAsset? bestFirst;
+    TradeAsset? bestSecond;
+    var bestDiff = 1 << 30;
+    for (var i = 0; i < spendPool.length; i++) {
+      for (var j = i + 1; j < spendPool.length; j++) {
+        final sum = spendPool[i].tradeValue + spendPool[j].tradeValue;
+        final diff = (sum - wantedValue).abs();
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestFirst = spendPool[i];
+          bestSecond = spendPool[j];
+        }
+      }
+    }
+    if (bestFirst == null || bestSecond == null || bestDiff > tolerance) {
+      continue;
+    }
+    final asked = [bestFirst, bestSecond];
+    return TradeOffer(
+      id: _offerId(aiTeam, [wanted], asked),
+      offeringTeamAbbreviation: aiTeam.team.abbreviation,
+      offeredToYou: [wanted],
+      askedFromYou: asked,
+      character: _characterFor(
+        offered: [wanted],
+        asked: asked,
+        gap: wantedValue - totalTradeValue(asked),
+        swing: swing,
+      ),
+    );
+  }
+  return null;
 }
 
 /// [count] distinct players drawn from [pool] at random.
