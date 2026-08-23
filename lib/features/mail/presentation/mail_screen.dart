@@ -153,6 +153,16 @@ class _MailRow extends ConsumerWidget {
         Icons.warning_amber_outlined,
         item0.legality.violationMessages.first,
       ),
+      AssistantGmTradeBrokeringMailItem() => (
+        'Assistant GM',
+        Icons.storefront_outlined,
+        item0.proposedOffers.isEmpty
+            ? 'Working on trading out ${item0.candidates.length} players '
+                  'to clear roster space.'
+            : '${item0.proposedOffers.length} real deal'
+                  '${item0.proposedOffers.length == 1 ? '' : 's'} lined up '
+                  'to clear roster space.',
+      ),
       InjuryReportMailItem() => (
         'Assistant GM',
         Icons.local_hospital_outlined,
@@ -213,6 +223,11 @@ class _MailRow extends ConsumerWidget {
                   franchise: franchise,
                   item: item0,
                 ),
+                AssistantGmTradeBrokeringMailItem() =>
+                  _AssistantGmTradeBrokeringMailDetailScreen(
+                    franchise: franchise,
+                    item: item0,
+                  ),
                 InjuryReportMailItem() => _InjuryReportMailDetailScreen(
                   franchise: franchise,
                   item: item0,
@@ -601,6 +616,129 @@ class _RosterLegalityMailDetailScreen extends StatelessWidget {
                 },
                 icon: const Icon(Icons.groups_outlined),
                 label: const Text('Open Team Roster'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An [AssistantGmTradeBrokeringMailItem] opened full-screen -- names
+/// who she's trying to move, then shows whatever real deals
+/// (`TradeOffer`) she's actually found for them so far as read-only
+/// preview cards, same asset-label language the real Trade Board uses
+/// (`TradeAsset.label`). Purely a preview -- the CTA sends the GM to the
+/// real Trade Board to actually accept anything, same "advisory only,
+/// nothing executes from Mail itself" posture
+/// `_RosterLegalityMailDetailScreen` already established.
+class _AssistantGmTradeBrokeringMailDetailScreen extends StatelessWidget {
+  const _AssistantGmTradeBrokeringMailDetailScreen({
+    required this.franchise,
+    required this.item,
+  });
+
+  final Franchise franchise;
+  final AssistantGmTradeBrokeringMailItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final candidates = item.candidates;
+    final offers = item.proposedOffers;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mail')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _MailHeaderRow(label: 'To', value: franchise.gmName),
+                    const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
+                    _MailHeaderRow(label: 'Subject', value: item.subject),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      child: Divider(height: 1),
+                    ),
+                    Text(
+                      'Boss, we\'re out of room -- active roster and '
+                      'development slots are both full, and I need to '
+                      'clear space before Week 1. I\'m working the phones '
+                      'on:',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final player in candidates)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          '• ${player.primaryPosition.abbreviation} '
+                          '${player.name} (${player.ratings.overall} OVR)',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      offers.isEmpty
+                          ? 'Nothing solid yet -- I\'ll keep working it. '
+                                'Check the Trade Board yourself if you '
+                                'want to move faster than I am.'
+                          : offers.length == candidates.length
+                          ? 'Here\'s what I\'ve got so far -- your call on '
+                                'whether to actually pull the trigger.'
+                          : 'Here\'s what I\'ve got so far for '
+                                '${offers.length} of them -- still working '
+                                'the rest.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              for (final offer in offers) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'From ${offer.offeringTeamAbbreviation}',
+                        style: theme.textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'You send: '
+                        '${offer.askedFromYou.map((a) => a.label).join(', ')}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      Text(
+                        'You get: '
+                        '${offer.offeredToYou.map((a) => a.label).join(', ')}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PlayerMarketScreen(
+                        franchise: franchise,
+                        initialTabIndex: 1,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.storefront_outlined),
+                label: const Text('Open Trade Board'),
               ),
             ],
           ),

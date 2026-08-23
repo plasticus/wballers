@@ -14,6 +14,7 @@ import '../../season/domain/game_day.dart';
 import '../../season/domain/scheduled_game.dart';
 import '../../season/generation/season_schedule_generator.dart'
     show kPostseasonFinalsWeek;
+import '../../trade/generation/trade_offer_generator.dart';
 import '../domain/mail_item.dart';
 
 /// Stable id for the "sign a free agent" system message -- a fresh
@@ -173,6 +174,11 @@ List<MailItem> mailboxFor(Franchise franchise) {
               .map((m) => m.player)
               .toList(),
         ),
+      ),
+    if (needsAssistantGmTradeBrokering(franchise))
+      AssistantGmTradeBrokeringMailItem(
+        candidates: assistantGmBrokerCandidates(franchise),
+        proposedOffers: assistantGmBrokeredOffers(franchise),
       ),
     for (final report in franchise.trainingReports)
       TrainingReportMailItem(report),
@@ -378,6 +384,7 @@ int? _recencyWeek(MailItem item) => switch (item) {
   AssistantGmMailItem() ||
   RetirementDecisionMailItem() ||
   RosterLegalityMailItem() ||
+  AssistantGmTradeBrokeringMailItem() ||
   InjuryRecoveredMailItem() => null,
 };
 

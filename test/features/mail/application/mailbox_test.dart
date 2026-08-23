@@ -867,6 +867,71 @@ void main() {
     });
   });
 
+  group('Assistant GM trade brokering mail (2026-08-23, a direct GM ask: '
+      '"She should email about how she\'s cooking it up, and the gm '
+      'needs to figure it out before the week 1 game")', () {
+    Franchise fullActiveAndDevDuringTradeWeek() {
+      final legal = withFullActiveRoster(_franchise());
+      return legal
+          .copyWithRoster([
+            ...legal.roster,
+            RosterMembership(
+              player: playerWithOverall(50, id: 'dev-0'),
+              status: RosterStatus.developmental,
+            ),
+            RosterMembership(
+              player: playerWithOverall(50, id: 'dev-1'),
+              status: RosterStatus.developmental,
+            ),
+          ])
+          .copyWithPostDraftTradeWeeksRemaining(kPostDraftTradeWeeks);
+    }
+
+    test('includes an AssistantGmTradeBrokeringMailItem once active and '
+        'developmental rosters are both full during an active Trade '
+        'Week', () {
+      final franchise = fullActiveAndDevDuringTradeWeek();
+
+      final items = mailboxFor(franchise);
+
+      final item = items.whereType<AssistantGmTradeBrokeringMailItem>().single;
+      expect(item.candidates, isNotEmpty);
+    });
+
+    test('omitted when there\'s no active Trade Week, even with a full '
+        'active+developmental roster', () {
+      final legal = withFullActiveRoster(_franchise());
+      final full = legal.copyWithRoster([
+        ...legal.roster,
+        RosterMembership(
+          player: playerWithOverall(50, id: 'dev-0'),
+          status: RosterStatus.developmental,
+        ),
+        RosterMembership(
+          player: playerWithOverall(50, id: 'dev-1'),
+          status: RosterStatus.developmental,
+        ),
+      ]);
+      expect(full.postDraftTradeWeeksRemaining, isNull);
+
+      expect(
+        mailboxFor(full).whereType<AssistantGmTradeBrokeringMailItem>(),
+        isEmpty,
+      );
+    });
+
+    test('omitted once the roster is legal again, even mid-Trade-Week', () {
+      final legal = withFullActiveRoster(
+        _franchise(),
+      ).copyWithPostDraftTradeWeeksRemaining(kPostDraftTradeWeeks);
+
+      expect(
+        mailboxFor(legal).whereType<AssistantGmTradeBrokeringMailItem>(),
+        isEmpty,
+      );
+    });
+  });
+
   group('suggestedRosterFixes (2026-08-23, a direct GM design call: "Asst gm '
       'can make suggestions about who to drop or what to do, but will not '
       'actually do it")', () {

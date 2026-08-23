@@ -7,6 +7,7 @@ import '../../roster/domain/roster_legality.dart';
 import '../../season/domain/game_day.dart';
 import '../../season/domain/played_game.dart';
 import '../../season/domain/skills_competition.dart';
+import '../../trade/domain/trade_offer.dart';
 import '../../training/domain/training_report.dart';
 
 /// One item in the GM's Mail inbox -- replaces the old, purely-passive
@@ -232,6 +233,43 @@ class RosterLegalityMailItem extends MailItem {
 
   @override
   String get subject => 'Roster Legality Issue';
+}
+
+/// The Assistant GM actively brokering trades to fix a just-finished
+/// draft's roster overflow -- distinct from [RosterLegalityMailItem]'s
+/// passive "here's who to consider dropping" note: this fires only when
+/// there's nowhere left to put a drafted rookie at all (active *and*
+/// developmental rosters both already full) and comes with real,
+/// concrete trade proposals already worked out, not just a suggestion.
+/// A direct GM ask (2026-08-23): "The asst gm should bust her ass trying
+/// to trade out 3 players at the bottom of your roster and dev
+/// slots... She should find 3x special deals just for them... She
+/// should email about how she's cooking it up, and the gm needs to
+/// figure it out before the week 1 game."
+///
+/// [candidates] are the specific players she's trying to move,
+/// [proposedOffers] the real deals she's actually found for them so far
+/// (`trade_offer_generator.dart`'s `assistantGmBrokeredOffers`) --
+/// [proposedOffers] can be shorter than [candidates] if she genuinely
+/// couldn't find a match for one of them yet, a real and honest
+/// outcome, not padded to always match. Purely advisory, same posture
+/// [RosterLegalityMailItem] already established -- nothing here
+/// executes on its own; the GM still has to go accept one for real on
+/// the Trade Board.
+class AssistantGmTradeBrokeringMailItem extends MailItem {
+  const AssistantGmTradeBrokeringMailItem({
+    required this.candidates,
+    required this.proposedOffers,
+  });
+
+  final List<Player> candidates;
+  final List<TradeOffer> proposedOffers;
+
+  @override
+  String get id => 'assistant_gm_trade_brokering';
+
+  @override
+  String get subject => 'Working the Phones';
 }
 
 /// Every new injury (across the whole league, the GM's own roster

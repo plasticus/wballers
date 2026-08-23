@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:womensbballmgr/features/franchise/domain/franchise.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
@@ -438,6 +439,117 @@ void main() {
       }
       expect(sawMoreOffers, isTrue);
       expect(sawStarTargeted, isTrue);
+    });
+  });
+
+  group('Assistant GM trade brokering (2026-08-23, a direct GM ask: "The '
+      'asst gm should bust her ass trying to trade out 3 players at the '
+      'bottom of your roster and dev slots... She should find 3x special '
+      'deals just for them")', () {
+    // `franchiseForPortraitTests()` has no queued free agents, so
+    // `withFullActiveRoster` (which only tops up from those) is a no-op
+    // here and the roster stays at generateStartingRoster's deliberate
+    // 11 -- pad with a real 12th active player directly instead of
+    // relying on it, so activeCount genuinely reaches kActiveRosterSize.
+    Franchise fullActiveAndDev(Franchise franchise) {
+      return franchise
+          .copyWithRoster([
+            ...franchise.roster,
+            RosterMembership(
+              player: testPlayer(id: 'active-pad', rating: 60),
+              status: RosterStatus.active,
+            ),
+            for (var i = 0; i < 2; i++)
+              RosterMembership(
+                player: testPlayer(id: 'dev-$i', rating: 55),
+                status: RosterStatus.developmental,
+              ),
+          ])
+          .copyWithPostDraftTradeWeeksRemaining(kPostDraftTradeWeeks);
+    }
+
+    test('needsAssistantGmTradeBrokering is false without an active '
+        'Trade Week gate, even with a full active+dev roster', () {
+      // Same padding fullActiveAndDev uses, just without setting
+      // postDraftTradeWeeksRemaining -- isolates that one variable.
+      final full = franchiseForPortraitTests().copyWithRoster([
+        ...franchiseForPortraitTests().roster,
+        RosterMembership(
+          player: testPlayer(id: 'active-pad', rating: 60),
+          status: RosterStatus.active,
+        ),
+        for (var i = 0; i < 2; i++)
+          RosterMembership(
+            player: testPlayer(id: 'dev-$i', rating: 55),
+            status: RosterStatus.developmental,
+          ),
+      ]);
+      expect(full.postDraftTradeWeeksRemaining, isNull);
+      expect(needsAssistantGmTradeBrokering(full), isFalse);
+      expect(assistantGmBrokerCandidates(full), isEmpty);
+      expect(assistantGmBrokeredOffers(full), isEmpty);
+    });
+
+    test('needsAssistantGmTradeBrokering is false when only the active '
+        'roster is full, developmental still has room', () {
+      final onlyActiveFull = franchiseForPortraitTests()
+          .copyWithRoster([
+            ...franchiseForPortraitTests().roster,
+            RosterMembership(
+              player: testPlayer(id: 'active-pad', rating: 60),
+              status: RosterStatus.active,
+            ),
+          ])
+          .copyWithPostDraftTradeWeeksRemaining(kPostDraftTradeWeeks);
+      expect(needsAssistantGmTradeBrokering(onlyActiveFull), isFalse);
+    });
+
+    test('true, and finds real candidates/offers, once both are full '
+        'during an active Trade Week', () {
+      final franchise = fullActiveAndDev(franchiseForPortraitTests());
+      expect(needsAssistantGmTradeBrokering(franchise), isTrue);
+
+      final candidates = assistantGmBrokerCandidates(franchise);
+      expect(candidates.length, kAssistantGmBrokerCandidateCount);
+      // Every candidate is a real active player, weakest-first.
+      final activeIds = {
+        for (final m in franchise.roster)
+          if (m.status == RosterStatus.active) m.player.id,
+      };
+      for (final candidate in candidates) {
+        expect(activeIds, contains(candidate.id));
+      }
+      for (var i = 1; i < candidates.length; i++) {
+        expect(
+          PlayerTradeAsset(candidates[i - 1]).tradeValue,
+          lessThanOrEqualTo(PlayerTradeAsset(candidates[i]).tradeValue),
+        );
+      }
+
+      final offers = assistantGmBrokeredOffers(franchise);
+      expect(offers, isNotEmpty);
+      for (final offer in offers) {
+        // Every offer is a real "picks only" sale of exactly one of the
+        // named candidates.
+        expect(offer.askedFromYou.length, 1);
+        final asked = offer.askedFromYou.single;
+        expect(asked, isA<PlayerTradeAsset>());
+        expect(
+          candidates.map((p) => p.id),
+          contains((asked as PlayerTradeAsset).player.id),
+        );
+        expect(offer.offeredToYou.every((a) => a is PickTradeAsset), isTrue);
+      }
+    });
+
+    test('deterministic for the same franchise state', () {
+      final franchise = fullActiveAndDev(franchiseForPortraitTests());
+      final a = assistantGmBrokeredOffers(franchise);
+      final b = assistantGmBrokeredOffers(franchise);
+      expect(a.length, b.length);
+      for (var i = 0; i < a.length; i++) {
+        expect(a[i].id, b[i].id);
+      }
     });
   });
 }

@@ -5,6 +5,7 @@ import '../../franchise/domain/franchise.dart';
 import '../../franchise/domain/franchise_legality.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../player/domain/player.dart';
+import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_status.dart';
 import '../../roster/domain/star_tier.dart';
 import '../domain/pick_ownership.dart';
@@ -281,6 +282,124 @@ List<Player> _starTierOverflowCandidates(List<Player> active) {
           StarTier.of(player) == StarTier.threeStar)
         player,
   ];
+}
+
+/// Seed offset for [assistantGmBrokeredOffers]' own random stream --
+/// next free number after `available_head_coaches_screen.dart`'s
+/// `kAvailableHeadCoachesSeedOffset`/`injury_advancer.dart`'s
+/// `kInjuryResolutionSeedOffset` (25, coincidentally shared by those
+/// two unrelated streams already).
+const kAssistantGmBrokerSeedOffset = 26;
+
+/// How many of the GM's own weakest active players the Assistant GM
+/// tries to actively move whenever [needsAssistantGmTradeBrokering] is
+/// true. A direct GM ask (2026-08-23): "The asst gm should bust her ass
+/// trying to trade out 3 players at the bottom of your roster and dev
+/// slots... She should find 3x special deals just for them."
+const kAssistantGmBrokerCandidateCount = 3;
+
+/// Whether [franchise]'s post-draft situation is bad enough that the
+/// Assistant GM should be actively out shopping specific players, not
+/// just passively flagging the roster as illegal
+/// (`mail_item.dart`'s `RosterLegalityMailItem` already covers that
+/// general case) -- true only when there's genuinely nowhere left to
+/// put a drafted rookie at all (both the active roster and the
+/// developmental roster are already at or past their own caps) *and*
+/// it's still within the post-draft Trade Weeks window
+/// ([Franchise.postDraftTradeWeeksRemaining]), matching the GM's own
+/// framing: "After a draft, if you don't have room, your active roster
+/// is full, dev slots full...."
+bool needsAssistantGmTradeBrokering(Franchise franchise) {
+  if (franchise.postDraftTradeWeeksRemaining == null) return false;
+  final activeCount = franchise.roster
+      .where((m) => m.status == RosterStatus.active)
+      .length;
+  final developmentalCount = franchise.roster
+      .where((m) => m.status == RosterStatus.developmental)
+      .length;
+  return activeCount >= kActiveRosterSize &&
+      developmentalCount >= kMaxDevelopmentalRosterSpots;
+}
+
+/// [franchise]'s own weakest [kAssistantGmBrokerCandidateCount] active
+/// players -- who [assistantGmBrokeredOffers] actually tries to move,
+/// and `mailbox.dart`'s `AssistantGmTradeBrokeringMailItem` names
+/// regardless of whether a real deal was found for each one (so the
+/// mail can say "she's working on X, Y, and Z" even for whichever of
+/// them didn't get a matching [TradeOffer] back). Empty whenever
+/// [needsAssistantGmTradeBrokering] is false, same guard
+/// [assistantGmBrokeredOffers] itself uses.
+List<Player> assistantGmBrokerCandidates(Franchise franchise) {
+  if (!needsAssistantGmTradeBrokering(franchise)) return const [];
+  final ownActive = [
+    for (final m in franchise.roster)
+      if (m.status == RosterStatus.active) m.player,
+  ];
+  final byValue = [...ownActive]
+    ..sort(
+      (a, b) => PlayerTradeAsset(
+        a,
+      ).tradeValue.compareTo(PlayerTradeAsset(b).tradeValue),
+    );
+  return byValue.take(kAssistantGmBrokerCandidateCount).toList();
+}
+
+/// The Assistant GM's own real, concrete trade proposals for
+/// [kAssistantGmBrokerCandidateCount] of the GM's weakest active players
+/// -- empty unless [needsAssistantGmTradeBrokering] is actually true.
+/// Each candidate gets tried against *every* AI team in a shuffled order
+/// (not just one, unlike an ordinary Trade Board slot) via
+/// [_trySellPlayerForPicks], the same "trying to get draft picks for
+/// them" shape the GM's own ask called for -- "bust her ass" reads as
+/// genuinely working harder than a normal slot's handful of attempts,
+/// not just trying the same odds again. Only developmental-eligible
+/// candidates: only active players are actually tradeable in this
+/// system (every other builder in this file already assumes that too)
+/// -- "dev slots full" is read as *why* she's desperate, not as a claim
+/// developmental players themselves get shopped. Can come back shorter
+/// than [kAssistantGmBrokerCandidateCount] if she genuinely can't find a
+/// real deal for one of them -- a real, honest outcome
+/// (`mail_item.dart`'s `AssistantGmTradeBrokeringMailItem` shows
+/// whatever she actually found, not a padded list).
+List<TradeOffer> assistantGmBrokeredOffers(Franchise franchise) {
+  if (!needsAssistantGmTradeBrokering(franchise)) return const [];
+
+  final random = Random(franchise.seasonSeed + kAssistantGmBrokerSeedOffset);
+  final candidates = assistantGmBrokerCandidates(franchise);
+  if (candidates.isEmpty) return const [];
+
+  final aiTeams = List<AiTeamRoster>.of(franchise.league.aiTeams)
+    ..shuffle(random);
+  final allTeamAbbreviations = [
+    franchise.team.abbreviation,
+    for (final aiTeam in franchise.league.aiTeams) aiTeam.team.abbreviation,
+  ];
+  final draftSeasons = tradeableDraftSeasons(franchise.season);
+
+  final offers = <TradeOffer>[];
+  for (final candidate in candidates) {
+    for (final aiTeam in aiTeams) {
+      final ownedPicks = picksOwnedBy(
+        aiTeam.team.abbreviation,
+        franchise.pickOwnershipOverrides,
+        allTeamAbbreviations,
+        draftSeasons: draftSeasons,
+        rounds: kDraftRounds,
+      );
+      if (ownedPicks.isEmpty) continue;
+      final offer = _trySellPlayerForPicks(
+        random,
+        aiTeam: aiTeam,
+        target: candidate,
+        ownedPicks: ownedPicks,
+      );
+      if (offer != null) {
+        offers.add(offer);
+        break;
+      }
+    }
+  }
+  return offers;
 }
 
 /// One attempt at a valid offer from [aiTeam] -- picks (or uses
@@ -686,10 +805,6 @@ TradeOffer? _tryBuildSellForPicksOffer(
 }) {
   if (ownActive.isEmpty) return null;
 
-  final management = aiTeam.coach.stats.management;
-  final swing = tradeSwing(management);
-  final tolerance = swing + kSellForPicksExtraTolerance;
-
   final ownedPicks = picksOwnedBy(
     aiTeam.team.abbreviation,
     pickOwnershipOverrides,
@@ -708,66 +823,90 @@ TradeOffer? _tryBuildSellForPicksOffer(
   const kMaxCandidates = 6;
 
   for (final target in byValue.take(kMaxCandidates)) {
-    final askedAssets = <TradeAsset>[PlayerTradeAsset(target)];
-    final targetValue = PlayerTradeAsset(target).tradeValue;
-
-    // A single pick close enough on its own, tried in a shuffled order
-    // so the same pick isn't always the one offered when several would
-    // work.
-    final shuffledPicks = List<TradeAsset>.of(ownedPicks)..shuffle(random);
-    for (final pick in shuffledPicks) {
-      final gap = pick.tradeValue - targetValue;
-      if (gap.abs() <= tolerance) {
-        return TradeOffer(
-          id: _offerId(aiTeam, [pick], askedAssets),
-          offeringTeamAbbreviation: aiTeam.team.abbreviation,
-          offeredToYou: [pick],
-          askedFromYou: askedAssets,
-          character: _characterFor(
-            offered: [pick],
-            asked: askedAssets,
-            gap: gap,
-            swing: swing,
-          ),
-        );
-      }
-    }
-    if (ownedPicks.length < 2) continue;
-
-    // Otherwise the closest-value pair of 2 distinct owned picks.
-    TradeAsset? bestFirst;
-    TradeAsset? bestSecond;
-    var bestDiff = 1 << 30;
-    for (var i = 0; i < ownedPicks.length; i++) {
-      for (var j = i + 1; j < ownedPicks.length; j++) {
-        final sum = ownedPicks[i].tradeValue + ownedPicks[j].tradeValue;
-        final diff = (sum - targetValue).abs();
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestFirst = ownedPicks[i];
-          bestSecond = ownedPicks[j];
-        }
-      }
-    }
-    if (bestFirst == null || bestSecond == null || bestDiff > tolerance) {
-      continue;
-    }
-    final offered = [bestFirst, bestSecond];
-    final gap = totalTradeValue(offered) - targetValue;
-    return TradeOffer(
-      id: _offerId(aiTeam, offered, askedAssets),
-      offeringTeamAbbreviation: aiTeam.team.abbreviation,
-      offeredToYou: offered,
-      askedFromYou: askedAssets,
-      character: _characterFor(
-        offered: offered,
-        asked: askedAssets,
-        gap: gap,
-        swing: swing,
-      ),
+    final offer = _trySellPlayerForPicks(
+      random,
+      aiTeam: aiTeam,
+      target: target,
+      ownedPicks: ownedPicks,
     );
+    if (offer != null) return offer;
   }
   return null;
+}
+
+/// One [target] player, out for only real picks [ownedPicks] holds --
+/// the actual per-player matching [_tryBuildSellForPicksOffer] (any of
+/// the GM's own weaker players) and `assistantGmBrokeredOffers` (one
+/// specific named player) both reuse. A single pick close enough on its
+/// own (tried in a shuffled order so the same pick isn't always offered
+/// when several would work), or the closest-value pair of two
+/// otherwise, both within [tradeSwing] widened by
+/// [kSellForPicksExtraTolerance]. `null` if neither works.
+TradeOffer? _trySellPlayerForPicks(
+  Random random, {
+  required AiTeamRoster aiTeam,
+  required Player target,
+  required List<TradeAsset> ownedPicks,
+}) {
+  final management = aiTeam.coach.stats.management;
+  final swing = tradeSwing(management);
+  final tolerance = swing + kSellForPicksExtraTolerance;
+
+  final askedAssets = <TradeAsset>[PlayerTradeAsset(target)];
+  final targetValue = PlayerTradeAsset(target).tradeValue;
+
+  final shuffledPicks = List<TradeAsset>.of(ownedPicks)..shuffle(random);
+  for (final pick in shuffledPicks) {
+    final gap = pick.tradeValue - targetValue;
+    if (gap.abs() <= tolerance) {
+      return TradeOffer(
+        id: _offerId(aiTeam, [pick], askedAssets),
+        offeringTeamAbbreviation: aiTeam.team.abbreviation,
+        offeredToYou: [pick],
+        askedFromYou: askedAssets,
+        character: _characterFor(
+          offered: [pick],
+          asked: askedAssets,
+          gap: gap,
+          swing: swing,
+        ),
+      );
+    }
+  }
+  if (ownedPicks.length < 2) return null;
+
+  // Otherwise the closest-value pair of 2 distinct owned picks.
+  TradeAsset? bestFirst;
+  TradeAsset? bestSecond;
+  var bestDiff = 1 << 30;
+  for (var i = 0; i < ownedPicks.length; i++) {
+    for (var j = i + 1; j < ownedPicks.length; j++) {
+      final sum = ownedPicks[i].tradeValue + ownedPicks[j].tradeValue;
+      final diff = (sum - targetValue).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestFirst = ownedPicks[i];
+        bestSecond = ownedPicks[j];
+      }
+    }
+  }
+  if (bestFirst == null || bestSecond == null || bestDiff > tolerance) {
+    return null;
+  }
+  final offered = [bestFirst, bestSecond];
+  final gap = totalTradeValue(offered) - targetValue;
+  return TradeOffer(
+    id: _offerId(aiTeam, offered, askedAssets),
+    offeringTeamAbbreviation: aiTeam.team.abbreviation,
+    offeredToYou: offered,
+    askedFromYou: askedAssets,
+    character: _characterFor(
+      offered: offered,
+      asked: askedAssets,
+      gap: gap,
+      swing: swing,
+    ),
+  );
 }
 
 /// [count] distinct players drawn from [pool] at random.
