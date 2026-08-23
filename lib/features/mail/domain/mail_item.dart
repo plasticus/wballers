@@ -203,13 +203,29 @@ class LeagueRetirementsMailItem extends MailItem {
 /// build in more notifications of roster legality... I feel like I
 /// should get an email right after the draft from the asst gm"). Appears
 /// the moment the roster goes illegal (most commonly right after a
-/// draft, before the GM has waived anyone down) and disappears the
-/// moment it's fixed -- there's nothing to persist, [legality] itself is
-/// cheap to recompute.
+/// draft) and disappears the moment it's fixed -- there's nothing to
+/// persist, [legality] itself is cheap to recompute.
+///
+/// [suggestedDrops] (2026-08-23, a direct GM design call: "Asst gm can
+/// make suggestions about who to drop or what to do, but will not
+/// actually do it") names real, specific players actually worth
+/// considering -- `mailbox.dart`'s `suggestedRosterFixes` targets
+/// whichever tier is actually over (the weakest active players when
+/// roster size itself is the problem, the weakest four-star/three-star
+/// players specifically when a star-tier cap is what's blown) rather
+/// than a generic "trim the bottom of the roster" gesture. Purely
+/// advisory -- nothing here ever touches the roster on its own; see
+/// `draft_advancer.dart`'s `finalizeDraft` for why that's a deliberate
+/// reversal of an earlier auto-waive ("My asst GM let 3 players go.
+/// That's baloney. She can't do that!").
 class RosterLegalityMailItem extends MailItem {
-  const RosterLegalityMailItem({required this.legality});
+  const RosterLegalityMailItem({
+    required this.legality,
+    this.suggestedDrops = const [],
+  });
 
   final RosterLegality legality;
+  final List<Player> suggestedDrops;
 
   @override
   String get id => 'assistant_gm_roster_legality';

@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import '../../franchise/domain/draft_waived_player.dart';
 import '../../franchise/domain/franchise.dart';
 import '../../league/domain/ai_team_roster.dart';
 import '../../league/domain/league.dart';
@@ -198,21 +197,33 @@ DraftInProgress makeOwnPick({
 /// [updated.season] here is exactly right.
 ///
 /// Every rookie lands straight onto the active roster with no size check
-/// mid-loop, then a final pass waives any team back down to
-/// [kActiveRosterSize] if the draft pushed it over -- a real, direct GM
-/// report (2026-08-22): entering the draft at a full, legal 12 active (a
-/// perfectly normal, even disciplined, thing for a GM to do) and taking
-/// 3 rookies in [kDraftRounds] left 15 active players, which crashed the
-/// very first game of the new season (`targetMinutesForOrderedRoster`'s
-/// hard 12-player assumption) with no error surfaced at all -- the
-/// GM just saw the Play Game button spin forever. Every AI team hits the
-/// exact same math every single draft, not just an unlucky GM edge case.
-/// Waives the weakest *pre-existing* active player (skill points, same
-/// metric `acceptTradeOffer`'s own AI-consolidation waive-down already
-/// uses for the identical "a roster move legally could overflow 12"
-/// problem) -- never one of this exact draft's own rookies, since
-/// cutting someone the instant she's picked would be a strange thing for
-/// any front office, human or AI, to do.
+/// mid-loop. Every AI team then gets a final pass waiving back down to
+/// [kActiveRosterSize] if the draft pushed it over -- an AI team has no
+/// GM to make that call manually, so it has to resolve itself the same
+/// instant the problem exists. Waives the weakest *pre-existing* active
+/// player (skill points, same metric `acceptTradeOffer`'s own
+/// AI-consolidation waive-down already uses for the identical "a roster
+/// move legally could overflow 12" problem) -- never one of this exact
+/// draft's own rookies, since cutting someone the instant she's picked
+/// would be a strange thing for any front office to do.
+///
+/// The GM's own team is deliberately left alone here, even over the cap
+/// -- originally auto-waived the exact same way (2026-08-22, fixing a
+/// real crash: entering the draft at a full, legal 12 and taking 3
+/// rookies left 15 active, which crashed the first game of the new
+/// season with no error surfaced at all,
+/// `substitution_policy.dart`'s old hard 12-player assumption). A
+/// direct GM report the next day (2026-08-23) pushed back hard: "My
+/// asst GM let 3 players go. That's baloney. She can't do that!" -- the
+/// GM's own stated flow instead: an illegal roster is allowed to play
+/// through the preseason untouched, blocked only from advancing into
+/// the real season until the GM fixes it themselves (or via a real
+/// trade) -- `roster_legality.dart`'s `blockedByIllegalActiveRoster`
+/// is that gate, and `substitution_policy.dart`'s
+/// `targetMinutesForOrderedRoster` was fixed at the actual crash site
+/// instead (an over-cap roster now just benches the overflow for a
+/// preseason game, rather than throwing), so removing this auto-waive
+/// doesn't reopen the original crash.
 Franchise finalizeDraft(Random random, Franchise franchise) {
   final draft = franchise.draftInProgress;
   assert(draft != null, 'no draft is in progress to finalize');
@@ -253,12 +264,9 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
     updated = updated.copyWithLeague(League(aiTeams: aiTeams));
   }
 
-  final ownWaive = _waiveDownToLegal(
-    updated.roster,
-    draftedIdsByTeam[updated.team.abbreviation] ?? const {},
-  );
-  updated = updated.copyWithRoster(ownWaive.roster);
-  var freeAgents = [...updated.freeAgents, ...ownWaive.waived];
+  // The GM's own team is deliberately not waived down here -- see this
+  // function's own doc comment.
+  var freeAgents = updated.freeAgents;
 
   final aiTeams = [
     for (final aiTeam in updated.league.aiTeams)
@@ -277,19 +285,6 @@ Franchise finalizeDraft(Random random, Franchise franchise) {
   updated = updated
       .copyWithLeague(League(aiTeams: aiTeams))
       .copyWithFreeAgents(freeAgents);
-
-  // Snapshotted here, not re-derived later -- [ownWaive.waived] is the
-  // only place this exact list of players ever exists, gone from
-  // [freeAgents] the instant anyone signs one of them
-  // (`mailbox.dart`'s draft-recap mail is the one reader, 2026-08-22,
-  // a direct GM ask: "lament the loss of some good bench players").
-  updated = updated.copyWithDraftWaivedPlayers([
-    for (final player in ownWaive.waived)
-      DraftWaivedPlayer(
-        name: player.name,
-        primaryPosition: player.primaryPosition,
-      ),
-  ]);
 
   return updated.copyWithDraftInProgress(null).copyWithDraftClass(const []);
 }

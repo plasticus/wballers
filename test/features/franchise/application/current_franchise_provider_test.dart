@@ -1063,6 +1063,89 @@ void main() {
       expect(updated.seasonProgress.nextGameDayIndex, 0);
     });
 
+    test('plays straight through both preseason game days with an illegal '
+        '(over-cap) active roster, then blocks advancing into the regular '
+        'season until the GM fixes it (2026-08-23, a direct GM design '
+        'call: "you can roll an illegal roster through preseason, then... '
+        'if your roster is illegal before game 1, it won\'t let you play '
+        'the game until you drop/trade players and make it legal")', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final legal = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      // 3 extra active players on top of the full, legal 12 -- 15
+      // active, illegal on roster size alone, same shape a real draft
+      // can leave the GM's own team in now that it's never auto-waived.
+      final illegal = legal.copyWithRoster([
+        ...legal.roster,
+        for (var i = 0; i < 3; i++)
+          RosterMembership(
+            player: playerWithOverall(40, id: 'extra-$i'),
+            status: RosterStatus.active,
+          ),
+      ]);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(illegal);
+
+      // Preseason is 2 game days (Sunday and Thursday of week 1) --
+      // both should play fine despite the illegal roster.
+      final day1 = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+      expect(day1, isNotNull, reason: 'first preseason day');
+      final day2 = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+      expect(day2, isNotNull, reason: 'second preseason day');
+
+      // Week 1 (preseason) is done -- the next game day is the real
+      // regular season, and the roster is still illegal.
+      final stillIllegal = container.read(currentFranchiseProvider).value!;
+      expect(
+        stillIllegal.roster
+            .where((m) => m.status == RosterStatus.active)
+            .length,
+        15,
+      );
+
+      final blocked = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+
+      expect(blocked, isNull);
+      final afterBlocked = container.read(currentFranchiseProvider).value!;
+      expect(
+        afterBlocked.seasonProgress.nextGameDayIndex,
+        stillIllegal.seasonProgress.nextGameDayIndex,
+        reason: 'nothing should have advanced',
+      );
+
+      // Fixing the roster (waiving the 3 extras) lets it through.
+      for (var i = 0; i < 3; i++) {
+        await container
+            .read(currentFranchiseProvider.notifier)
+            .dropPlayer('extra-$i');
+      }
+      final unblocked = await container
+          .read(currentFranchiseProvider.notifier)
+          .advanceGameDay();
+      expect(unblocked, isNotNull);
+    });
+
     test(
       'does NOT block advancing once a player is parked in Reserve/'
       'Inactive mid-season -- only the real Day-0 roster gap blocks '
@@ -2446,26 +2529,23 @@ void main() {
       expect(ownPicksMade, kDraftRounds);
       expect(franchise.draftInProgress, isNull);
       expect(franchise.draftClass, isEmpty);
-      // `playedOutContainer`'s roster is already a full, legal 12
-      // active going into the draft -- `finalizeDraft`'s own waive-down
-      // safety net (2026-08-22, a direct GM report: 15 active after a
-      // full draft crashed the very first game of the new season)
-      // means the real end state is capped at kActiveRosterSize, not a
-      // simple +kDraftRounds -- draft_advancer_test.dart's own
-      // dedicated group covers that mechanism directly; this just
-      // confirms the real end-to-end flow lands on a legal roster too.
+      // `playedOutContainer`'s roster is already a full, legal 12 active
+      // going into the draft, so kDraftRounds real picks lands it at 15
+      // -- the GM's own team is never auto-waived (2026-08-23, a direct
+      // GM report reversing the original 2026-08-22 auto-waive: "My
+      // asst GM let 3 players go. That's baloney. She can't do that!"),
+      // so this stays over the legal cap on purpose until the GM
+      // actually does something about it.
       expect(
         franchise.roster.where((m) => m.status == RosterStatus.active).length,
-        lessThanOrEqualTo(kActiveRosterSize),
+        rosterCountBeforeDraft + kDraftRounds,
       );
       expect(
         franchise.roster.length,
         greaterThanOrEqualTo(rosterCountBeforeDraft),
       );
-      // Every AI team should also have gained real rookies -- a real
-      // draft refreshes the whole league, not just the GM's own roster
-      // -- even though a fully-legal team also gets waived back down to
-      // the same cap.
+      // Every AI team still gets waived back to the cap -- an AI team
+      // has no GM to fix this manually, so it has to resolve itself.
       for (final aiTeam in franchise.league.aiTeams) {
         expect(
           aiTeam.roster.where((m) => m.status == RosterStatus.active).length,
@@ -2480,15 +2560,19 @@ void main() {
         greaterThanOrEqualTo(aiRosterCountBeforeDraft),
       );
 
-      // The exact real-world sequence a direct GM report traced this
-      // bug through (2026-08-22): "All the off-season stuff worked...
-      // But the first preseason game won't start. I get the game
-      // preview, click to start the match and it just spins." A legal
-      // post-draft roster (guaranteed above) is what makes this call
-      // actually simulate instead of throwing inside
-      // targetMinutesForOrderedRoster and leaving the GM's own UI stuck
-      // on a spinner forever (`match_preview_screen.dart`'s `_playGame`
-      // had no error handling for exactly this).
+      // The exact real-world sequence a direct GM report traced the
+      // original crash through (2026-08-22): "All the off-season stuff
+      // worked... But the first preseason game won't start. I get the
+      // game preview, click to start the match and it just spins." The
+      // roster is deliberately still illegal here (above) -- what makes
+      // this call simulate instead of throwing now is
+      // substitution_policy.dart's targetMinutesForOrderedRoster
+      // handling an over-cap roster gracefully (benches the overflow)
+      // rather than a legal post-draft roster being guaranteed; a real
+      // GM design call (2026-08-23) that preseason itself must stay
+      // playable through an illegal roster --
+      // roster_legality.dart's blockedByIllegalActiveRoster is what
+      // blocks the *regular* season instead, covered by its own tests.
       final firstPreseasonResults = await container
           .read(currentFranchiseProvider.notifier)
           .advanceGameDay();

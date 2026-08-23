@@ -10,6 +10,7 @@ import '../coach/presentation/available_head_coaches_screen.dart';
 import '../draft/presentation/draft_day_screen.dart';
 import '../franchise/application/current_franchise_provider.dart';
 import '../franchise/domain/franchise.dart';
+import '../franchise/domain/franchise_legality.dart';
 import '../franchise/onboarding/onboarding_screen.dart';
 import '../franchise/presentation/main_menu_screen.dart';
 import '../franchise/presentation/team_roster_screen.dart';
@@ -1108,6 +1109,38 @@ class _SeasonAdvanceCardState extends ConsumerState<_SeasonAdvanceCard> {
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
                 ),
+              )
+            else if (blockedByIllegalActiveRoster(franchise))
+              // Preseason itself already played through illegal (2026-08-23,
+              // a direct GM design call: "you can roll an illegal roster
+              // through preseason... if your roster is illegal before game
+              // 1, it won't let you play the game until you drop/trade
+              // players and make it legal") -- this is that real block,
+              // reached the instant the next game day would move past it.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your active roster is illegal -- fix it before the '
+                    'season can continue. The Assistant GM has some '
+                    'suggestions, but this one\'s on you.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const TeamRosterScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.groups_outlined),
+                    label: const Text('Open Team Roster'),
+                  ),
+                ],
               )
             else ...[
               FilledButton(

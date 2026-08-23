@@ -11,6 +11,7 @@ import 'package:womensbballmgr/features/player/domain/draft_record.dart';
 import 'package:womensbballmgr/features/player/domain/player_injury.dart';
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/player/domain/retirement_reason.dart';
+import 'package:womensbballmgr/features/roster/domain/roster_legality.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_membership.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/played_game.dart';
@@ -805,18 +806,17 @@ void main() {
   group('Roster Legality mail (2026-08-20, a direct GM ask: "I think we '
       'need to build in more notifications of roster legality")', () {
     test('includes a RosterLegalityMailItem once the active roster goes '
-        'over the cap', () {
+        'over the cap, with real specific suggestions for who to drop '
+        '(2026-08-23, a direct GM design call: "Asst gm can make '
+        'suggestions about who to drop or what to do, but will not '
+        'actually do it")', () {
       final legal = withFullActiveRoster(_franchise());
+      final weakest1 = playerWithOverall(40, id: 'weakest-1');
+      final weakest2 = playerWithOverall(45, id: 'weakest-2');
       final illegal = legal.copyWithRoster([
         ...legal.roster,
-        RosterMembership(
-          player: playerWithOverall(50),
-          status: RosterStatus.active,
-        ),
-        RosterMembership(
-          player: playerWithOverall(50),
-          status: RosterStatus.active,
-        ),
+        RosterMembership(player: weakest1, status: RosterStatus.active),
+        RosterMembership(player: weakest2, status: RosterStatus.active),
       ]);
 
       final items = mailboxFor(illegal);
@@ -824,6 +824,12 @@ void main() {
       final legalityItem = items.whereType<RosterLegalityMailItem>().single;
       expect(legalityItem.legality.isLegal, isFalse);
       expect(legalityItem.legality.hasLegalActiveRosterSize, isFalse);
+      // Exactly the 2 weakest players (by skillPoints) suggested -- the
+      // real overflow, not just an arbitrary 2.
+      expect(legalityItem.suggestedDrops.map((p) => p.id).toSet(), {
+        'weakest-1',
+        'weakest-2',
+      });
     });
 
     test('omits RosterLegalityMailItem when the roster is legal', () {
@@ -858,6 +864,37 @@ void main() {
       );
 
       expect(mailboxFor(fixed).whereType<RosterLegalityMailItem>(), isEmpty);
+    });
+  });
+
+  group('suggestedRosterFixes (2026-08-23, a direct GM design call: "Asst gm '
+      'can make suggestions about who to drop or what to do, but will not '
+      'actually do it")', () {
+    test('targets the weakest four-star players specifically when the '
+        'four-star cap is what\'s blown, never a non-four-star player', () {
+      final active = [
+        for (var i = 0; i < 3; i++)
+          playerWithOverall(90 + i, id: 'star-$i'), // 3 four-star, cap 2
+        for (var i = 0; i < 9; i++) playerWithOverall(60, id: 'role-$i'),
+      ];
+      final legality = evaluateRosterLegality(active: active);
+      expect(legality.hasLegalFourStarCount, isFalse);
+
+      final suggestions = suggestedRosterFixes(legality, active);
+
+      expect(suggestions, hasLength(1));
+      // The weakest of the 3 four-star players (overall 90), never one
+      // of the role players.
+      expect(suggestions.single.id, 'star-0');
+    });
+
+    test('is empty when the roster is actually legal', () {
+      final active = [
+        for (var i = 0; i < 12; i++) playerWithOverall(60, id: 'p-$i'),
+      ];
+      final legality = evaluateRosterLegality(active: active);
+
+      expect(suggestedRosterFixes(legality, active), isEmpty);
     });
   });
 }

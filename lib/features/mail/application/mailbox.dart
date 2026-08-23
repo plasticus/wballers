@@ -9,6 +9,7 @@ import '../../player/domain/retirement_reason.dart';
 import '../../roster/domain/roster_legality.dart';
 import '../../roster/domain/roster_membership.dart';
 import '../../roster/domain/roster_status.dart';
+import '../../roster/domain/star_tier.dart';
 import '../../season/domain/game_day.dart';
 import '../../season/domain/scheduled_game.dart';
 import '../../season/generation/season_schedule_generator.dart'
@@ -163,7 +164,16 @@ List<MailItem> mailboxFor(Franchise franchise) {
       ),
     if (evaluateFranchiseLegality(franchise) case final legality
         when !legality.isLegal)
-      RosterLegalityMailItem(legality: legality),
+      RosterLegalityMailItem(
+        legality: legality,
+        suggestedDrops: suggestedRosterFixes(
+          legality,
+          franchise.roster
+              .where((m) => m.status == RosterStatus.active)
+              .map((m) => m.player)
+              .toList(),
+        ),
+      ),
     for (final report in franchise.trainingReports)
       TrainingReportMailItem(report),
     for (final result in franchise.skillsCompetitionResults) ...[
@@ -275,6 +285,62 @@ List<Player> _draftedThisSeason(Franchise franchise) {
   ]..sort(
     (a, b) => a.draftRecord!.pickNumber.compareTo(b.draftRecord!.pickNumber),
   );
+}
+
+/// Real, specific players actually worth the GM considering dropping or
+/// trading to fix [legality] -- purely advisory, never applied to
+/// anything on its own (2026-08-23, a direct GM design call: "Asst gm
+/// can make suggestions about who to drop or what to do, but will not
+/// actually do it"). Targets whichever tier is actually over: the
+/// weakest [active] players by [PlayerRatings.skillPoints] when roster
+/// size itself is illegal (removing any of them fixes that), the
+/// weakest four-star players specifically when [StarTier.fourStar]'s
+/// cap is blown (only a four-star departure moves that count), and the
+/// weakest three-star-or-better players specifically for that combined
+/// cap -- same per-violation targeting `finalizeDraft`'s own
+/// `_waiveDownToLegal` already uses for the size case, generalized here
+/// to the star-tier caps too since this only ever suggests, never acts.
+/// A player already suggested for one violation is never suggested
+/// again for another.
+List<Player> suggestedRosterFixes(
+  RosterLegality legality,
+  List<Player> active,
+) {
+  final suggested = <Player>[];
+  final suggestedIds = <String>{};
+
+  void suggestWeakest(Iterable<Player> pool, int count) {
+    final eligible = [...pool]
+      ..sort((a, b) => a.ratings.skillPoints.compareTo(b.ratings.skillPoints));
+    for (final player in eligible) {
+      if (suggestedIds.contains(player.id)) continue;
+      if (count <= 0) break;
+      suggested.add(player);
+      suggestedIds.add(player.id);
+      count--;
+    }
+  }
+
+  if (!legality.hasLegalFourStarCount) {
+    suggestWeakest(
+      active.where((p) => StarTier.of(p) == StarTier.fourStar),
+      legality.fourStarCount - kMaxFourStarPlayers,
+    );
+  }
+  if (!legality.hasLegalThreeStarAndUpCount) {
+    suggestWeakest(
+      active.where(
+        (p) =>
+            StarTier.of(p) == StarTier.fourStar ||
+            StarTier.of(p) == StarTier.threeStar,
+      ),
+      legality.threeStarAndUpCount - kMaxThreeStarAndUpPlayers,
+    );
+  }
+  if (!legality.hasLegalActiveRosterSize) {
+    suggestWeakest(active, legality.activeRosterSize - kActiveRosterSize);
+  }
+  return suggested;
 }
 
 /// Stable id for the GM's own roster player's retirement mail, one per

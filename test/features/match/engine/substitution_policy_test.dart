@@ -73,11 +73,33 @@ void main() {
       expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
     });
 
-    test('throws when fewer than 5 or more than 12 players are given', () {
+    test('throws when fewer than 5 players are given', () {
       expect(
         () => targetMinutesFor(testRoster('r').take(4).toList()),
         throwsA(isA<AssertionError>()),
       );
+    });
+
+    test('an over-cap roster (more than 12 active) no longer throws -- only '
+        'the top 12 by overall actually get real minutes, everyone else '
+        'gets 0 (2026-08-23, a direct GM design call: "you can roll an '
+        'illegal roster through preseason" -- this used to throw a '
+        'RangeError deep in targetMinutesForOrderedRoster instead, the '
+        'exact silent "Play Game just spins" crash mechanism)', () {
+      final roster = [
+        ...testRoster('r'),
+        testPlayer(id: 'extra-1', rating: 40),
+        testPlayer(id: 'extra-2', rating: 30),
+        testPlayer(id: 'extra-3', rating: 20),
+      ];
+
+      final targetMinutes = targetMinutesFor(roster);
+
+      expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
+      expect(targetMinutes.values.where((m) => m == 0), hasLength(3));
+      for (final extra in roster.skip(12)) {
+        expect(targetMinutes[extra], 0);
+      }
     });
 
     test('balances roughly half of position-imbalanced rosters, leaving '
@@ -170,11 +192,33 @@ void main() {
       expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
     });
 
-    test('throws when fewer than 5 or more than 12 players are given', () {
+    test('throws when fewer than 5 players are given', () {
       expect(
         () => targetMinutesForOrderedRoster(testRoster('r').take(4).toList()),
         throwsA(isA<AssertionError>()),
       );
+    });
+
+    test('an over-cap roster (more than 12 active) assigns real minutes to '
+        'only the first 12 in list order, 0 to the rest -- no crash '
+        '(2026-08-23, a direct GM design call: "you can roll an illegal '
+        'roster through preseason" -- the GM\'s own real bench order, not '
+        'an overall resort, since this is the variant the GM\'s own team '
+        'goes through)', () {
+      final overCap = [
+        ...testRoster('r'),
+        testPlayer(id: 'extra-1', rating: 90),
+        testPlayer(id: 'extra-2', rating: 90),
+      ];
+
+      final targetMinutes = targetMinutesForOrderedRoster(overCap);
+
+      for (var i = 0; i < 12; i++) {
+        expect(targetMinutes[overCap[i]], greaterThan(0), reason: 'rank $i');
+      }
+      expect(targetMinutes[overCap[12]], 0);
+      expect(targetMinutes[overCap[13]], 0);
+      expect(targetMinutes.values.fold(0, (a, b) => a + b), 200);
     });
 
     test('a short-handed roster (injuries parked in Reserve/Inactive) '

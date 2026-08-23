@@ -569,6 +569,26 @@ class _RosterLegalityMailDetailScreen extends StatelessWidget {
                           style: theme.textTheme.bodyMedium,
                         ),
                       ),
+                    if (item.suggestedDrops.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'My honest take: I\'d start by looking at '
+                        '${item.suggestedDrops.length == 1 ? 'her' : 'these'}'
+                        ' -- your call, though, I\'m not touching the '
+                        'roster myself.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      for (final player in item.suggestedDrops)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            '• ${player.primaryPosition.abbreviation} '
+                            '${player.name} (${player.ratings.overall} OVR)',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),

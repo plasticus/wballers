@@ -194,16 +194,15 @@ MatchResult simulateMatch(
   CoachingOptionPicker? awayCoachingPicker,
   Map<Player, double> injuryPenalty = const {},
 }) {
-  assert(
-    homeRoster.length >= 5 && homeRoster.length <= 12,
-    'homeRoster must have 5-12 players (fewer than 12 only when injuries '
-    'have parked someone in Reserve/Inactive)',
-  );
-  assert(
-    awayRoster.length >= 5 && awayRoster.length <= 12,
-    'awayRoster must have 5-12 players (fewer than 12 only when injuries '
-    'have parked someone in Reserve/Inactive)',
-  );
+  // No upper bound here on purpose -- an over-cap active roster (an
+  // illegal one the GM hasn't fixed yet) still has to simulate a
+  // preseason game without crashing (2026-08-23, a direct GM design
+  // call: "you can roll an illegal roster through preseason"); anyone
+  // past the top 12 by `targetMinutesForOrderedRoster`'s own order
+  // simply gets 0 target minutes and never takes the court, same as a
+  // real team inactive-listing the overflow for one game.
+  assert(homeRoster.length >= 5, 'homeRoster needs at least 5 players');
+  assert(awayRoster.length >= 5, 'awayRoster needs at least 5 players');
 
   final sim = _GameSimulation(
     random,
@@ -286,16 +285,15 @@ Future<MatchResult> simulateMatchLive(
   required Future<void> Function(LiveGameSegment segment) onSegmentComplete,
   Map<Player, double> injuryPenalty = const {},
 }) async {
-  assert(
-    homeRoster.length >= 5 && homeRoster.length <= 12,
-    'homeRoster must have 5-12 players (fewer than 12 only when injuries '
-    'have parked someone in Reserve/Inactive)',
-  );
-  assert(
-    awayRoster.length >= 5 && awayRoster.length <= 12,
-    'awayRoster must have 5-12 players (fewer than 12 only when injuries '
-    'have parked someone in Reserve/Inactive)',
-  );
+  // No upper bound here on purpose -- an over-cap active roster (an
+  // illegal one the GM hasn't fixed yet) still has to simulate a
+  // preseason game without crashing (2026-08-23, a direct GM design
+  // call: "you can roll an illegal roster through preseason"); anyone
+  // past the top 12 by `targetMinutesForOrderedRoster`'s own order
+  // simply gets 0 target minutes and never takes the court, same as a
+  // real team inactive-listing the overflow for one game.
+  assert(homeRoster.length >= 5, 'homeRoster needs at least 5 players');
+  assert(awayRoster.length >= 5, 'awayRoster needs at least 5 players');
 
   final sim = _GameSimulation(
     random,

@@ -1121,6 +1121,71 @@ void main() {
   });
 
   testWidgets(
+    'hides "Advance to Next Game Day" and shows a real illegal-roster '
+    'warning once the next game day would move past the preseason while '
+    'the roster is still illegal (2026-08-23, a direct GM design call: '
+    '"if your roster is illegal before game 1, it won\'t let you play '
+    'the game until you drop/trade players and make it legal")',
+    (tester) async {
+      final base = _franchiseWith(
+        seasonProgress: SeasonProgress(
+          schedule: _franchiseWith().seasonProgress.schedule,
+          playedGames: const [],
+          nextGameDayIndex: 2, // past the 2 preseason days.
+        ),
+      );
+      final illegal = base.copyWithRoster([
+        ...base.roster,
+        RosterMembership(
+          player: Player(
+            id: 'extra-1',
+            name: 'Extra Player',
+            age: 24,
+            yearsOfService: 2,
+            hometown: 'Anywhere, USA',
+            primaryPosition: Position.center,
+            secondaryPositions: const {},
+            handedness: Handedness.right,
+            biography: '',
+            ratings: const PlayerRatings(
+              speed: 40,
+              agility: 40,
+              strength: 40,
+              stamina: 40,
+              ballControl: 40,
+              passing: 40,
+              interiorOffense: 40,
+              perimeterOffense: 40,
+              perimeterDefense: 40,
+              interiorDefense: 40,
+              disruption: 40,
+              blocking: 40,
+              potential: 45,
+            ),
+            heightInches: 76,
+            archetype: Archetype.shotBlocker,
+            traits: const {},
+          ),
+          status: RosterStatus.active,
+        ),
+      ]);
+      final repository = await _seededRepository(illegal);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Advance to Next Game Day'), findsNothing);
+      expect(find.textContaining('active roster is illegal'), findsOneWidget);
+      expect(find.text('Open Team Roster'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'offers "Sim Rest of Postseason" once the postseason has started -- '
     'even when the GM\'s own team missed the playoffs entirely '
     '(2026-08-21, a direct GM ask: "I just want to get to the end of the '

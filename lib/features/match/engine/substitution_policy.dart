@@ -39,9 +39,8 @@ Map<Player, int> targetMinutesFor(
   String? teamAbbreviation,
 }) {
   assert(
-    roster.length >= 5 && roster.length <= 12,
-    'expects 5-12 active players (fewer than a full 12 only when injuries '
-    'have parked someone in Reserve/Inactive)',
+    roster.length >= 5,
+    'expects at least 5 active players to field a game',
   );
   final sorted = [...roster]
     ..sort((a, b) => b.ratings.overall.compareTo(a.ratings.overall));
@@ -220,11 +219,28 @@ List<Player> _withPaceAndSpaceTopFive(List<Player> sortedByOverall) {
 /// order.
 Map<Player, int> targetMinutesForOrderedRoster(List<Player> orderedRoster) {
   assert(
-    orderedRoster.length >= 5 && orderedRoster.length <= 12,
-    'expects 5-12 active players (fewer than a full 12 only when injuries '
-    'have parked someone in Reserve/Inactive)',
+    orderedRoster.length >= 5,
+    'expects at least 5 active players to field a game',
   );
   final n = orderedRoster.length;
+  if (n > 12) {
+    // An illegal, over-cap active roster -- `roster_legality.dart`'s own
+    // gate blocks advancing *past* preseason while this is true, but
+    // preseason itself is deliberately still playable (2026-08-23, a
+    // direct GM design call: "you can roll an illegal roster through
+    // preseason, then... if your roster is illegal before game 1, it
+    // won't let you play the game"). Only the top 12 in [orderedRoster]'s
+    // own order actually dress -- everyone past that gets 0 target
+    // minutes, same as a real team inactive-listing the overflow for
+    // this one game, rather than crashing (`_targetMinutesByRank` only
+    // has 12 entries; a naive `sublist` past that throws a RangeError --
+    // this was the exact silent "Play Game just spins" crash mechanism
+    // the auto-waive this replaces was originally built to avoid).
+    return {
+      for (var i = 0; i < 12; i++) orderedRoster[i]: _targetMinutesByRank[i],
+      for (var i = 12; i < n; i++) orderedRoster[i]: 0,
+    };
+  }
   if (n == 12) {
     return {
       for (var i = 0; i < n; i++) orderedRoster[i]: _targetMinutesByRank[i],

@@ -531,17 +531,18 @@ void main() {
       );
     });
 
-    group('waives back down to kActiveRosterSize when a full draft pushes a '
-        'team over (2026-08-22, a direct GM report: entering the draft at '
-        'a full, legal 12 active and taking 3 rookies in kDraftRounds left '
-        '15 active, which crashed the very first game of the new season '
-        'with no error surfaced -- "click to start the match and it just '
-        'spins")', () {
-      test('the GM\'s own full roster ends the draft at exactly '
-          'kActiveRosterSize, every drafted rookie protected', () {
+    group('the GM\'s own team is never auto-waived, even when a full draft '
+        'pushes it over kActiveRosterSize (2026-08-23, a direct GM report: '
+        '"My asst GM let 3 players go. That\'s baloney. She can\'t do '
+        'that!" -- reversing the 2026-08-22 auto-waive; see '
+        'roster_legality.dart\'s blockedByIllegalActiveRoster and '
+        'substitution_policy.dart\'s targetMinutesForOrderedRoster for the '
+        'real replacement safety net)', () {
+      test('a full, legal 12 active plus 3 drafted rookies ends the '
+          'draft at 15 active, every veteran and every rookie still on '
+          'the roster', () {
         final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
         final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
-        // A full, legal 12 -- varied overall so "weakest" is unambiguous.
         final fullRoster = [
           for (var i = 0; i < kActiveRosterSize; i++)
             RosterMembership(
@@ -576,38 +577,34 @@ void main() {
 
         expect(
           finalized.roster.where((m) => m.status == RosterStatus.active).length,
-          kActiveRosterSize,
+          15,
         );
-        // All 3 rookies survived -- only pre-existing veterans were
-        // ever eligible to be waived.
-        for (final rookieId in ['rookie-1', 'rookie-2', 'rookie-3']) {
+        for (final id in [
+          'vet-0',
+          'vet-1',
+          'vet-2',
+          'rookie-1',
+          'rookie-2',
+          'rookie-3',
+        ]) {
           expect(
-            finalized.roster.any((m) => m.player.id == rookieId),
+            finalized.roster.any((m) => m.player.id == id),
             isTrue,
             reason:
-                '$rookieId should never be waived the instant she\'s '
-                'drafted',
+                '$id should still be on the roster -- nobody gets '
+                'auto-waived off the GM\'s own team',
           );
         }
-        // Exactly the 3 weakest veterans (vet-0/1/2, overalls 50-52)
-        // got waived to free agency, released (no jersey number).
-        for (final weakestId in ['vet-0', 'vet-1', 'vet-2']) {
-          expect(
-            finalized.roster.any((m) => m.player.id == weakestId),
-            isFalse,
-            reason: '$weakestId should have been waived',
-          );
-          final waived = finalized.freeAgents.firstWhere(
-            (p) => p.id == weakestId,
-          );
-          expect(waived.jerseyNumber, isNull);
-        }
-        // The stronger veterans (vet-3 and up) were never touched.
-        for (var i = 3; i < kActiveRosterSize; i++) {
-          expect(finalized.roster.any((m) => m.player.id == 'vet-$i'), isTrue);
-        }
+        expect(finalized.freeAgents, isEmpty);
       });
+    });
 
+    group('waives back down to kActiveRosterSize when a full draft pushes a '
+        'team over (2026-08-22, a direct GM report: entering the draft at '
+        'a full, legal 12 active and taking 3 rookies in kDraftRounds left '
+        '15 active, which crashed the very first game of the new season '
+        'with no error surfaced -- "click to start the match and it just '
+        'spins") -- AI teams only now (2026-08-23)', () {
       test('an AI team\'s full roster gets the identical treatment', () {
         final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
         final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
@@ -680,87 +677,44 @@ void main() {
       });
     });
 
-    group('draftWaivedPlayers (2026-08-22, a direct GM ask: "lament the loss '
-        'of some good bench players to maintain a legal roster")', () {
-      test('names exactly the GM\'s own weakest pre-existing players '
-          'waived to fit the draft class, never a drafted rookie', () {
-        final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
-        final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
-        final fullRoster = [
+    test('draftWaivedPlayers is always empty for the GM\'s own team now, '
+        'even when the draft leaves it well over the legal cap '
+        '(2026-08-23 -- dormant since the auto-waive it was built for got '
+        'reversed; see Franchise.draftWaivedPlayers\'s own doc comment)', () {
+      final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
+      final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
+      final fullRoster = [
+        for (var i = 0; i < kActiveRosterSize; i++)
           RosterMembership(
-            player: playerWithOverall(
-              50,
-              id: 'vet-weakest',
-              name: 'Riley Okafor',
-              primaryPosition: Position.center,
-            ),
+            player: playerWithOverall(50 + i, id: 'vet-$i'),
             status: RosterStatus.active,
           ),
-          for (var i = 1; i < kActiveRosterSize; i++)
-            RosterMembership(
-              player: playerWithOverall(50 + i, id: 'vet-$i'),
-              status: RosterStatus.active,
-            ),
-        ];
-        final franchise = base.copyWithRoster(fullRoster);
-        final prospect = _prospect('rookie-1', 60);
-        final draft = DraftInProgress(
-          order: [ownAbbreviation],
-          rounds: 1,
-          picks: [
-            DraftPick(
-              round: 1,
-              pickNumber: 1,
-              teamAbbreviation: ownAbbreviation,
-              prospect: prospect,
-            ),
-          ],
-        );
-        final withDraft = franchise
-            .copyWithDraftInProgress(draft)
-            .copyWithDraftClass([prospect]);
-
-        final finalized = finalizeDraft(Random(1), withDraft);
-
-        expect(finalized.draftWaivedPlayers, hasLength(1));
-        expect(finalized.draftWaivedPlayers.single.name, 'Riley Okafor');
-        expect(
-          finalized.draftWaivedPlayers.single.primaryPosition,
-          Position.center,
-        );
-      });
-
-      test('is empty when the draft never actually pushed the GM\'s own '
-          'roster over the legal cap', () {
-        final ownAbbreviation = kLeagueTeamPool[1].abbreviation;
-        final base = _franchise(ownTeamAbbreviation: ownAbbreviation);
-        final franchise = base.copyWithRoster([
-          RosterMembership(
-            player: playerWithOverall(60, id: 'vet-1'),
-            status: RosterStatus.active,
+      ];
+      final franchise = base.copyWithRoster(fullRoster);
+      final prospect = _prospect('rookie-1', 60);
+      final draft = DraftInProgress(
+        order: [ownAbbreviation],
+        rounds: 1,
+        picks: [
+          DraftPick(
+            round: 1,
+            pickNumber: 1,
+            teamAbbreviation: ownAbbreviation,
+            prospect: prospect,
           ),
-        ]);
-        final prospect = _prospect('rookie-1', 60);
-        final draft = DraftInProgress(
-          order: [ownAbbreviation],
-          rounds: 1,
-          picks: [
-            DraftPick(
-              round: 1,
-              pickNumber: 1,
-              teamAbbreviation: ownAbbreviation,
-              prospect: prospect,
-            ),
-          ],
-        );
-        final withDraft = franchise
-            .copyWithDraftInProgress(draft)
-            .copyWithDraftClass([prospect]);
+        ],
+      );
+      final withDraft = franchise
+          .copyWithDraftInProgress(draft)
+          .copyWithDraftClass([prospect]);
 
-        final finalized = finalizeDraft(Random(1), withDraft);
+      final finalized = finalizeDraft(Random(1), withDraft);
 
-        expect(finalized.draftWaivedPlayers, isEmpty);
-      });
+      expect(
+        finalized.roster.where((m) => m.status == RosterStatus.active).length,
+        13,
+      );
+      expect(finalized.draftWaivedPlayers, isEmpty);
     });
   });
 }

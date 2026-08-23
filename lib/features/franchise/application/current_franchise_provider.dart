@@ -45,6 +45,7 @@ import '../../training/domain/training_plan.dart';
 import '../../training/domain/training_report.dart';
 import '../../training/generation/training_advancer.dart';
 import '../domain/former_player_record.dart';
+import '../domain/franchise_legality.dart';
 import '../domain/league_retirement.dart';
 import '../domain/franchise.dart';
 import '../domain/pending_retirement.dart';
@@ -700,9 +701,11 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// event log) actually gets persisted, same as every other game.
   ///
   /// Returns `null` if there's no current franchise, if the season has no
-  /// game days left to advance to ([SeasonProgress.isComplete]), or if
+  /// game days left to advance to ([SeasonProgress.isComplete]), if
   /// [_blockedByRosterGap] -- see that method's doc comment for exactly
-  /// which roster gaps block advancing and which don't.
+  /// which roster gaps block advancing and which don't -- or if
+  /// [blockedByIllegalActiveRoster] (an illegal roster trying to advance
+  /// past the preseason; see that function's own doc comment).
   ///
   /// The [Random] stream is reseeded from [Franchise.seasonSeed] plus
   /// the game day index being advanced, not carried forward across calls
@@ -724,6 +727,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       return null;
     }
     if (_blockedByRosterGap(franchise)) return null;
+    if (blockedByIllegalActiveRoster(franchise)) return null;
 
     final advance = advanceToNextGameDay(
       Random(
@@ -831,6 +835,7 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
       return null;
     }
     if (_blockedByRosterGap(franchise)) return null;
+    if (blockedByIllegalActiveRoster(franchise)) return null;
 
     final advance = advanceToNextGameDay(
       Random(

@@ -403,12 +403,16 @@ class Franchise {
   /// yet regardless.
   final List<FormerPlayerRecord> formerPlayers;
 
-  /// Set exactly once per draft, the instant `draft_advancer.dart`'s
-  /// `finalizeDraft` finishes (its own `_waiveDownToLegal` waive-down for
-  /// the GM's own team) -- see [DraftWaivedPlayer]'s own doc comment for
-  /// why this exists (2026-08-22, a direct GM ask: "lament the loss of
-  /// some good bench players to maintain a legal roster") and why it
-  /// resets every new season rather than accumulating.
+  /// Dormant as of 2026-08-23 -- `draft_advancer.dart`'s `finalizeDraft`
+  /// no longer auto-waives the GM's own team at all (a direct GM report
+  /// the very next day: "My asst GM let 3 players go. That's baloney.
+  /// She can't do that!"), so nothing sets this to anything but empty
+  /// for the GM's own roster anymore. Left in place (rather than torn
+  /// out along with [DraftWaivedPlayer] and its `copyWith*` threading
+  /// through every other method here) since `mailbox.dart`'s draft-recap
+  /// mail already reads it conditionally and degrades gracefully to
+  /// silence when it's empty -- see [DraftWaivedPlayer]'s own doc
+  /// comment for the original 2026-08-22 ask this was built for.
   final List<DraftWaivedPlayer> draftWaivedPlayers;
 
   /// Returns a copy with [newWaived] replacing [draftWaivedPlayers]
