@@ -103,8 +103,8 @@ function generate_player(): array {
     ];
 }
 
-function generate_pick(): array {
-    $round = mt_rand(1, 3);
+function generate_pick(?int $round = null): array {
+    $round = $round ?? mt_rand(1, 3);
     $season = 2027 + mt_rand(0, 1);
     return [
         'type' => 'pick',
@@ -226,8 +226,12 @@ function try_build_trade(int $swing): ?array {
  * ... [with picks] ... that's where I see most of the egregious stuff") to
  * give more of exactly the shape worth scrutinizing, not an attempt to
  * match real in-game frequency. */
-function try_build_forced_pick_trade(int $swing): ?array {
-    for ($attempt = 0; $attempt < 8; $attempt++) {
+function try_build_forced_pick_trade(int $swing, ?int $forcedRound = null): ?array {
+    for ($attempt = 0; $attempt < 12; $attempt++) {
+        $round = $forcedRound ?? mt_rand(1, 3);
+        $pickValue = DRAFT_PICK_VALUE[$round];
+        $pick = generate_pick($round);
+
         $yourRoster = [];
         for ($i = 0; $i < 12; $i++) $yourRoster[] = generate_player();
         $theirRoster = [];
@@ -237,12 +241,13 @@ function try_build_forced_pick_trade(int $swing): ?array {
         $give = array_slice($yourRoster, 0, 2);
         $giveValue = total_value($give);
 
-        $get = closest_combo($theirRoster, 2, $giveValue);
-        $getValue = total_value($get);
-
-        $pick = generate_pick();
-
-        // Prefer sweetening "get" (their side) first.
+        // Prefer sweetening "get" (their side) first -- deliberately
+        // target their 2 players *short* by the pick's value, so the
+        // pick is what actually closes a real gap. A 1st-round pick
+        // (worth 290) almost never fits within a ~47-point swing bolted
+        // onto an already-balanced trade -- has to be the reason the gap
+        // existed in the first place.
+        $get = closest_combo($theirRoster, 2, max(0, $giveValue - $pickValue));
         $getWithPick = array_merge($get, [$pick]);
         $gap = total_value($getWithPick) - $giveValue;
         if (abs($gap) <= $swing) {
@@ -257,16 +262,18 @@ function try_build_forced_pick_trade(int $swing): ?array {
             ];
         }
 
-        // Fall back to sweetening "give" (your side) instead.
+        // Fall back to sweetening "give" (your side) instead -- target
+        // their 2 players *ahead* by the pick's value this time.
+        $get2 = closest_combo($theirRoster, 2, $giveValue + $pickValue);
         $giveWithPick = array_merge($give, [$pick]);
         $giveWithPickValue = total_value($giveWithPick);
-        $gap = $getValue - $giveWithPickValue;
+        $gap = total_value($get2) - $giveWithPickValue;
         if (abs($gap) <= $swing) {
             return [
                 'give' => $giveWithPick,
-                'get' => $get,
+                'get' => $get2,
                 'give_value' => $giveWithPickValue,
-                'get_value' => $getValue,
+                'get_value' => total_value($get2),
                 'swing' => $swing,
                 'gap' => $gap,
                 'forced_pick' => true,
@@ -282,12 +289,23 @@ function generate_batch(int $seed, int $count): array {
     $trades = [];
     $guard = 0;
 
-    // Oversample the guaranteed-pick 2-for-2 pattern -- about a quarter of
-    // the batch -- since that's the shape worth scrutinizing (see
-    // try_build_forced_pick_trade's doc comment). Falls back to the
-    // ordinary opportunistic builder if it can't land one, same "try,
-    // don't force it" posture the real generator uses.
-    $forcedPickTarget = (int) round($count / 4);
+    // Guarantee a 1st-rounder and a 2nd-rounder actually show up -- with a
+    // batch this small, leaving the round to chance (1-in-3 draw per pick)
+    // risked never seeing one at all (a direct GM ask, 2026-08-23).
+    foreach ([1, 2] as $forcedRound) {
+        for ($tries = 0; $tries < 10; $tries++) {
+            $trade = try_build_forced_pick_trade($swing, $forcedRound);
+            if ($trade !== null) {
+                $trades[] = $trade;
+                break;
+            }
+        }
+    }
+
+    // Oversample the guaranteed-pick 2-for-2 pattern beyond that -- about
+    // a quarter of the batch, any round -- since picks are the shape
+    // worth scrutinizing (see try_build_forced_pick_trade's doc comment).
+    $forcedPickTarget = max(count($trades), (int) round($count / 4));
     while (count($trades) < $forcedPickTarget && $guard < $forcedPickTarget * 10) {
         $guard++;
         $trade = try_build_forced_pick_trade($swing);
@@ -296,6 +314,8 @@ function generate_batch(int $seed, int $count): array {
         }
     }
 
+    // Falls back to the ordinary opportunistic builder for the rest, same
+    // "try, don't force it" posture the real generator uses.
     while (count($trades) < $count && $guard < $count * 10) {
         $guard++;
         $trade = try_build_trade($swing);
@@ -340,7 +360,12 @@ function trade_has_pick(array $give, array $get): bool {
 
 function asset_label(array $a): string {
     if ($a['type'] === 'player') {
-        return $a['position'] . ' ' . $a['name'] . ' (' . $a['overall'] . ' OVR, '
+        // Last name only -- full "First Last" names read as more
+        // real-roster-specific than this generic study warrants (a direct
+        // GM ask, 2026-08-23).
+        $nameParts = explode(' ', $a['name']);
+        $lastName = end($nameParts);
+        return $a['position'] . ' ' . $lastName . ' (' . $a['overall'] . ' OVR, '
             . $a['potential'] . ' POT, age ' . $a['age'] . ', ' . $a['tier'] . ')';
     }
     return $a['season'] . ' Round ' . $a['round'] . ' Pick';
@@ -357,7 +382,7 @@ function asset_label(array $a): string {
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
-$count = 20;
+$count = 5; // was 20 -- too many to rate in one sitting (a direct GM ask, 2026-08-23)
 $viewMode = isset($_GET['view']);
 
 // A stable seed per URL -- reloading the page shows the same batch;
@@ -557,10 +582,10 @@ function h(string $s): string {
     (swing tolerance ±<?= $swing ?> value points). Team A is the left side of each card,
     Team B the right. Slide left for <strong>Team A</strong> winning the trade, right for
     <strong>Team B</strong>, center for dead even -- every trade is assumed rated at
-    whatever the slider shows unless you check "skip this one." About a quarter of this
-    batch is deliberately oversampled to include a draft pick (marked <span class="pick-badge">PICK</span>)
-    since that's the shape most worth scrutinizing. Reloading this page keeps the same
-    batch; submitting rolls a brand new one.
+    whatever the slider shows unless you check "skip this one." This batch is
+    deliberately oversampled toward draft picks (marked <span class="pick-badge">PICK</span>)
+    since that's the shape most worth scrutinizing -- always at least one 1st-rounder and
+    one 2nd-rounder. Reloading this page keeps the same batch; submitting rolls a brand new one.
   </p>
 
   <datalist id="ratingTicks">

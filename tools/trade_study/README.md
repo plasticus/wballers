@@ -26,7 +26,7 @@ that IP has changed).
 
 ## How it works
 
-- Every visit generates 20 trades (assuming a coach with 70 Management,
+- Every visit generates 5 trades (assuming a coach with 70 Management,
   matching the real `tradeSwing()` formula from
   `lib/features/trade/domain/trade_value.dart`). Reloading the page keeps
   the same batch; submitting the form rolls a brand new one, so you can
