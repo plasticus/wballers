@@ -332,30 +332,65 @@ function h(string $s): string {
 <meta charset="UTF-8">
 <title>WBL Trade Value Study</title>
 <style>
-  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; background: #fdf9f2; color: #1a1a2e; }
+  :root {
+    --bg: #fdf9f2;
+    --text: #1a1a2e;
+    --muted: #666;
+    --flash-bg: #dff5df;
+    --flash-border: #8fcf8f;
+    --card-bg: #fff;
+    --card-border: #ddd;
+    --label: #555;
+    --value-line: #777;
+    --button-bg: #6b5411;
+    --button-bg-hover: #55420d;
+    --button-text: #fff;
+    --th-bg: #f3ead9;
+    --link: #6b5411;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a17;
+      --text: #ede8db;
+      --muted: #a39c8a;
+      --flash-bg: #1f3320;
+      --flash-border: #3f6b41;
+      --card-bg: #262420;
+      --card-border: #45403a;
+      --label: #c2bba9;
+      --value-line: #a39c8a;
+      --button-bg: #c99b2e;
+      --button-bg-hover: #e0b13f;
+      --button-text: #1b1a17;
+      --th-bg: #33302a;
+      --link: #e0b13f;
+    }
+  }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; background: var(--bg); color: var(--text); }
   h1 { font-size: 1.4rem; }
-  .muted { color: #666; font-size: 0.9rem; }
-  .flash { background: #dff5df; border: 1px solid #8fcf8f; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+  a { color: var(--link); }
+  .muted { color: var(--muted); font-size: 0.9rem; }
+  .flash { background: var(--flash-bg); border: 1px solid var(--flash-border); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
   .top-nav { margin-bottom: 20px; }
   .top-nav a { margin-right: 16px; }
-  .trade { border: 1px solid #ddd; border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; background: #fff; }
+  .trade { border: 1px solid var(--card-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; background: var(--card-bg); }
   .trade h3 { margin: 0 0 8px; font-size: 1rem; }
   .sides { display: flex; gap: 16px; flex-wrap: wrap; }
   .side { flex: 1; min-width: 260px; }
-  .side h4 { margin: 0 0 4px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: #555; }
+  .side h4 { margin: 0 0 4px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--label); }
   .side ul { margin: 0; padding-left: 18px; }
-  .value-line { font-size: 0.85rem; color: #777; margin-top: 8px; }
+  .value-line { font-size: 0.85rem; color: var(--value-line); margin-top: 8px; }
   .rate-row { margin-top: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  select, textarea { font-size: 0.95rem; padding: 4px 6px; }
+  select, textarea { font-size: 0.95rem; padding: 4px 6px; background: var(--card-bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 4px; }
   textarea { width: 100%; margin-top: 8px; box-sizing: border-box; min-height: 44px; }
-  .submit-bar { position: sticky; bottom: 0; background: #fdf9f2; padding: 14px 0; border-top: 1px solid #ddd; }
-  button { font-size: 1rem; padding: 10px 18px; border-radius: 8px; border: none; background: #6b5411; color: white; cursor: pointer; }
-  button:hover { background: #55420d; }
+  .submit-bar { position: sticky; bottom: 0; background: var(--bg); padding: 14px 0; border-top: 1px solid var(--card-border); }
+  button { font-size: 1rem; padding: 10px 18px; border-radius: 8px; border: none; background: var(--button-bg); color: var(--button-text); cursor: pointer; }
+  button:hover { background: var(--button-bg-hover); }
   table { border-collapse: collapse; width: 100%; margin-top: 12px; }
-  th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 0.85rem; text-align: left; vertical-align: top; }
-  th { background: #f3ead9; }
+  th, td { border: 1px solid var(--card-border); padding: 6px 8px; font-size: 0.85rem; text-align: left; vertical-align: top; }
+  th { background: var(--th-bg); }
   .stat-cards { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
-  .stat-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px 16px; }
+  .stat-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px 16px; }
   .stat-card .big { font-size: 1.4rem; font-weight: bold; }
 </style>
 </head>
