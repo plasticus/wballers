@@ -25,6 +25,45 @@ enum TradeOfferCharacter {
   aggressive,
 }
 
+/// A GM-chosen filter for what the Trade Board tries to show, on top of
+/// (not instead of) putting a specific player on the block -- a direct
+/// GM ask (2026-08-23): "Could we have some further options on the
+/// trade board? Like... Give me some toggles or something. I'm looking
+/// to get rid of draft picks, get more draft picks, looking to offload
+/// some depth to improve quality, looking to lose some quality to get
+/// younger, or 'anything'." `trade_offer_generator.dart`'s
+/// `generateTradeOffersForIntent` is what actually builds a matching
+/// board; each non-[anything] value has its own exact real-world
+/// meaning spelled out there.
+enum TradeBoardIntent {
+  /// No filter -- the ordinary board, exactly what
+  /// [TradeBoardIntent.anything] not existing already meant.
+  anything,
+
+  /// The GM sends away a real pick in the deal.
+  shedPicks,
+
+  /// The GM receives a real pick in the deal.
+  gainPicks,
+
+  /// The GM sends more players than they receive -- consolidating depth
+  /// into fewer, better roster spots.
+  offloadDepth,
+
+  /// The GM sends an older player (or players) for a younger return.
+  getYounger,
+}
+
+/// "Shed Picks" / "Gain Picks" / "Offload Depth" / "Get Younger" /
+/// "Anything" -- the Trade Board's own toggle labels for [TradeBoardIntent].
+String tradeBoardIntentLabel(TradeBoardIntent intent) => switch (intent) {
+  TradeBoardIntent.anything => 'Anything',
+  TradeBoardIntent.shedPicks => 'Shed Picks',
+  TradeBoardIntent.gainPicks => 'Gain Picks',
+  TradeBoardIntent.offloadDepth => 'Offload Depth',
+  TradeBoardIntent.getYounger => 'Get Younger',
+};
+
 /// One AI team's trade proposal -- accept or decline, no negotiation
 /// (`trading-and-hidden-gems-notes.md`: "no player-initiated trades," a
 /// deliberate scope cut). [offeredToYou] is what the GM would receive;

@@ -283,14 +283,26 @@ class _TradeBoardTab extends ConsumerStatefulWidget {
 class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
   String? _busyOfferId;
   late List<TradeOffer> _offers;
+  TradeBoardIntent _intent = TradeBoardIntent.anything;
 
   @override
   void initState() {
     super.initState();
+    _regenerate();
+  }
+
+  /// Rebuilds [_offers] from scratch for whatever [_intent] currently is
+  /// -- called once from [initState] and again any time the GM actually
+  /// changes the toggle (2026-08-23, a direct GM ask: "Give me some
+  /// toggles or something... These are in addition to putting a player
+  /// on the block"). Same pinned-for-the-visit posture the plain board
+  /// already had otherwise -- switching the toggle is the one thing
+  /// that's allowed to reroll it.
+  void _regenerate() {
     final franchise =
         ref.read(currentFranchiseProvider).value ?? widget.franchise;
     _offers = isTradeWindowOpen(franchise)
-        ? generateTradeOffers(franchise)
+        ? generateTradeOffersForIntent(franchise, _intent)
               .where((o) => !franchise.resolvedTradeOfferIds.contains(o.id))
               .toList()
         : const <TradeOffer>[];
@@ -332,13 +344,26 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
         ),
         if (windowOpen) ...[
           const SizedBox(height: AppSpacing.md),
+          _TradeBoardIntentSelector(
+            intent: _intent,
+            onChanged: (intent) => setState(() {
+              _intent = intent;
+              _regenerate();
+            }),
+          ),
+          const SizedBox(height: AppSpacing.md),
           if (_offers.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
               child: Center(
                 child: Text(
-                  'No live offers on the board right now -- check back '
-                  'after your next game.',
+                  _intent == TradeBoardIntent.anything
+                      ? 'No live offers on the board right now -- check '
+                            'back after your next game.'
+                      : 'Nothing matching "${tradeBoardIntentLabel(_intent)}" '
+                            'right now -- try "Anything," or check back '
+                            'after your next game.',
+                  textAlign: TextAlign.center,
                 ),
               ),
             )
@@ -476,6 +501,41 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
       ],
     ),
   );
+}
+
+/// The GM's own [TradeBoardIntent] choice -- "in addition to putting a
+/// player on the block" (2026-08-23, a direct GM ask), so this sits
+/// right alongside [_TradeBlockCard], not instead of it. A horizontally
+/// scrollable [SegmentedButton] rather than letting all 5 labels wrap
+/// (`SettingsScreen`'s own Theme selector's pattern, just scrollable --
+/// 5 real-word labels don't comfortably fit one row on a phone width the
+/// way "System"/"Light"/"Dark" did).
+class _TradeBoardIntentSelector extends StatelessWidget {
+  const _TradeBoardIntentSelector({
+    required this.intent,
+    required this.onChanged,
+  });
+
+  final TradeBoardIntent intent;
+  final ValueChanged<TradeBoardIntent> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SegmentedButton<TradeBoardIntent>(
+        segments: [
+          for (final value in TradeBoardIntent.values)
+            ButtonSegment(
+              value: value,
+              label: Text(tradeBoardIntentLabel(value)),
+            ),
+        ],
+        selected: {intent},
+        onSelectionChanged: (selection) => onChanged(selection.first),
+      ),
+    );
+  }
 }
 
 /// The GM's own trade-block flag -- "put a player on the trade block

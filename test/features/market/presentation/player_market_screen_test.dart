@@ -12,6 +12,7 @@ import 'package:womensbballmgr/features/market/presentation/player_market_screen
 import 'package:womensbballmgr/features/player/domain/position.dart';
 import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
+import 'package:womensbballmgr/features/trade/domain/trade_offer.dart';
 import 'package:womensbballmgr/features/trade/generation/trade_offer_generator.dart';
 
 import '../../../support/in_memory_save_repository.dart';
@@ -252,6 +253,59 @@ void main() {
     expect(find.text('Accept'), findsNWidgets(offers.length));
     expect(find.text('Decline'), findsNWidgets(offers.length));
   });
+
+  testWidgets(
+    'switching the Trade Board intent toggle rerolls the board to match '
+    '(2026-08-23, a direct GM ask: "Give me some toggles or something. '
+    'I\'m looking to get rid of draft picks...")',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 4500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final franchise = _newFranchise();
+      final repository = await _seededRepository(franchise);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(home: PlayerMarketScreen(franchise: franchise)),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Trade Board'));
+      await tester.pumpAndSettle();
+
+      // Every toggle is visible up front, no scrolling needed to find one.
+      for (final intent in TradeBoardIntent.values) {
+        expect(find.text(tradeBoardIntentLabel(intent)), findsOneWidget);
+      }
+
+      await tester.tap(find.text('Shed Picks'));
+      await tester.pumpAndSettle();
+
+      final shedPicksOffers = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.shedPicks,
+      );
+      expect(shedPicksOffers, isNotEmpty);
+      expect(find.text('Accept'), findsNWidgets(shedPicksOffers.length));
+
+      // Every real player asset on screen belongs to the shedPicks board,
+      // not whatever "Anything" happened to show a moment ago -- each
+      // player's name renders inline as part of a longer "PG Name · Age
+      // NN" tile, not its own bare Text, hence textContaining.
+      final allNames = <String>{
+        for (final offer in shedPicksOffers)
+          for (final asset in [...offer.offeredToYou, ...offer.askedFromYou])
+            if (asset case PlayerTradeAsset(:final player)) player.name,
+      };
+      for (final name in allNames) {
+        expect(find.textContaining(name), findsWidgets);
+      }
+    },
+  );
 
   testWidgets(
     'shows a POT chip for every player on the Trade Board -- a direct GM '

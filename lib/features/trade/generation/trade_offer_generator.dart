@@ -269,6 +269,152 @@ List<TradeOffer> generateTradeOffers(Franchise franchise) {
   return offers;
 }
 
+/// Seed offset for [generateTradeOffersForIntent]'s own random stream,
+/// whenever [intent] isn't [TradeBoardIntent.anything] -- a fresh,
+/// deliberately different stream from [generateTradeOffers]' own
+/// [kTradeOfferSeedOffset] so switching toggles doesn't just reshuffle
+/// the exact same offers into a different order. Next free number after
+/// `trade_offer_generator.dart`'s own `kAssistantGmBrokerSeedOffset`
+/// (26).
+const kTradeBoardIntentSeedOffset = 27;
+
+/// How many real matches [generateTradeOffersForIntent] tries to collect
+/// before giving up -- same as the ordinary board's own
+/// [kTradeOfferCount], so a filtered board reads as a comparable size
+/// when it can actually fill out, not deliberately thin.
+const kTradeBoardIntentTargetCount = kTradeOfferCount;
+
+/// How many (AI team, attempt) draws [generateTradeOffersForIntent] is
+/// willing to make hunting for [kTradeBoardIntentTargetCount] real
+/// matches before giving up -- generous relative to
+/// [kTradeBoardIntentTargetCount] since most individual draws won't
+/// happen to match a specific intent (e.g. most ordinary offers never
+/// involve a pick at all), not a sign anything's wrong when it comes up
+/// short.
+const kTradeBoardIntentMaxDraws = 120;
+
+/// The Trade Board, filtered to [intent] -- a direct GM ask (2026-08-23):
+/// "Could we have some further options on the trade board? ... I'm
+/// looking to get rid of draft picks, get more draft picks, looking to
+/// offload some depth to improve quality, looking to lose some quality
+/// to get younger, or 'anything'." [TradeBoardIntent.anything] is just
+/// [generateTradeOffers] itself, unchanged -- every existing caller
+/// keeps exactly the same board it always got.
+///
+/// Every other [intent] hunts across real (AI team, attempt) draws from
+/// its own dedicated random stream ([kTradeBoardIntentSeedOffset]) until
+/// [kTradeBoardIntentTargetCount] real matches turn up or
+/// [kTradeBoardIntentMaxDraws] is exhausted -- genuinely real, legal
+/// offers the exact same builders already used everywhere else in this
+/// file produce, just kept only when they happen to match what the GM
+/// actually asked to see. [TradeBoardIntent.offloadDepth] reuses
+/// [_tryBuildConsolidationOffer] directly (it's *always* that shape when
+/// it succeeds at all); the other 3 reuse [_tryBuildOffer] and keep only
+/// the draws whose real, already-computed assets happen to satisfy the
+/// intent (never invents a shape [_tryBuildOffer] itself couldn't
+/// produce on its own). Can come back shorter than
+/// [kTradeBoardIntentTargetCount] -- a real, honest outcome when the
+/// league genuinely doesn't have enough of what the GM's looking for
+/// right now, not a bug to paper over.
+List<TradeOffer> generateTradeOffersForIntent(
+  Franchise franchise,
+  TradeBoardIntent intent,
+) {
+  if (intent == TradeBoardIntent.anything) {
+    return generateTradeOffers(franchise);
+  }
+
+  final ownActive = [
+    for (final m in franchise.roster)
+      if (m.status == RosterStatus.active) m.player,
+  ];
+  if (ownActive.isEmpty) return const [];
+
+  final random = Random(
+    franchise.seasonSeed +
+        kTradeBoardIntentSeedOffset +
+        franchise.seasonProgress.nextGameDayIndex +
+        intent.index,
+  );
+  final aiTeams = List<AiTeamRoster>.of(franchise.league.aiTeams)
+    ..shuffle(random);
+  if (aiTeams.isEmpty) return const [];
+  final allTeamAbbreviations = [
+    franchise.team.abbreviation,
+    for (final aiTeam in franchise.league.aiTeams) aiTeam.team.abbreviation,
+  ];
+  final draftSeasons = tradeableDraftSeasons(franchise.season);
+
+  bool matches(TradeOffer offer) => switch (intent) {
+    TradeBoardIntent.anything => true,
+    TradeBoardIntent.shedPicks => offer.askedFromYou.any(
+      (a) => a is PickTradeAsset,
+    ),
+    TradeBoardIntent.gainPicks => offer.offeredToYou.any(
+      (a) => a is PickTradeAsset,
+    ),
+    TradeBoardIntent.offloadDepth =>
+      offer.askedFromYou.whereType<PlayerTradeAsset>().length >
+          offer.offeredToYou.whereType<PlayerTradeAsset>().length,
+    TradeBoardIntent.getYounger => _sendsOlderThanItReceives(offer),
+  };
+
+  final seenIds = <String>{};
+  final offers = <TradeOffer>[];
+  var draws = 0;
+  while (offers.length < kTradeBoardIntentTargetCount &&
+      draws < kTradeBoardIntentMaxDraws) {
+    final aiTeam = aiTeams[draws % aiTeams.length];
+    draws++;
+
+    final offer = intent == TradeBoardIntent.offloadDepth
+        ? _tryBuildConsolidationOffer(
+            aiTeam: aiTeam,
+            ownActive: ownActive,
+            ownTeamAbbreviation: franchise.team.abbreviation,
+            pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+            allTeamAbbreviations: allTeamAbbreviations,
+            draftSeasons: draftSeasons,
+          )
+        : _tryBuildOffer(
+            random,
+            aiTeam: aiTeam,
+            ownActive: ownActive,
+            forcedTarget: null,
+            slotIndex: draws,
+            ownTeamAbbreviation: franchise.team.abbreviation,
+            pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+            allTeamAbbreviations: allTeamAbbreviations,
+            draftSeasons: draftSeasons,
+          );
+    if (offer == null || !seenIds.add(offer.id)) continue;
+    if (matches(offer)) offers.add(offer);
+  }
+  return offers;
+}
+
+/// Whether [offer]'s player assets read as the GM sending someone older
+/// for someone younger back -- [TradeBoardIntent.getYounger]'s own exact
+/// meaning. Compares average age of the GM's own outgoing players
+/// (`askedFromYou`) against the incoming ones (`offeredToYou`); `false`
+/// if either side has no player assets at all to compare (a pure
+/// picks-for-picks trade never reads as an age move either way).
+bool _sendsOlderThanItReceives(TradeOffer offer) {
+  final sentAges = [
+    for (final a in offer.askedFromYou)
+      if (a is PlayerTradeAsset) a.player.age,
+  ];
+  final receivedAges = [
+    for (final a in offer.offeredToYou)
+      if (a is PlayerTradeAsset) a.player.age,
+  ];
+  if (sentAges.isEmpty || receivedAges.isEmpty) return false;
+  final sentAvg = sentAges.reduce((a, b) => a + b) / sentAges.length;
+  final receivedAvg =
+      receivedAges.reduce((a, b) => a + b) / receivedAges.length;
+  return sentAvg - receivedAvg >= _kCharacterAgeGapThreshold;
+}
+
 /// [active]'s own 3-star-or-better players -- the pool
 /// [generateTradeOffers]' star-tier-overflow relief slots target, since
 /// that's exactly who a `hasLegalFourStarCount`/`hasLegalThreeStarAndUpCount`

@@ -5,6 +5,7 @@ import 'package:womensbballmgr/features/roster/domain/roster_status.dart';
 import 'package:womensbballmgr/features/season/domain/season_progress.dart';
 import 'package:womensbballmgr/features/trade/domain/pick_ownership.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_asset.dart';
+import 'package:womensbballmgr/features/trade/domain/trade_offer.dart';
 import 'package:womensbballmgr/features/trade/domain/trade_value.dart';
 import 'package:womensbballmgr/features/trade/generation/trade_offer_generator.dart';
 
@@ -550,6 +551,135 @@ void main() {
       for (var i = 0; i < a.length; i++) {
         expect(a[i].id, b[i].id);
       }
+    });
+  });
+
+  group('generateTradeOffersForIntent (2026-08-23, a direct GM ask: '
+      '"Could we have some further options on the trade board? ... I\'m '
+      'looking to get rid of draft picks, get more draft picks, looking '
+      'to offload some depth to improve quality, looking to lose some '
+      'quality to get younger, or \'anything\'")', () {
+    test('TradeBoardIntent.anything is exactly generateTradeOffers, '
+        'unchanged', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      final plain = generateTradeOffers(franchise);
+      final viaIntent = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.anything,
+      );
+      expect(viaIntent.length, plain.length);
+      for (var i = 0; i < plain.length; i++) {
+        expect(viaIntent[i].id, plain[i].id);
+      }
+    });
+
+    test('shedPicks -- every offer really does send a pick away from the '
+        'GM', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      final offers = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.shedPicks,
+      );
+      expect(offers, isNotEmpty);
+      for (final offer in offers) {
+        expect(offer.askedFromYou.whereType<PickTradeAsset>(), isNotEmpty);
+      }
+    });
+
+    test('gainPicks -- every offer really does send the GM a pick back', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      final offers = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.gainPicks,
+      );
+      expect(offers, isNotEmpty);
+      for (final offer in offers) {
+        expect(offer.offeredToYou.whereType<PickTradeAsset>(), isNotEmpty);
+      }
+    });
+
+    test('offloadDepth -- every offer really is the 2-for-1 '
+        'consolidation shape', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      final offers = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.offloadDepth,
+      );
+      expect(offers, isNotEmpty);
+      for (final offer in offers) {
+        expect(offer.askedFromYou.whereType<PlayerTradeAsset>().length, 2);
+        expect(offer.offeredToYou.whereType<PlayerTradeAsset>().length, 1);
+      }
+    });
+
+    test('getYounger -- every offer really does send an older player (or '
+        'players) for a younger return', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      final offers = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.getYounger,
+      );
+      expect(offers, isNotEmpty);
+      for (final offer in offers) {
+        final sentAges = [
+          for (final a in offer.askedFromYou)
+            if (a case PlayerTradeAsset(:final player)) player.age,
+        ];
+        final receivedAges = [
+          for (final a in offer.offeredToYou)
+            if (a case PlayerTradeAsset(:final player)) player.age,
+        ];
+        expect(sentAges, isNotEmpty);
+        expect(receivedAges, isNotEmpty);
+        final sentAvg = sentAges.reduce((a, b) => a + b) / sentAges.length;
+        final receivedAvg =
+            receivedAges.reduce((a, b) => a + b) / receivedAges.length;
+        expect(sentAvg, greaterThan(receivedAvg));
+      }
+    });
+
+    test('every offer is still objectively legal for the offering '
+        'team\'s own coach Management, across every non-anything intent', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      for (final intent in TradeBoardIntent.values) {
+        for (final offer in generateTradeOffersForIntent(franchise, intent)) {
+          final aiTeam = franchise.league.aiTeams.firstWhere(
+            (t) => t.team.abbreviation == offer.offeringTeamAbbreviation,
+          );
+          expect(
+            isTradeWithinManagementSwing(
+              offeredValue: offer.offeredValue,
+              requestedValue: offer.askedValue,
+              management: aiTeam.coach.stats.management,
+            ),
+            isTrue,
+            reason: 'intent $intent: offer $offer is not actually legal',
+          );
+        }
+      }
+    });
+
+    test('deterministic for the same franchise state, for every intent', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      for (final intent in TradeBoardIntent.values) {
+        final a = generateTradeOffersForIntent(franchise, intent);
+        final b = generateTradeOffersForIntent(franchise, intent);
+        expect(a.length, b.length);
+        for (var i = 0; i < a.length; i++) {
+          expect(a[i].id, b[i].id);
+        }
+      }
+    });
+
+    test('distinct intents produce distinct offer ids from the plain '
+        'board -- not just the same offers reshuffled', () {
+      final franchise = withFullActiveRoster(franchiseForPortraitTests());
+      final plainIds = generateTradeOffers(franchise).map((o) => o.id).toSet();
+      final shedPicksIds = generateTradeOffersForIntent(
+        franchise,
+        TradeBoardIntent.shedPicks,
+      ).map((o) => o.id).toSet();
+      expect(shedPicksIds.intersection(plainIds), isEmpty);
     });
   });
 }
