@@ -265,7 +265,7 @@ class _MailRow extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    'From $from',
+                    'From $from · ${item0.dateLabel}',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -319,6 +319,7 @@ class _AssistantGmMailDetailScreen extends StatelessWidget {
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
                     _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(label: 'Date', value: item.dateLabel),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       child: Divider(height: 1),
@@ -383,6 +384,7 @@ class _AllStarSelectionMailDetailScreen extends StatelessWidget {
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
                     const _MailHeaderRow(label: 'From', value: 'League Office'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(label: 'Date', value: item.dateLabel),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       child: Divider(height: 1),
@@ -479,6 +481,7 @@ class _LeagueRetirementsMailDetailScreen extends StatelessWidget {
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
                     const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(label: 'Date', value: item.dateLabel),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       child: Divider(height: 1),
@@ -563,6 +566,7 @@ class _RosterLegalityMailDetailScreen extends StatelessWidget {
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
                     const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(label: 'Date', value: item.dateLabel),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       child: Divider(height: 1),
@@ -662,6 +666,7 @@ class _AssistantGmTradeBrokeringMailDetailScreen extends StatelessWidget {
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
                     const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(label: 'Date', value: item.dateLabel),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       child: Divider(height: 1),
@@ -781,6 +786,7 @@ class _InjuryReportMailDetailScreen extends StatelessWidget {
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
                     const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(label: 'Date', value: item.dateLabel),
                     _MailHeaderRow(
                       label: 'Date',
                       value: formatFictionalDate(item.week, item.day),
@@ -865,6 +871,7 @@ class _InjuryRecoveredMailDetailScreen extends StatelessWidget {
                     _MailHeaderRow(label: 'To', value: franchise.gmName),
                     const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
+                    _MailHeaderRow(label: 'Date', value: item.dateLabel),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       child: Divider(height: 1),

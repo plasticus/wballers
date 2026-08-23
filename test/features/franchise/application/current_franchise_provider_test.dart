@@ -2899,6 +2899,67 @@ void main() {
       expect(season1, isNotNull);
       expect(season1!.season, 1);
     });
+
+    // A direct GM report (2026-08-23): "Season recaps screen is rad, but
+    // after finishing ssn 2, it's not showing the ssn2 recap. Only season
+    // 1." Root cause: `seasonRecapSeasonsProvider` is a plain
+    // `FutureProvider` -- reading it once (exactly what the Dashboard's
+    // own card does the moment Season 1 finishes) caches the result, so
+    // an in-memory GM session that had already looked at the card before
+    // Season 2 ended kept seeing the stale, season-1-only list forever
+    // after, even though the real on-disk index had moved on. The 2 tests
+    // above never actually caught this because they only ever read the
+    // provider *once*, right at the very end -- this one reads it warm,
+    // in between transitions, on purpose.
+    test('a season already read once by the time a later season '
+        'transitions still picks up the new entry -- the provider must '
+        'be invalidated, not just written to disk', () async {
+      final repository = InMemorySaveRepository();
+      final container = ProviderContainer(
+        overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final franchise = withFullActiveRoster(
+        createExpansionFranchise(
+          gmName: 'Jordan Ellis',
+          clubName: 'Comets',
+          homeCity: 'Springfield, IL',
+          conference: Conference.atlantic,
+          replacedTeamAbbreviation: 'BOS',
+          colors: kStarterPalettes.first,
+          emoji: '🏀',
+          simulationSeed: 1,
+        ),
+      );
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .createFranchise(franchise);
+      await _playSeasonToCompletion(container);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+
+      // Warm the cache -- exactly what the Dashboard's "Season Recaps"
+      // card does the instant it renders after Season 1 ends.
+      final afterFirst = await container.read(
+        seasonRecapSeasonsProvider.future,
+      );
+      expect(afterFirst, [0]);
+
+      await _playSeasonToCompletion(container);
+      await container
+          .read(currentFranchiseProvider.notifier)
+          .beginNextSeasonAndPersist();
+
+      final afterSecond = await container.read(
+        seasonRecapSeasonsProvider.future,
+      );
+      expect(
+        afterSecond,
+        [1, 0],
+        reason: 'Season 2\'s recap must show up too, not just Season 1\'s',
+      );
+    });
   });
 
   test(

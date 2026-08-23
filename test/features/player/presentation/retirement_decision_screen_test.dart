@@ -95,6 +95,7 @@ void main() {
             item: RetirementDecisionMailItem(
               pending: franchise.pendingRetirements.single,
               player: target,
+              week: 1,
             ),
           ),
         ),
@@ -133,6 +134,7 @@ void main() {
                           item: RetirementDecisionMailItem(
                             pending: franchise.pendingRetirements.single,
                             player: target,
+                            week: 1,
                           ),
                         ),
                       ),
@@ -194,6 +196,7 @@ void main() {
                           item: RetirementDecisionMailItem(
                             pending: franchise.pendingRetirements.single,
                             player: target,
+                            week: 1,
                           ),
                         ),
                       ),

@@ -93,9 +93,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Last Roster Spot'), findsOneWidget);
-      expect(find.text('From Assistant GM'), findsOneWidget);
+      // Dated now (2026-08-23, a direct GM ask: "I think we need to start
+      // dating emails") -- "From X" is a prefix of "From X · <date>", not
+      // the whole row's text anymore.
+      expect(find.textContaining('From Assistant GM'), findsOneWidget);
       expect(find.text('Week 1 Training Report'), findsOneWidget);
-      expect(find.text('From Training Staff'), findsOneWidget);
+      expect(find.textContaining('From Training Staff'), findsOneWidget);
 
       // The unmarked-read system message is bold, the already-read
       // training report is not.

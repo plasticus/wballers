@@ -12,6 +12,7 @@ import '../../roster/domain/roster_status.dart';
 import '../../roster/domain/star_tier.dart';
 import '../../season/domain/game_day.dart';
 import '../../season/domain/scheduled_game.dart';
+import '../../season/domain/season_progress.dart' show gameDaysInOrder;
 import '../../season/generation/season_schedule_generator.dart'
     show kPostseasonFinalsWeek;
 import '../../trade/generation/trade_offer_generator.dart';
@@ -88,6 +89,10 @@ List<MailItem> mailboxFor(Franchise franchise) {
   final activeCount = franchise.roster
       .where((m) => m.status == RosterStatus.active)
       .length;
+  // "Today," for every live nudge below that has no event of its own to
+  // date itself by (a roster-legality warning, an Assistant GM note) --
+  // see [_currentMailWeek]'s own doc comment.
+  final currentWeek = _currentMailWeek(franchise);
 
   final items = <MailItem>[
     // [kRosterGapMailId] is a scripted Day-0 onboarding beat, not a
@@ -114,12 +119,14 @@ List<MailItem> mailboxFor(Franchise franchise) {
         id: kRosterGapMailId,
         subject: 'Last Roster Spot',
         body: assistantGmRosterGapMessage(franchise),
+        week: currentWeek,
       )
     else if (franchise.season == 0 && activeCount >= kActiveRosterSize)
       AssistantGmMailItem(
         id: kRosterCompleteMailId,
         subject: 'Roster Set',
         body: assistantGmRosterCompleteMessage,
+        week: currentWeek,
       ),
     if (franchise.leagueRetirements
             .where((r) => r.teamAbbreviation != franchise.team.abbreviation)
@@ -142,6 +149,9 @@ List<MailItem> mailboxFor(Franchise franchise) {
           id: ownRetirementMailId(retirement.playerId),
           subject: '${retirement.name} Has Retired',
           body: assistantGmOwnRetirementMessage(retirement),
+          // Off-season, same as [LeagueRetirementsMailItem] -- retirements
+          // resolve at the Finals, not on some specific game day.
+          week: kPostseasonFinalsWeek,
         ),
     // A real, per-draft recap -- a direct GM ask (2026-08-22): "I need
     // to get an email after the draft noting who I drafted, and how
@@ -162,6 +172,9 @@ List<MailItem> mailboxFor(Franchise franchise) {
           drafted: drafted,
           waived: franchise.draftWaivedPlayers,
         ),
+        // Same off-season bucket as the retirements above -- the draft
+        // has no real calendar week of its own to key off either.
+        week: kPostseasonFinalsWeek,
       ),
     if (evaluateFranchiseLegality(franchise) case final legality
         when !legality.isLegal)
@@ -174,11 +187,13 @@ List<MailItem> mailboxFor(Franchise franchise) {
               .map((m) => m.player)
               .toList(),
         ),
+        week: currentWeek,
       ),
     if (needsAssistantGmTradeBrokering(franchise))
       AssistantGmTradeBrokeringMailItem(
         candidates: assistantGmBrokerCandidates(franchise),
         proposedOffers: assistantGmBrokeredOffers(franchise),
+        week: currentWeek,
       ),
     for (final report in franchise.trainingReports)
       TrainingReportMailItem(report),
@@ -209,12 +224,13 @@ List<MailItem> mailboxFor(Franchise franchise) {
         player: franchise.roster
             .firstWhere((m) => m.player.id == pending.playerId)
             .player,
+        week: currentWeek,
       ),
     for (final group in _injuryReportsByGameDay(franchise.injuryReports))
       InjuryReportMailItem(week: group.$1, day: group.$2, entries: group.$3),
     for (final membership in franchise.roster)
       if (membership.recoveredWhileReserved)
-        InjuryRecoveredMailItem(player: membership.player),
+        InjuryRecoveredMailItem(player: membership.player, week: currentWeek),
     // A real, per-player recommendation -- the actual replacement for the
     // scripted "sign a free agent" message that used to wrongly re-fire
     // here (2026-08-21, a direct GM report: pulling an injured player out
@@ -230,6 +246,7 @@ List<MailItem> mailboxFor(Franchise franchise) {
           id: injuryRecommendationMailId(membership.player.id),
           subject: '${membership.player.name} is Hurt',
           body: assistantGmInjuryRecommendationMessage(membership),
+          week: currentWeek,
         ),
   ];
 
@@ -247,6 +264,23 @@ List<MailItem> mailboxFor(Franchise franchise) {
     return 0;
   });
   return items;
+}
+
+/// "Today," for [MailItem.week]'s purposes -- the week of [franchise]'s
+/// next unplayed game day, or its last one if the season's already fully
+/// played out. Distinct from [lastFullyCompletedWeek] (which is `null`
+/// mid-week, and doesn't apply once nothing's left to play) -- this
+/// always resolves to a real week number, since every live nudge below
+/// needs one to date itself by. A direct GM ask (2026-08-23): "I think we
+/// need to start dating emails."
+int _currentMailWeek(Franchise franchise) {
+  final gameDays = gameDaysInOrder(franchise.seasonProgress.schedule);
+  if (gameDays.isEmpty) return 1;
+  final index = franchise.seasonProgress.nextGameDayIndex.clamp(
+    0,
+    gameDays.length - 1,
+  );
+  return gameDays[index].$1;
 }
 
 bool _isPinned(MailItem item) =>

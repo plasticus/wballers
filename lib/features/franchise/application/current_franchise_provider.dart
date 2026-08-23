@@ -23,7 +23,7 @@ import '../../roster/generation/jersey_number_assignment.dart';
 import '../../roster/generation/roster_legality_advancer.dart';
 import '../../season/application/franchise_rosters.dart';
 import '../../season/application/season_recap_history_provider.dart'
-    show saveSeasonRecap;
+    show saveSeasonRecap, seasonRecapSeasonsProvider;
 import '../../season/domain/game_result.dart';
 import '../../season/domain/scheduled_game.dart';
 import '../../season/domain/season_progress.dart';
@@ -109,22 +109,27 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
   /// number.
   ///
   /// A no-op if there's no current franchise, [playerId] isn't actually
-  /// in [Franchise.freeAgents], or [status]'s own slot is already full
+  /// in [Franchise.freeAgents], [status] is [RosterStatus.reserveInactive]
+  /// (a direct GM report, 2026-08-23: "Injured reserve shouldn't allow me
+  /// to put free agents in there" -- that slot is for an existing roster
+  /// player being parked while hurt, never a second way to sign someone
+  /// new), or [status]'s own slot is already full
   /// ([kMaxDevelopmentalRosterSpots] for developmental -- plus
   /// [isDevelopmentalEligible], since a free agent with too many years of
-  /// service can't go there at all -- [kMaxInactiveRosterSpots] for
-  /// reserve/inactive). Active has no such cap -- see [_hasOpenSlot]'s own
-  /// doc comment for why -- so this can only actually no-op for
-  /// developmental/reserve-inactive; defensive guards either way, not
-  /// paths the real UI should ever hit (the Player Market screen's Free
-  /// Agents tab and the Team screen's Development/Inactive slot pickers
-  /// only ever offer a slot/player combination that's actually legal).
+  /// service can't go there at all). Active has no such cap -- see
+  /// [_hasOpenSlot]'s own doc comment for why -- so this can only actually
+  /// no-op for developmental/reserve-inactive; defensive guards either
+  /// way, not paths the real UI should ever hit (the Player Market
+  /// screen's Free Agents tab and the Team screen's Development/Inactive
+  /// slot pickers only ever offer a slot/player combination that's
+  /// actually legal).
   Future<void> signFreeAgent(
     String playerId, {
     RosterStatus status = RosterStatus.active,
   }) async {
     final franchise = await future;
     if (franchise == null) return;
+    if (status == RosterStatus.reserveInactive) return;
 
     final index = franchise.freeAgents.indexWhere((p) => p.id == playerId);
     if (index == -1) return;
@@ -1254,6 +1259,15 @@ class CurrentFranchiseNotifier extends AsyncNotifier<Franchise?> {
     final repository = ref.read(saveRepositoryProvider);
     final slotId = await ref.read(activeSaveSlotProvider.future);
     await saveSeasonRecap(repository, slotId, franchise);
+    // [seasonRecapSeasonsProvider] is a plain `FutureProvider` -- it reads
+    // the on-disk index once and caches the result, so without this the
+    // Dashboard's "Season Recaps" card (and the history screen it opens)
+    // kept showing whatever seasons existed the *first* time anything
+    // read it, silently never picking up a later season's entry even
+    // though [saveSeasonRecap] just wrote it for real (a direct GM
+    // report, 2026-08-23: "after finishing ssn 2, it's not showing the
+    // ssn2 recap. Only season 1.").
+    ref.invalidate(seasonRecapSeasonsProvider);
 
     final portraitWeights = await ref.read(portraitWeightsProvider.future);
     final next = beginNextSeason(franchise, portraitWeights: portraitWeights);

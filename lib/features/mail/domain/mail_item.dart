@@ -7,6 +7,8 @@ import '../../roster/domain/roster_legality.dart';
 import '../../season/domain/game_day.dart';
 import '../../season/domain/played_game.dart';
 import '../../season/domain/skills_competition.dart';
+import '../../season/generation/season_schedule_generator.dart'
+    show kPostseasonFinalsWeek;
 import '../../trade/domain/trade_offer.dart';
 import '../../training/domain/training_report.dart';
 
@@ -33,6 +35,29 @@ sealed class MailItem {
   String get id;
 
   String get subject;
+
+  /// The season week this item is "about," for display -- a direct GM
+  /// ask (2026-08-23): "I think we need to start dating emails." Always a
+  /// real, non-negative week number, distinct from `mailbox.dart`'s own
+  /// private `_recencyWeek` sort key (which uses a few deliberately
+  /// out-of-band values, like -1, purely to control sort order, not to
+  /// claim a real date). A report-like item (a training report, an
+  /// injury report) uses the actual week the event it's about happened;
+  /// a live, ongoing nudge with no event of its own to point to (a
+  /// roster-legality warning, an Assistant GM note) is stamped with
+  /// whatever week [mailboxFor] considered "now" the moment it built the
+  /// inbox.
+  int get week;
+
+  /// Which real calendar day within [week] this item reads as --
+  /// [dateLabel] defaults to that week's own Sunday when this is `null`,
+  /// fine for anything without one specific game day to point to.
+  GameDay? get day => null;
+
+  /// A flavor-text calendar date for this item, e.g. "May 3"
+  /// (`formatFictionalDate`'s own doc comment -- purely for display,
+  /// nothing reads it back).
+  String get dateLabel => formatFictionalDate(week, day ?? GameDay.sunday);
 }
 
 /// A proactive note from the Assistant GM -- currently only the "you're
@@ -46,6 +71,7 @@ class AssistantGmMailItem extends MailItem {
     required this.id,
     required this.subject,
     required this.body,
+    required this.week,
   });
 
   @override
@@ -55,6 +81,9 @@ class AssistantGmMailItem extends MailItem {
   final String subject;
 
   final String body;
+
+  @override
+  final int week;
 }
 
 /// A [TrainingReport], wrapped so it can sit in the same inbox list as
@@ -75,6 +104,9 @@ class TrainingReportMailItem extends MailItem {
   // comment) -- a direct GM report, 2026-08-19: an off-season report that
   // silently covered several weeks still only ever said "Week 24."
   String get subject => '${report.weekRangeLabel} Training Report';
+
+  @override
+  int get week => report.week;
 }
 
 /// The one place [TrainingReportMailItem.id]'s format is spelled out --
@@ -99,6 +131,9 @@ class SkillsCompetitionMailItem extends MailItem {
 
   @override
   String get subject => 'Skills Competition Results';
+
+  @override
+  int get week => result.week;
 }
 
 /// A [SkillsCompetitionResult]'s squad selection, wrapped as its own mail
@@ -129,6 +164,9 @@ class AllStarSelectionMailItem extends MailItem {
 
   @override
   String get subject => 'All-Star Selections Announced';
+
+  @override
+  int get week => result.week;
 }
 
 /// The All-Star Game's [PlayedGame], plus the squad selection
@@ -147,6 +185,12 @@ class AllStarGameMailItem extends MailItem {
 
   @override
   String get subject => 'All-Star Game Recap';
+
+  @override
+  int get week => playedGame.game.week;
+
+  @override
+  GameDay? get day => playedGame.game.day;
 }
 
 /// A [PendingRetirement] on the GM's own roster, plus the [player] it's
@@ -161,6 +205,7 @@ class RetirementDecisionMailItem extends MailItem {
   const RetirementDecisionMailItem({
     required this.pending,
     required this.player,
+    required this.week,
   });
 
   final PendingRetirement pending;
@@ -171,6 +216,9 @@ class RetirementDecisionMailItem extends MailItem {
 
   @override
   String get subject => '${player.name} is Considering Retirement';
+
+  @override
+  final int week;
 }
 
 /// This season's batch of [LeagueRetirement]s -- an Assistant GM roundup
@@ -194,6 +242,13 @@ class LeagueRetirementsMailItem extends MailItem {
 
   @override
   String get subject => 'League Retirements';
+
+  // Retirements resolve right after the Finals, alongside every other
+  // off-season pass -- there's no real per-item week to key off (unlike a
+  // single played game), so this reads as the Finals' own calendar week,
+  // the same moment the rest of the off-season report lands.
+  @override
+  int get week => kPostseasonFinalsWeek;
 }
 
 /// A live warning that the GM's own roster currently violates one or
@@ -223,6 +278,7 @@ class RosterLegalityMailItem extends MailItem {
   const RosterLegalityMailItem({
     required this.legality,
     this.suggestedDrops = const [],
+    required this.week,
   });
 
   final RosterLegality legality;
@@ -233,6 +289,9 @@ class RosterLegalityMailItem extends MailItem {
 
   @override
   String get subject => 'Roster Legality Issue';
+
+  @override
+  final int week;
 }
 
 /// The Assistant GM actively brokering trades to fix a just-finished
@@ -260,6 +319,7 @@ class AssistantGmTradeBrokeringMailItem extends MailItem {
   const AssistantGmTradeBrokeringMailItem({
     required this.candidates,
     required this.proposedOffers,
+    required this.week,
   });
 
   final List<Player> candidates;
@@ -270,6 +330,9 @@ class AssistantGmTradeBrokeringMailItem extends MailItem {
 
   @override
   String get subject => 'Working the Phones';
+
+  @override
+  final int week;
 }
 
 /// Every new injury (across the whole league, the GM's own roster
@@ -284,7 +347,9 @@ class InjuryReportMailItem extends MailItem {
     required this.entries,
   });
 
+  @override
   final int week;
+  @override
   final GameDay day;
   final List<InjuryReportEntry> entries;
 
@@ -305,9 +370,12 @@ class InjuryReportMailItem extends MailItem {
 /// field's own doc comment for why a durable flag (not just
 /// `injury == null`) is what makes this safe to re-derive.
 class InjuryRecoveredMailItem extends MailItem {
-  const InjuryRecoveredMailItem({required this.player});
+  const InjuryRecoveredMailItem({required this.player, required this.week});
 
   final Player player;
+
+  @override
+  final int week;
 
   @override
   String get id => 'injury_recovered_${player.id}';

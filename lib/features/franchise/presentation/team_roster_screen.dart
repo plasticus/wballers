@@ -610,7 +610,8 @@ bool _hasRoomFor(Franchise franchise, RosterStatus destination, Player player) {
 /// A direct GM ask included signing a free agent straight into a dev
 /// slot ("So I could potentially sign a young FA into one of my dev
 /// slots") -- both paths land here rather than needing two different
-/// flows.
+/// flows. Injured/Inactive is the one exception -- see
+/// [freeAgentCandidates]'s own comment.
 class _AssignPlayerSheet extends ConsumerWidget {
   const _AssignPlayerSheet({required this.franchise, required this.status});
 
@@ -637,8 +638,18 @@ class _AssignPlayerSheet extends ConsumerWidget {
             if (injuredCompare != 0) return injuredCompare;
             return b.player.ratings.overall.compareTo(a.player.ratings.overall);
           });
-    final freeAgentCandidates = franchise.freeAgents.where(eligible).toList()
-      ..sort((a, b) => b.ratings.potential.compareTo(a.ratings.potential));
+    // Injured/Inactive is a parking spot for a player already on the
+    // roster who's hurt (or otherwise needs benching) -- never a second
+    // way to sign a fresh free agent, which [RosterStatus.reserveInactive]'s
+    // own doc comment already frames as unconstrained precisely because
+    // it's meant for existing roster players, not a stash. A direct GM
+    // report (2026-08-23): "Injured reserve shouldn't allow me to put
+    // free agents in there."
+    final freeAgentCandidates = status == RosterStatus.reserveInactive
+        ? const <Player>[]
+        : (franchise.freeAgents.where(eligible).toList()..sort(
+            (a, b) => b.ratings.potential.compareTo(a.ratings.potential),
+          ));
 
     return SafeArea(
       child: Padding(
