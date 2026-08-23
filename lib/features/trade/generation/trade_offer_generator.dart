@@ -493,18 +493,25 @@ List<Player> assistantGmBrokerCandidates(Franchise franchise) {
 /// The Assistant GM's own real, concrete trade proposals for
 /// [kAssistantGmBrokerCandidateCount] of the GM's weakest active players
 /// -- empty unless [needsAssistantGmTradeBrokering] is actually true.
-/// Each candidate gets tried against *every* AI team in a shuffled order
-/// (not just one, unlike an ordinary Trade Board slot) via
-/// [_trySellPlayerForPicks], the same "trying to get draft picks for
-/// them" shape the GM's own ask called for -- "bust her ass" reads as
-/// genuinely working harder than a normal slot's handful of attempts,
-/// not just trying the same odds again. Only developmental-eligible
-/// candidates: only active players are actually tradeable in this
-/// system (every other builder in this file already assumes that too)
-/// -- "dev slots full" is read as *why* she's desperate, not as a claim
-/// developmental players themselves get shopped. Can come back shorter
-/// than [kAssistantGmBrokerCandidateCount] if she genuinely can't find a
-/// real deal for one of them -- a real, honest outcome
+/// Each candidate gets *two* real shapes tried against *every* AI team
+/// in a shuffled order (not just one, unlike an ordinary Trade Board
+/// slot) -- both real-world moves the GM's own ask named specifically:
+/// "trading them out for fewer players, trying to get draft picks for
+/// them." [_trySellPlayerForPicks] is the pick sale; pairing the
+/// candidate with whichever *other* candidate is next in line
+/// ([_tryConsolidatePairForOnePlayer]) is the "fewer players" one --
+/// two of the GM's bottom three bundled into one upgrade, the same real
+/// shape [_tryBuildConsolidationOffer] already uses elsewhere, just
+/// aimed at these specific named players instead of always the flat
+/// weakest two. "Bust her ass" reads as genuinely working harder than a
+/// normal slot's handful of attempts, not just trying the same odds
+/// again. Only developmental-eligible candidates: only active players
+/// are actually tradeable in this system (every other builder in this
+/// file already assumes that too) -- "dev slots full" is read as *why*
+/// she's desperate, not as a claim developmental players themselves get
+/// shopped. Can come back shorter than [kAssistantGmBrokerCandidateCount]
+/// (or with fewer than 2 proposals for a given candidate) if she
+/// genuinely can't find a real deal -- a real, honest outcome
 /// (`mail_item.dart`'s `AssistantGmTradeBrokeringMailItem` shows
 /// whatever she actually found, not a padded list).
 List<TradeOffer> assistantGmBrokeredOffers(Franchise franchise) {
@@ -523,7 +530,9 @@ List<TradeOffer> assistantGmBrokeredOffers(Franchise franchise) {
   final draftSeasons = tradeableDraftSeasons(franchise.season);
 
   final offers = <TradeOffer>[];
-  for (final candidate in candidates) {
+  for (var i = 0; i < candidates.length; i++) {
+    final candidate = candidates[i];
+
     for (final aiTeam in aiTeams) {
       final ownedPicks = picksOwnedBy(
         aiTeam.team.abbreviation,
@@ -541,6 +550,23 @@ List<TradeOffer> assistantGmBrokeredOffers(Franchise franchise) {
       );
       if (offer != null) {
         offers.add(offer);
+        break;
+      }
+    }
+
+    if (candidates.length < 2) continue;
+    final partner = candidates[(i + 1) % candidates.length];
+    for (final aiTeam in aiTeams) {
+      final consolidation = _tryConsolidatePairForOnePlayer(
+        aiTeam: aiTeam,
+        askedPair: [candidate, partner],
+        ownTeamAbbreviation: franchise.team.abbreviation,
+        pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+        allTeamAbbreviations: allTeamAbbreviations,
+        draftSeasons: draftSeasons,
+      );
+      if (consolidation != null) {
+        offers.add(consolidation);
         break;
       }
     }
@@ -851,6 +877,40 @@ TradeOffer? _tryBuildConsolidationOffer({
   required List<int> draftSeasons,
 }) {
   if (ownActive.length < 2) return null;
+  final weakestTwo = [...ownActive]
+    ..sort(
+      (a, b) => PlayerTradeAsset(
+        a,
+      ).tradeValue.compareTo(PlayerTradeAsset(b).tradeValue),
+    );
+  return _tryConsolidatePairForOnePlayer(
+    aiTeam: aiTeam,
+    askedPair: weakestTwo.take(2).toList(),
+    ownTeamAbbreviation: ownTeamAbbreviation,
+    pickOwnershipOverrides: pickOwnershipOverrides,
+    allTeamAbbreviations: allTeamAbbreviations,
+    draftSeasons: draftSeasons,
+  );
+}
+
+/// The actual 2-for-1 matching [_tryBuildConsolidationOffer] (always the
+/// GM's own weakest 2) and `assistantGmBrokeredOffers` (one specific
+/// named candidate, paired with the next-weakest active player not
+/// already spoken for) both reuse -- [askedPair] out for whichever 1 of
+/// [aiTeam]'s own players lands closest in combined value
+/// ([_closestCombo]), same value-balancing fallback
+/// ([_tryAddPickToBalance]) every other builder in this file already
+/// uses when the raw values alone don't land within [tradeSwing].
+/// `null` under the same real conditions every other builder can
+/// already fail for.
+TradeOffer? _tryConsolidatePairForOnePlayer({
+  required AiTeamRoster aiTeam,
+  required List<Player> askedPair,
+  required String ownTeamAbbreviation,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
+}) {
   final aiActive = [
     for (final m in aiTeam.roster)
       if (m.status == RosterStatus.active) m.player,
@@ -860,21 +920,16 @@ TradeOffer? _tryBuildConsolidationOffer({
   final management = aiTeam.coach.stats.management;
   final swing = tradeSwing(management);
 
-  final weakestTwo = [...ownActive]
-    ..sort(
-      (a, b) => PlayerTradeAsset(
-        a,
-      ).tradeValue.compareTo(PlayerTradeAsset(b).tradeValue),
-    );
-  final asked = weakestTwo.take(2).toList();
-  final askedValue = asked.fold(
+  final askedValue = askedPair.fold(
     0,
     (sum, p) => sum + PlayerTradeAsset(p).tradeValue,
   );
 
   final offeredPlayer = _closestCombo(aiActive, 1, askedValue).single;
   var offered = <TradeAsset>[PlayerTradeAsset(offeredPlayer)];
-  var askedAssets = <TradeAsset>[for (final p in asked) PlayerTradeAsset(p)];
+  var askedAssets = <TradeAsset>[
+    for (final p in askedPair) PlayerTradeAsset(p),
+  ];
 
   var gap = totalTradeValue(offered) - totalTradeValue(askedAssets);
   if (gap.abs() > swing) {

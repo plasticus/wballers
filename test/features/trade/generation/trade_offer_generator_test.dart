@@ -529,18 +529,39 @@ void main() {
 
       final offers = assistantGmBrokeredOffers(franchise);
       expect(offers, isNotEmpty);
+      final candidateIds = candidates.map((p) => p.id).toSet();
+      var sawPicksSale = false;
+      var sawFewerPlayersSale = false;
       for (final offer in offers) {
-        // Every offer is a real "picks only" sale of exactly one of the
-        // named candidates.
-        expect(offer.askedFromYou.length, 1);
-        final asked = offer.askedFromYou.single;
-        expect(asked, isA<PlayerTradeAsset>());
-        expect(
-          candidates.map((p) => p.id),
-          contains((asked as PlayerTradeAsset).player.id),
-        );
-        expect(offer.offeredToYou.every((a) => a is PickTradeAsset), isTrue);
+        final askedPlayers = offer.askedFromYou.whereType<PlayerTradeAsset>();
+        // Every asked player is a real named candidate -- nobody outside
+        // the 3 she's actually supposed to be working on.
+        for (final asked in askedPlayers) {
+          expect(candidateIds, contains(asked.player.id));
+        }
+        if (offer.askedFromYou.length == 1 &&
+            offer.offeredToYou.every((a) => a is PickTradeAsset)) {
+          // "trying to get draft picks for them."
+          sawPicksSale = true;
+        } else if (askedPlayers.length == 2 &&
+            offer.offeredToYou.whereType<PlayerTradeAsset>().length == 1) {
+          // "trading them out for fewer players" -- 2 candidates
+          // bundled for 1 real upgrade back.
+          sawFewerPlayersSale = true;
+        }
       }
+      expect(
+        sawPicksSale,
+        isTrue,
+        reason: 'never found a real picks-only sale for any candidate',
+      );
+      expect(
+        sawFewerPlayersSale,
+        isTrue,
+        reason:
+            'never found a real "fewer players back" consolidation for '
+            'any candidate pair',
+      );
     });
 
     test('deterministic for the same franchise state', () {
