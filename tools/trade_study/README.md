@@ -13,6 +13,17 @@ php -S localhost:8000
 
 Then open http://localhost:8000/ in a browser.
 
+To rate trades from another device on the same network (phone, laptop,
+etc.), bind to all interfaces instead and use the host machine's LAN IP:
+
+```
+php -S 0.0.0.0:8000
+```
+
+Then open `http://<host-machine-LAN-IP>:8000/` from the other device
+(e.g. `http://10.23.0.137:8000/` -- check with `ip -4 addr show` if
+that IP has changed).
+
 ## How it works
 
 - Every visit generates 20 trades (assuming a coach with 70 Management,
