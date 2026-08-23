@@ -660,9 +660,13 @@ void main() {
     });
 
     test('every offer is still objectively legal for the offering '
-        'team\'s own coach Management, across every non-anything intent', () {
+        'team\'s own coach Management, across every non-anything intent '
+        '-- except gainPicks, which deliberately reuses '
+        '_tryBuildSellForPicksOffer\'s own wider discount tolerance '
+        '(kSellForPicksExtraTolerance, that constant\'s own doc comment)', () {
       final franchise = withFullActiveRoster(franchiseForPortraitTests());
       for (final intent in TradeBoardIntent.values) {
+        if (intent == TradeBoardIntent.gainPicks) continue;
         for (final offer in generateTradeOffersForIntent(franchise, intent)) {
           final aiTeam = franchise.league.aiTeams.firstWhere(
             (t) => t.team.abbreviation == offer.offeringTeamAbbreviation,

@@ -307,15 +307,26 @@ const kTradeBoardIntentMaxDraws = 120;
 /// [kTradeBoardIntentMaxDraws] is exhausted -- genuinely real, legal
 /// offers the exact same builders already used everywhere else in this
 /// file produce, just kept only when they happen to match what the GM
-/// actually asked to see. [TradeBoardIntent.offloadDepth] reuses
-/// [_tryBuildConsolidationOffer] directly (it's *always* that shape when
-/// it succeeds at all); the other 3 reuse [_tryBuildOffer] and keep only
-/// the draws whose real, already-computed assets happen to satisfy the
-/// intent (never invents a shape [_tryBuildOffer] itself couldn't
-/// produce on its own). Can come back shorter than
-/// [kTradeBoardIntentTargetCount] -- a real, honest outcome when the
-/// league genuinely doesn't have enough of what the GM's looking for
-/// right now, not a bug to paper over.
+/// actually asked to see. [TradeBoardIntent.offloadDepth]/[gainPicks]
+/// reuse [_tryBuildConsolidationOffer]/[_tryBuildSellForPicksOffer]
+/// directly -- each is *always* the matching shape when it succeeds at
+/// all, so there's nothing to filter. [shedPicks]/[getYounger] reuse
+/// the ordinary [_tryBuildOffer] and keep only the draws whose real,
+/// already-computed assets happen to satisfy the intent (never invents
+/// a shape [_tryBuildOffer] itself couldn't produce on its own) --
+/// [_tryBuildOffer] alone would have made [gainPicks] nearly
+/// unreachable in practice too (a direct GM report, 2026-08-23: "when I
+/// put on a filter, I'm only seeing like 2 trades"; measured root
+/// cause: AI rosters run ~7% stronger on average than the GM's own
+/// starting roster, `starting_roster_generator.dart`/`league_generator.dart`
+/// -- see that finding's own note in the git history for the full
+/// numbers -- which makes "the AI needs to sweeten *its own* offer with
+/// a pick" the rare direction and "the GM needs to sweeten *theirs*"
+/// the common one, entirely by chance rather than by the GM's own
+/// intent). Can come back shorter than [kTradeBoardIntentTargetCount]
+/// -- a real, honest outcome when the league genuinely doesn't have
+/// enough of what the GM's looking for right now, not a bug to paper
+/// over.
 List<TradeOffer> generateTradeOffersForIntent(
   Franchise franchise,
   TradeBoardIntent intent,
@@ -367,26 +378,38 @@ List<TradeOffer> generateTradeOffersForIntent(
     final aiTeam = aiTeams[draws % aiTeams.length];
     draws++;
 
-    final offer = intent == TradeBoardIntent.offloadDepth
-        ? _tryBuildConsolidationOffer(
-            aiTeam: aiTeam,
-            ownActive: ownActive,
-            ownTeamAbbreviation: franchise.team.abbreviation,
-            pickOwnershipOverrides: franchise.pickOwnershipOverrides,
-            allTeamAbbreviations: allTeamAbbreviations,
-            draftSeasons: draftSeasons,
-          )
-        : _tryBuildOffer(
-            random,
-            aiTeam: aiTeam,
-            ownActive: ownActive,
-            forcedTarget: null,
-            slotIndex: draws,
-            ownTeamAbbreviation: franchise.team.abbreviation,
-            pickOwnershipOverrides: franchise.pickOwnershipOverrides,
-            allTeamAbbreviations: allTeamAbbreviations,
-            draftSeasons: draftSeasons,
-          );
+    final offer = switch (intent) {
+      TradeBoardIntent.offloadDepth => _tryBuildConsolidationOffer(
+        aiTeam: aiTeam,
+        ownActive: ownActive,
+        ownTeamAbbreviation: franchise.team.abbreviation,
+        pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+        allTeamAbbreviations: allTeamAbbreviations,
+        draftSeasons: draftSeasons,
+      ),
+      TradeBoardIntent.gainPicks => _tryBuildSellForPicksOffer(
+        random,
+        aiTeam: aiTeam,
+        ownActive: ownActive,
+        ownTeamAbbreviation: franchise.team.abbreviation,
+        pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+        allTeamAbbreviations: allTeamAbbreviations,
+        draftSeasons: draftSeasons,
+      ),
+      TradeBoardIntent.anything ||
+      TradeBoardIntent.shedPicks ||
+      TradeBoardIntent.getYounger => _tryBuildOffer(
+        random,
+        aiTeam: aiTeam,
+        ownActive: ownActive,
+        forcedTarget: null,
+        slotIndex: draws,
+        ownTeamAbbreviation: franchise.team.abbreviation,
+        pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+        allTeamAbbreviations: allTeamAbbreviations,
+        draftSeasons: draftSeasons,
+      ),
+    };
     if (offer == null || !seenIds.add(offer.id)) continue;
     if (matches(offer)) offers.add(offer);
   }
