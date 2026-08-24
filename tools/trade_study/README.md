@@ -26,22 +26,25 @@ that IP has changed).
 
 ## How it works
 
-- Every visit generates 5 trades (assuming a coach with 70 Management,
+- Every visit generates 6 trades (assuming a coach with 70 Management,
   matching the real `tradeSwing()` formula from
   `lib/features/trade/domain/trade_value.dart`). Reloading the page keeps
   the same batch; submitting the form rolls a brand new one, so you can
   run this as many times as you want.
-- Every batch guarantees at least one 1st-round-pick trade, one
-  2nd-round-pick trade, one **SELL FOR PICKS** trade (a player, no
-  return player, straight for picks -- the real "Gain Picks" toggle's
-  flat sell-off shape), and one **MOVE UP** trade (spending a worse
-  pick you own, maybe with a player thrown in, for one real better pick
-  -- the toggle's other shape), each badged so you can tell them apart.
-  Both new shapes (added 2026-08-23) use a wider discount tolerance than
+- Every batch guarantees exactly one trade per real Trade Board toggle --
+  **Anything**, **Gain Picks**, **Shed Picks**, **Offload Depth**,
+  **Get Younger** (`tradeBoardIntentLabel()` in `trade_offer.dart`) --
+  plus one **Going Big** trade, a study-only category that isn't a
+  shipped toggle yet: a real package of draft picks and/or a young
+  high-potential prospect, chasing one real 88+ overall star. Each
+  trade is badged with its category so they're easy to tell apart at a
+  glance. Gain Picks/Shed Picks both use a wider discount tolerance than
   ordinary trades (`EXTRA_PICK_TOLERANCE`, matching
   `kSellForPicksExtraTolerance`/`kPickSpendExtraTolerance` in the real
-  game) -- expect these to read as more one-sided than an ordinary
-  trade; that's by design, not a bug to flag.
+  game) -- expect those two to read as more one-sided than an ordinary
+  trade; that's by design, not a bug to flag. Offload Depth/Get Younger
+  stay on the ordinary swing tolerance, same as Anything; Going Big
+  isn't discounted either.
 - Rate each trade -5 (you win big) to +5 (they win big), or leave it on
   "skip" to leave it out. Add notes if you want to remember why.
 - Submitting saves every non-skipped rating to `ratings.json` in this

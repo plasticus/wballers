@@ -120,19 +120,14 @@ function random_overall(): int {
     return max(35, min(99, $overall));
 }
 
-function generate_player(): array {
-    $overall = random_overall();
-    $age = mt_rand(20, 34);
-    if ($age <= 23) {
-        $potential = min(99, $overall + mt_rand(5, 30));
-    } else {
-        $potential = min(99, $overall + mt_rand(0, 3));
-    }
-    // The real overall = round(skillPoints/12) -- any skillPoints within
-    // ~5.5 either side of overall*12 rounds back to the same overall, so
-    // this stays consistent with the displayed number.
+/** Shared player-record builder -- every generator below (ordinary,
+ * young prospect, star target) funnels through this so the
+ * name/skillPoints/tier/value fields never drift out of sync between
+ * them. `$overall`/`$potential`/`$age` are whatever the specific
+ * generator already decided; skillPoints is derived the same
+ * overall*12-plus-jitter way `generate_player`'s own comment explains. */
+function make_player(int $overall, int $potential, int $age): array {
     $skillPoints = $overall * 12 + mt_rand(-5, 6);
-
     return [
         'type' => 'player',
         'position' => POSITIONS[mt_rand(0, 4)],
@@ -144,6 +139,41 @@ function generate_player(): array {
         'tier' => star_tier($overall),
         'value' => player_trade_value($overall, $potential, $skillPoints, $age),
     ];
+}
+
+function generate_player(): array {
+    $overall = random_overall();
+    $age = mt_rand(20, 34);
+    if ($age <= 23) {
+        $potential = min(99, $overall + mt_rand(5, 30));
+    } else {
+        $potential = min(99, $overall + mt_rand(0, 3));
+    }
+    return make_player($overall, $potential, $age);
+}
+
+/** A real young riser -- age 19-23, overall 55-78, potential well
+ * beyond it (+12 to +30). What try_build_going_big spends alongside
+ * picks: "usually requires more draft picks or youngs w/ big
+ * potential" (2026-08-24, a direct GM ask). */
+function generate_young_prospect(): array {
+    $overall = mt_rand(55, 78);
+    $potential = min(99, $overall + mt_rand(12, 30));
+    $age = mt_rand(19, 23);
+    return make_player($overall, $potential, $age);
+}
+
+/** A real star-caliber target -- overall 88-99, what try_build_going_big
+ * goes after. Mostly an established star (potential close to overall),
+ * but under-90 sometimes rolls as a real riser instead -- "upper 80s
+ * with age/potential to get [into] the 90s" (2026-08-24, same GM ask). */
+function generate_star_player(): array {
+    $overall = mt_rand(88, 99);
+    $age = mt_rand(21, 33);
+    $potential = ($overall < 90 && mt_rand(1, 100) <= 60)
+        ? min(99, $overall + mt_rand(3, 9))
+        : min(99, $overall + mt_rand(0, 3));
+    return make_player($overall, $potential, $age);
 }
 
 function generate_pick(?int $round = null): array {
@@ -476,18 +506,254 @@ function try_build_pick_upgrade(int $swing): ?array {
     return null;
 }
 
+/** Mirrors trade_offer_generator.dart's _tryBuildPickForTalentOffer --
+ * the Shed Picks toggle's own dedicated shape: spend only picks you own
+ * (1, or the closest-value pair of 2) to buy back one real player,
+ * aiming for the strongest one your picks can actually reach. The exact
+ * reverse of try_build_sell_for_picks -- widened by the same
+ * EXTRA_PICK_TOLERANCE. */
+function try_build_pick_for_talent(int $swing): ?array {
+    $tolerance = $swing + EXTRA_PICK_TOLERANCE;
+    $yourPicks = [generate_pick(), generate_pick(), generate_pick()];
+
+    $theirRoster = [];
+    for ($i = 0; $i < 12; $i++) $theirRoster[] = generate_player();
+    usort($theirRoster, fn($a, $b) => $b['value'] <=> $a['value']); // strongest first
+    $candidates = array_slice($theirRoster, 0, 6);
+
+    foreach ($candidates as $target) {
+        $targetValue = $target['value'];
+
+        $shuffled = $yourPicks;
+        shuffle($shuffled);
+        foreach ($shuffled as $pick) {
+            if (abs($targetValue - $pick['value']) <= $tolerance) {
+                return [
+                    'give' => [$pick],
+                    'get' => [$target],
+                    'give_value' => $pick['value'],
+                    'get_value' => $targetValue,
+                    'swing' => $swing,
+                    'gap' => $targetValue - $pick['value'],
+                    'forced_pick' => true,
+                    'shape' => 'pick_for_talent',
+                ];
+            }
+        }
+
+        $bestPair = null;
+        $bestDiff = PHP_INT_MAX;
+        for ($i = 0; $i < count($yourPicks); $i++) {
+            for ($j = $i + 1; $j < count($yourPicks); $j++) {
+                $sum = $yourPicks[$i]['value'] + $yourPicks[$j]['value'];
+                $diff = abs($sum - $targetValue);
+                if ($diff < $bestDiff) {
+                    $bestDiff = $diff;
+                    $bestPair = [$yourPicks[$i], $yourPicks[$j]];
+                }
+            }
+        }
+        if ($bestPair !== null && $bestDiff <= $tolerance) {
+            $sum = $bestPair[0]['value'] + $bestPair[1]['value'];
+            return [
+                'give' => $bestPair,
+                'get' => [$target],
+                'give_value' => $sum,
+                'get_value' => $targetValue,
+                'swing' => $swing,
+                'gap' => $targetValue - $sum,
+                'forced_pick' => true,
+                'shape' => 'pick_for_talent',
+            ];
+        }
+    }
+    return null;
+}
+
+/** Mirrors trade_offer_generator.dart's _tryBuildConsolidationOffer --
+ * the Offload Depth toggle's own dedicated shape: your own weakest 2
+ * active players (always the bottom of the roster, never a random 2)
+ * for whichever 1 of their players lands closest in combined value.
+ * Ordinary swing tolerance, with the same opportunistic one-pick
+ * balancing every plain trade already gets -- no wide discount here,
+ * unlike the pick-only shapes above. */
+function try_build_consolidation(int $swing): ?array {
+    $yourRoster = [];
+    for ($i = 0; $i < 12; $i++) $yourRoster[] = generate_player();
+    usort($yourRoster, fn($a, $b) => $a['value'] <=> $b['value']);
+    $give = array_slice($yourRoster, 0, 2);
+    $giveValue = total_value($give);
+
+    $theirRoster = [];
+    for ($i = 0; $i < 12; $i++) $theirRoster[] = generate_player();
+    $get = closest_combo($theirRoster, 1, $giveValue);
+    $gap = total_value($get) - $giveValue;
+
+    if (abs($gap) > $swing) {
+        if ($gap < 0) {
+            $pick = generate_pick();
+            $get[] = $pick;
+            $gap = total_value($get) - $giveValue;
+        } else {
+            $pick = generate_pick();
+            $give[] = $pick;
+            $giveValue = total_value($give);
+            $gap = total_value($get) - $giveValue;
+        }
+    }
+
+    if (abs($gap) <= $swing) {
+        return [
+            'give' => $give,
+            'get' => $get,
+            'give_value' => $giveValue,
+            'get_value' => total_value($get),
+            'swing' => $swing,
+            'gap' => $gap,
+            'forced_pick' => false,
+            'shape' => 'consolidation',
+        ];
+    }
+    return null;
+}
+
+/** The Get Younger toggle's own shape isn't a distinct trade structure
+ * in the real game -- it reuses the ordinary builder and just keeps
+ * whichever real draws happen to send someone older than they receive
+ * (`_sendsOlderThanItReceives`, a 4+ year average-age gap). Mirrors that
+ * here: draw ordinary trades and keep the first one that clears the
+ * same gap, rather than inventing a shape that doesn't exist. */
+function try_build_get_younger(int $swing): ?array {
+    for ($attempt = 0; $attempt < 30; $attempt++) {
+        $trade = try_build_trade($swing);
+        if ($trade === null) continue;
+        $giveAges = array_map(fn($a) => $a['age'], array_filter($trade['give'], fn($a) => $a['type'] === 'player'));
+        $getAges = array_map(fn($a) => $a['age'], array_filter($trade['get'], fn($a) => $a['type'] === 'player'));
+        if (empty($giveAges) || empty($getAges)) continue;
+        $giveAvg = array_sum($giveAges) / count($giveAges);
+        $getAvg = array_sum($getAges) / count($getAges);
+        if ($giveAvg - $getAvg >= 4) {
+            $trade['shape'] = 'get_younger';
+            return $trade;
+        }
+    }
+    return null;
+}
+
+/** The $size-asset subset of $pool (distinct indices, brute-force -- pool
+ * sizes used here are always small enough for that to stay cheap)
+ * landing closest in combined value to $target. Empty if $pool is
+ * smaller than $size. */
+function closest_subset(array $pool, int $size, int $target): array {
+    $n = count($pool);
+    if ($size > $n) return [];
+    $combos = [];
+    $build = function (int $start, array $chosen) use (&$build, &$combos, $n, $size) {
+        if (count($chosen) === $size) {
+            $combos[] = $chosen;
+            return;
+        }
+        for ($k = $start; $k < $n; $k++) {
+            $build($k + 1, [...$chosen, $k]);
+        }
+    };
+    $build(0, []);
+
+    $best = [];
+    $bestDiff = PHP_INT_MAX;
+    foreach ($combos as $combo) {
+        $assets = array_map(fn($idx) => $pool[$idx], $combo);
+        $diff = abs(total_value($assets) - $target);
+        if ($diff < $bestDiff) {
+            $bestDiff = $diff;
+            $best = $assets;
+        }
+    }
+    return $best;
+}
+
+/** Not a real shipped Trade Board toggle (yet) -- a study-only category
+ * a direct GM ask (2026-08-24) called for: "there should probably also
+ * be a tag for like... going big, or big splash, where you try to go
+ * after 90+ ovr players, or players who are upper 80s with age/potential
+ * to get [into] the 90s. tough to do, usually requires more draft picks
+ * or youngs w/ big potential." Targets one real [generate_star_player],
+ * then hunts a real 2-or-3-asset package (real picks skewed toward
+ * rounds 1-2, plus a real chance of one of [generate_young_prospect])
+ * that lands within ordinary [swing] of her value -- same "closest real
+ * combination, not an invented one" posture every other builder here
+ * already uses. */
+function try_build_going_big(int $swing): ?array {
+    for ($attempt = 0; $attempt < 20; $attempt++) {
+        $target = generate_star_player();
+        $targetValue = $target['value'];
+
+        $pool = [
+            generate_pick(1), generate_pick(1),
+            generate_pick(2), generate_pick(2),
+            generate_pick(3),
+            generate_young_prospect(), generate_young_prospect(),
+        ];
+
+        foreach ([2, 3] as $size) {
+            $give = closest_subset($pool, $size, $targetValue);
+            if (empty($give)) continue;
+            $giveValue = total_value($give);
+            $gap = $targetValue - $giveValue;
+            if (abs($gap) <= $swing) {
+                return [
+                    'give' => $give,
+                    'get' => [$target],
+                    'give_value' => $giveValue,
+                    'get_value' => $targetValue,
+                    'swing' => $swing,
+                    'gap' => $gap,
+                    'forced_pick' => true,
+                    'shape' => 'going_big',
+                ];
+            }
+        }
+    }
+    return null;
+}
+
 function generate_batch(int $seed, int $count): array {
     mt_srand($seed);
     $swing = trade_swing(ASSUMED_MANAGEMENT);
     $trades = [];
     $guard = 0;
 
-    // Guarantee a 1st-rounder and a 2nd-rounder actually show up -- with a
-    // batch this small, leaving the round to chance (1-in-3 draw per pick)
-    // risked never seeing one at all (a direct GM ask, 2026-08-23).
-    foreach ([1, 2] as $forcedRound) {
-        for ($tries = 0; $tries < 10; $tries++) {
-            $trade = try_build_forced_pick_trade($swing, $forcedRound);
+    // One trade per real Trade Board toggle, plus one study-only "Going
+    // Big" slot -- exactly $count (6) slots (2026-08-24, direct GM asks:
+    // "I want to see some that represent trying the different toggles
+    // we added. tag them, too, with like 'gain picks' etc."; same day,
+    // "there should probably also be a tag for like... going big").
+    // Replaces the old "guarantee round 1 and round 2" scheme -- that
+    // older goal (make sure *some* pick trade shows up) is now covered
+    // more specifically by the Gain Picks/Shed Picks slots below, which
+    // are picks-only trades by construction.
+    //
+    // Anything alternates between the plain opportunistic shape and the
+    // guaranteed-pick 2-for-2 shape, same mix the real unfiltered board
+    // actually has. Gain Picks alternates seed-to-seed between its own
+    // 2 real shapes (sell_for_picks/pick_upgrade) rather than showing
+    // both every batch -- see toggle_label()'s own doc comment for how
+    // they're tagged the same either way.
+    $builders = [
+        fn() => mt_rand(0, 1) === 0
+            ? try_build_trade($swing)
+            : try_build_forced_pick_trade($swing),
+        mt_rand(0, 1) === 0
+            ? fn() => try_build_sell_for_picks($swing)
+            : fn() => try_build_pick_upgrade($swing),
+        fn() => try_build_pick_for_talent($swing),
+        fn() => try_build_consolidation($swing),
+        fn() => try_build_get_younger($swing),
+        fn() => try_build_going_big($swing),
+    ];
+    foreach ($builders as $build) {
+        for ($tries = 0; $tries < 15; $tries++) {
+            $trade = $build();
             if ($trade !== null) {
                 $trades[] = $trade;
                 break;
@@ -495,40 +761,11 @@ function generate_batch(int $seed, int $count): array {
         }
     }
 
-    // Guarantee at least 1 of each new pick-heavy shape too -- both are
-    // real, current Trade Board patterns (the "Gain Picks" toggle) that
-    // postdate this tool's original 25-trade dataset, so they need their
-    // own deliberate coverage the same way the forced-round guarantee
-    // above already gets one (2026-08-23, a direct GM ask after seeing
-    // these exact shapes live in-game: "put some like those in the
-    // trade evaluator").
-    foreach (['sell_for_picks', 'pick_upgrade'] as $shape) {
-        for ($tries = 0; $tries < 10; $tries++) {
-            $trade = $shape === 'sell_for_picks'
-                ? try_build_sell_for_picks($swing)
-                : try_build_pick_upgrade($swing);
-            if ($trade !== null) {
-                $trades[] = $trade;
-                break;
-            }
-        }
-    }
-
-    // Oversample the guaranteed-pick 2-for-2 pattern beyond that -- about
-    // a quarter of the batch, any round -- since picks are the shape
-    // worth scrutinizing (see try_build_forced_pick_trade's doc comment).
-    $forcedPickTarget = max(count($trades), (int) round($count / 4));
-    while (count($trades) < $forcedPickTarget && $guard < $forcedPickTarget * 10) {
-        $guard++;
-        $trade = try_build_forced_pick_trade($swing);
-        if ($trade !== null) {
-            $trades[] = $trade;
-        }
-    }
-
-    // Falls back to the ordinary opportunistic builder for the rest, same
-    // "try, don't force it" posture the real generator uses.
-    while (count($trades) < $count && $guard < $count * 10) {
+    // Tops up with the ordinary opportunistic builder if a slot above
+    // never landed within its own tries (a real, expected outcome for a
+    // poorly-matched draw, not a bug) or $count ever asks for more than
+    // the 6 toggle slots.
+    while (count($trades) < $count && $guard < $count * 20) {
         $guard++;
         $trade = try_build_trade($swing);
         if ($trade !== null) {
@@ -572,11 +809,22 @@ function trade_has_pick(array $give, array $get): bool {
 
 /** Human label for a trade's `shape` -- `null` for 'ordinary'/'forced_pick'
  * (the PICK badge already covers those; nothing extra worth calling out). */
-function shape_label(string $shape): ?string {
+/** Every trade's real category, for tagging -- the exact real Trade
+ * Board toggle it represents (`tradeBoardIntentLabel()` in
+ * trade_offer.dart), plus the study-only "Going Big" category
+ * (2026-08-24, a direct GM ask: "tag them, too, with like 'gain picks'
+ * etc." -- then, same day, "there should probably also be a tag for
+ * like... going big"). `sell_for_picks`/`pick_upgrade` both tag as
+ * "Gain Picks" -- they're 2 real shapes behind the same one toggle, not
+ * 2 different toggles, so they share the one tag on purpose. */
+function toggle_label(string $shape): string {
     return match ($shape) {
-        'sell_for_picks' => 'SELL FOR PICKS',
-        'pick_upgrade' => 'MOVE UP',
-        default => null,
+        'sell_for_picks', 'pick_upgrade' => 'Gain Picks',
+        'pick_for_talent' => 'Shed Picks',
+        'consolidation' => 'Offload Depth',
+        'get_younger' => 'Get Younger',
+        'going_big' => 'Going Big',
+        default => 'Anything', // 'ordinary', 'forced_pick'
     };
 }
 
@@ -604,7 +852,11 @@ function asset_label(array $a): string {
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
-$count = 5; // was 20 -- too many to rate in one sitting (a direct GM ask, 2026-08-23)
+// was 20 (a direct GM ask, 2026-08-23: "too many to rate in one
+// sitting"), bumped from 5 to 6 the next day to fit the new dedicated
+// Going Big slot alongside the 5 toggle slots (2026-08-24) -- one trade
+// per real category, not an arbitrary round number.
+$count = 6;
 $viewMode = isset($_GET['view']);
 
 // A stable seed per URL -- reloading the page shows the same batch;
@@ -756,11 +1008,19 @@ function h(string $s): string {
     $withoutPick = array_filter($all, fn($r) => !trade_has_pick($r['give'], $r['get']));
     $avgWithPick = count($withPick) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $withPick)) / count($withPick) : null;
     $avgWithoutPick = count($withoutPick) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $withoutPick)) / count($withoutPick) : null;
-    // The 2 new pick-heavy shapes (2026-08-23) -- a real, current Trade
-    // Board pattern this dataset's original 25 trades predate entirely,
-    // so a separate breakdown matters here specifically.
-    $newShapes = array_filter($all, fn($r) => in_array($r['shape'] ?? 'ordinary', ['sell_for_picks', 'pick_upgrade'], true));
-    $avgNewShapes = count($newShapes) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $newShapes)) / count($newShapes) : null;
+    // Per-toggle breakdown (2026-08-24) -- Gain Picks/Shed Picks/Offload
+    // Depth/Get Younger/Going Big are all real, current Trade Board
+    // categories (Going Big study-only for now) this dataset's original
+    // 25 trades predate entirely, so a separate |rating| average per
+    // toggle matters here specifically.
+    $byToggle = [];
+    foreach (['Anything', 'Gain Picks', 'Shed Picks', 'Offload Depth', 'Get Younger', 'Going Big'] as $toggle) {
+        $rows = array_filter($all, fn($r) => toggle_label($r['shape'] ?? 'ordinary') === $toggle);
+        $byToggle[$toggle] = [
+            'count' => count($rows),
+            'avg' => count($rows) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $rows)) / count($rows) : null,
+        ];
+    }
   ?>
   <div class="stat-cards">
     <div class="stat-card"><div class="big"><?= $total ?></div><div class="muted">rated trades</div></div>
@@ -769,9 +1029,11 @@ function h(string $s): string {
     <div class="stat-card"><div class="big"><?= $avgOutside === null ? '—' : number_format($avgOutside, 2) ?></div><div class="muted">avg rating, outside engine tolerance (<?= count($outside) ?>)</div></div>
     <div class="stat-card"><div class="big"><?= $avgWithPick === null ? '—' : number_format($avgWithPick, 2) ?></div><div class="muted">avg |rating| for trades with a pick (<?= count($withPick) ?>)</div></div>
     <div class="stat-card"><div class="big"><?= $avgWithoutPick === null ? '—' : number_format($avgWithoutPick, 2) ?></div><div class="muted">avg |rating| for trades without one (<?= count($withoutPick) ?>)</div></div>
-    <div class="stat-card"><div class="big"><?= $avgNewShapes === null ? '—' : number_format($avgNewShapes, 2) ?></div><div class="muted">avg |rating| for SELL FOR PICKS / MOVE UP trades (<?= count($newShapes) ?>)</div></div>
+    <?php foreach ($byToggle as $toggle => $stat): ?>
+      <div class="stat-card"><div class="big"><?= $stat['avg'] === null ? '—' : number_format($stat['avg'], 2) ?></div><div class="muted">avg |rating|, <?= h($toggle) ?> (<?= $stat['count'] ?>)</div></div>
+    <?php endforeach; ?>
   </div>
-  <p class="muted">"Within engine tolerance" means the trade math (Management <?= ASSUMED_MANAGEMENT ?>, swing ±<?= $swing ?>) would let this trade actually happen in-game. If those two averages read far apart from 0 in opposite directions, or the "outside tolerance" trades aren't reading much worse to you than the "within" ones, that's a sign the swing number itself may need retuning. The pick-vs-no-pick pair compares by <strong>magnitude</strong> (how lopsided, regardless of direction) -- if pick trades run consistently more lopsided, that's a sign the flat pick-value ladder (<?= DRAFT_PICK_VALUE[1] ?>/<?= DRAFT_PICK_VALUE[2] ?>/<?= DRAFT_PICK_VALUE[3] ?> by round) is coarser than it should be. SELL FOR PICKS/MOVE UP trades are <em>expected</em> to run more lopsided than ordinary ones -- they deliberately use a wider <?= EXTRA_PICK_TOLERANCE ?>-point discount tolerance on top of the normal swing -- so judge that number against "does a below-market desperation sale still feel fair," not against 0.</p>
+  <p class="muted">"Within engine tolerance" means the trade math (Management <?= ASSUMED_MANAGEMENT ?>, swing ±<?= $swing ?>) would let this trade actually happen in-game. If those two averages read far apart from 0 in opposite directions, or the "outside tolerance" trades aren't reading much worse to you than the "within" ones, that's a sign the swing number itself may need retuning. The pick-vs-no-pick pair compares by <strong>magnitude</strong> (how lopsided, regardless of direction) -- if pick trades run consistently more lopsided, that's a sign the flat pick-value ladder (<?= DRAFT_PICK_VALUE[1] ?>/<?= DRAFT_PICK_VALUE[2] ?>/<?= DRAFT_PICK_VALUE[3] ?> by round) is coarser than it should be. Gain Picks/Shed Picks trades are <em>expected</em> to run more lopsided than ordinary ones -- they deliberately use a wider <?= EXTRA_PICK_TOLERANCE ?>-point discount tolerance on top of the normal swing -- so judge that number against "does a below-market desperation sale still feel fair," not against 0. Offload Depth/Get Younger both stay on the ordinary swing tolerance, same as Anything -- no built-in discount either direction. Going Big is study-only (not a real toggle yet, and not discounted either) -- its own number is really asking "does the real cost of landing a real star feel about right."</p>
 
   <?php if ($total === 0): ?>
     <p>No ratings saved yet -- <a href="?">go rate some trades</a>.</p>
@@ -795,7 +1057,7 @@ function h(string $s): string {
           <td><?php foreach ($r['give'] as $a) echo h(asset_label($a)) . '<br>'; ?></td>
           <td><?php foreach ($r['get'] as $a) echo h(asset_label($a)) . '<br>'; ?></td>
           <td><?= trade_has_pick($r['give'], $r['get']) ? 'Yes' : '' ?></td>
-          <td><?= h(shape_label($r['shape'] ?? 'ordinary') ?? '') ?></td>
+          <td><?= h(toggle_label($r['shape'] ?? 'ordinary')) ?></td>
           <td><?= $r['gap'] >= 0 ? '+' : '' ?><?= $r['gap'] ?> (swing ±<?= $r['swing'] ?>)</td>
           <td><?= $r['within_tolerance'] ? 'Yes' : 'No' ?></td>
           <td><strong><?= $r['rating'] >= 0 ? '+' : '' ?><?= $r['rating'] ?></strong></td>
@@ -814,15 +1076,16 @@ function h(string $s): string {
     (swing tolerance ±<?= $swing ?> value points). Team A is the left side of each card,
     Team B the right. Slide left for <strong>Team A</strong> winning the trade, right for
     <strong>Team B</strong>, center for dead even -- every trade is assumed rated at
-    whatever the slider shows unless you check "skip this one." This batch is
-    deliberately oversampled toward draft picks (marked <span class="pick-badge">PICK</span>)
-    since that's the shape most worth scrutinizing -- always at least one 1st-rounder and
-    one 2nd-rounder, plus at least one real <span class="pick-badge shape-badge">SELL FOR PICKS</span>
-    (a player, no return player, straight for picks) and one
-    <span class="pick-badge shape-badge">MOVE UP</span> (spending a worse pick you own,
-    maybe with a player thrown in, for one real better pick) -- the 2 shapes behind the
-    "Gain Picks" Trade Board toggle. Reloading this page keeps the same batch; submitting
-    rolls a brand new one.
+    whatever the slider shows unless you check "skip this one." Every trade is tagged
+    with which real Trade Board toggle it represents (<span class="pick-badge shape-badge">ANYTHING</span>,
+    <span class="pick-badge shape-badge">GAIN PICKS</span>,
+    <span class="pick-badge shape-badge">SHED PICKS</span>,
+    <span class="pick-badge shape-badge">OFFLOAD DEPTH</span>,
+    <span class="pick-badge shape-badge">GET YOUNGER</span>) -- one trade per toggle,
+    guaranteed, every batch -- plus one <span class="pick-badge shape-badge">GOING BIG</span>
+    trade, a study-only category (not a real toggle yet): a real package of picks and/or a
+    young high-potential prospect, chasing one real 88+ overall star. Reloading this page
+    keeps the same batch; submitting rolls a brand new one.
   </p>
 
   <datalist id="ratingTicks">
@@ -832,7 +1095,7 @@ function h(string $s): string {
   <form method="post" action="?seed=<?= $seed ?>">
     <?php foreach ($trades as $i => $trade): ?>
       <div class="trade">
-        <h3>Trade <?= $i + 1 ?><?php if (trade_has_pick($trade['give'], $trade['get'])): ?> <span class="pick-badge">PICK</span><?php endif; ?><?php if ($label = shape_label($trade['shape'] ?? 'ordinary')): ?> <span class="pick-badge shape-badge"><?= h($label) ?></span><?php endif; ?></h3>
+        <h3>Trade <?= $i + 1 ?> <span class="pick-badge shape-badge"><?= h(strtoupper(toggle_label($trade['shape'] ?? 'ordinary'))) ?></span><?php if (trade_has_pick($trade['give'], $trade['get'])): ?> <span class="pick-badge">PICK</span><?php endif; ?></h3>
         <div class="sides">
           <div class="side">
             <h4>Team A Sends</h4>
