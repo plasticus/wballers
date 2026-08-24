@@ -44,10 +44,10 @@ const FULL_WEIGHT_OVERALL = 75;
 const UPSIDE_WEIGHT = 4;
 const AGE_RISK_WEIGHT = 1.5;
 // kTradeValueReplacementFloorFraction -- how much of raw skillPoints
-// still counts below replacement quality (2026-08-24, re-synced
-// alongside that constant's own real-game addition; see its doc comment
-// in trade_value.dart for the full story/evidence).
-const REPLACEMENT_FLOOR_FRACTION = 0.1;
+// still counts below replacement quality. 0.1 -> 0.04 the same day,
+// re-synced alongside that constant's own real-game update; see its doc
+// comment in trade_value.dart for the full story/evidence.
+const REPLACEMENT_FLOOR_FRACTION = 0.04;
 
 // kTradeValueNoUpsideRunwayGap / kTradeValueEliteOverallStart /
 // kTradeValueEliteOverallFull -- 2026-08-24, re-synced alongside that
@@ -91,7 +91,10 @@ function quality_ramp(int $gate): float {
  * _tradeValueNoUpsideEscapeRamp for the full story. */
 function no_upside_escape_ramp(int $overall, int $potential): float {
     $gap = max(0, $potential - $overall);
-    $runway = min(1.0, $gap / NO_UPSIDE_RUNWAY_GAP);
+    // Squared, not linear -- same day, re-synced; see
+    // _tradeValueUpsideRunwayRamp's own doc comment in trade_value.dart.
+    $runwayRatio = min(1.0, $gap / NO_UPSIDE_RUNWAY_GAP);
+    $runway = $runwayRatio * $runwayRatio;
     if ($overall <= ELITE_OVERALL_START) {
         $elite = 0.0;
     } elseif ($overall >= ELITE_OVERALL_FULL) {

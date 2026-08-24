@@ -111,7 +111,18 @@ double _tradeValueQualityRamp(int gate) {
 /// above-quoted trades, and every other trade this fix was aimed at,
 /// now genuinely fails its own [tradeSwing]/tolerance check instead of
 /// reading as legal.
-const kTradeValueReplacementFloorFraction = 0.1;
+///
+/// Lowered 0.1 -> 0.04 the next day, after `tools/trade_study/`'s new
+/// direct "Name Your Price" mode named several 70-79 OVR/minimal-upside
+/// veterans as worth roughly a 3rd-round pick or less, verbatim: "not
+/// worth a draft pick, ever," "too crappy to even be called a
+/// sweetener," "WEAK 3rd, if anything" -- these were already gated by
+/// [_tradeValueNoUpsideEscapeRamp] (added the same day as the original
+/// 0.1), but still computed to 2-5x too much (84-254 instead of ~0-50)
+/// purely because 0.1 of a real overall's skillPoints is still a real
+/// number. See [_tradeValueUpsideRunwayRamp]'s own doc comment for the
+/// other half of this same fix.
+const kTradeValueReplacementFloorFraction = 0.04;
 
 /// Potential-over-overall gap at/above which a player reads as a real
 /// prospect with genuine runway left -- full credit toward
@@ -133,11 +144,22 @@ const kTradeValueEliteOverallFull = 90;
 const kTradeValueEliteOverallStart = 85;
 
 /// 0.0 at zero potential-over-overall gap, 1.0 at
-/// [kTradeValueNoUpsideRunwayGap] or above, linear between.
+/// [kTradeValueNoUpsideRunwayGap] or above -- squared, not linear, so a
+/// small real gap (2-5 points, essentially "she might tick up a little")
+/// still reads as close to zero credit rather than a meaningfully
+/// diluted discount. Squared 2026-08-24 -- a linear ramp let even a
+/// 3-point gap (e.g. 72 OVR/75 POT) claim a real 20% credit, which
+/// combined with a large skillPoints base still computed to several
+/// times what a direct "Name Your Price" answer named for that exact
+/// shape ("maybe a 3rd rounder... take it without question," engine
+/// said 254). A genuine riser (a double-digit gap) is barely affected
+/// either way -- (11/15) vs (11/15)² only differs by about 27%; it's
+/// specifically the near-zero-gap end this was ever about.
 double _tradeValueUpsideRunwayRamp(int overall, int potential) {
   final gap = potential > overall ? potential - overall : 0;
   final ratio = gap / kTradeValueNoUpsideRunwayGap;
-  return ratio > 1.0 ? 1.0 : ratio;
+  if (ratio >= 1.0) return 1.0;
+  return ratio * ratio;
 }
 
 /// 0.0 at/below [kTradeValueEliteOverallStart], 1.0 at/above

@@ -247,6 +247,68 @@ void main() {
       );
       expect((800 - riser).abs(), lessThan(47 + 250));
     });
+
+    // 2026-08-24 -- kTradeValueReplacementFloorFraction's own doc comment
+    // (the 0.1 -> 0.04 update) and _tradeValueUpsideRunwayRamp's own doc
+    // comment (linear -> squared) have the full story. Each case here is
+    // a real tools/trade_study/ "Name Your Price" answer -- a moderate-
+    // overall (62-78), essentially no-upside (0-5 point gap) veteran,
+    // named as worth roughly a 3rd-round pick or less, verbatim. The
+    // no-upside-escape fix shipped the day before already gated these
+    // (both are above kTradeValueFullWeightOverall or close to it), but
+    // still computed 84-254 -- 2-5x too much -- since 10% of a real
+    // overall's skillPoints is still a real number on its own.
+    test('a moderate-overall, essentially-no-upside veteran now reads as '
+        'genuinely minor -- "not worth a draft pick, ever," "too crappy '
+        'to even be called a sweetener"', () {
+      // 70 OVR / 72 POT / age 31.
+      final establishedBench = playerTradeValue(
+        overall: 70,
+        potential: 72,
+        skillPoints: 70 * 12,
+        age: 31,
+      );
+      expect(establishedBench, lessThan(50));
+
+      // 62 OVR / 65 POT / age 28.
+      final deepBench = playerTradeValue(
+        overall: 62,
+        potential: 65,
+        skillPoints: 62 * 12,
+        age: 28,
+      );
+      expect(deepBench, lessThan(50));
+    });
+
+    test('a small real upside gap (2-5 points) still reads as close to '
+        'no credit at all -- a linear ramp let this exact shape claim a '
+        'real 20% credit, which the GM\'s own direct answer for it '
+        '("maybe a 3rd rounder... take it without question") said was '
+        'still much too generous', () {
+      // 72 OVR / 75 POT / age 25 -- a 3-point gap.
+      final value = playerTradeValue(
+        overall: 72,
+        potential: 75,
+        skillPoints: 72 * 12,
+        age: 25,
+      );
+      expect(value, lessThan(100));
+    });
+
+    test('a genuine double-digit upside gap is barely affected by the '
+        'squared ramp -- still clears close to full credit, unlike the '
+        'near-zero-gap cases above', () {
+      // 72 OVR / 94 POT / age 20 -- a real riser, a direct GM answer:
+      // "that's worth a 1st, for sure! Maybe even a first plus a
+      // sweetener."
+      final value = playerTradeValue(
+        overall: 72,
+        potential: 94,
+        skillPoints: 72 * 12,
+        age: 20,
+      );
+      expect(value, greaterThan(700));
+    });
   });
 
   group('draftPickTradeValue', () {
