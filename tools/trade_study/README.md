@@ -57,6 +57,38 @@ that IP has changed).
   `tradeSwing()`/`kDraftPickTradeValue` numbers in the real game might
   need retuning.
 
+## Name Your Price (Value Check mode)
+
+A second, separate mode (2026-08-24) -- a direct reverse-elicitation test,
+complementing the trade-rating mode above: instead of judging an already-
+built trade, name a fair return for one real player, in your own words.
+Link at the top of either page ("Name Your Price" / "View Saved Value
+Checks").
+
+- Every batch shows 6 player profiles: 3 are **pick anchors**, one per
+  round, each shaped like what the real Dart draft generator's own pick
+  10/11 of that specific round actually looks like on average
+  (empirically measured -- 3000 simulated draft classes, sorted by
+  `draftProspectValue()`, averaged at slots 10-11 within each round --
+  not eyeballed, and not a round-wide average either). Badged "PICK N
+  ANCHOR." The other 3 are ordinary roster-quality profiles for broader
+  calibration.
+- For each, type what you'd actually take (or give) to trade for her --
+  a pick, a player, a combo, whatever's real -- or tap a quick-fill
+  button to start from a common answer (`Nothing real` / `A 3rd` / `A
+  2nd` / `A 1st` / `Two 1sts` / `A similar player`) and edit from there.
+  Leave any you're not sure about blank -- an empty answer isn't saved.
+- Answers save permanently to `value_checks.json` (same gitignored,
+  append-only posture as `ratings.json`). "View Saved Value Checks"
+  shows every answer alongside what `playerTradeValue()` currently
+  computes for that exact profile, so a real mismatch between your
+  answer and the engine's own number is easy to spot.
+- The 3 pick-anchor answers specifically are the cleanest way to settle
+  what `kDraftPickTradeValue` should actually be -- rating a
+  already-built trade can only ever say "this feels wrong"; naming a
+  price for the pick-anchor profile directly says what a real 1st/2nd/3rd
+  should be worth.
+
 ## Notes
 
 - The player generator here is a simplified standalone approximation

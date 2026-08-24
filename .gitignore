@@ -23,3 +23,4 @@ key.properties
 # Personal working data from local-only tools -- the tool itself is
 # tracked, its generated data isn't.
 tools/trade_study/ratings.json
+tools/trade_study/value_checks.json

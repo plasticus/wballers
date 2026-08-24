@@ -213,6 +213,32 @@ function generate_star_player(): array {
     return make_player($overall, $potential, $age);
 }
 
+/** What the *real* Dart draft generator's own pick 10/11 of round
+ * $round actually looks like on average -- empirically measured (3000
+ * simulated draft classes via generateDraftClass()/draftProspectValue(),
+ * sorted, averaged at slots 10-11 within each round), not eyeballed.
+ * The Value Check mode's own anchor question (2026-08-24, a direct GM
+ * ask: "each round-pick should be worth what you'd get at around pick
+ * 10/11 in a given round... i wonder if we also need another test.
+ * like you tell me a player, i tell you what kind of pick/player
+ * they're worth"). */
+const PICK_ANCHOR_PROFILES = [
+    1 => ['overall' => 74, 'potential' => 87, 'age' => 21],
+    2 => ['overall' => 67, 'potential' => 81, 'age' => 21],
+    3 => ['overall' => 63, 'potential' => 76, 'age' => 21],
+];
+
+/** [round]'s own anchor profile, jittered a little (+/-3 overall/
+ * potential, +/-1 age) so asking about "round 1" more than once doesn't
+ * always show the exact same player. */
+function generate_pick_anchor_player(int $round): array {
+    $base = PICK_ANCHOR_PROFILES[$round];
+    $overall = max(35, min(99, $base['overall'] + mt_rand(-3, 3)));
+    $potential = max($overall, min(99, $base['potential'] + mt_rand(-3, 3)));
+    $age = max(19, min(23, $base['age'] + mt_rand(-1, 1)));
+    return make_player($overall, $potential, $age);
+}
+
 function generate_pick(?int $round = null): array {
     $round = $round ?? mt_rand(1, 3);
     $season = 2027 + mt_rand(0, 1);
@@ -814,6 +840,34 @@ function generate_batch(int $seed, int $count): array {
 }
 
 // ---------------------------------------------------------------------
+// Value Check mode -- a direct reverse-elicitation test, the other real
+// half of the same GM ask above: instead of judging an already-built
+// trade, name a fair return for one real player, in your own words.
+// Cleanest possible signal for exactly what should anchor
+// kDraftPickTradeValue -- rating generated trades can only ever say
+// "trade X feels wrong," never directly "pick 10/11 of round 2 is worth
+// a Y."
+// ---------------------------------------------------------------------
+
+/** One Value Check batch: the 3 pick-anchor profiles (always, one per
+ * round) plus 3 ordinary roster-quality profiles for broader
+ * calibration -- 6 total, same batch size as the trade-rating mode.
+ * Deterministic per $seed, same "reload keeps the batch, submit rolls a
+ * new one" posture generate_batch() already has. */
+function generate_value_check_batch(int $seed): array {
+    mt_srand($seed);
+    $items = [];
+    foreach ([1, 2, 3] as $round) {
+        $items[] = ['kind' => 'anchor', 'round' => $round, 'player' => generate_pick_anchor_player($round)];
+    }
+    for ($i = 0; $i < 3; $i++) {
+        $items[] = ['kind' => 'ordinary', 'round' => null, 'player' => generate_player()];
+    }
+    shuffle($items);
+    return $items;
+}
+
+// ---------------------------------------------------------------------
 // Persistence -- every rated trade, forever, across every run.
 // ---------------------------------------------------------------------
 define('DATA_FILE', __DIR__ . '/ratings.json');
@@ -838,14 +892,34 @@ function save_ratings(array $ratings): void {
     fclose($fp);
 }
 
+define('VALUE_CHECK_DATA_FILE', __DIR__ . '/value_checks.json');
+
+function load_value_checks(): array {
+    if (!file_exists(VALUE_CHECK_DATA_FILE)) return [];
+    $raw = file_get_contents(VALUE_CHECK_DATA_FILE);
+    if ($raw === false || trim($raw) === '') return [];
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function save_value_checks(array $checks): void {
+    $fp = fopen(VALUE_CHECK_DATA_FILE, 'c+');
+    if ($fp === false) return;
+    flock($fp, LOCK_EX);
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($checks, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+}
+
 function trade_has_pick(array $give, array $get): bool {
     foreach ($give as $a) if ($a['type'] === 'pick') return true;
     foreach ($get as $a) if ($a['type'] === 'pick') return true;
     return false;
 }
 
-/** Human label for a trade's `shape` -- `null` for 'ordinary'/'forced_pick'
- * (the PICK badge already covers those; nothing extra worth calling out). */
 /** Every trade's real category, for tagging -- the exact real Trade
  * Board toggle it represents (`tradeBoardIntentLabel()` in
  * trade_offer.dart), plus the study-only "Going Big" category
@@ -896,6 +970,15 @@ header('Pragma: no-cache');
 $count = 6;
 $viewMode = isset($_GET['view']);
 
+// 'rate' (default, the original mode) or 'value_check' (2026-08-24) --
+// 2 genuinely separate tools sharing one page/nav/persistence pattern,
+// not 2 branches of the same form.
+$mode = (($_GET['mode'] ?? 'rate') === 'value_check') ? 'value_check' : 'rate';
+function mode_url(string $mode, array $extra = []): string {
+    $params = $mode === 'value_check' ? array_merge(['mode' => 'value_check'], $extra) : $extra;
+    return '?' . http_build_query($params);
+}
+
 // A stable seed per URL -- reloading the page shows the same batch;
 // only an explicit "New Batch" (or a fresh visit) rolls a new one.
 // Never applies to the saved-data view -- that page has nothing to do
@@ -904,12 +987,37 @@ $viewMode = isset($_GET['view']);
 // always bounced back to a fresh rating batch instead).
 if (!$viewMode && !isset($_GET['seed'])) {
     $seed = random_int(1, 1000000000);
-    header('Location: ?seed=' . $seed);
+    header('Location: ' . mode_url($mode, ['seed' => $seed]));
     exit;
 }
 $seed = isset($_GET['seed']) ? (int) $_GET['seed'] : 0;
 
 $flash = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'value_check') {
+    $items = generate_value_check_batch($seed);
+    $checks = load_value_checks();
+    $savedCount = 0;
+    foreach ($items as $i => $item) {
+        $answer = trim((string) ($_POST['answer_' . $i] ?? ''));
+        if ($answer === '') continue; // no answer given -- not saved
+        $checks[] = [
+            'id' => bin2hex(random_bytes(8)),
+            'timestamp' => date('Y-m-d H:i:s'),
+            'seed' => $seed,
+            'item_index' => $i,
+            'kind' => $item['kind'],
+            'round' => $item['round'],
+            'player' => $item['player'],
+            'answer' => $answer,
+        ];
+        $savedCount++;
+    }
+    save_value_checks($checks);
+    $newSeed = random_int(1, 1000000000);
+    header('Location: ' . mode_url($mode, ['seed' => $newSeed, 'saved' => $savedCount]));
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $trades = generate_batch($seed, $count);
@@ -947,11 +1055,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (isset($_GET['saved'])) {
     $n = (int) $_GET['saved'];
-    $flash = $n === 1 ? 'Saved 1 rating.' : "Saved $n ratings.";
+    $noun = $mode === 'value_check' ? 'answer' : 'rating';
+    $flash = $n === 1 ? "Saved 1 $noun." : "Saved $n {$noun}s.";
 }
 
 $viewMode = isset($_GET['view']);
-$trades = generate_batch($seed, $count);
+$trades = $mode === 'rate' ? generate_batch($seed, $count) : [];
+$valueCheckItems = $mode === 'value_check' ? generate_value_check_batch($seed) : [];
 $swing = trade_swing(ASSUMED_MANAGEMENT);
 
 function h(string $s): string {
@@ -1010,6 +1120,9 @@ function h(string $s): string {
   .submit-bar { position: sticky; bottom: 0; background: var(--bg); padding: 14px 0; border-top: 1px solid var(--card-border); }
   button { font-size: 1.05rem; padding: 14px 18px; width: 100%; border-radius: 8px; border: none; background: var(--button-bg); color: var(--button-text); cursor: pointer; }
   button:hover { background: var(--button-bg-hover); }
+  .value-check-quickfill { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .quickfill-btn { width: auto; font-size: 0.85rem; padding: 8px 12px; border-radius: 20px; background: var(--th-bg); color: var(--text); border: 1px solid var(--card-border); }
+  .quickfill-btn:hover { background: var(--card-border); }
   .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-top: 12px; }
   th, td { border: 1px solid var(--card-border); padding: 6px 8px; font-size: 0.85rem; text-align: left; vertical-align: top; }
@@ -1024,11 +1137,93 @@ function h(string $s): string {
 <div class="top-nav">
   <a href="?">Rate Trades</a>
   <a href="?view=1">View Saved Data</a>
+  <a href="<?= mode_url('value_check') ?>">Name Your Price</a>
+  <a href="<?= mode_url('value_check', ['view' => 1]) ?>">View Saved Value Checks</a>
 </div>
 
 <?php if ($flash): ?>
   <div class="flash"><?= h($flash) ?></div>
 <?php endif; ?>
+
+<?php if ($mode === 'value_check'): ?>
+
+<?php if ($viewMode): ?>
+
+  <h1>Saved Value Checks</h1>
+  <?php
+    $allChecks = load_value_checks();
+    $totalChecks = count($allChecks);
+  ?>
+  <p class="muted">Every player you've named a price for, newest first, alongside what
+    <code>playerTradeValue()</code> currently computes for that exact profile -- read your
+    own answer first, then compare.</p>
+
+  <?php if ($totalChecks === 0): ?>
+    <p>No value checks saved yet -- <a href="<?= mode_url('value_check') ?>">go name some prices</a>.</p>
+  <?php else: ?>
+    <div class="table-wrap">
+    <table>
+      <tr>
+        <th>When</th>
+        <th>Kind</th>
+        <th>Player</th>
+        <th>Current Engine Value</th>
+        <th>Your Answer</th>
+      </tr>
+      <?php foreach (array_reverse($allChecks) as $c): ?>
+        <?php $p = $c['player']; ?>
+        <tr>
+          <td><?= h($c['timestamp']) ?></td>
+          <td><?= $c['kind'] === 'anchor' ? 'Pick ' . h((string) $c['round']) . ' anchor' : 'Ordinary' ?></td>
+          <td><?= h(asset_label($p)) ?></td>
+          <td><?= $p['value'] ?></td>
+          <td><?= h($c['answer']) ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </table>
+    </div>
+  <?php endif; ?>
+
+<?php else: ?>
+
+  <h1>Name Your Price</h1>
+  <p class="muted">
+    For each player below, what would you actually take (or give) to trade for her --
+    a pick, a player, a combo, whatever feels real? Type your own answer, or tap a quick
+    fill to start from a common one. 3 of the 6 are anchored to a real measurement: what
+    the actual Dart draft generator's pick 10/11 of round 1/2/3 looks like on average
+    (not a round-wide average -- the specific middle-of-the-round slot), so your answers
+    on those 3 directly say what a real 1st/2nd/3rd should be worth. Skip any you're not
+    sure about -- an empty answer isn't saved.
+  </p>
+
+  <form method="post" action="<?= mode_url('value_check', ['seed' => $seed]) ?>">
+    <?php foreach ($valueCheckItems as $i => $item): ?>
+      <?php $p = $item['player']; ?>
+      <div class="trade">
+        <h3>
+          <?= h(asset_label($p)) ?>
+          <?php if ($item['kind'] === 'anchor'): ?>
+            <span class="pick-badge shape-badge">PICK <?= h((string) $item['round']) ?> ANCHOR</span>
+          <?php endif; ?>
+        </h3>
+        <div class="value-check-quickfill">
+          <?php foreach (['Nothing real', 'A 3rd', 'A 2nd', 'A 1st', 'Two 1sts', 'A similar player'] as $quick): ?>
+            <button type="button" class="quickfill-btn" onclick="wblQuickFill(<?= $i ?>, <?= h(json_encode($quick)) ?>)"><?= h($quick) ?></button>
+          <?php endforeach; ?>
+        </div>
+        <textarea name="answer_<?= $i ?>" id="answer_<?= $i ?>" placeholder="What would you take/give for her?"></textarea>
+      </div>
+    <?php endforeach; ?>
+
+    <div class="submit-bar">
+      <button type="submit">Save Answers &amp; Get New Batch</button>
+    </div>
+  </form>
+
+<?php endif; ?>
+
+<?php else: ?>
 
 <?php if ($viewMode): ?>
 
@@ -1178,6 +1373,8 @@ function h(string $s): string {
 
 <?php endif; ?>
 
+<?php endif; ?>
+
 <script>
 function wblToggleSkip(i, skipped) {
   var wrap = document.getElementById('wrap_' + i);
@@ -1189,6 +1386,9 @@ function wblUpdateReadout(i) {
   var v = parseInt(document.getElementById('rating_' + i).value, 10);
   var out = document.getElementById('out_' + i);
   out.textContent = v === 0 ? 'even' : (v > 0 ? '+' + v + ' Team B' : v + ' Team A');
+}
+function wblQuickFill(i, text) {
+  document.getElementById('answer_' + i).value = text;
 }
 </script>
 
