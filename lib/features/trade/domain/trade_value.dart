@@ -141,7 +141,26 @@ const kTradeValueEliteOverallFull = 90;
 
 /// Where [kTradeValueEliteOverallFull]'s credit starts phasing in --
 /// see that constant's own doc comment.
-const kTradeValueEliteOverallStart = 85;
+///
+/// Lowered 85 -> 82 the same day as [kTradeValueReplacementFloorFraction]'s
+/// 0.1 -> 0.04 drop, once the two changes' combined effect on the 80-84
+/// OVR/minimal-upside band became visible against fresh `tools/
+/// trade_study/` data the floor-lowering itself wasn't tested against: an
+/// 84 OVR/85 POT/25-year-old, direct "Name Your Price" answer "a 2nd...
+/// or a 1st with a little kickback," was computing to 49 -- *below* a
+/// bare 3rd-round pick, despite being named as worth real, substantial
+/// value. `ratings.json` corroborates the same gap from the other
+/// direction: an 84 OVR/84 POT veteran ("So dumb," reviewer's side won
+/// the trade big) and an 87 OVR/87 POT one ("Stupid," same direction)
+/// both got flagged as *undervalued* in trades the old 85-start ramp
+/// would have priced low. 82 still keeps [kTradeValueEliteOverallStart]
+/// well below the [_tradeValueEliteRamp] cases this system was built
+/// to guard (85 OVR/86 POT, "Stupid" for 2 firsts -- still computes to
+/// well under 800 at 82, ~412, just no longer near-zero) -- narrowing
+/// the no-upside floor was never meant to also swallow the 80s-OVR band
+/// that's clearly still worth a real player or a real pick, just not a
+/// blowout price.
+const kTradeValueEliteOverallStart = 82;
 
 /// 0.0 at zero potential-over-overall gap, 1.0 at
 /// [kTradeValueNoUpsideRunwayGap] or above -- squared, not linear, so a

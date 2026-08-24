@@ -54,7 +54,7 @@ const REPLACEMENT_FLOOR_FRACTION = 0.04;
 // same-day real-game addition; see _tradeValueNoUpsideEscapeRamp's own
 // doc comment in trade_value.dart for the full story/evidence.
 const NO_UPSIDE_RUNWAY_GAP = 15;
-const ELITE_OVERALL_START = 85;
+const ELITE_OVERALL_START = 82; // synced w/ trade_value.dart 2026-08-24 evening retune
 const ELITE_OVERALL_FULL = 90;
 
 // kSellForPicksExtraTolerance / kPickSpendExtraTolerance -- both 250 in
