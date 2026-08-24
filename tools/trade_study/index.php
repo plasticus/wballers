@@ -1195,27 +1195,39 @@ function h(string $s): string {
     a pick, a player, a combo, whatever feels real? Type your own answer, or tap a quick
     fill to start from a common one. 3 of the 6 are anchored to a real measurement: what
     the actual Dart draft generator's pick 10/11 of round 1/2/3 looks like on average
-    (not a round-wide average -- the specific middle-of-the-round slot), so your answers
-    on those 3 directly say what a real 1st/2nd/3rd should be worth. Skip any you're not
+    (not a round-wide average -- the specific middle-of-the-round slot). <strong>For
+    those 3 specifically</strong>, answer in terms of an ordinary <em>player</em> (e.g.
+    "about as good as a 72 OVR/72 POT bench piece"), not another pick -- "a 2nd + a
+    sweetener" can't actually tell us what a 2nd is worth, since that's the very thing
+    being measured (a real gap the first round of these caught). Skip any you're not
     sure about -- an empty answer isn't saved.
   </p>
 
   <form method="post" action="<?= mode_url('value_check', ['seed' => $seed]) ?>">
     <?php foreach ($valueCheckItems as $i => $item): ?>
       <?php $p = $item['player']; ?>
+      <?php $isAnchor = $item['kind'] === 'anchor'; ?>
       <div class="trade">
         <h3>
           <?= h(asset_label($p)) ?>
-          <?php if ($item['kind'] === 'anchor'): ?>
+          <?php if ($isAnchor): ?>
             <span class="pick-badge shape-badge">PICK <?= h((string) $item['round']) ?> ANCHOR</span>
           <?php endif; ?>
         </h3>
+        <?php if ($isAnchor): ?>
+          <p class="muted" style="margin: 4px 0 0;">Answer with a comparable <em>player</em>'s quality, not another pick (see the note above).</p>
+        <?php endif; ?>
         <div class="value-check-quickfill">
-          <?php foreach (['Nothing real', 'A 3rd', 'A 2nd', 'A 1st', 'Two 1sts', 'A similar player'] as $quick): ?>
+          <?php
+            $quickfills = $isAnchor
+                ? ['Worth nothing much', 'A weak rotation player', 'A decent rotation player', 'A real starter', 'A similar player']
+                : ['Nothing real', 'A 3rd', 'A 2nd', 'A 1st', 'Two 1sts', 'A similar player'];
+          ?>
+          <?php foreach ($quickfills as $quick): ?>
             <button type="button" class="quickfill-btn" onclick="wblQuickFill(<?= $i ?>, <?= h(json_encode($quick)) ?>)"><?= h($quick) ?></button>
           <?php endforeach; ?>
         </div>
-        <textarea name="answer_<?= $i ?>" id="answer_<?= $i ?>" placeholder="What would you take/give for her?"></textarea>
+        <textarea name="answer_<?= $i ?>" id="answer_<?= $i ?>" placeholder="<?= $isAnchor ? 'About how good a real player would she need to be?' : 'What would you take/give for her?' ?>"></textarea>
       </div>
     <?php endforeach; ?>
 

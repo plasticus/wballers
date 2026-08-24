@@ -73,21 +73,32 @@ Checks").
   not eyeballed, and not a round-wide average either). Badged "PICK N
   ANCHOR." The other 3 are ordinary roster-quality profiles for broader
   calibration.
-- For each, type what you'd actually take (or give) to trade for her --
-  a pick, a player, a combo, whatever's real -- or tap a quick-fill
-  button to start from a common answer (`Nothing real` / `A 3rd` / `A
-  2nd` / `A 1st` / `Two 1sts` / `A similar player`) and edit from there.
+- For the 3 ordinary profiles, type what you'd actually take (or give)
+  to trade for her -- a pick, a player, a combo, whatever's real -- or
+  tap a quick-fill button (`Nothing real` / `A 3rd` / `A 2nd` / `A 1st` /
+  `Two 1sts` / `A similar player`) and edit from there.
+- For the 3 pick anchors specifically, answer with an ordinary
+  **player's** quality instead ("about as good as a 72 OVR/72 POT bench
+  piece"), not another pick -- its own quick-fills reflect that
+  (`Worth nothing much` / `A weak rotation player` / `A decent rotation
+  player` / `A real starter` / `A similar player`). The first real round
+  of these answered in pick currency ("a 2nd + a sweetener"), which
+  can't actually settle what a 2nd is worth since that's the very thing
+  being measured -- a real, caught mistake in the original framing, not
+  a wasted round (the *ordinary*-profile answers from that same round
+  were still the direct hit that shipped the 2026-08-24 no-upside-discount
+  tightening).
   Leave any you're not sure about blank -- an empty answer isn't saved.
 - Answers save permanently to `value_checks.json` (same gitignored,
   append-only posture as `ratings.json`). "View Saved Value Checks"
   shows every answer alongside what `playerTradeValue()` currently
   computes for that exact profile, so a real mismatch between your
   answer and the engine's own number is easy to spot.
-- The 3 pick-anchor answers specifically are the cleanest way to settle
-  what `kDraftPickTradeValue` should actually be -- rating a
+- The 3 pick-anchor answers, framed this way, are the cleanest way to
+  settle what `kDraftPickTradeValue` should actually be -- rating an
   already-built trade can only ever say "this feels wrong"; naming a
-  price for the pick-anchor profile directly says what a real 1st/2nd/3rd
-  should be worth.
+  real player's quality for the pick-anchor profile directly says what a
+  real 1st/2nd/3rd should be worth.
 
 ## Notes
 
