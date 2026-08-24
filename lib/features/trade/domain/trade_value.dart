@@ -160,7 +160,7 @@ double _tradeValueEliteRamp(int overall) {
 /// veteran -- decent overall, potential barely above it, nowhere near
 /// elite either -- gets neither escape hatch, on purpose.
 ///
-/// Added 2026-08-25, a second wave of `tools/trade_study/` ratings after
+/// Added 2026-08-24, a second wave of `tools/trade_study/` ratings after
 /// [kTradeValueReplacementFloorFraction] shipped: [kTradeValueFullWeightOverall]
 /// alone (75) let a 67-90 OVR player with essentially zero remaining
 /// potential gap still price at full, undiscounted skillPoints, which

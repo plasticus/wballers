@@ -50,7 +50,7 @@ const AGE_RISK_WEIGHT = 1.5;
 const REPLACEMENT_FLOOR_FRACTION = 0.1;
 
 // kTradeValueNoUpsideRunwayGap / kTradeValueEliteOverallStart /
-// kTradeValueEliteOverallFull -- 2026-08-25, re-synced alongside that
+// kTradeValueEliteOverallFull -- 2026-08-24, re-synced alongside that
 // same-day real-game addition; see _tradeValueNoUpsideEscapeRamp's own
 // doc comment in trade_value.dart for the full story/evidence.
 const NO_UPSIDE_RUNWAY_GAP = 15;

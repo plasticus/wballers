@@ -185,7 +185,7 @@ void main() {
       expect((askedPick - value).abs(), greaterThan(wideTolerance));
     });
 
-    // 2026-08-25 -- _tradeValueNoUpsideEscapeRamp's own doc comment has
+    // 2026-08-24 -- _tradeValueNoUpsideEscapeRamp's own doc comment has
     // the full story. Each case here is a real tools/trade_study/
     // Shed Picks (buy a player with picks) trade the GM rated +5 ("Team
     // B wins big," i.e. the GM overpaid) for the target being an
