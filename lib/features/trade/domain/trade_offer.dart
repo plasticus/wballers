@@ -52,16 +52,28 @@ enum TradeBoardIntent {
 
   /// The GM sends an older player (or players) for a younger return.
   getYounger,
+
+  /// The GM chases one real star -- an 88+ overall player, or a real
+  /// upper-80s riser with the age/potential to get there -- paying with
+  /// a real package of draft picks and/or a young high-potential
+  /// prospect. A direct GM ask (2026-08-24, after
+  /// `tools/trade_study/`'s own standalone version of this same idea):
+  /// "there should probably also be a tag for like... going big, or big
+  /// splash... tough to do, usually requires more draft picks or youngs
+  /// w/ big potential."
+  goingBig,
 }
 
 /// "Shed Picks" / "Gain Picks" / "Offload Depth" / "Get Younger" /
-/// "Anything" -- the Trade Board's own toggle labels for [TradeBoardIntent].
+/// "Going Big" / "Anything" -- the Trade Board's own toggle labels for
+/// [TradeBoardIntent].
 String tradeBoardIntentLabel(TradeBoardIntent intent) => switch (intent) {
   TradeBoardIntent.anything => 'Anything',
   TradeBoardIntent.shedPicks => 'Shed Picks',
   TradeBoardIntent.gainPicks => 'Gain Picks',
   TradeBoardIntent.offloadDepth => 'Offload Depth',
   TradeBoardIntent.getYounger => 'Get Younger',
+  TradeBoardIntent.goingBig => 'Going Big',
 };
 
 /// One AI team's trade proposal -- accept or decline, no negotiation

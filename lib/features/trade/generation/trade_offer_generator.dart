@@ -318,15 +318,17 @@ const kTradeBoardIntentMaxDraws = 120;
 /// file produce, just kept only when they happen to match what the GM
 /// actually asked to see.
 ///
-/// [TradeBoardIntent.offloadDepth]/[shedPicks] each reuse one dedicated
-/// builder ([_tryBuildConsolidationOffer]/[_tryBuildPickForTalentOffer]) --
-/// always the matching shape when it succeeds at all, so there's nothing
-/// to filter. [gainPicks] alternates between *two* dedicated builders
-/// draw-to-draw ([_tryBuildSellForPicksOffer]'s flat "sell a player for
-/// whatever picks fit" and [_tryBuildPickUpgradeOffer]'s "spend a worse
-/// pick [+ a player] to move up"), a direct GM ask (2026-08-23): "I don't
-/// just want 3rd rounders, man... I'm ready to move pieces to acquire
-/// first, seconds, and most importantly -- move up in the picks." Only
+/// [TradeBoardIntent.offloadDepth]/[shedPicks]/[goingBig] each reuse one
+/// dedicated builder
+/// ([_tryBuildConsolidationOffer]/[_tryBuildPickForTalentOffer]/
+/// [_tryBuildGoingBigOffer]) -- always the matching shape when it
+/// succeeds at all, so there's nothing to filter. [gainPicks] alternates
+/// between *two* dedicated builders draw-to-draw
+/// ([_tryBuildSellForPicksOffer]'s flat "sell a player for whatever
+/// picks fit" and [_tryBuildPickUpgradeOffer]'s "spend a worse pick [+ a
+/// player] to move up"), a direct GM ask (2026-08-23): "I don't just
+/// want 3rd rounders, man... I'm ready to move pieces to acquire first,
+/// seconds, and most importantly -- move up in the picks." Only
 /// [getYounger] still reuses the ordinary [_tryBuildOffer] and filters --
 /// there's no single dedicated shape "sends someone older than she
 /// receives" could mean, unlike every other intent here.
@@ -382,6 +384,7 @@ List<TradeOffer> generateTradeOffersForIntent(
       offer.askedFromYou.whereType<PlayerTradeAsset>().length >
           offer.offeredToYou.whereType<PlayerTradeAsset>().length,
     TradeBoardIntent.getYounger => _sendsOlderThanItReceives(offer),
+    TradeBoardIntent.goingBig => true,
   };
 
   final seenIds = <String>{};
@@ -433,6 +436,15 @@ List<TradeOffer> generateTradeOffersForIntent(
                 allTeamAbbreviations: allTeamAbbreviations,
                 draftSeasons: draftSeasons,
               ),
+      TradeBoardIntent.goingBig => _tryBuildGoingBigOffer(
+        random,
+        aiTeam: aiTeam,
+        ownActive: ownActive,
+        ownTeamAbbreviation: franchise.team.abbreviation,
+        pickOwnershipOverrides: franchise.pickOwnershipOverrides,
+        allTeamAbbreviations: allTeamAbbreviations,
+        draftSeasons: draftSeasons,
+      ),
       TradeBoardIntent.anything ||
       TradeBoardIntent.getYounger => _tryBuildOffer(
         random,
@@ -1431,6 +1443,122 @@ TradeOffer? _tryBuildPickUpgradeOffer(
     );
   }
   return null;
+}
+
+/// How high a target's own overall (or potential, for a real riser) has
+/// to be to even be considered for [TradeBoardIntent.goingBig] --
+/// "90+ ovr players, or players who are upper 80s with age/potential to
+/// get [into] the 90s" (2026-08-24, a direct GM ask).
+const kGoingBigTargetMinOverall = 88;
+
+/// [TradeBoardIntent.goingBig]'s own dedicated shape -- chases one real
+/// star on [aiTeam]'s roster ([kGoingBigTargetMinOverall]+ overall or
+/// potential) with a real 2-or-3-asset package: the GM's own currently-
+/// held picks, plus (if the GM has one) a real young high-potential
+/// prospect off their own active roster (age 23 or younger, at least 10
+/// points of unrealized potential) -- "usually requires more draft
+/// picks or youngs w/ big potential," the GM's own framing for why this
+/// is deliberately *not* discounted the way [_tryBuildSellForPicksOffer]/
+/// [_tryBuildPickUpgradeOffer] are: landing a real star is supposed to
+/// cost close to full price, ordinary [swing] tolerance only, same as
+/// [_tryBuildConsolidationOffer]. Tries every real candidate on
+/// [aiTeam]'s roster (shuffled) in turn; for each, [_closestSubset]
+/// hunts a real pair or triple from the spend pool landing within
+/// [swing] of her value. `null` if [aiTeam] has no real qualifying
+/// star, the GM holds no tradeable picks at all, or nothing in the
+/// spend pool gets close enough.
+TradeOffer? _tryBuildGoingBigOffer(
+  Random random, {
+  required AiTeamRoster aiTeam,
+  required List<Player> ownActive,
+  required String ownTeamAbbreviation,
+  required FuturePickOwnershipOverrides pickOwnershipOverrides,
+  required List<String> allTeamAbbreviations,
+  required List<int> draftSeasons,
+}) {
+  final aiActive = [
+    for (final m in aiTeam.roster)
+      if (m.status == RosterStatus.active) m.player,
+  ];
+  final candidates = [
+    for (final p in aiActive)
+      if (p.ratings.overall >= kGoingBigTargetMinOverall ||
+          p.ratings.potential >= kGoingBigTargetMinOverall)
+        p,
+  ]..shuffle(random);
+  if (candidates.isEmpty) return null;
+
+  final ownPicks = picksOwnedBy(
+    ownTeamAbbreviation,
+    pickOwnershipOverrides,
+    allTeamAbbreviations,
+    draftSeasons: draftSeasons,
+    rounds: kDraftRounds,
+  );
+  if (ownPicks.isEmpty) return null;
+
+  final youngProspects = [
+    for (final p in ownActive)
+      if (p.age <= 23 && p.ratings.potential - p.ratings.overall >= 10)
+        PlayerTradeAsset(p),
+  ];
+  final spendPool = [...ownPicks, ...youngProspects];
+  if (spendPool.length < 2) return null;
+
+  final management = aiTeam.coach.stats.management;
+  final swing = tradeSwing(management);
+
+  for (final target in candidates) {
+    final askedAssets = <TradeAsset>[PlayerTradeAsset(target)];
+    final targetValue = PlayerTradeAsset(target).tradeValue;
+
+    for (final size in [2, 3]) {
+      final give = _closestSubset(spendPool, size, targetValue);
+      if (give == null) continue;
+      final gap = targetValue - totalTradeValue(give);
+      if (gap.abs() <= swing) {
+        return TradeOffer(
+          id: _offerId(aiTeam, askedAssets, give),
+          offeringTeamAbbreviation: aiTeam.team.abbreviation,
+          offeredToYou: askedAssets,
+          askedFromYou: give,
+          character: _characterFor(
+            offered: askedAssets,
+            asked: give,
+            gap: gap,
+            swing: swing,
+          ),
+        );
+      }
+    }
+  }
+  return null;
+}
+
+/// The [size]-asset subset of [pool] (distinct elements, brute-force --
+/// pool sizes used here are always small enough for that to stay cheap)
+/// landing closest in combined value to [target]. `null` if [pool] is
+/// smaller than [size].
+List<TradeAsset>? _closestSubset(List<TradeAsset> pool, int size, int target) {
+  if (pool.length < size) return null;
+  List<TradeAsset>? best;
+  var bestDiff = 1 << 30;
+  void search(int start, List<TradeAsset> chosen) {
+    if (chosen.length == size) {
+      final diff = (totalTradeValue(chosen) - target).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = List.of(chosen);
+      }
+      return;
+    }
+    for (var i = start; i < pool.length; i++) {
+      search(i + 1, [...chosen, pool[i]]);
+    }
+  }
+
+  search(0, []);
+  return best;
 }
 
 /// [count] distinct players drawn from [pool] at random.

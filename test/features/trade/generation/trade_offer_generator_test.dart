@@ -768,6 +768,51 @@ void main() {
       // sell-for-picks offer never asks for a pick back).
       expect(sawSpentPick, isTrue);
     });
+
+    test('goingBig -- chases a real 88+ overall (or real riser) star with '
+        'a real package of picks and/or a young prospect (2026-08-24, a '
+        'direct GM ask: "there should probably also be a tag for like... '
+        'going big... tough to do, usually requires more draft picks or '
+        'youngs w/ big potential")', () {
+      final base = withFullActiveRoster(franchiseForPortraitTests());
+      var sawOffer = false;
+      var sawYoungProspectSpent = false;
+
+      for (var gameDayIndex = 0; gameDayIndex < 15; gameDayIndex++) {
+        final franchise = base.copyWithSeasonProgress(
+          SeasonProgress(
+            schedule: base.seasonProgress.schedule,
+            playedGames: base.seasonProgress.playedGames,
+            nextGameDayIndex: gameDayIndex,
+          ),
+        );
+        for (final offer in generateTradeOffersForIntent(
+          franchise,
+          TradeBoardIntent.goingBig,
+        )) {
+          sawOffer = true;
+          final target = offer.offeredToYou.single as PlayerTradeAsset;
+          expect(
+            target.player.ratings.overall >= kGoingBigTargetMinOverall ||
+                target.player.ratings.potential >= kGoingBigTargetMinOverall,
+            isTrue,
+            reason:
+                'target ${target.player.name} is neither a real star '
+                'nor a real riser',
+          );
+          expect(offer.askedFromYou.length, inInclusiveRange(2, 3));
+          if (offer.askedFromYou.whereType<PlayerTradeAsset>().isNotEmpty) {
+            sawYoungProspectSpent = true;
+          }
+        }
+      }
+
+      expect(sawOffer, isTrue);
+      // Not required every time (a real young prospect might not exist
+      // on the GM's own roster), but real enough that it should turn up
+      // at least once across 15 turns.
+      expect(sawYoungProspectSpent, isTrue);
+    });
   });
 
   group('trade block eligibility (2026-08-23, a direct GM report: "I don\'t '

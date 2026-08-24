@@ -512,9 +512,9 @@ class _TradeBoardTabState extends ConsumerState<_TradeBoardTab> {
 /// The GM's own [TradeBoardIntent] choice -- "in addition to putting a
 /// player on the block" (2026-08-23, a direct GM ask), so this sits
 /// right alongside [_TradeBlockCard], not instead of it. A horizontally
-/// scrollable [SegmentedButton] rather than letting all 5 labels wrap
+/// scrollable [SegmentedButton] rather than letting all 6 labels wrap
 /// (`SettingsScreen`'s own Theme selector's pattern, just scrollable --
-/// 5 real-word labels don't comfortably fit one row on a phone width the
+/// 6 real-word labels don't comfortably fit one row on a phone width the
 /// way "System"/"Light"/"Dark" did).
 class _TradeBoardIntentSelector extends StatelessWidget {
   const _TradeBoardIntentSelector({
