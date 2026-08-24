@@ -88,7 +88,9 @@ double _tradeValueQualityRamp(int gate) {
 /// [kTradeValueReplacementOverall] or below -- a real, if minimal, floor
 /// (not literally 0; a below-replacement player still occupies a real
 /// roster spot), scaling up to the full, undiscounted skillPoints once
-/// [_tradeValueQualityRamp] reaches 1.0.
+/// [_tradeValueQualityRamp] reaches 1.0 *and* [_tradeValueNoUpsideEscapeRamp]
+/// also clears her (see that one's own doc comment for why quality alone
+/// isn't the whole story above replacement either).
 ///
 /// Added 2026-08-24 -- `tools/trade_study/`'s real dataset kept flagging
 /// the same gap across 3 different Trade Board toggles at once: a
@@ -111,17 +113,87 @@ double _tradeValueQualityRamp(int gate) {
 /// reading as legal.
 const kTradeValueReplacementFloorFraction = 0.1;
 
+/// Potential-over-overall gap at/above which a player reads as a real
+/// prospect with genuine runway left -- full credit toward
+/// [_tradeValueNoUpsideEscapeRamp], tapering to none at gap 0 (a player
+/// who's already every bit of who she's ever going to be).
+const kTradeValueNoUpsideRunwayGap = 15;
+
+/// Overall at/above which a player is unambiguously elite regardless of
+/// remaining potential gap -- full credit toward
+/// [_tradeValueNoUpsideEscapeRamp] even with zero runway left, since
+/// being capped *at a genuine star level* is exactly what a star is.
+/// Matches [StarTier.fourStar]'s own 90+ threshold on purpose -- the
+/// same real-quality line the rest of the game already draws. Tapers in
+/// from [kTradeValueEliteOverallStart].
+const kTradeValueEliteOverallFull = 90;
+
+/// Where [kTradeValueEliteOverallFull]'s credit starts phasing in --
+/// see that constant's own doc comment.
+const kTradeValueEliteOverallStart = 85;
+
+/// 0.0 at zero potential-over-overall gap, 1.0 at
+/// [kTradeValueNoUpsideRunwayGap] or above, linear between.
+double _tradeValueUpsideRunwayRamp(int overall, int potential) {
+  final gap = potential > overall ? potential - overall : 0;
+  final ratio = gap / kTradeValueNoUpsideRunwayGap;
+  return ratio > 1.0 ? 1.0 : ratio;
+}
+
+/// 0.0 at/below [kTradeValueEliteOverallStart], 1.0 at/above
+/// [kTradeValueEliteOverallFull], linear between.
+double _tradeValueEliteRamp(int overall) {
+  if (overall <= kTradeValueEliteOverallStart) return 0.0;
+  if (overall >= kTradeValueEliteOverallFull) return 1.0;
+  return (overall - kTradeValueEliteOverallStart) /
+      (kTradeValueEliteOverallFull - kTradeValueEliteOverallStart);
+}
+
+/// How much of [playerTradeValue]'s skillPoints [_tradeValueQualityRamp]
+/// alone would still credit actually survives -- the higher of "she has
+/// real runway left" ([_tradeValueUpsideRunwayRamp]) or "she's already
+/// unambiguously elite" ([_tradeValueEliteRamp]). Neither alone is the
+/// right gate: a player already at an elite overall doesn't need *more*
+/// upside to justify her price (a 90 OVR/90 POT veteran is still a real
+/// star), and a real riser doesn't need to already be elite (that's the
+/// entire premise of a riser). But a merely-good, already-capped
+/// veteran -- decent overall, potential barely above it, nowhere near
+/// elite either -- gets neither escape hatch, on purpose.
+///
+/// Added 2026-08-25, a second wave of `tools/trade_study/` ratings after
+/// [kTradeValueReplacementFloorFraction] shipped: [kTradeValueFullWeightOverall]
+/// alone (75) let a 67-90 OVR player with essentially zero remaining
+/// potential gap still price at full, undiscounted skillPoints, which
+/// kept reading as a real blowout for the Shed Picks toggle specifically
+/// (spend picks, buy a player) -- unanimous, emphatic GM notes: "If
+/// Reeves is worth a pick, it's a 3rd" (73 OVR/75 POT), "I would take a
+/// 2nd for odom. Absolutely not worth a 1st" (80 OVR/80 POT), "a 2 star
+/// player is sometimes worth a 3rd, never this" (76 OVR/76 POT). The
+/// contrast that pinned down *why*: a 90 OVR/90 POT veteran read as
+/// "Reasonable" for the same asking price a 85 OVR/86 POT one got
+/// "Stupid" for, and a real 20-year-old riser (86 OVR/97 POT) got "I
+/// like that" at a price a same-overall, no-upside 24-year-old (85
+/// OVR/86 POT) got torched for -- current overall alone
+/// ([kTradeValueFullWeightOverall]) was never the actual gate; it's
+/// "real remaining upside, or already a genuine star" that is.
+double _tradeValueNoUpsideEscapeRamp(int overall, int potential) {
+  final runway = _tradeValueUpsideRunwayRamp(overall, potential);
+  final elite = _tradeValueEliteRamp(overall);
+  return runway > elite ? runway : elite;
+}
+
 /// What one player is worth in a trade -- [PlayerRatings.skillPoints]
 /// (current ability, the original and still-dominant term, though no
-/// longer counted in full below replacement quality --
-/// [kTradeValueReplacementFloorFraction]) plus a real premium for
-/// unrealized [PlayerRatings.potential] and a real discount for
-/// age-related decline/retirement risk, both ramped to zero for anyone
-/// who isn't a real prospect or a real current piece either way (see
-/// [kTradeValueReplacementOverall]). Takes the raw ratings/age rather
-/// than a [Player] directly so callers (`trade_asset.dart`, the
-/// standalone `tools/trade_study/` PHP port) don't need the whole
-/// domain object.
+/// longer counted in full below replacement quality, or without real
+/// upside/elite status above it --
+/// [kTradeValueReplacementFloorFraction]/[_tradeValueNoUpsideEscapeRamp])
+/// plus a real premium for unrealized [PlayerRatings.potential] and a
+/// real discount for age-related decline/retirement risk, both ramped
+/// to zero for anyone who isn't a real prospect or a real current piece
+/// either way (see [kTradeValueReplacementOverall]). Takes the raw
+/// ratings/age rather than a [Player] directly so callers
+/// (`trade_asset.dart`, the standalone `tools/trade_study/` PHP port)
+/// don't need the whole domain object.
 int playerTradeValue({
   required int overall,
   required int potential,
@@ -131,16 +203,18 @@ int playerTradeValue({
   final ramp = _tradeValueQualityRamp(
     overall > potential ? overall : potential,
   );
+  final escapeRamp = _tradeValueNoUpsideEscapeRamp(overall, potential);
   final skillPointsMultiplier =
       kTradeValueReplacementFloorFraction +
-      (1 - kTradeValueReplacementFloorFraction) * ramp;
+      (1 - kTradeValueReplacementFloorFraction) * ramp * escapeRamp;
   final upside =
       kTradeValueUpsideWeight *
       (potential > overall ? potential - overall : 0) *
       ramp;
   final ageRisk =
       kTradeValueAgeRiskWeight * _tradeValueAgeRiskFactor(age) * overall * ramp;
-  return (skillPoints * skillPointsMultiplier + upside - ageRisk).round();
+  final raw = skillPoints * skillPointsMultiplier + upside - ageRisk;
+  return raw < 0 ? 0 : raw.round();
 }
 
 /// A draft pick's flat trade value, in [playerTradeValue]-style skill

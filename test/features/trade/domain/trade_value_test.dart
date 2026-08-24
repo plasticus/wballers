@@ -184,6 +184,69 @@ void main() {
       const wideTolerance = 47 + 250;
       expect((askedPick - value).abs(), greaterThan(wideTolerance));
     });
+
+    // 2026-08-25 -- _tradeValueNoUpsideEscapeRamp's own doc comment has
+    // the full story. Each case here is a real tools/trade_study/
+    // Shed Picks (buy a player with picks) trade the GM rated +5 ("Team
+    // B wins big," i.e. the GM overpaid) for the target being an
+    // already-capped, no-real-upside veteran whose overall alone was
+    // well above kTradeValueFullWeightOverall (75) -- verified to now
+    // genuinely fail even kPickSpendExtraTolerance's own wide cushion.
+    test('an already-capped 80 OVR/80 POT veteran now fails to clear a '
+        'single 1st-round pick\'s value -- "I would take a 2nd for odom. '
+        'Absolutely not worth a 1st."', () {
+      final value = playerTradeValue(
+        overall: 80,
+        potential: 80,
+        skillPoints: 80 * 12,
+        age: 30,
+      );
+      const askedPicks = 620; // a real 2027 R1 + a real 2028 R2
+      const wideTolerance = 47 + 250;
+      expect((askedPicks - value).abs(), greaterThan(wideTolerance));
+    });
+
+    test('a 76 OVR/76 POT veteran fares no better -- current overall '
+        'alone was never the actual gate; "a 2 star player is sometimes '
+        'worth a 3rd, never this"', () {
+      final value = playerTradeValue(
+        overall: 76,
+        potential: 76,
+        skillPoints: 76 * 12,
+        age: 34,
+      );
+      const askedPicks = 620; // a real 2027 R2 + a real 2028 R1
+      const wideTolerance = 47 + 250;
+      expect((askedPicks - value).abs(), greaterThan(wideTolerance));
+    });
+
+    test('a genuinely elite 90 OVR/90 POT veteran is NOT caught by the '
+        'no-upside discount -- being capped *at a real star level* is '
+        'exactly what a star is; the GM rated this one "Reasonable"', () {
+      final elite = playerTradeValue(
+        overall: 90,
+        potential: 90,
+        skillPoints: 90 * 12,
+        age: 29,
+      );
+      // 2 real 1sts (800) should land roughly in the neighborhood, not
+      // read as a blowout the way the same price does for a merely-good
+      // capped veteran above.
+      expect((800 - elite).abs(), lessThan(47 + 250));
+    });
+
+    test('a real riser doesn\'t need to already be elite either -- a 20-'
+        'year-old at 86 OVR/97 POT was the one Shed Picks trade the GM '
+        'actually liked, at the same 2-firsts price the capped veterans '
+        'above were torched for', () {
+      final riser = playerTradeValue(
+        overall: 86,
+        potential: 97,
+        skillPoints: 86 * 12,
+        age: 20,
+      );
+      expect((800 - riser).abs(), lessThan(47 + 250));
+    });
   });
 
   group('draftPickTradeValue', () {

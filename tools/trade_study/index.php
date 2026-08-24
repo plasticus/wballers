@@ -49,6 +49,14 @@ const AGE_RISK_WEIGHT = 1.5;
 // in trade_value.dart for the full story/evidence).
 const REPLACEMENT_FLOOR_FRACTION = 0.1;
 
+// kTradeValueNoUpsideRunwayGap / kTradeValueEliteOverallStart /
+// kTradeValueEliteOverallFull -- 2026-08-25, re-synced alongside that
+// same-day real-game addition; see _tradeValueNoUpsideEscapeRamp's own
+// doc comment in trade_value.dart for the full story/evidence.
+const NO_UPSIDE_RUNWAY_GAP = 15;
+const ELITE_OVERALL_START = 85;
+const ELITE_OVERALL_FULL = 90;
+
 // kSellForPicksExtraTolerance / kPickSpendExtraTolerance -- both 250 in
 // the real game, same reasoning either direction: real picks and real
 // players don't line up within an ordinary swing margin, so a
@@ -75,18 +83,39 @@ function quality_ramp(int $gate): float {
     return ($gate - REPLACEMENT_OVERALL) / (FULL_WEIGHT_OVERALL - REPLACEMENT_OVERALL);
 }
 
+/** How much of quality_ramp()'s own skillPoints credit actually survives
+ * -- the higher of "real runway left" (potential well above overall) or
+ * "already unambiguously elite" (overall alone at/above
+ * ELITE_OVERALL_FULL). A merely-good, already-capped veteran gets
+ * neither escape hatch, on purpose -- see trade_value.dart's
+ * _tradeValueNoUpsideEscapeRamp for the full story. */
+function no_upside_escape_ramp(int $overall, int $potential): float {
+    $gap = max(0, $potential - $overall);
+    $runway = min(1.0, $gap / NO_UPSIDE_RUNWAY_GAP);
+    if ($overall <= ELITE_OVERALL_START) {
+        $elite = 0.0;
+    } elseif ($overall >= ELITE_OVERALL_FULL) {
+        $elite = 1.0;
+    } else {
+        $elite = ($overall - ELITE_OVERALL_START) / (ELITE_OVERALL_FULL - ELITE_OVERALL_START);
+    }
+    return max($runway, $elite);
+}
+
 /** Mirrors playerTradeValue() exactly -- skillPoints (discounted toward
- * REPLACEMENT_FLOOR_FRACTION below replacement quality, not counted in
- * full the way the original design did) plus a real premium for
- * unrealized potential and a real discount for age-related decline
- * risk, both ramped to zero for anyone who isn't a real prospect or a
- * real current piece either way. */
+ * REPLACEMENT_FLOOR_FRACTION below replacement quality, or without real
+ * upside/elite status above it -- no_upside_escape_ramp()) plus a real
+ * premium for unrealized potential and a real discount for age-related
+ * decline risk, both ramped to zero for anyone who isn't a real
+ * prospect or a real current piece either way. */
 function player_trade_value(int $overall, int $potential, int $skillPoints, int $age): int {
     $ramp = quality_ramp(max($overall, $potential));
-    $skillPointsMultiplier = REPLACEMENT_FLOOR_FRACTION + (1 - REPLACEMENT_FLOOR_FRACTION) * $ramp;
+    $escapeRamp = no_upside_escape_ramp($overall, $potential);
+    $skillPointsMultiplier = REPLACEMENT_FLOOR_FRACTION + (1 - REPLACEMENT_FLOOR_FRACTION) * $ramp * $escapeRamp;
     $upside = UPSIDE_WEIGHT * max(0, $potential - $overall) * $ramp;
     $ageRisk = AGE_RISK_WEIGHT * age_risk_factor($age) * $overall * $ramp;
-    return (int) round($skillPoints * $skillPointsMultiplier + $upside - $ageRisk);
+    $raw = $skillPoints * $skillPointsMultiplier + $upside - $ageRisk;
+    return (int) round(max(0, $raw));
 }
 
 // ---------------------------------------------------------------------
