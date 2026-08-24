@@ -31,6 +31,17 @@ that IP has changed).
   `lib/features/trade/domain/trade_value.dart`). Reloading the page keeps
   the same batch; submitting the form rolls a brand new one, so you can
   run this as many times as you want.
+- Every batch guarantees at least one 1st-round-pick trade, one
+  2nd-round-pick trade, one **SELL FOR PICKS** trade (a player, no
+  return player, straight for picks -- the real "Gain Picks" toggle's
+  flat sell-off shape), and one **MOVE UP** trade (spending a worse
+  pick you own, maybe with a player thrown in, for one real better pick
+  -- the toggle's other shape), each badged so you can tell them apart.
+  Both new shapes (added 2026-08-23) use a wider discount tolerance than
+  ordinary trades (`EXTRA_PICK_TOLERANCE`, matching
+  `kSellForPicksExtraTolerance`/`kPickSpendExtraTolerance` in the real
+  game) -- expect these to read as more one-sided than an ordinary
+  trade; that's by design, not a bug to flag.
 - Rate each trade -5 (you win big) to +5 (they win big), or leave it on
   "skip" to leave it out. Add notes if you want to remember why.
 - Submitting saves every non-skipped rating to `ratings.json` in this
@@ -47,8 +58,13 @@ that IP has changed).
 
 - The player generator here is a simplified standalone approximation
   (not the real Dart generator) -- realistic enough to judge a trade by
-  eye, not a faithful port. `skillPoints`/`tradeSwing`/pick values *are*
-  the real formulas, hand-copied from `trade_value.dart`.
+  eye, not a faithful port. `skillPoints`/`tradeSwing`/pick values/the
+  full `playerTradeValue()` formula (potential upside, age-risk
+  discount included) *are* the real formulas, hand-copied from
+  `trade_value.dart`.
 - If you ever change the real trade math, update the constants at the
   top of `index.php` to match -- there's no shared code between this and
-  the Flutter app.
+  the Flutter app. (This file drifted out of sync with the 2026-08-23
+  `kDraftPickTradeValue` re-tune for a while before being caught and
+  fixed the same day -- worth double-checking after any future
+  `trade_value.dart` change.)

@@ -27,15 +27,58 @@
  */
 
 // ---------------------------------------------------------------------
-// Constants ported from trade_value.dart
+// Constants ported from trade_value.dart -- re-synced 2026-08-23
+// alongside that file's own re-tune (400/220/50 ladder, the
+// potential/age-aware playerTradeValue formula below, and the two new
+// wide-tolerance trade shapes -- this file had drifted out of sync with
+// the real math since that retune, exactly the gap this README already
+// warns about).
 // ---------------------------------------------------------------------
-const DRAFT_PICK_VALUE = [1 => 290, 2 => 150, 3 => 50];
+const DRAFT_PICK_VALUE = [1 => 400, 2 => 220, 3 => 50];
 const MIN_TRADE_SWING = 11;
 const ASSUMED_MANAGEMENT = 70; // "assume I have a coach with 70 management"
+
+// playerTradeValue's potential-upside/age-risk terms.
+const REPLACEMENT_OVERALL = 60;
+const FULL_WEIGHT_OVERALL = 75;
+const UPSIDE_WEIGHT = 4;
+const AGE_RISK_WEIGHT = 1.5;
+
+// kSellForPicksExtraTolerance / kPickSpendExtraTolerance -- both 250 in
+// the real game, same reasoning either direction: real picks and real
+// players don't line up within an ordinary swing margin, so a
+// desperation sale or a move-up-the-board buy both get a deliberately
+// wider discount instead of being nearly unreachable.
+const EXTRA_PICK_TOLERANCE = 250;
 
 function trade_swing(int $management): int {
     $raw = (int) round(($management * $management) / 104);
     return max($raw, MIN_TRADE_SWING);
+}
+
+function age_risk_factor(int $age): float {
+    if ($age <= 26) return 0.0;
+    if ($age <= 27) return 0.1;
+    if ($age <= 29) return 0.3;
+    if ($age <= 32) return 0.6;
+    return 1.0;
+}
+
+function quality_ramp(int $gate): float {
+    if ($gate <= REPLACEMENT_OVERALL) return 0.0;
+    if ($gate >= FULL_WEIGHT_OVERALL) return 1.0;
+    return ($gate - REPLACEMENT_OVERALL) / (FULL_WEIGHT_OVERALL - REPLACEMENT_OVERALL);
+}
+
+/** Mirrors playerTradeValue() exactly -- skillPoints plus a real premium
+ * for unrealized potential and a real discount for age-related decline
+ * risk, both ramped to zero for anyone who isn't a real prospect or a
+ * real current piece either way. */
+function player_trade_value(int $overall, int $potential, int $skillPoints, int $age): int {
+    $ramp = quality_ramp(max($overall, $potential));
+    $upside = UPSIDE_WEIGHT * max(0, $potential - $overall) * $ramp;
+    $ageRisk = AGE_RISK_WEIGHT * age_risk_factor($age) * $overall * $ramp;
+    return (int) round($skillPoints + $upside - $ageRisk);
 }
 
 // ---------------------------------------------------------------------
@@ -99,7 +142,7 @@ function generate_player(): array {
         'potential' => $potential,
         'age' => $age,
         'tier' => star_tier($overall),
-        'value' => $skillPoints,
+        'value' => player_trade_value($overall, $potential, $skillPoints, $age),
     ];
 }
 
@@ -207,6 +250,7 @@ function try_build_trade(int $swing): ?array {
                 'swing' => $swing,
                 'gap' => $gap,
                 'forced_pick' => false,
+                'shape' => 'ordinary',
             ];
         }
     }
@@ -259,6 +303,7 @@ function try_build_forced_pick_trade(int $swing, ?int $forcedRound = null): ?arr
                 'swing' => $swing,
                 'gap' => $gap,
                 'forced_pick' => true,
+                'shape' => 'forced_pick',
             ];
         }
 
@@ -277,6 +322,154 @@ function try_build_forced_pick_trade(int $swing, ?int $forcedRound = null): ?arr
                 'swing' => $swing,
                 'gap' => $gap,
                 'forced_pick' => true,
+                'shape' => 'forced_pick',
+            ];
+        }
+    }
+    return null;
+}
+
+/** Mirrors trade_offer_generator.dart's _trySellPlayerForPicks /
+ * _tryBuildSellForPicksOffer: sell 1 of your own weaker players purely
+ * for picks -- no player comes back at all -- widened by
+ * EXTRA_PICK_TOLERANCE the same way the real "Gain Picks" toggle's flat
+ * sell-off shape is. Tries your weakest few players first (real players
+ * are worth more than even 2 real picks combined most of the time, so
+ * this is the shape that actually needs the wide tolerance to be
+ * reachable at all). A direct GM ask (2026-08-23, after seeing this
+ * exact shape live in-game): "put some like those in the trade
+ * evaluator." */
+function try_build_sell_for_picks(int $swing): ?array {
+    $tolerance = $swing + EXTRA_PICK_TOLERANCE;
+
+    $yourRoster = [];
+    for ($i = 0; $i < 12; $i++) $yourRoster[] = generate_player();
+    usort($yourRoster, fn($a, $b) => $a['value'] <=> $b['value']);
+    $candidates = array_slice($yourRoster, 0, 6);
+
+    // The picks a real AI team might actually still hold -- 3 is plenty
+    // to give the pair-of-picks fallback below something real to work
+    // with, same "up to a small handful" scale the real generator's own
+    // picksOwnedBy draws from in practice.
+    $theirPicks = [generate_pick(), generate_pick(), generate_pick()];
+
+    foreach ($candidates as $target) {
+        $targetValue = $target['value'];
+
+        $shuffled = $theirPicks;
+        shuffle($shuffled);
+        foreach ($shuffled as $pick) {
+            if (abs($pick['value'] - $targetValue) <= $tolerance) {
+                return [
+                    'give' => [$target],
+                    'get' => [$pick],
+                    'give_value' => $targetValue,
+                    'get_value' => $pick['value'],
+                    'swing' => $swing,
+                    'gap' => $pick['value'] - $targetValue,
+                    'forced_pick' => true,
+                    'shape' => 'sell_for_picks',
+                ];
+            }
+        }
+
+        $bestPair = null;
+        $bestDiff = PHP_INT_MAX;
+        for ($i = 0; $i < count($theirPicks); $i++) {
+            for ($j = $i + 1; $j < count($theirPicks); $j++) {
+                $sum = $theirPicks[$i]['value'] + $theirPicks[$j]['value'];
+                $diff = abs($sum - $targetValue);
+                if ($diff < $bestDiff) {
+                    $bestDiff = $diff;
+                    $bestPair = [$theirPicks[$i], $theirPicks[$j]];
+                }
+            }
+        }
+        if ($bestPair !== null && $bestDiff <= $tolerance) {
+            $sum = $bestPair[0]['value'] + $bestPair[1]['value'];
+            return [
+                'give' => [$target],
+                'get' => $bestPair,
+                'give_value' => $targetValue,
+                'get_value' => $sum,
+                'swing' => $swing,
+                'gap' => $sum - $targetValue,
+                'forced_pick' => true,
+                'shape' => 'sell_for_picks',
+            ];
+        }
+    }
+    return null;
+}
+
+/** Mirrors trade_offer_generator.dart's _tryBuildPickUpgradeOffer: spend
+ * a worse pick you already own (plus maybe one of your own weaker
+ * players) to move up to one specific real *better* pick -- the other
+ * new "Gain Picks" shape, same EXTRA_PICK_TOLERANCE discount. Only ever
+ * considers a wanted pick if you actually hold a worse-round one to
+ * trade up from (trading a 2nd down to a 3rd would be backwards). */
+function try_build_pick_upgrade(int $swing): ?array {
+    $tolerance = $swing + EXTRA_PICK_TOLERANCE;
+
+    $yourPicks = [generate_pick(), generate_pick()];
+    $theirPicks = [generate_pick(), generate_pick()];
+    shuffle($theirPicks);
+
+    $roster = [];
+    for ($i = 0; $i < 12; $i++) $roster[] = generate_player();
+    usort($roster, fn($a, $b) => $a['value'] <=> $b['value']);
+    $weakest = array_slice($roster, 0, 2);
+
+    foreach ($theirPicks as $wanted) {
+        $worseOwnPicks = array_values(array_filter(
+            $yourPicks,
+            fn($p) => $p['round'] > $wanted['round']
+        ));
+        if (empty($worseOwnPicks)) continue;
+
+        $spendPool = array_merge($worseOwnPicks, $weakest);
+        $wantedValue = $wanted['value'];
+
+        $shuffled = $spendPool;
+        shuffle($shuffled);
+        foreach ($shuffled as $spend) {
+            if (abs($spend['value'] - $wantedValue) <= $tolerance) {
+                return [
+                    'give' => [$spend],
+                    'get' => [$wanted],
+                    'give_value' => $spend['value'],
+                    'get_value' => $wantedValue,
+                    'swing' => $swing,
+                    'gap' => $wantedValue - $spend['value'],
+                    'forced_pick' => true,
+                    'shape' => 'pick_upgrade',
+                ];
+            }
+        }
+
+        $bestPair = null;
+        $bestDiff = PHP_INT_MAX;
+        for ($i = 0; $i < count($spendPool); $i++) {
+            for ($j = $i + 1; $j < count($spendPool); $j++) {
+                $sum = $spendPool[$i]['value'] + $spendPool[$j]['value'];
+                $diff = abs($sum - $wantedValue);
+                if ($diff < $bestDiff) {
+                    $bestDiff = $diff;
+                    $bestPair = [$spendPool[$i], $spendPool[$j]];
+                }
+            }
+        }
+        if ($bestPair !== null && $bestDiff <= $tolerance) {
+            $sum = $bestPair[0]['value'] + $bestPair[1]['value'];
+            return [
+                'give' => $bestPair,
+                'get' => [$wanted],
+                'give_value' => $sum,
+                'get_value' => $wantedValue,
+                'swing' => $swing,
+                'gap' => $wantedValue - $sum,
+                'forced_pick' => true,
+                'shape' => 'pick_upgrade',
             ];
         }
     }
@@ -295,6 +488,25 @@ function generate_batch(int $seed, int $count): array {
     foreach ([1, 2] as $forcedRound) {
         for ($tries = 0; $tries < 10; $tries++) {
             $trade = try_build_forced_pick_trade($swing, $forcedRound);
+            if ($trade !== null) {
+                $trades[] = $trade;
+                break;
+            }
+        }
+    }
+
+    // Guarantee at least 1 of each new pick-heavy shape too -- both are
+    // real, current Trade Board patterns (the "Gain Picks" toggle) that
+    // postdate this tool's original 25-trade dataset, so they need their
+    // own deliberate coverage the same way the forced-round guarantee
+    // above already gets one (2026-08-23, a direct GM ask after seeing
+    // these exact shapes live in-game: "put some like those in the
+    // trade evaluator").
+    foreach (['sell_for_picks', 'pick_upgrade'] as $shape) {
+        for ($tries = 0; $tries < 10; $tries++) {
+            $trade = $shape === 'sell_for_picks'
+                ? try_build_sell_for_picks($swing)
+                : try_build_pick_upgrade($swing);
             if ($trade !== null) {
                 $trades[] = $trade;
                 break;
@@ -356,6 +568,16 @@ function trade_has_pick(array $give, array $get): bool {
     foreach ($give as $a) if ($a['type'] === 'pick') return true;
     foreach ($get as $a) if ($a['type'] === 'pick') return true;
     return false;
+}
+
+/** Human label for a trade's `shape` -- `null` for 'ordinary'/'forced_pick'
+ * (the PICK badge already covers those; nothing extra worth calling out). */
+function shape_label(string $shape): ?string {
+    return match ($shape) {
+        'sell_for_picks' => 'SELL FOR PICKS',
+        'pick_upgrade' => 'MOVE UP',
+        default => null,
+    };
 }
 
 function asset_label(array $a): string {
@@ -422,6 +644,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'gap' => $trade['gap'],
             'within_tolerance' => abs($trade['gap']) <= $trade['swing'],
             'forced_pick' => $trade['forced_pick'] ?? false,
+            'shape' => $trade['shape'] ?? 'ordinary',
             'rating' => $rating,
             'notes' => $notes,
         ];
@@ -481,6 +704,7 @@ function h(string $s): string {
   .trade { border: 1px solid var(--card-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; background: var(--card-bg); }
   .trade h3 { margin: 0 0 8px; font-size: 1.05rem; }
   .pick-badge { display: inline-block; font-size: 0.7rem; font-weight: bold; letter-spacing: 0.03em; background: var(--button-bg); color: var(--button-text); border-radius: 4px; padding: 2px 6px; vertical-align: middle; }
+  .shape-badge { background: var(--flash-border); color: var(--text); margin-left: 4px; }
   .sides { display: flex; gap: 16px; flex-wrap: wrap; }
   .side { flex: 1; min-width: 220px; }
   .side h4 { margin: 0 0 4px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--label); }
@@ -532,6 +756,11 @@ function h(string $s): string {
     $withoutPick = array_filter($all, fn($r) => !trade_has_pick($r['give'], $r['get']));
     $avgWithPick = count($withPick) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $withPick)) / count($withPick) : null;
     $avgWithoutPick = count($withoutPick) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $withoutPick)) / count($withoutPick) : null;
+    // The 2 new pick-heavy shapes (2026-08-23) -- a real, current Trade
+    // Board pattern this dataset's original 25 trades predate entirely,
+    // so a separate breakdown matters here specifically.
+    $newShapes = array_filter($all, fn($r) => in_array($r['shape'] ?? 'ordinary', ['sell_for_picks', 'pick_upgrade'], true));
+    $avgNewShapes = count($newShapes) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $newShapes)) / count($newShapes) : null;
   ?>
   <div class="stat-cards">
     <div class="stat-card"><div class="big"><?= $total ?></div><div class="muted">rated trades</div></div>
@@ -540,8 +769,9 @@ function h(string $s): string {
     <div class="stat-card"><div class="big"><?= $avgOutside === null ? '—' : number_format($avgOutside, 2) ?></div><div class="muted">avg rating, outside engine tolerance (<?= count($outside) ?>)</div></div>
     <div class="stat-card"><div class="big"><?= $avgWithPick === null ? '—' : number_format($avgWithPick, 2) ?></div><div class="muted">avg |rating| for trades with a pick (<?= count($withPick) ?>)</div></div>
     <div class="stat-card"><div class="big"><?= $avgWithoutPick === null ? '—' : number_format($avgWithoutPick, 2) ?></div><div class="muted">avg |rating| for trades without one (<?= count($withoutPick) ?>)</div></div>
+    <div class="stat-card"><div class="big"><?= $avgNewShapes === null ? '—' : number_format($avgNewShapes, 2) ?></div><div class="muted">avg |rating| for SELL FOR PICKS / MOVE UP trades (<?= count($newShapes) ?>)</div></div>
   </div>
-  <p class="muted">"Within engine tolerance" means the trade math (Management <?= ASSUMED_MANAGEMENT ?>, swing ±<?= $swing ?>) would let this trade actually happen in-game. If those two averages read far apart from 0 in opposite directions, or the "outside tolerance" trades aren't reading much worse to you than the "within" ones, that's a sign the swing number itself may need retuning. The pick-vs-no-pick pair compares by <strong>magnitude</strong> (how lopsided, regardless of direction) -- if pick trades run consistently more lopsided, that's a sign the flat pick-value ladder (<?= DRAFT_PICK_VALUE[1] ?>/<?= DRAFT_PICK_VALUE[2] ?>/<?= DRAFT_PICK_VALUE[3] ?> by round) is coarser than it should be.</p>
+  <p class="muted">"Within engine tolerance" means the trade math (Management <?= ASSUMED_MANAGEMENT ?>, swing ±<?= $swing ?>) would let this trade actually happen in-game. If those two averages read far apart from 0 in opposite directions, or the "outside tolerance" trades aren't reading much worse to you than the "within" ones, that's a sign the swing number itself may need retuning. The pick-vs-no-pick pair compares by <strong>magnitude</strong> (how lopsided, regardless of direction) -- if pick trades run consistently more lopsided, that's a sign the flat pick-value ladder (<?= DRAFT_PICK_VALUE[1] ?>/<?= DRAFT_PICK_VALUE[2] ?>/<?= DRAFT_PICK_VALUE[3] ?> by round) is coarser than it should be. SELL FOR PICKS/MOVE UP trades are <em>expected</em> to run more lopsided than ordinary ones -- they deliberately use a wider <?= EXTRA_PICK_TOLERANCE ?>-point discount tolerance on top of the normal swing -- so judge that number against "does a below-market desperation sale still feel fair," not against 0.</p>
 
   <?php if ($total === 0): ?>
     <p>No ratings saved yet -- <a href="?">go rate some trades</a>.</p>
@@ -553,6 +783,7 @@ function h(string $s): string {
         <th>Team A Sends</th>
         <th>Team B Sends</th>
         <th>Pick?</th>
+        <th>Shape</th>
         <th>Value Gap</th>
         <th>In Tolerance?</th>
         <th>Rating</th>
@@ -564,6 +795,7 @@ function h(string $s): string {
           <td><?php foreach ($r['give'] as $a) echo h(asset_label($a)) . '<br>'; ?></td>
           <td><?php foreach ($r['get'] as $a) echo h(asset_label($a)) . '<br>'; ?></td>
           <td><?= trade_has_pick($r['give'], $r['get']) ? 'Yes' : '' ?></td>
+          <td><?= h(shape_label($r['shape'] ?? 'ordinary') ?? '') ?></td>
           <td><?= $r['gap'] >= 0 ? '+' : '' ?><?= $r['gap'] ?> (swing ±<?= $r['swing'] ?>)</td>
           <td><?= $r['within_tolerance'] ? 'Yes' : 'No' ?></td>
           <td><strong><?= $r['rating'] >= 0 ? '+' : '' ?><?= $r['rating'] ?></strong></td>
@@ -585,7 +817,12 @@ function h(string $s): string {
     whatever the slider shows unless you check "skip this one." This batch is
     deliberately oversampled toward draft picks (marked <span class="pick-badge">PICK</span>)
     since that's the shape most worth scrutinizing -- always at least one 1st-rounder and
-    one 2nd-rounder. Reloading this page keeps the same batch; submitting rolls a brand new one.
+    one 2nd-rounder, plus at least one real <span class="pick-badge shape-badge">SELL FOR PICKS</span>
+    (a player, no return player, straight for picks) and one
+    <span class="pick-badge shape-badge">MOVE UP</span> (spending a worse pick you own,
+    maybe with a player thrown in, for one real better pick) -- the 2 shapes behind the
+    "Gain Picks" Trade Board toggle. Reloading this page keeps the same batch; submitting
+    rolls a brand new one.
   </p>
 
   <datalist id="ratingTicks">
@@ -595,7 +832,7 @@ function h(string $s): string {
   <form method="post" action="?seed=<?= $seed ?>">
     <?php foreach ($trades as $i => $trade): ?>
       <div class="trade">
-        <h3>Trade <?= $i + 1 ?><?php if (trade_has_pick($trade['give'], $trade['get'])): ?> <span class="pick-badge">PICK</span><?php endif; ?></h3>
+        <h3>Trade <?= $i + 1 ?><?php if (trade_has_pick($trade['give'], $trade['get'])): ?> <span class="pick-badge">PICK</span><?php endif; ?><?php if ($label = shape_label($trade['shape'] ?? 'ordinary')): ?> <span class="pick-badge shape-badge"><?= h($label) ?></span><?php endif; ?></h3>
         <div class="sides">
           <div class="side">
             <h4>Team A Sends</h4>
