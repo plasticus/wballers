@@ -43,20 +43,28 @@ void main() {
     // see the file-level doc comment. Every case below traces back to a
     // real note from that dataset, not an arbitrary pick.
 
-    test('at or below replacement (60), potential and age never move the '
-        'value at all -- real junk stays worth exactly its skillPoints, '
-        'regardless of birth year or ceiling ("Nakamura is junk and '
-        'doesn\'t factor in," "who cares at mid-50s")', () {
+    test('at or below replacement (60), potential and age never add an '
+        'upside/age-risk adjustment, and skillPoints itself only counts '
+        'kTradeValueReplacementFloorFraction -- real junk reads as '
+        'genuinely near-worthless, regardless of birth year or ceiling. '
+        'Re-tuned 2026-08-24 -- the original design only ever zeroed the '
+        'upside/age-risk *adjustment* terms, leaving skillPoints itself '
+        'undiscounted, which is exactly what a second wave of real '
+        'tools/trade_study/ ratings caught: a 50-65 OVR, often '
+        '30+-year-old player with no real potential could still fetch a '
+        'real 1st-round pick outright ("50ovr has zero value... it\'s '
+        'offensive," "58ovr age 32 isn\'t worth a 3rd. Disgusting," '
+        '"shouldn\'t be on a roster, much less worth a 1st").', () {
       final junkNoUpside = playerTradeValue(
         overall: 55,
         potential: 56,
         skillPoints: 660,
         age: 34,
       );
-      expect(junkNoUpside, 660);
+      expect(junkNoUpside, (660 * kTradeValueReplacementFloorFraction).round());
 
       // Same current overall, but a real ceiling -- still gated off,
-      // since a 55 OVR/56 POT isn't a real prospect either. Contrast
+      // since a 55 OVR/60 POT isn't a real prospect either. Contrast
       // with the next test, where potential alone clears the gate.
       final junkFlatPotential = playerTradeValue(
         overall: 55,
@@ -64,7 +72,10 @@ void main() {
         skillPoints: 660,
         age: 20,
       );
-      expect(junkFlatPotential, 660);
+      expect(
+        junkFlatPotential,
+        (660 * kTradeValueReplacementFloorFraction).round(),
+      );
     });
 
     test('the gate is max(overall, potential), not overall alone -- a low-'
@@ -130,6 +141,48 @@ void main() {
         age: 22,
       );
       expect(value, isA<int>());
+    });
+
+    // 2026-08-24 -- kTradeValueReplacementFloorFraction's own doc comment
+    // has the full story. Each case here is a real
+    // tools/trade_study/ratings.json trade the GM rated -5 ("offensive,"
+    // "disgusting," "unconscionable") for still being able to fetch a
+    // real 1st (400) or a real 2nd+1st combo (620) despite the target
+    // being a replacement-level veteran with no upside -- verified to
+    // now genuinely fail even kSellForPicksExtraTolerance's own wide
+    // ±(swing+250) cushion, not just read as a smaller number.
+    test('a replacement-level, no-upside veteran now genuinely fails to '
+        'clear even a 1st-round pick\'s value, wide sell-for-picks '
+        'tolerance included -- "58ovr age 32 isn\'t worth a 3rd. '
+        'Disgusting."', () {
+      // 58 OVR / 61 POT / age 32 -- real GM report, offered for a real
+      // 2nd (220) + 1st (400) combo (620) and rated -5.
+      final value = playerTradeValue(
+        overall: 58,
+        potential: 61,
+        skillPoints: 58 * 12,
+        age: 32,
+      );
+      const askedPicks = 620; // a real 2027 R2 + a real 2028 R1
+      const wideTolerance =
+          47 + 250; // Management 70 swing + kSellForPicksExtraTolerance
+      expect((askedPicks - value).abs(), greaterThan(wideTolerance));
+    });
+
+    test('a young, no-upside veteran fares no better -- age alone was '
+        'never the actual gate; a "50ovr has zero value" is the same '
+        'complaint at any age', () {
+      // 50 OVR / 52 POT / age 26 -- real GM report, offered for a
+      // single real 1st (400) and rated -5, "Stupid."
+      final value = playerTradeValue(
+        overall: 50,
+        potential: 52,
+        skillPoints: 50 * 12,
+        age: 26,
+      );
+      const askedPick = 400;
+      const wideTolerance = 47 + 250;
+      expect((askedPick - value).abs(), greaterThan(wideTolerance));
     });
   });
 

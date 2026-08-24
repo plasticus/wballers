@@ -43,6 +43,11 @@ const REPLACEMENT_OVERALL = 60;
 const FULL_WEIGHT_OVERALL = 75;
 const UPSIDE_WEIGHT = 4;
 const AGE_RISK_WEIGHT = 1.5;
+// kTradeValueReplacementFloorFraction -- how much of raw skillPoints
+// still counts below replacement quality (2026-08-24, re-synced
+// alongside that constant's own real-game addition; see its doc comment
+// in trade_value.dart for the full story/evidence).
+const REPLACEMENT_FLOOR_FRACTION = 0.1;
 
 // kSellForPicksExtraTolerance / kPickSpendExtraTolerance -- both 250 in
 // the real game, same reasoning either direction: real picks and real
@@ -70,15 +75,18 @@ function quality_ramp(int $gate): float {
     return ($gate - REPLACEMENT_OVERALL) / (FULL_WEIGHT_OVERALL - REPLACEMENT_OVERALL);
 }
 
-/** Mirrors playerTradeValue() exactly -- skillPoints plus a real premium
- * for unrealized potential and a real discount for age-related decline
+/** Mirrors playerTradeValue() exactly -- skillPoints (discounted toward
+ * REPLACEMENT_FLOOR_FRACTION below replacement quality, not counted in
+ * full the way the original design did) plus a real premium for
+ * unrealized potential and a real discount for age-related decline
  * risk, both ramped to zero for anyone who isn't a real prospect or a
  * real current piece either way. */
 function player_trade_value(int $overall, int $potential, int $skillPoints, int $age): int {
     $ramp = quality_ramp(max($overall, $potential));
+    $skillPointsMultiplier = REPLACEMENT_FLOOR_FRACTION + (1 - REPLACEMENT_FLOOR_FRACTION) * $ramp;
     $upside = UPSIDE_WEIGHT * max(0, $potential - $overall) * $ramp;
     $ageRisk = AGE_RISK_WEIGHT * age_risk_factor($age) * $overall * $ramp;
-    return (int) round($skillPoints + $upside - $ageRisk);
+    return (int) round($skillPoints * $skillPointsMultiplier + $upside - $ageRisk);
 }
 
 // ---------------------------------------------------------------------

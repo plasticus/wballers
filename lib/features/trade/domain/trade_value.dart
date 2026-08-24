@@ -25,14 +25,15 @@
 library;
 
 /// Current ability at or below this contributes no [playerTradeValue]
-/// upside premium or age-risk discount at all -- real generated junk
-/// regardless of birth year or ceiling, per several independent notes
-/// from the same trade study: "Nakamura is junk and doesn't factor in,"
-/// "who cares at mid-50s," "sub-50 OVR should just quit and get a job."
-/// Gated on `max(overall, potential)`, not overall alone -- an
-/// undeveloped high-ceiling prospect (low current OVR, high potential)
-/// is exactly who this system exists to credit, not exclude on a
-/// technicality (an early tuning pass zeroed out a 59 OVR/89 POT
+/// upside premium or age-risk discount at all, and only
+/// [kTradeValueReplacementFloorFraction] of skillPoints itself -- real
+/// generated junk regardless of birth year or ceiling, per several
+/// independent notes from the same trade study: "Nakamura is junk and
+/// doesn't factor in," "who cares at mid-50s," "sub-50 OVR should just
+/// quit and get a job." Gated on `max(overall, potential)`, not overall
+/// alone -- an undeveloped high-ceiling prospect (low current OVR, high
+/// potential) is exactly who this system exists to credit, not exclude
+/// on a technicality (an early tuning pass zeroed out a 59 OVR/89 POT
 /// 20-year-old this way by mistake).
 const kTradeValueReplacementOverall = 60;
 
@@ -82,13 +83,43 @@ double _tradeValueQualityRamp(int gate) {
       (kTradeValueFullWeightOverall - kTradeValueReplacementOverall);
 }
 
+/// How much of a player's raw [PlayerRatings.skillPoints] still counts
+/// toward [playerTradeValue] once quality has ramped all the way down to
+/// [kTradeValueReplacementOverall] or below -- a real, if minimal, floor
+/// (not literally 0; a below-replacement player still occupies a real
+/// roster spot), scaling up to the full, undiscounted skillPoints once
+/// [_tradeValueQualityRamp] reaches 1.0.
+///
+/// Added 2026-08-24 -- `tools/trade_study/`'s real dataset kept flagging
+/// the same gap across 3 different Trade Board toggles at once: a
+/// 50-65 OVR, often 30+-year-old player with no real potential could
+/// still fetch a real 1st-round pick outright, or 2 of them could "sum"
+/// on paper to match a genuinely good young player plus a pick. Direct
+/// GM notes, verbatim: "50ovr has zero value... it's offensive,"
+/// "58ovr age 32 isn't worth a 3rd. Disgusting," "[she] shouldn't be on
+/// a roster, much less worth a 1st," "INSANE... one of the worst trades
+/// you've shown me," "A first round pick is equivalent to like... a
+/// 20yo 75/89ish, I bet." [kTradeValueUpsideWeight]/
+/// [kTradeValueAgeRiskWeight] only ever add or subtract a bonus/penalty
+/// on top of the *full* skillPoints term -- skillPoints itself, the
+/// dominant term by far, was never actually discounted, so a
+/// replacement-level veteran never read as anywhere close to worthless
+/// the way the GM's own gut consistently said she should. Verified
+/// against that same dataset before shipping: every one of the
+/// above-quoted trades, and every other trade this fix was aimed at,
+/// now genuinely fails its own [tradeSwing]/tolerance check instead of
+/// reading as legal.
+const kTradeValueReplacementFloorFraction = 0.1;
+
 /// What one player is worth in a trade -- [PlayerRatings.skillPoints]
-/// (current ability, the original and still-dominant term) plus a real
-/// premium for unrealized [PlayerRatings.potential] and a real discount
-/// for age-related decline/retirement risk, both ramped to zero for
-/// anyone who isn't a real prospect or a real current piece either way
-/// (see [kTradeValueReplacementOverall]). Takes the raw ratings/age
-/// rather than a [Player] directly so callers (`trade_asset.dart`, the
+/// (current ability, the original and still-dominant term, though no
+/// longer counted in full below replacement quality --
+/// [kTradeValueReplacementFloorFraction]) plus a real premium for
+/// unrealized [PlayerRatings.potential] and a real discount for
+/// age-related decline/retirement risk, both ramped to zero for anyone
+/// who isn't a real prospect or a real current piece either way (see
+/// [kTradeValueReplacementOverall]). Takes the raw ratings/age rather
+/// than a [Player] directly so callers (`trade_asset.dart`, the
 /// standalone `tools/trade_study/` PHP port) don't need the whole
 /// domain object.
 int playerTradeValue({
@@ -100,13 +131,16 @@ int playerTradeValue({
   final ramp = _tradeValueQualityRamp(
     overall > potential ? overall : potential,
   );
+  final skillPointsMultiplier =
+      kTradeValueReplacementFloorFraction +
+      (1 - kTradeValueReplacementFloorFraction) * ramp;
   final upside =
       kTradeValueUpsideWeight *
       (potential > overall ? potential - overall : 0) *
       ramp;
   final ageRisk =
       kTradeValueAgeRiskWeight * _tradeValueAgeRiskFactor(age) * overall * ramp;
-  return (skillPoints + upside - ageRisk).round();
+  return (skillPoints * skillPointsMultiplier + upside - ageRisk).round();
 }
 
 /// A draft pick's flat trade value, in [playerTradeValue]-style skill
