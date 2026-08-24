@@ -24,3 +24,4 @@ key.properties
 # tracked, its generated data isn't.
 tools/trade_study/ratings.json
 tools/trade_study/value_checks.json
+tools/trade_study/pick_checks.json

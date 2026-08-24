@@ -100,6 +100,33 @@ Checks").
   real player's quality for the pick-anchor profile directly says what a
   real 1st/2nd/3rd should be worth.
 
+## What's This Pick Worth (Pick Check mode)
+
+A third mode (2026-08-24 evening) -- the flip side of Name Your Price's
+pick-anchor question. That question asked "name a player worth this
+pick," which turned out to be genuinely hard to answer freehand ("it's
+hard for me, with my human brain, to just type out a player that's
+worth a particular pick"). This one shows a pick (or a pick combo) and
+asks you to pick the closest match from a small, **fixed** multiple-choice
+ladder instead -- recognition instead of generation.
+
+- Every batch always asks about the same 6 pick packages: a bare 1st, a
+  bare 2nd, a bare 3rd, two 1sts, a 1st + a 2nd, and a 2nd + a 3rd
+  (`PICK_CHECK_COMBOS`) -- covers single-round values and whether the
+  current plain-sum combo math itself feels right, in one batch.
+- The multiple-choice ladder (`PICK_CHECK_COMPARISON_PROFILES`) is the
+  same 5 fixed player profiles every time -- scrub / decent rotation
+  piece / quality starter / near-star-or-real-riser / true star, each
+  with a real OVR/POT/age shown -- plus "not much of anything real" and
+  "more than any of these" for the tails. Fixed on purpose (unlike the
+  jittered pick anchors) so every answer, across every batch you ever
+  run, is directly comparable against the same yardstick.
+- Pick the closest one; notes are free text for "in between X and Y" or
+  "about 2 of these" nuance the 7 fixed choices can't capture alone.
+- Answers save to `pick_checks.json` (same gitignored, append-only
+  posture as the other two data files). "View Saved Pick Checks" shows
+  every answer next to the combo's current combined engine value.
+
 ## Notes
 
 - The player generator here is a simplified standalone approximation

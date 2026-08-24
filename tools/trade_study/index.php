@@ -242,6 +242,61 @@ function generate_pick_anchor_player(int $round): array {
     return make_player($overall, $potential, $age);
 }
 
+/** Pick Check mode's fixed multiple-choice ladder (2026-08-24) -- a
+ * direct GM ask, replacing "name a player for this pick" (Value Check's
+ * pick-anchor question) with the reverse: "here's a pick or a pick
+ * combo, which of these *fixed* players is closest?" ("it's hard for
+ * me, with my human brain, to just type out a player that's worth a
+ * particular pick... give me a multiple choice option (plus notes) to
+ * choose the closest thing"). Deliberately the same 5 profiles every
+ * time (not jittered like PICK_ANCHOR_PROFILES) -- every answer across
+ * every batch needs to be directly comparable against the same ladder,
+ * not just internally consistent within one batch. */
+const PICK_CHECK_COMPARISON_PROFILES = [
+    'scrub' => ['label' => 'A scrub -- replacement level, no real upside', 'overall' => 58, 'potential' => 60, 'age' => 29],
+    'rotation' => ['label' => 'A decent rotation piece', 'overall' => 70, 'potential' => 73, 'age' => 25],
+    'starter' => ['label' => 'A quality starter', 'overall' => 78, 'potential' => 82, 'age' => 23],
+    'near_star' => ['label' => 'A near-star, or a real riser prospect', 'overall' => 85, 'potential' => 92, 'age' => 21],
+    'star' => ['label' => 'A true star', 'overall' => 91, 'potential' => 92, 'age' => 25],
+];
+
+/** The 6 pick packages a Pick Check batch always asks about -- one bare
+ * pick per round plus 3 blended combos, so both single-round values and
+ * whether the current (plain-sum) combo math itself feels right can be
+ * read from the same batch. Always this exact set (shuffled for display
+ * order only) for the same "every answer is directly comparable" reason
+ * PICK_CHECK_COMPARISON_PROFILES is fixed. */
+const PICK_CHECK_COMBOS = [
+    [1 => 1],
+    [2 => 1],
+    [3 => 1],
+    [1 => 2],
+    [1 => 1, 2 => 1],
+    [2 => 1, 3 => 1],
+];
+
+function generate_pick_check_batch(int $seed): array {
+    mt_srand($seed);
+    $items = [];
+    foreach (PICK_CHECK_COMBOS as $combo) {
+        $picks = [];
+        $season = 2027;
+        foreach ($combo as $round => $count) {
+            for ($n = 0; $n < $count; $n++) {
+                $picks[] = ['type' => 'pick', 'round' => $round, 'season' => $season, 'value' => DRAFT_PICK_VALUE[$round]];
+                $season++; // same-round picks still need distinct display seasons
+            }
+        }
+        $items[] = ['picks' => $picks];
+    }
+    shuffle($items);
+    return $items;
+}
+
+function pick_combo_label(array $picks): string {
+    return implode(' + ', array_map('asset_label', $picks));
+}
+
 function generate_pick(?int $round = null): array {
     $round = $round ?? mt_rand(1, 3);
     $season = 2027 + mt_rand(0, 1);
@@ -917,6 +972,28 @@ function save_value_checks(array $checks): void {
     fclose($fp);
 }
 
+define('PICK_CHECK_DATA_FILE', __DIR__ . '/pick_checks.json');
+
+function load_pick_checks(): array {
+    if (!file_exists(PICK_CHECK_DATA_FILE)) return [];
+    $raw = file_get_contents(PICK_CHECK_DATA_FILE);
+    if ($raw === false || trim($raw) === '') return [];
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function save_pick_checks(array $checks): void {
+    $fp = fopen(PICK_CHECK_DATA_FILE, 'c+');
+    if ($fp === false) return;
+    flock($fp, LOCK_EX);
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($checks, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+}
+
 function trade_has_pick(array $give, array $get): bool {
     foreach ($give as $a) if ($a['type'] === 'pick') return true;
     foreach ($get as $a) if ($a['type'] === 'pick') return true;
@@ -973,12 +1050,13 @@ header('Pragma: no-cache');
 $count = 6;
 $viewMode = isset($_GET['view']);
 
-// 'rate' (default, the original mode) or 'value_check' (2026-08-24) --
-// 2 genuinely separate tools sharing one page/nav/persistence pattern,
-// not 2 branches of the same form.
-$mode = (($_GET['mode'] ?? 'rate') === 'value_check') ? 'value_check' : 'rate';
+// 'rate' (default, the original mode), 'value_check' (2026-08-24), or
+// 'pick_check' (2026-08-24 evening) -- 3 genuinely separate tools
+// sharing one page/nav/persistence pattern, not branches of one form.
+$mode = in_array($_GET['mode'] ?? 'rate', ['value_check', 'pick_check'], true)
+    ? $_GET['mode'] : 'rate';
 function mode_url(string $mode, array $extra = []): string {
-    $params = $mode === 'value_check' ? array_merge(['mode' => 'value_check'], $extra) : $extra;
+    $params = $mode !== 'rate' ? array_merge(['mode' => $mode], $extra) : $extra;
     return '?' . http_build_query($params);
 }
 
@@ -1022,6 +1100,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'value_check') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'pick_check') {
+    $items = generate_pick_check_batch($seed);
+    $checks = load_pick_checks();
+    $savedCount = 0;
+    foreach ($items as $i => $item) {
+        $choice = (string) ($_POST['choice_' . $i] ?? '');
+        $validChoices = array_merge(array_keys(PICK_CHECK_COMPARISON_PROFILES), ['nothing', 'more']);
+        if (!in_array($choice, $validChoices, true)) {
+            continue; // no choice made -- not saved (notes alone don't count)
+        }
+        $notes = trim((string) ($_POST['notes_' . $i] ?? ''));
+        $checks[] = [
+            'id' => bin2hex(random_bytes(8)),
+            'timestamp' => date('Y-m-d H:i:s'),
+            'seed' => $seed,
+            'item_index' => $i,
+            'picks' => $item['picks'],
+            'choice' => $choice,
+            'notes' => $notes,
+        ];
+        $savedCount++;
+    }
+    save_pick_checks($checks);
+    $newSeed = random_int(1, 1000000000);
+    header('Location: ' . mode_url($mode, ['seed' => $newSeed, 'saved' => $savedCount]));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $trades = generate_batch($seed, $count);
     $ratings = load_ratings();
@@ -1058,13 +1164,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (isset($_GET['saved'])) {
     $n = (int) $_GET['saved'];
-    $noun = $mode === 'value_check' ? 'answer' : 'rating';
+    $noun = $mode === 'rate' ? 'rating' : 'answer';
     $flash = $n === 1 ? "Saved 1 $noun." : "Saved $n {$noun}s.";
 }
 
 $viewMode = isset($_GET['view']);
 $trades = $mode === 'rate' ? generate_batch($seed, $count) : [];
 $valueCheckItems = $mode === 'value_check' ? generate_value_check_batch($seed) : [];
+$pickCheckItems = $mode === 'pick_check' ? generate_pick_check_batch($seed) : [];
 $swing = trade_swing(ASSUMED_MANAGEMENT);
 
 function h(string $s): string {
@@ -1124,6 +1231,9 @@ function h(string $s): string {
   button { font-size: 1.05rem; padding: 14px 18px; width: 100%; border-radius: 8px; border: none; background: var(--button-bg); color: var(--button-text); cursor: pointer; }
   button:hover { background: var(--button-bg-hover); }
   .value-check-quickfill { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .pick-check-options { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+  .pick-check-option { display: block; padding: 10px 12px; border: 1px solid var(--card-border); border-radius: 8px; background: var(--th-bg); }
+  .pick-check-option input { margin-right: 8px; }
   .quickfill-btn { width: auto; font-size: 0.85rem; padding: 8px 12px; border-radius: 20px; background: var(--th-bg); color: var(--text); border: 1px solid var(--card-border); }
   .quickfill-btn:hover { background: var(--card-border); }
   .table-wrap { overflow-x: auto; }
@@ -1142,6 +1252,8 @@ function h(string $s): string {
   <a href="?view=1">View Saved Data</a>
   <a href="<?= mode_url('value_check') ?>">Name Your Price</a>
   <a href="<?= mode_url('value_check', ['view' => 1]) ?>">View Saved Value Checks</a>
+  <a href="<?= mode_url('pick_check') ?>">What's This Pick Worth</a>
+  <a href="<?= mode_url('pick_check', ['view' => 1]) ?>">View Saved Pick Checks</a>
 </div>
 
 <?php if ($flash): ?>
@@ -1228,6 +1340,93 @@ function h(string $s): string {
           <?php endforeach; ?>
         </div>
         <textarea name="answer_<?= $i ?>" id="answer_<?= $i ?>" placeholder="<?= $isAnchor ? 'About how good a real player would she need to be?' : 'What would you take/give for her?' ?>"></textarea>
+      </div>
+    <?php endforeach; ?>
+
+    <div class="submit-bar">
+      <button type="submit">Save Answers &amp; Get New Batch</button>
+    </div>
+  </form>
+
+<?php endif; ?>
+
+<?php elseif ($mode === 'pick_check'): ?>
+
+<?php if ($viewMode): ?>
+
+  <h1>Saved Pick Checks</h1>
+  <?php
+    $allPickChecks = load_pick_checks();
+    $totalPickChecks = count($allPickChecks);
+    $pickChoiceLabel = function (string $choice): string {
+        if ($choice === 'nothing') return 'Not much of anything real';
+        if ($choice === 'more') return 'More than any of these';
+        return PICK_CHECK_COMPARISON_PROFILES[$choice]['label'] ?? $choice;
+    };
+  ?>
+  <p class="muted">Every pick (or pick combo) you've weighed in on, newest first, next to
+    what you picked from the fixed ladder. The ladder itself never changes, so these are
+    directly comparable across every batch you've ever answered.</p>
+
+  <?php if ($totalPickChecks === 0): ?>
+    <p>No pick checks saved yet -- <a href="<?= mode_url('pick_check') ?>">go weigh in on some</a>.</p>
+  <?php else: ?>
+    <div class="table-wrap">
+    <table>
+      <tr>
+        <th>When</th>
+        <th>Pick(s)</th>
+        <th>Current Combined Engine Value</th>
+        <th>Your Choice</th>
+        <th>Notes</th>
+      </tr>
+      <?php foreach (array_reverse($allPickChecks) as $c): ?>
+        <tr>
+          <td><?= h($c['timestamp']) ?></td>
+          <td><?= h(pick_combo_label($c['picks'])) ?></td>
+          <td><?= array_sum(array_column($c['picks'], 'value')) ?></td>
+          <td><?= h($pickChoiceLabel($c['choice'])) ?></td>
+          <td><?= h($c['notes']) ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </table>
+    </div>
+  <?php endif; ?>
+
+<?php else: ?>
+
+  <h1>What's This Pick Worth</h1>
+  <p class="muted">
+    For each pick (or pick combo) below, which of the 5 fixed players would you actually
+    take instead, straight up -- or give up to acquire it? Pick the closest one; add notes
+    if you're between two, or want to say by how much. The same 5 profiles show up every
+    time on purpose, so answers stay comparable across batches -- this is the flip side of
+    Name Your Price's pick-anchor question (naming a player for a pick, instead of naming
+    a pick for a player), for whenever a direct player comparison is easier to eyeball than
+    to type from scratch.
+  </p>
+
+  <form method="post" action="<?= mode_url('pick_check', ['seed' => $seed]) ?>">
+    <?php foreach ($pickCheckItems as $i => $item): ?>
+      <div class="trade">
+        <h3><?= h(pick_combo_label($item['picks'])) ?></h3>
+        <div class="pick-check-options">
+          <?php foreach (PICK_CHECK_COMPARISON_PROFILES as $key => $profile): ?>
+            <label class="pick-check-option">
+              <input type="radio" name="choice_<?= $i ?>" value="<?= h($key) ?>">
+              <?= h($profile['label']) ?> (<?= $profile['overall'] ?> OVR / <?= $profile['potential'] ?> POT / age <?= $profile['age'] ?>)
+            </label>
+          <?php endforeach; ?>
+          <label class="pick-check-option">
+            <input type="radio" name="choice_<?= $i ?>" value="nothing">
+            Not much of anything real
+          </label>
+          <label class="pick-check-option">
+            <input type="radio" name="choice_<?= $i ?>" value="more">
+            More than any of these
+          </label>
+        </div>
+        <textarea name="notes_<?= $i ?>" id="notes_<?= $i ?>" placeholder="Notes -- e.g. 'between rotation and starter' or 'about 2 of these'"></textarea>
       </div>
     <?php endforeach; ?>
 
