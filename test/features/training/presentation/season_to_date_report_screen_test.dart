@@ -15,8 +15,12 @@ import 'package:womensbballmgr/features/training/presentation/season_to_date_rep
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
+import '../../roster/domain/roster_test_helpers.dart';
 
-Franchise _franchiseWith({List<TrainingReport> trainingReports = const []}) {
+Franchise _franchiseWith({
+  List<TrainingReport> trainingReports = const [],
+  List<Player> freeAgents = const [],
+}) {
   final roster = generateStartingRoster(1);
   return Franchise(
     id: 'franchise-1',
@@ -28,6 +32,7 @@ Franchise _franchiseWith({List<TrainingReport> trainingReports = const []}) {
       archetype: CoachArchetype.steadyHand,
     ),
     roster: roster,
+    freeAgents: freeAgents,
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
     league: testLeague(
@@ -167,6 +172,47 @@ void main() {
       final disruptionX = tester.getTopLeft(find.text('Disruption +3')).dx;
       expect(agilityX, lessThan(passingX));
       expect(passingX, lessThan(disruptionX));
+    },
+  );
+
+  testWidgets(
+    'shows a waived (dropped) player\'s real name, not "Former Player" '
+    '-- a direct GM report (2026-08-23): 2 clearly distinct bench '
+    'players, released (not retired) mid-season, both showed up here '
+    'with the exact same generic label',
+    (tester) async {
+      final waived = playerWithOverall(
+        62,
+        id: 'waived-1',
+        name: 'Riley Okafor',
+        primaryPosition: Position.pointGuard,
+      );
+      final report = TrainingReport(
+        week: 1,
+        results: [
+          PlayerGrowthResult(
+            playerId: waived.id,
+            fieldDeltas: const {PlayerRatingField.agility: 1},
+            overallBefore: 61,
+            overallAfter: 62,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SeasonToDateReportScreen(
+            franchise: _franchiseWith(
+              trainingReports: [report],
+              freeAgents: [waived],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Riley Okafor'), findsOneWidget);
+      expect(find.textContaining('Former Player'), findsNothing);
     },
   );
 }

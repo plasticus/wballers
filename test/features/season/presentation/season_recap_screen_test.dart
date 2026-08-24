@@ -546,6 +546,71 @@ void main() {
   });
 
   testWidgets(
+    'shows a waived (dropped) player\'s real name in Player Development, '
+    'not "Former Player" -- a direct GM report (2026-08-23): 2 clearly '
+    'distinct bench players, released (not retired) mid-season, both '
+    'showed up here with the exact same generic label',
+    (tester) async {
+      final player = playerWithOverall(
+        62,
+        id: 'p1',
+        name: 'Riley Okafor',
+        primaryPosition: Position.pointGuard,
+      ).copyWithJerseyNumber(null);
+      // Waived: no longer on `roster`, never retired (so `formerPlayers`
+      // has nothing for her either) -- `dropPlayer`'s own doc comment,
+      // "released, not vanished," lands her right in `freeAgents`.
+      final franchise = Franchise(
+        id: 'franchise-1',
+        gmName: 'Taylor Reed',
+        team: kLeagueTeamPool.first,
+        coach: const Coach(
+          name: 'Jordan Ellis',
+          stats: CoachStats.neutral,
+          archetype: CoachArchetype.steadyHand,
+        ),
+        roster: const [],
+        freeAgents: [player],
+        simulationSeed: 1,
+        replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        league: testLeague(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+        ),
+        seasonProgress: testSeasonProgress(
+          simulationSeed: 1,
+          replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
+          ownTeam: kLeagueTeamPool.first,
+        ),
+        trainingCoaches: testTrainingCoaches(),
+        trainingPlan: TrainingPlan.initial(),
+        nextTrainingWeek: 3,
+        trainingReports: const [
+          TrainingReport(
+            week: 2,
+            results: [
+              PlayerGrowthResult(
+                playerId: 'p1',
+                fieldDeltas: {PlayerRatingField.speed: 2},
+                overallBefore: 61,
+                overallAfter: 62,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: SeasonRecapScreen(franchise: franchise)),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Riley Okafor'), findsOneWidget);
+      expect(find.textContaining('Former Player'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'shows an empty-state message when no development results exist yet',
     (tester) async {
       final roster = generateStartingRoster(1);

@@ -34,15 +34,30 @@ class SeasonToDateReportScreen extends StatelessWidget {
         return '${player.primaryPosition.abbreviation} $jersey${player.name}';
       }
     }
+    // Waived (`dropPlayer`) since training resolved -- released, not
+    // vanished, so she's still sitting right in `Franchise.freeAgents`
+    // with her real name (2026-08-23, a direct GM report: a couple of
+    // clearly-real, distinctly-different bench players -- different
+    // trait bumps, different OVRs -- both showed up here as the exact
+    // same generic "Former Player" label; this check was simply
+    // missing, even though this screen's own retirement-era doc comment
+    // already claimed to cover "a free-agent swap").
+    for (final player in franchise.freeAgents) {
+      if (player.id == playerId) {
+        return '${player.primaryPosition.abbreviation} ${player.name}';
+      }
+    }
     // A real retirement mid-season -- her name still survives in
     // `Franchise.formerPlayers` (see `FormerPlayerRecord`'s own doc
     // comment).
     for (final record in franchise.formerPlayers) {
       if (record.playerId == playerId) return record.label;
     }
-    // Shouldn't happen otherwise -- every result comes from this
-    // franchise's own roster -- but a label beats a crash if a player
-    // was somehow since removed from the save with no trace at all.
+    // Shouldn't happen otherwise -- a player traded away to an AI team
+    // is the one remaining gap (her name lives on that team's own
+    // roster, which this lookup doesn't scan) -- but a label beats a
+    // crash if a player was somehow since removed from the save with no
+    // trace at all.
     return 'Former Player';
   }
 

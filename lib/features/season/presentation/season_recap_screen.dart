@@ -64,6 +64,14 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
   /// (2026-08-19): a retired all-star showed up on this exact screen's
   /// Player Development section labeled "Former Player" instead of her
   /// own name (see `FormerPlayerRecord`'s own doc comment).
+  ///
+  /// The "free-agent swap" half of that doc comment's own claim wasn't
+  /// actually implemented until 2026-08-23, when a direct GM report
+  /// (2 clearly distinct waived bench players, different trait bumps and
+  /// OVRs, both still labeled the exact same generic "Former Player")
+  /// caught that [Franchise.freeAgents] itself was never actually
+  /// checked -- `dropPlayer` releases a player there, not into
+  /// [Franchise.formerPlayers], which is retirement-only.
   String _playerLabel(String playerId) {
     for (final membership in widget.franchise.roster) {
       if (membership.player.id == playerId) {
@@ -72,6 +80,11 @@ class _SeasonRecapScreenState extends ConsumerState<SeasonRecapScreen> {
             ? '#${player.jerseyNumber} '
             : '';
         return '${player.primaryPosition.abbreviation} $jersey${player.name}';
+      }
+    }
+    for (final player in widget.franchise.freeAgents) {
+      if (player.id == playerId) {
+        return '${player.primaryPosition.abbreviation} ${player.name}';
       }
     }
     for (final record in widget.franchise.formerPlayers) {

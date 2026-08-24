@@ -21,8 +21,9 @@ import '../../../support/in_memory_save_repository.dart';
 import '../../../support/league_test_helpers.dart';
 import '../../../support/season_test_helpers.dart';
 import '../../../support/training_test_helpers.dart';
+import '../../roster/domain/roster_test_helpers.dart';
 
-Franchise _franchiseWith() {
+Franchise _franchiseWith({List<Player> freeAgents = const []}) {
   final roster = generateStartingRoster(1);
   return Franchise(
     id: 'franchise-1',
@@ -34,6 +35,7 @@ Franchise _franchiseWith() {
       archetype: CoachArchetype.steadyHand,
     ),
     roster: roster,
+    freeAgents: freeAgents,
     simulationSeed: 1,
     replacedTeamAbbreviation: kLeagueTeamPool.first.abbreviation,
     league: testLeague(
@@ -136,6 +138,47 @@ void main() {
 
     expect(find.text('No one moved the needle this week.'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows a waived (dropped) player\'s real name, not "Former Player" '
+    '-- a direct GM report (2026-08-23): 2 clearly distinct bench '
+    'players, released (not retired) the same week, both showed up '
+    'here with the exact same generic label',
+    (tester) async {
+      final waived = playerWithOverall(
+        62,
+        id: 'waived-1',
+        name: 'Riley Okafor',
+        primaryPosition: Position.pointGuard,
+      );
+      final franchise = _franchiseWith(freeAgents: [waived]);
+      final report = TrainingReport(
+        week: 1,
+        results: [
+          PlayerGrowthResult(
+            playerId: waived.id,
+            fieldDeltas: const {PlayerRatingField.agility: 1},
+            overallBefore: 61,
+            overallAfter: 62,
+          ),
+        ],
+      );
+
+      final repository = await _seededRepository(franchise);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [saveRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: TrainingReportScreen(franchise: franchise, report: report),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Riley Okafor'), findsOneWidget);
+      expect(find.textContaining('Former Player'), findsNothing);
+    },
+  );
 }
 
 /// Mirrors `training_report_screen.dart`'s private `_playerLabel` -- can't

@@ -61,6 +61,16 @@ class _TrainingReportScreenState extends ConsumerState<TrainingReportScreen> {
         return '${player.primaryPosition.abbreviation} $jersey${player.name}';
       }
     }
+    // Waived (`dropPlayer`) since this report resolved -- released, not
+    // vanished, so she's still sitting right in `Franchise.freeAgents`
+    // with her real name (2026-08-23, a direct GM report -- see
+    // `SeasonToDateReportScreen._playerLabel`'s own comment for the
+    // full story; kept in sync by hand here too).
+    for (final player in widget.franchise.freeAgents) {
+      if (player.id == playerId) {
+        return '${player.primaryPosition.abbreviation} ${player.name}';
+      }
+    }
     // A real retirement since this report resolved -- her name still
     // survives in `Franchise.formerPlayers` (a direct GM report,
     // 2026-08-19: a retired all-star showed up here as "Former Player"
@@ -69,10 +79,11 @@ class _TrainingReportScreenState extends ConsumerState<TrainingReportScreen> {
     for (final record in widget.franchise.formerPlayers) {
       if (record.playerId == playerId) return record.label;
     }
-    // Shouldn't happen otherwise -- every result comes from this
-    // franchise's own roster at the moment training resolved -- but a
-    // label beats a crash if a player was somehow since removed from the
-    // save with no trace at all.
+    // Shouldn't happen otherwise -- a player traded away to an AI team
+    // is the one remaining gap (her name lives on that team's own
+    // roster, which this lookup doesn't scan) -- but a label beats a
+    // crash if a player was somehow since removed from the save with no
+    // trace at all.
     return 'Former Player';
   }
 
