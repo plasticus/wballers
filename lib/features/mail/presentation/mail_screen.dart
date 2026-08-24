@@ -13,7 +13,6 @@ import '../../player/domain/position.dart';
 import '../../player/domain/player_injury.dart';
 import '../../player/domain/retirement_reason.dart';
 import '../../player/presentation/retirement_decision_screen.dart';
-import '../../season/domain/game_day.dart';
 import '../../season/presentation/all_star_game_result_screen.dart';
 import '../../season/presentation/skills_competition_result_screen.dart';
 import '../../training/presentation/training_report_screen.dart';
@@ -787,10 +786,6 @@ class _InjuryReportMailDetailScreen extends StatelessWidget {
                     const _MailHeaderRow(label: 'From', value: 'Assistant GM'),
                     _MailHeaderRow(label: 'Subject', value: item.subject),
                     _MailHeaderRow(label: 'Date', value: item.dateLabel),
-                    _MailHeaderRow(
-                      label: 'Date',
-                      value: formatFictionalDate(item.week, item.day),
-                    ),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       child: Divider(height: 1),
