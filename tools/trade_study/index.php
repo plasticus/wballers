@@ -248,15 +248,29 @@ function generate_pick_anchor_player(int $round): array {
  * combo, which of these *fixed* players is closest?" ("it's hard for
  * me, with my human brain, to just type out a player that's worth a
  * particular pick... give me a multiple choice option (plus notes) to
- * choose the closest thing"). Deliberately the same 5 profiles every
+ * choose the closest thing"). Deliberately the same profiles every
  * time (not jittered like PICK_ANCHOR_PROFILES) -- every answer across
  * every batch needs to be directly comparable against the same ladder,
- * not just internally consistent within one batch. */
+ * not just internally consistent within one batch.
+ *
+ * 'strong_starter'/'borderline_star' added the same evening, right
+ * after the first 2 real batches: the original 5-rung ladder's engine
+ * values (28/72/117/436/1096) had two huge gaps -- 117->436 and
+ * 436->1096 -- and real combo answers landed exactly in that dead
+ * zone: "R1 + a 2nd" and "R2 + a 3rd" both got voted the *same* rung
+ * as the bigger pick alone, which could genuinely mean "the smaller
+ * pick added nothing," or could just be 2 answers rounding down to the
+ * nearest rung because there was nothing in between to pick instead.
+ * These 2 new rungs (~208, ~676) sit right in those gaps so the next
+ * batches can actually tell the two apart. Existing saved answers keep
+ * their original keys/labels -- this only affects future batches. */
 const PICK_CHECK_COMPARISON_PROFILES = [
     'scrub' => ['label' => 'A scrub -- replacement level, no real upside', 'overall' => 58, 'potential' => 60, 'age' => 29],
     'rotation' => ['label' => 'A decent rotation piece', 'overall' => 70, 'potential' => 73, 'age' => 25],
     'starter' => ['label' => 'A quality starter', 'overall' => 78, 'potential' => 82, 'age' => 23],
+    'strong_starter' => ['label' => 'A really good starter, close to more', 'overall' => 79, 'potential' => 85, 'age' => 22],
     'near_star' => ['label' => 'A near-star, or a real riser prospect', 'overall' => 85, 'potential' => 92, 'age' => 21],
+    'borderline_star' => ['label' => 'A borderline star -- not quite elite yet', 'overall' => 87, 'potential' => 89, 'age' => 23],
     'star' => ['label' => 'A true star', 'overall' => 91, 'potential' => 92, 'age' => 25],
 ];
 
