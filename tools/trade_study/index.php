@@ -34,7 +34,7 @@
 // the real math since that retune, exactly the gap this README already
 // warns about).
 // ---------------------------------------------------------------------
-const DRAFT_PICK_VALUE = [1 => 400, 2 => 220, 3 => 50];
+const DRAFT_PICK_VALUE = [1 => 420, 2 => 130, 3 => 70]; // synced w/ trade_value.dart 2026-08-25 retune
 const MIN_TRADE_SWING = 11;
 const ASSUMED_MANAGEMENT = 70; // "assume I have a coach with 70 management"
 

@@ -278,7 +278,28 @@ int playerTradeValue({
 /// round 2 than round 2 is from round 3 (180 vs. 170, matching the
 /// original ladder's own shape/reasoning), even though round 2's move
 /// alone would have inverted that.
-const Map<int, int> kDraftPickTradeValue = {1: 400, 2: 220, 3: 50};
+/// Re-tuned again 2026-08-25 against `tools/trade_study/`'s new "What's
+/// This Pick Worth" mode -- direct multiple-choice against a fixed
+/// player-quality ladder, the most controlled measurement this system
+/// has had yet (no free-text ambiguity, no pick-currency circularity).
+/// 2 consistent batches: a bare 1st -> "near-star" (~436 under
+/// [playerTradeValue]), a bare 2nd -> "quality starter" (~117), a bare
+/// 3rd -> "decent rotation piece" (~72). Round 2 was the real miss --
+/// 220 was nearly double what it's actually worth. Round 1 stayed close
+/// to where it already was; earlier reasoning this same day (a draft
+/// simulation of the *average* prospect at pick 10/11, plus one trade
+/// note) had pointed toward a much bigger round-1 number, but that
+/// measures a known, certain player -- an actual pick is a real gamble,
+/// and reads meaningfully cheaper than its own average outcome once
+/// asked about directly as a pick. Round 3 got a real bump too, its
+/// first real data point since the original re-tune left it alone.
+/// Whether multiple picks in one package should keep summing flatly is
+/// still an open question -- the same 2 batches hinted a second, smaller
+/// pick tacked onto a bigger one might add close to nothing, but that
+/// could just as easily be an artifact of the ladder's gaps at the time
+/// (since fixed the same evening); left alone until batches under the
+/// wider ladder actually confirm it one way or the other.
+const Map<int, int> kDraftPickTradeValue = {1: 420, 2: 130, 3: 70};
 
 /// [kDraftPickTradeValue] for [round], or `0` for anything outside the
 /// 3 real rounds (`draft_generator.dart`'s `kDraftRounds`) -- a

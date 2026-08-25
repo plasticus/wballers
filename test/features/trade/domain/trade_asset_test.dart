@@ -75,7 +75,7 @@ void main() {
         round: 1,
         originalTeamAbbreviation: 'AAA',
       );
-      expect(pick.tradeValue, 400);
+      expect(pick.tradeValue, draftPickTradeValue(1));
       const sameRoundLaterSeason = PickTradeAsset(
         draftSeason: 2,
         round: 1,
