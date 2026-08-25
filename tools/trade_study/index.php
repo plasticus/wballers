@@ -274,25 +274,44 @@ const PICK_CHECK_COMPARISON_PROFILES = [
     'star' => ['label' => 'A true star', 'overall' => 91, 'potential' => 92, 'age' => 25],
 ];
 
-/** The 6 pick packages a Pick Check batch always asks about -- one bare
- * pick per round plus 3 blended combos, so both single-round values and
- * whether the current (plain-sum) combo math itself feels right can be
- * read from the same batch. Always this exact set (shuffled for display
- * order only) for the same "every answer is directly comparable" reason
- * PICK_CHECK_COMPARISON_PROFILES is fixed. */
-const PICK_CHECK_COMBOS = [
+/** The full pool a Pick Check batch samples 6 from (2026-08-25, widened
+ * from a fixed 6 the same day the first real data came back -- "I don't
+ * want to keep re-running the same batch, I'll just keep giving the
+ * same numbers"). The original fixed 6 already pinned down the 3 solo
+ * round values; what's still genuinely open is the *combo* question --
+ * does a smaller pick added to a bigger one add real value, or close to
+ * none -- and one bigger-1st/smaller-2nd pairing and one bigger-2nd/
+ * smaller-3rd pairing can't tell you whether that's a real pattern or
+ * just those 2 specific pairings. This pool covers every same-round
+ * stack (2 and 3 deep) and every cross-round pair, plus a 3-pick
+ * kitchen-sink, so repeat batches keep landing on genuinely different
+ * questions instead of the same 6 every time. Solo picks stay in the
+ * pool too (not removed) -- an occasional repeat of one is a real, free
+ * consistency check, not wasted. */
+const PICK_CHECK_COMBO_POOL = [
     [1 => 1],
     [2 => 1],
     [3 => 1],
     [1 => 2],
+    [2 => 2],
+    [3 => 2],
+    [1 => 3],
+    [2 => 3],
+    [3 => 3],
     [1 => 1, 2 => 1],
+    [1 => 1, 3 => 1],
     [2 => 1, 3 => 1],
+    [1 => 1, 2 => 1, 3 => 1],
+    [1 => 2, 2 => 1],
 ];
 
 function generate_pick_check_batch(int $seed): array {
     mt_srand($seed);
+    $pool = PICK_CHECK_COMBO_POOL;
+    shuffle($pool);
+    $combos = array_slice($pool, 0, 6);
     $items = [];
-    foreach (PICK_CHECK_COMBOS as $combo) {
+    foreach ($combos as $combo) {
         $picks = [];
         $season = 2027;
         foreach ($combo as $round => $count) {
