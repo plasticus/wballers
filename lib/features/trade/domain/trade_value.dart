@@ -282,24 +282,34 @@ int playerTradeValue({
 /// This Pick Worth" mode -- direct multiple-choice against a fixed
 /// player-quality ladder, the most controlled measurement this system
 /// has had yet (no free-text ambiguity, no pick-currency circularity).
-/// 2 consistent batches: a bare 1st -> "near-star" (~436 under
-/// [playerTradeValue]), a bare 2nd -> "quality starter" (~117), a bare
-/// 3rd -> "decent rotation piece" (~72). Round 2 was the real miss --
-/// 220 was nearly double what it's actually worth. Round 1 stayed close
-/// to where it already was; earlier reasoning this same day (a draft
-/// simulation of the *average* prospect at pick 10/11, plus one trade
-/// note) had pointed toward a much bigger round-1 number, but that
-/// measures a known, certain player -- an actual pick is a real gamble,
-/// and reads meaningfully cheaper than its own average outcome once
-/// asked about directly as a pick. Round 3 got a real bump too, its
-/// first real data point since the original re-tune left it alone.
+/// Round 2 was the first clear miss -- 220 was nearly double what it's
+/// actually worth ("quality starter," ~117 under [playerTradeValue]).
+/// Round 3 got a real bump too (50 -> ~72, "decent rotation piece"),
+/// its first real data point since the original re-tune left it alone.
+///
+/// Round 1 took 2 passes to land. The first batches (before the ladder
+/// had a rung between "quality starter" and "near-star") put a bare 1st
+/// at "near-star" (~436) -- but that had nowhere else to round to. Once
+/// a real in-between rung existed, 3 straight answers put the same bare
+/// 1st at "strong starter" (~208) instead -- the coarse ladder was
+/// rounding up, not measuring a real ~436. 420 (this same day's own
+/// first pass) was the same kind of miss round 2 had, just caught a few
+/// hours later. Landed on 220, just above the raw ~208 reading, for the
+/// same reason round 2/3 got a little headroom above their own raw
+/// numbers rather than the literal figure.
+///
 /// Whether multiple picks in one package should keep summing flatly is
-/// still an open question -- the same 2 batches hinted a second, smaller
-/// pick tacked onto a bigger one might add close to nothing, but that
-/// could just as easily be an artifact of the ladder's gaps at the time
-/// (since fixed the same evening); left alone until batches under the
-/// wider ladder actually confirm it one way or the other.
-const Map<int, int> kDraftPickTradeValue = {1: 420, 2: 130, 3: 70};
+/// still open, and now more interesting, not less: 2 firsts together
+/// read as "true star" (~1096) in 4 of 5 answers -- far more than even
+/// double the corrected round-1 number, a real premium for stacking,
+/// not the sub-additive discount earlier data suggested. 1st+2nd shows
+/// the same pattern (~436 combined vs. ~325 flat sum), while 2nd+3rd
+/// still reads as flatly additive-or-less (3rd adds close to nothing
+/// most of the time). Genuinely unresolved which of those patterns is
+/// real vs. small-sample noise -- left as flat summing until more
+/// batches (now sampling a full 14-combo pool, not a fixed 6) settle it
+/// either way.
+const Map<int, int> kDraftPickTradeValue = {1: 220, 2: 130, 3: 70};
 
 /// [kDraftPickTradeValue] for [round], or `0` for anything outside the
 /// 3 real rounds (`draft_generator.dart`'s `kDraftRounds`) -- a

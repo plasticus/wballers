@@ -312,10 +312,11 @@ void main() {
   });
 
   group('draftPickTradeValue', () {
-    test('the locked ladder: round 1/2/3 -> 420/130/70 (re-tuned '
-        '2026-08-25 against the trade study\'s "What\'s This Pick Worth" '
-        'direct multiple-choice data)', () {
-      expect(draftPickTradeValue(1), 420);
+    test('the locked ladder: round 1/2/3 -> 220/130/70 (re-tuned '
+        '2026-08-26 -- round 1 corrected again once a real in-between '
+        'ladder rung showed the prior 420 was itself a rounding-up '
+        'artifact of a too-coarse comparison ladder)', () {
+      expect(draftPickTradeValue(1), 220);
       expect(draftPickTradeValue(2), 130);
       expect(draftPickTradeValue(3), 70);
     });

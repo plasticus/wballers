@@ -34,7 +34,7 @@
 // the real math since that retune, exactly the gap this README already
 // warns about).
 // ---------------------------------------------------------------------
-const DRAFT_PICK_VALUE = [1 => 420, 2 => 130, 3 => 70]; // synced w/ trade_value.dart 2026-08-25 retune
+const DRAFT_PICK_VALUE = [1 => 220, 2 => 130, 3 => 70]; // synced w/ trade_value.dart 2026-08-26 retune
 const MIN_TRADE_SWING = 11;
 const ASSUMED_MANAGEMENT = 70; // "assume I have a coach with 70 management"
 
@@ -263,10 +263,17 @@ function generate_pick_anchor_player(int $round): array {
  * nearest rung because there was nothing in between to pick instead.
  * These 2 new rungs (~208, ~676) sit right in those gaps so the next
  * batches can actually tell the two apart. Existing saved answers keep
- * their original keys/labels -- this only affects future batches. */
+ * their original keys/labels -- this only affects future batches.
+ *
+ * 'plus_rotation' added 2026-08-26 -- a real GM note on a two-3rds
+ * combo, verbatim: "I think it's worth 2x rotation pieces, but I don't
+ * have anything to select between rotation and starter." Direct,
+ * actionable feedback: rotation (~72) -> starter (~117) was the last
+ * remaining gap wide enough to matter. */
 const PICK_CHECK_COMPARISON_PROFILES = [
     'scrub' => ['label' => 'A scrub -- replacement level, no real upside', 'overall' => 58, 'potential' => 60, 'age' => 29],
     'rotation' => ['label' => 'A decent rotation piece', 'overall' => 70, 'potential' => 73, 'age' => 25],
+    'plus_rotation' => ['label' => 'A cut above a rotation piece, not quite a starter', 'overall' => 75, 'potential' => 78, 'age' => 26],
     'starter' => ['label' => 'A quality starter', 'overall' => 78, 'potential' => 82, 'age' => 23],
     'strong_starter' => ['label' => 'A really good starter, close to more', 'overall' => 79, 'potential' => 85, 'age' => 22],
     'near_star' => ['label' => 'A near-star, or a real riser prospect', 'overall' => 85, 'potential' => 92, 'age' => 21],
@@ -1430,13 +1437,15 @@ function h(string $s): string {
 
   <h1>What's This Pick Worth</h1>
   <p class="muted">
-    For each pick (or pick combo) below, which of the 5 fixed players would you actually
+    For each pick (or pick combo) below, which of the fixed players would you actually
     take instead, straight up -- or give up to acquire it? Pick the closest one; add notes
-    if you're between two, or want to say by how much. The same 5 profiles show up every
+    if you're between two, or want to say by how much. The same profiles show up every
     time on purpose, so answers stay comparable across batches -- this is the flip side of
     Name Your Price's pick-anchor question (naming a player for a pick, instead of naming
     a pick for a player), for whenever a direct player comparison is easier to eyeball than
-    to type from scratch.
+    to type from scratch. If a big stack of picks (2-3 of the same round) hits "more than
+    any of these," a note on roughly how much more -- "maybe half again" vs. "multiple
+    times over" -- matters a lot more than the checkbox alone can say.
   </p>
 
   <form method="post" action="<?= mode_url('pick_check', ['seed' => $seed]) ?>">
@@ -1459,7 +1468,7 @@ function h(string $s): string {
             More than any of these
           </label>
         </div>
-        <textarea name="notes_<?= $i ?>" id="notes_<?= $i ?>" placeholder="Notes -- e.g. 'between rotation and starter' or 'about 2 of these'"></textarea>
+        <textarea name="notes_<?= $i ?>" id="notes_<?= $i ?>" placeholder="Notes -- e.g. 'between rotation and starter', 'about 2 of these', or 'a lot more than the best of these' if you picked that"></textarea>
       </div>
     <?php endforeach; ?>
 
