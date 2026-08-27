@@ -110,22 +110,55 @@ worth a particular pick"). This one shows a pick (or a pick combo) and
 asks you to pick the closest match from a small, **fixed** multiple-choice
 ladder instead -- recognition instead of generation.
 
-- Every batch always asks about the same 6 pick packages: a bare 1st, a
-  bare 2nd, a bare 3rd, two 1sts, a 1st + a 2nd, and a 2nd + a 3rd
-  (`PICK_CHECK_COMBOS`) -- covers single-round values and whether the
-  current plain-sum combo math itself feels right, in one batch.
-- The multiple-choice ladder (`PICK_CHECK_COMPARISON_PROFILES`) is the
-  same 5 fixed player profiles every time -- scrub / decent rotation
-  piece / quality starter / near-star-or-real-riser / true star, each
-  with a real OVR/POT/age shown -- plus "not much of anything real" and
-  "more than any of these" for the tails. Fixed on purpose (unlike the
-  jittered pick anchors) so every answer, across every batch you ever
-  run, is directly comparable against the same yardstick.
-- Pick the closest one; notes are free text for "in between X and Y" or
-  "about 2 of these" nuance the 7 fixed choices can't capture alone.
+- Each batch draws 6 pick packages from a 14-combo pool
+  (`PICK_CHECK_COMBO_POOL` -- every same-round stack 2/3 deep, every
+  cross-round pair, a 3-pick kitchen sink), **prioritized by how little
+  real data each combo already has** (2026-08-27, "reconfigure it so I
+  just get those ones, and not random stuff") -- a combo with 0 saved
+  answers always beats one with 5, so batches keep landing on real gaps
+  instead of re-asking whatever's already well-covered.
+- The multiple-choice ladder (`PICK_CHECK_COMPARISON_PROFILES`) is a
+  small set of fixed player profiles -- decent rotation piece / quality
+  starter / really good starter / near-star-or-real-riser / true star,
+  each with a real OVR/POT/age shown -- plus "not much of anything
+  real" and "more than any of these" for the tails. Fixed on purpose
+  (unlike the jittered pick anchors) so every answer, across every
+  batch you ever run, is directly comparable against the same
+  yardstick. Trimmed 2026-08-27 from 8 rungs down to these 5 -- with 42
+  real answers in hand, usage made the cut obvious (the 3 dropped rungs
+  had 0-2 uses each vs. 6-11 for the ones that stayed). Retired rungs'
+  labels still render correctly for old saved answers
+  (`PICK_CHECK_RETIRED_LABELS`), they just can't be picked anymore.
+- Pick the closest one; notes are free text for "in between X and Y,"
+  "about 2 of these," or (especially useful when a big same-round stack
+  hits the "more than any of these" ceiling) roughly how much more.
 - Answers save to `pick_checks.json` (same gitignored, append-only
   posture as the other two data files). "View Saved Pick Checks" shows
   every answer next to the combo's current combined engine value.
+
+## Rate 5 Even Trades
+
+A fourth mode (2026-08-27, a direct GM ask after several rounds of
+retuning constants in the abstract: "show me a page that shows me 5
+trades that you think are pretty even, and I'll evaluate"). A
+different kind of check than the other 3 -- instead of asking what a
+player or pick is worth, it shows what `playerTradeValue()`/
+`kDraftPickTradeValue` currently consider fair, and lets a real gut
+check catch anything the abstract numbers missed.
+
+- `generate_even_batch()` draws from the same 6 real-shape builders
+  `generate_batch()` uses, but tries ~25 candidates per shape and keeps
+  only the tightest one by *relative* gap (`|gap| / trade size`, so a
+  trivial trade landing dead-on doesn't crowd out a big, meaningfully-
+  balanced one) -- then returns the 5 tightest of those 6 overall.
+- Rating and saving reuses "Rate Trades" mode's own UI and
+  `ratings.json` entirely (same slider, same notes field) -- each row
+  just carries an extra `even_check: true` flag. "View Saved Data"'s
+  stat cards include a dedicated "Rate 5 Even Trades" average |rating|
+  -- since these were hand-picked for a near-zero gap, a rating that
+  drifts from 0 here means something different than everywhere else on
+  the page: not "how lopsided does this read," but "how far off
+  dead-even does the formula's own idea of fair actually feel."
 
 ## Notes
 

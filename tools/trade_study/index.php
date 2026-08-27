@@ -269,16 +269,32 @@ function generate_pick_anchor_player(int $round): array {
  * combo, verbatim: "I think it's worth 2x rotation pieces, but I don't
  * have anything to select between rotation and starter." Direct,
  * actionable feedback: rotation (~72) -> starter (~117) was the last
- * remaining gap wide enough to matter. */
+ * remaining gap wide enough to matter.
+ *
+ * Trimmed back down 2026-08-27, a direct GM ask ("clean up the page so
+ * we don't have a million options") -- with 42 real answers in hand,
+ * real usage settled which rungs were actually pulling weight: 'scrub'
+ * (0 uses), 'plus_rotation' (1), 'borderline_star' (2) all dropped;
+ * 'rotation'/'starter'/'strong_starter'/'near_star'/'star' (6-11 uses
+ * each) all stayed. PICK_CHECK_RETIRED_LABELS below keeps old saved
+ * answers readable in the view page even though the const itself no
+ * longer carries them. */
 const PICK_CHECK_COMPARISON_PROFILES = [
-    'scrub' => ['label' => 'A scrub -- replacement level, no real upside', 'overall' => 58, 'potential' => 60, 'age' => 29],
     'rotation' => ['label' => 'A decent rotation piece', 'overall' => 70, 'potential' => 73, 'age' => 25],
-    'plus_rotation' => ['label' => 'A cut above a rotation piece, not quite a starter', 'overall' => 75, 'potential' => 78, 'age' => 26],
     'starter' => ['label' => 'A quality starter', 'overall' => 78, 'potential' => 82, 'age' => 23],
     'strong_starter' => ['label' => 'A really good starter, close to more', 'overall' => 79, 'potential' => 85, 'age' => 22],
     'near_star' => ['label' => 'A near-star, or a real riser prospect', 'overall' => 85, 'potential' => 92, 'age' => 21],
-    'borderline_star' => ['label' => 'A borderline star -- not quite elite yet', 'overall' => 87, 'potential' => 89, 'age' => 23],
     'star' => ['label' => 'A true star', 'overall' => 91, 'potential' => 92, 'age' => 25],
+];
+
+/** Labels for rungs retired from [PICK_CHECK_COMPARISON_PROFILES] --
+ * only used so old saved pick_checks.json answers still render a real
+ * label in the view page instead of a bare key. Never shown as an
+ * answerable choice. */
+const PICK_CHECK_RETIRED_LABELS = [
+    'scrub' => 'A scrub -- replacement level, no real upside (retired rung)',
+    'plus_rotation' => 'A cut above a rotation piece, not quite a starter (retired rung)',
+    'borderline_star' => 'A borderline star -- not quite elite yet (retired rung)',
 ];
 
 /** The full pool a Pick Check batch samples 6 from (2026-08-25, widened
@@ -975,6 +991,61 @@ function generate_batch(int $seed, int $count): array {
     return $trades;
 }
 
+/** [count] trades the current formula thinks are closest to dead-even --
+ * one drawn from each of the same 6 real-shape buckets [generate_batch]
+ * uses, but tries several candidates per bucket (not just the first
+ * that lands within tolerance) and keeps only the tightest one by
+ * *relative* gap (|gap| / the trade's own size, so a small trade
+ * landing dead-on doesn't crowd out a big, meaningfully-balanced one).
+ * Returns the [count] tightest of those 6 overall.
+ *
+ * 2026-08-27, a direct GM ask, after several rounds of retuning
+ * constants in the abstract: "show me a page that shows me 5 trades
+ * that you think are pretty even, and I'll evaluate." A different kind
+ * of check than every other mode here -- instead of asking what a
+ * player or pick is worth, this shows what the current formula already
+ * considers fair and lets a real GM's gut be the test. */
+function generate_even_batch(int $seed, int $count = 5): array {
+    mt_srand($seed);
+    $swing = trade_swing(ASSUMED_MANAGEMENT);
+    $builders = [
+        fn() => mt_rand(0, 1) === 0
+            ? try_build_trade($swing)
+            : try_build_forced_pick_trade($swing),
+        mt_rand(0, 1) === 0
+            ? fn() => try_build_sell_for_picks($swing)
+            : fn() => try_build_pick_upgrade($swing),
+        fn() => try_build_pick_for_talent($swing),
+        fn() => try_build_consolidation($swing),
+        fn() => try_build_get_younger($swing),
+        fn() => try_build_going_big($swing),
+    ];
+    $candidates = [];
+    foreach ($builders as $build) {
+        $best = null;
+        $bestRelGap = null;
+        for ($tries = 0; $tries < 25; $tries++) {
+            $trade = $build();
+            if ($trade === null) continue;
+            $size = max($trade['give_value'], $trade['get_value'], 1);
+            $relGap = abs($trade['gap']) / $size;
+            if ($best === null || $relGap < $bestRelGap) {
+                $best = $trade;
+                $bestRelGap = $relGap;
+            }
+        }
+        if ($best !== null) {
+            $best['_rel_gap'] = $bestRelGap;
+            $candidates[] = $best;
+        }
+    }
+    usort($candidates, fn($a, $b) => $a['_rel_gap'] <=> $b['_rel_gap']);
+    $picked = array_slice($candidates, 0, $count);
+    foreach ($picked as &$t) unset($t['_rel_gap']);
+    unset($t);
+    return $picked;
+}
+
 // ---------------------------------------------------------------------
 // Value Check mode -- a direct reverse-elicitation test, the other real
 // half of the same GM ask above: instead of judging an already-built
@@ -1128,10 +1199,12 @@ header('Pragma: no-cache');
 $count = 6;
 $viewMode = isset($_GET['view']);
 
-// 'rate' (default, the original mode), 'value_check' (2026-08-24), or
-// 'pick_check' (2026-08-24 evening) -- 3 genuinely separate tools
+// 'rate' (default, the original mode), 'value_check' (2026-08-24),
+// 'pick_check' (2026-08-24 evening), or 'even' (2026-08-27, a distinct
+// batch shape sharing 'rate' mode's own rendering/save code -- see
+// generate_even_batch's doc comment). 4 genuinely separate tools
 // sharing one page/nav/persistence pattern, not branches of one form.
-$mode = in_array($_GET['mode'] ?? 'rate', ['value_check', 'pick_check'], true)
+$mode = in_array($_GET['mode'] ?? 'rate', ['value_check', 'pick_check', 'even'], true)
     ? $_GET['mode'] : 'rate';
 function mode_url(string $mode, array $extra = []): string {
     $params = $mode !== 'rate' ? array_merge(['mode' => $mode], $extra) : $extra;
@@ -1207,7 +1280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'pick_check') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $trades = generate_batch($seed, $count);
+    $trades = $mode === 'even' ? generate_even_batch($seed) : generate_batch($seed, $count);
     $ratings = load_ratings();
     $savedCount = 0;
     foreach ($trades as $i => $trade) {
@@ -1229,6 +1302,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'within_tolerance' => abs($trade['gap']) <= $trade['swing'],
             'forced_pick' => $trade['forced_pick'] ?? false,
             'shape' => $trade['shape'] ?? 'ordinary',
+            'even_check' => $mode === 'even',
             'rating' => $rating,
             'notes' => $notes,
         ];
@@ -1236,18 +1310,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     save_ratings($ratings);
     $newSeed = random_int(1, 1000000000);
-    header('Location: ?seed=' . $newSeed . '&saved=' . $savedCount);
+    header('Location: ' . mode_url($mode, ['seed' => $newSeed, 'saved' => $savedCount]));
     exit;
 }
 
 if (isset($_GET['saved'])) {
     $n = (int) $_GET['saved'];
-    $noun = $mode === 'rate' ? 'rating' : 'answer';
+    $noun = in_array($mode, ['rate', 'even'], true) ? 'rating' : 'answer';
     $flash = $n === 1 ? "Saved 1 $noun." : "Saved $n {$noun}s.";
 }
 
 $viewMode = isset($_GET['view']);
-$trades = $mode === 'rate' ? generate_batch($seed, $count) : [];
+$trades = match ($mode) {
+    'rate' => generate_batch($seed, $count),
+    'even' => generate_even_batch($seed),
+    default => [],
+};
 $valueCheckItems = $mode === 'value_check' ? generate_value_check_batch($seed) : [];
 $pickCheckItems = $mode === 'pick_check' ? generate_pick_check_batch($seed) : [];
 $swing = trade_swing(ASSUMED_MANAGEMENT);
@@ -1332,6 +1410,7 @@ function h(string $s): string {
   <a href="<?= mode_url('value_check', ['view' => 1]) ?>">View Saved Value Checks</a>
   <a href="<?= mode_url('pick_check') ?>">What's This Pick Worth</a>
   <a href="<?= mode_url('pick_check', ['view' => 1]) ?>">View Saved Pick Checks</a>
+  <a href="<?= mode_url('even') ?>">Rate 5 Even Trades</a>
 </div>
 
 <?php if ($flash): ?>
@@ -1439,7 +1518,9 @@ function h(string $s): string {
     $pickChoiceLabel = function (string $choice): string {
         if ($choice === 'nothing') return 'Not much of anything real';
         if ($choice === 'more') return 'More than any of these';
-        return PICK_CHECK_COMPARISON_PROFILES[$choice]['label'] ?? $choice;
+        return PICK_CHECK_COMPARISON_PROFILES[$choice]['label']
+            ?? PICK_CHECK_RETIRED_LABELS[$choice]
+            ?? $choice;
     };
   ?>
   <p class="muted">Every pick (or pick combo) you've weighed in on, newest first, next to
@@ -1547,6 +1628,13 @@ function h(string $s): string {
             'avg' => count($rows) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $rows)) / count($rows) : null,
         ];
     }
+    // "Rate 5 Even Trades" rows (2026-08-27) -- these were hand-picked
+    // by the formula for a near-zero gap, so |rating| here means
+    // something different than everywhere else on this page: it's
+    // measuring the formula's own "even" judgment against a real gut
+    // check, not gauging how lopsided a trade reads.
+    $evenRows = array_filter($all, fn($r) => $r['even_check'] ?? false);
+    $avgEven = count($evenRows) > 0 ? array_sum(array_map(fn($r) => abs($r['rating']), $evenRows)) / count($evenRows) : null;
   ?>
   <div class="stat-cards">
     <div class="stat-card"><div class="big"><?= $total ?></div><div class="muted">rated trades</div></div>
@@ -1558,6 +1646,7 @@ function h(string $s): string {
     <?php foreach ($byToggle as $toggle => $stat): ?>
       <div class="stat-card"><div class="big"><?= $stat['avg'] === null ? '—' : number_format($stat['avg'], 2) ?></div><div class="muted">avg |rating|, <?= h($toggle) ?> (<?= $stat['count'] ?>)</div></div>
     <?php endforeach; ?>
+    <div class="stat-card"><div class="big"><?= $avgEven === null ? '—' : number_format($avgEven, 2) ?></div><div class="muted">avg |rating|, "Rate 5 Even Trades" only (<?= count($evenRows) ?>) -- how far off dead-even the formula's own picks actually feel</div></div>
   </div>
   <p class="muted">"Within engine tolerance" means the trade math (Management <?= ASSUMED_MANAGEMENT ?>, swing ±<?= $swing ?>) would let this trade actually happen in-game. If those two averages read far apart from 0 in opposite directions, or the "outside tolerance" trades aren't reading much worse to you than the "within" ones, that's a sign the swing number itself may need retuning. The pick-vs-no-pick pair compares by <strong>magnitude</strong> (how lopsided, regardless of direction) -- if pick trades run consistently more lopsided, that's a sign the flat pick-value ladder (<?= DRAFT_PICK_VALUE[1] ?>/<?= DRAFT_PICK_VALUE[2] ?>/<?= DRAFT_PICK_VALUE[3] ?> by round) is coarser than it should be. Gain Picks/Shed Picks trades are <em>expected</em> to run more lopsided than ordinary ones -- they deliberately use a wider <?= EXTRA_PICK_TOLERANCE ?>-point discount tolerance on top of the normal swing -- so judge that number against "does a below-market desperation sale still feel fair," not against 0. Offload Depth/Get Younger both stay on the ordinary swing tolerance, same as Anything -- no built-in discount either direction. Going Big is study-only (not a real toggle yet, and not discounted either) -- its own number is really asking "does the real cost of landing a real star feel about right."</p>
 
@@ -1572,6 +1661,7 @@ function h(string $s): string {
         <th>Team B Sends</th>
         <th>Pick?</th>
         <th>Shape</th>
+        <th>Even Check?</th>
         <th>Value Gap</th>
         <th>In Tolerance?</th>
         <th>Rating</th>
@@ -1584,6 +1674,7 @@ function h(string $s): string {
           <td><?php foreach ($r['get'] as $a) echo h(asset_label($a)) . '<br>'; ?></td>
           <td><?= trade_has_pick($r['give'], $r['get']) ? 'Yes' : '' ?></td>
           <td><?= h(toggle_label($r['shape'] ?? 'ordinary')) ?></td>
+          <td><?= ($r['even_check'] ?? false) ? 'Yes' : '' ?></td>
           <td><?= $r['gap'] >= 0 ? '+' : '' ?><?= $r['gap'] ?> (swing ±<?= $r['swing'] ?>)</td>
           <td><?= $r['within_tolerance'] ? 'Yes' : 'No' ?></td>
           <td><strong><?= $r['rating'] >= 0 ? '+' : '' ?><?= $r['rating'] ?></strong></td>
@@ -1596,29 +1687,43 @@ function h(string $s): string {
 
 <?php else: ?>
 
-  <h1>WBL Trade Value Study</h1>
-  <p class="muted">
-    <?= count($trades) ?> generated trades, coach Management <?= ASSUMED_MANAGEMENT ?>
-    (swing tolerance ±<?= $swing ?> value points). Team A is the left side of each card,
-    Team B the right. Slide left for <strong>Team A</strong> winning the trade, right for
-    <strong>Team B</strong>, center for dead even -- every trade is assumed rated at
-    whatever the slider shows unless you check "skip this one." Every trade is tagged
-    with which real Trade Board toggle it represents (<span class="pick-badge shape-badge">ANYTHING</span>,
-    <span class="pick-badge shape-badge">GAIN PICKS</span>,
-    <span class="pick-badge shape-badge">SHED PICKS</span>,
-    <span class="pick-badge shape-badge">OFFLOAD DEPTH</span>,
-    <span class="pick-badge shape-badge">GET YOUNGER</span>) -- one trade per toggle,
-    guaranteed, every batch -- plus one <span class="pick-badge shape-badge">GOING BIG</span>
-    trade, a study-only category (not a real toggle yet): a real package of picks and/or a
-    young high-potential prospect, chasing one real 88+ overall star. Reloading this page
-    keeps the same batch; submitting rolls a brand new one.
-  </p>
+  <?php if ($mode === 'even'): ?>
+    <h1>Rate 5 Even Trades</h1>
+    <p class="muted">
+      <?= count($trades) ?> trades, one per real Trade Board shape, each the tightest of
+      several tries at that shape (coach Management <?= ASSUMED_MANAGEMENT ?>, swing
+      tolerance ±<?= $swing ?>) -- the current formula's own best guess at "these 2 sides
+      are worth about the same." Not asking you to name a value this time -- just: does
+      dead-even-by-the-numbers actually feel dead-even to you? Rate the same way as
+      always (slide toward whichever side you think actually wins it, center for genuinely
+      even); a consistent lean one direction across several of these is worth more than any
+      single trade's own gap number. Reloading keeps this batch; submitting rolls a new one.
+    </p>
+  <?php else: ?>
+    <h1>WBL Trade Value Study</h1>
+    <p class="muted">
+      <?= count($trades) ?> generated trades, coach Management <?= ASSUMED_MANAGEMENT ?>
+      (swing tolerance ±<?= $swing ?> value points). Team A is the left side of each card,
+      Team B the right. Slide left for <strong>Team A</strong> winning the trade, right for
+      <strong>Team B</strong>, center for dead even -- every trade is assumed rated at
+      whatever the slider shows unless you check "skip this one." Every trade is tagged
+      with which real Trade Board toggle it represents (<span class="pick-badge shape-badge">ANYTHING</span>,
+      <span class="pick-badge shape-badge">GAIN PICKS</span>,
+      <span class="pick-badge shape-badge">SHED PICKS</span>,
+      <span class="pick-badge shape-badge">OFFLOAD DEPTH</span>,
+      <span class="pick-badge shape-badge">GET YOUNGER</span>) -- one trade per toggle,
+      guaranteed, every batch -- plus one <span class="pick-badge shape-badge">GOING BIG</span>
+      trade, a study-only category (not a real toggle yet): a real package of picks and/or a
+      young high-potential prospect, chasing one real 88+ overall star. Reloading this page
+      keeps the same batch; submitting rolls a brand new one.
+    </p>
+  <?php endif; ?>
 
   <datalist id="ratingTicks">
     <?php for ($v = -5; $v <= 5; $v++): ?><option value="<?= $v ?>"></option><?php endfor; ?>
   </datalist>
 
-  <form method="post" action="?seed=<?= $seed ?>">
+  <form method="post" action="<?= mode_url($mode, ['seed' => $seed]) ?>">
     <?php foreach ($trades as $i => $trade): ?>
       <div class="trade">
         <h3>Trade <?= $i + 1 ?> <span class="pick-badge shape-badge"><?= h(strtoupper(toggle_label($trade['shape'] ?? 'ordinary'))) ?></span><?php if (trade_has_pick($trade['give'], $trade['get'])): ?> <span class="pick-badge">PICK</span><?php endif; ?></h3>
