@@ -312,10 +312,48 @@ const PICK_CHECK_COMBO_POOL = [
     [1 => 2, 2 => 1],
 ];
 
+/** [combo]'s identity for counting saved answers by -- round multiset,
+ * order-independent ("2,1" and "1,2" are the same combo). */
+function pick_check_combo_key(array $combo): string {
+    $rounds = [];
+    foreach ($combo as $round => $count) {
+        for ($n = 0; $n < $count; $n++) $rounds[] = $round;
+    }
+    sort($rounds);
+    return implode(',', $rounds);
+}
+
+/** How many times each combo has already been answered, from real saved
+ * data -- what [generate_pick_check_batch] prioritizes by. */
+function pick_check_combo_counts(): array {
+    $counts = [];
+    foreach (load_pick_checks() as $c) {
+        $rounds = array_map(fn($p) => $p['round'], $c['picks']);
+        sort($rounds);
+        $key = implode(',', $rounds);
+        $counts[$key] = ($counts[$key] ?? 0) + 1;
+    }
+    return $counts;
+}
+
 function generate_pick_check_batch(int $seed): array {
     mt_srand($seed);
+    $counts = pick_check_combo_counts();
     $pool = PICK_CHECK_COMBO_POOL;
+    // Shuffle first (randomizes order among ties), then a stable sort by
+    // how many times each combo's already been answered -- least-covered
+    // first, so a batch always fills with real gaps instead of drawing
+    // uniformly at random and re-asking already-well-covered combos
+    // (2026-08-26, a direct GM ask: "reconfigure it so I just get those
+    // ones, and not random stuff" -- referring to the still-unseen
+    // combos). PHP's usort is stable since 8.0, so the pre-shuffle order
+    // survives within each count tier.
     shuffle($pool);
+    usort(
+        $pool,
+        fn($a, $b) => ($counts[pick_check_combo_key($a)] ?? 0)
+            <=> ($counts[pick_check_combo_key($b)] ?? 0),
+    );
     $combos = array_slice($pool, 0, 6);
     $items = [];
     foreach ($combos as $combo) {
