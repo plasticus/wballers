@@ -42,7 +42,11 @@ const ASSUMED_MANAGEMENT = 70; // "assume I have a coach with 70 management"
 const REPLACEMENT_OVERALL = 60;
 const FULL_WEIGHT_OVERALL = 75;
 const UPSIDE_WEIGHT = 4;
-const AGE_RISK_WEIGHT = 1.5;
+// kTradeValueAgeRiskMaxDiscount -- 2026-08-28, replaced the old
+// unbounded AGE_RISK_WEIGHT subtraction (could exceed an already
+// quality-scaled skillPoints and drive real players to literal 0); see
+// that constant's own doc comment in trade_value.dart.
+const AGE_RISK_MAX_DISCOUNT = 0.75;
 // kTradeValueReplacementFloorFraction -- how much of raw skillPoints
 // still counts below replacement quality. 0.1 -> 0.04 the same day,
 // re-synced alongside that constant's own real-game update; see its doc
@@ -116,8 +120,8 @@ function player_trade_value(int $overall, int $potential, int $skillPoints, int 
     $escapeRamp = no_upside_escape_ramp($overall, $potential);
     $skillPointsMultiplier = REPLACEMENT_FLOOR_FRACTION + (1 - REPLACEMENT_FLOOR_FRACTION) * $ramp * $escapeRamp;
     $upside = UPSIDE_WEIGHT * max(0, $potential - $overall) * $ramp;
-    $ageRisk = AGE_RISK_WEIGHT * age_risk_factor($age) * $overall * $ramp;
-    $raw = $skillPoints * $skillPointsMultiplier + $upside - $ageRisk;
+    $ageDiscount = 1 - AGE_RISK_MAX_DISCOUNT * age_risk_factor($age) * $ramp;
+    $raw = $skillPoints * $skillPointsMultiplier * $ageDiscount + $upside;
     return (int) round(max(0, $raw));
 }
 

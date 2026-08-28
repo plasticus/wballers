@@ -309,6 +309,57 @@ void main() {
       );
       expect(value, greaterThan(700));
     });
+
+    test('age risk can discount a genuinely good, older player hard, but '
+        'never all the way to 0 by itself -- caught 2026-08-28 by "Rate 5 '
+        'Even Trades": an 81 OVR/82 POT/30yo and an 82 OVR/84 POT/31yo, '
+        'both real "3-star" players, each independently computed to '
+        'literal 0 under the old unbounded subtraction, making a 2-for-1 '
+        'trade of both for a washed-up 67 OVR/34yo read as perfectly even '
+        '(0 vs. 0 vs. 0). A direct GM reaction, verbatim: "NO."', () {
+      final playerA = playerTradeValue(
+        overall: 81,
+        potential: 82,
+        skillPoints: 81 * 12,
+        age: 30,
+      );
+      final playerB = playerTradeValue(
+        overall: 82,
+        potential: 84,
+        skillPoints: 82 * 12,
+        age: 31,
+      );
+      final washedUp = playerTradeValue(
+        overall: 67,
+        potential: 67,
+        skillPoints: 67 * 12,
+        age: 34,
+      );
+      expect(playerA, greaterThan(0));
+      expect(playerB, greaterThan(0));
+      // The real complaint: 2 real players for 1 washed-up one no longer
+      // reads as anywhere close to fair.
+      expect(playerA + playerB - washedUp, greaterThan(30));
+    });
+
+    test('age risk still never adds a second discount on top of an '
+        'already below-replacement player -- the floor fraction alone is '
+        'the whole story down there, same as before this fix', () {
+      final junkOld = playerTradeValue(
+        overall: 55,
+        potential: 56,
+        skillPoints: 660,
+        age: 34,
+      );
+      final junkYoung = playerTradeValue(
+        overall: 55,
+        potential: 56,
+        skillPoints: 660,
+        age: 20,
+      );
+      expect(junkOld, junkYoung);
+      expect(junkOld, (660 * kTradeValueReplacementFloorFraction).round());
+    });
   });
 
   group('draftPickTradeValue', () {

@@ -50,12 +50,37 @@ const kTradeValueFullWeightOverall = 75;
 /// potential is a real asset but a discounted one, not a sure thing.
 const kTradeValueUpsideWeight = 4;
 
-/// Skill points of [playerTradeValue] discounted per point of
-/// [_tradeValueAgeRiskFactor] (0.0-1.0), scaled by the player's own
-/// [overall] so the discount stays proportionate -- an aging star has
-/// more real value at stake than an aging bench piece with an identical
-/// birth year.
-const kTradeValueAgeRiskWeight = 1.5;
+/// The largest fraction of a player's already-quality-scaled
+/// [PlayerRatings.skillPoints] that age risk can ever strip away, at
+/// [_tradeValueAgeRiskFactor]'s max (1.0, age 33+) -- age can cut a
+/// player's value hard, but never past this floor.
+///
+/// Replaced the old flat, unbounded [kTradeValueAgeRiskWeight] subtraction
+/// 2026-08-28, after "Rate 5 Even Trades" caught it doing real damage: an
+/// 81 OVR/82 POT/30yo and an 82 OVR/84 POT/31yo -- both genuinely good,
+/// real "3-star" players -- each independently computed to literal 0,
+/// because the old subtraction (`1.5 * ageRiskFactor * overall`) was
+/// sized against a player's *full* raw overall, not the already-shrunk
+/// skillPoints total the no-upside floor system ([_tradeValueQualityRamp]/
+/// [_tradeValueNoUpsideEscapeRamp], added the day after age risk was)
+/// leaves for a capped, no-real-upside player -- for anyone in that
+/// band, the age subtraction could simply exceed the entire base it was
+/// supposed to be discounting, and did. A 2-for-1 package of exactly
+/// those 2 players for a washed-up 67 OVR/34yo read as perfectly even
+/// (0 vs. 0 vs. 0) -- a direct GM reaction, verbatim: "NO." This constant
+/// makes age a bounded *fraction* of whatever skillPoints already
+/// survived the no-upside floor, instead of a competing subtraction
+/// that can outrun it -- the 2 flagged players now land around 28/39
+/// instead of 0/0 (and no longer pencil out as equal to a real scrub),
+/// while genuinely washed-up, capped veterans (Isley 76/76/34, still
+/// ~9; Odom 80/80/30, still ~21) stay close to worthless, same as
+/// before -- this fixes the *can go to exactly 0 and wreck an unrelated
+/// package* bug specifically, not a broader claim that every capped
+/// 75-82 OVR veteran is now priced exactly right (Odom's own "worth a
+/// 2nd, not a 1st" note still reads low against ~21 -- a separate, still
+/// -open question about the escape ramp itself in that band, not this
+/// one).
+const kTradeValueAgeRiskMaxDiscount = 0.75;
 
 /// 0.0 (no real decline risk yet) to 1.0 (deep into it) -- shares its
 /// band boundaries with `training_advancer.dart`'s own private
@@ -252,9 +277,14 @@ int playerTradeValue({
       kTradeValueUpsideWeight *
       (potential > overall ? potential - overall : 0) *
       ramp;
-  final ageRisk =
-      kTradeValueAgeRiskWeight * _tradeValueAgeRiskFactor(age) * overall * ramp;
-  final raw = skillPoints * skillPointsMultiplier + upside - ageRisk;
+  // Gated by ramp, same as the old subtraction was ("* overall * ramp") --
+  // a below-replacement player already reads as near-worthless purely off
+  // kTradeValueReplacementFloorFraction; age was never meant to pile a
+  // second discount on top of that, only on top of a real quality-scaled
+  // value.
+  final ageDiscount =
+      1 - kTradeValueAgeRiskMaxDiscount * _tradeValueAgeRiskFactor(age) * ramp;
+  final raw = skillPoints * skillPointsMultiplier * ageDiscount + upside;
   return raw < 0 ? 0 : raw.round();
 }
 
