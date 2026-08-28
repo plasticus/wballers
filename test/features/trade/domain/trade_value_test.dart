@@ -360,6 +360,57 @@ void main() {
       expect(junkOld, junkYoung);
       expect(junkOld, (660 * kTradeValueReplacementFloorFraction).round());
     });
+
+    test('a capped-but-genuinely-good player (75+ OVR, minimal upside '
+        'gap, no age risk) is no longer worth barely more than a real '
+        'scrub duo combined -- caught 2026-08-29 by "Rate 5 Even '
+        'Trades"\' Pick Swap slot: a 77 OVR/79 POT/26yo (zero age risk) '
+        'computed to 61, about the same as a 60 OVR/26 1-star plus an '
+        'old, capped 70 OVR veteran combined (also 61). Direct GM '
+        'reaction, as the side receiving just the 1 player: "I ain\'t '
+        'doing this crap."', () {
+      final capped = playerTradeValue(
+        overall: 77,
+        potential: 79,
+        skillPoints: 77 * 12,
+        age: 26,
+      );
+      final scrubDuo =
+          playerTradeValue(
+            overall: 60,
+            potential: 60,
+            skillPoints: 60 * 12,
+            age: 26,
+          ) +
+          playerTradeValue(
+            overall: 70,
+            potential: 73,
+            skillPoints: 70 * 12,
+            age: 33,
+          );
+      expect(capped, greaterThan(scrubDuo * 2));
+    });
+
+    test('kTradeValueCappedQualityFloor never disturbs a player whose '
+        'runway/elite credit already clears it -- Solano-style (85 '
+        'OVR/86 POT/24, "Stupid" for 2 firsts) and the 84 OVR/85 POT/25 '
+        '"worth a 2nd, or a 1st with a kickback" case both stay exactly '
+        'where the 2026-08-26 elite-ramp retune left them', () {
+      final solano = playerTradeValue(
+        overall: 85,
+        potential: 86,
+        skillPoints: 85 * 12,
+        age: 24,
+      );
+      final kickback = playerTradeValue(
+        overall: 84,
+        potential: 85,
+        skillPoints: 84 * 12,
+        age: 25,
+      );
+      expect(solano, 412);
+      expect(kickback, 286);
+    });
   });
 
   group('draftPickTradeValue', () {

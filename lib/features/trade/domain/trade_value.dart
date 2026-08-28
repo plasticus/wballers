@@ -149,6 +149,16 @@ double _tradeValueQualityRamp(int gate) {
 /// other half of this same fix.
 const kTradeValueReplacementFloorFraction = 0.04;
 
+/// The least [_tradeValueNoUpsideEscapeRamp] can ever come out to for a
+/// player at/above [kTradeValueFullWeightOverall] -- see that function's
+/// own doc comment for the 2026-08-29 evidence this was added from. Only
+/// ever raises the result (never below [kTradeValueFullWeightOverall],
+/// and never lowers an already-higher runway/elite credit) -- a
+/// genuinely capped-but-good player still isn't nothing, same spirit as
+/// [kTradeValueReplacementFloorFraction] but for the upper band instead
+/// of the lower one.
+const kTradeValueCappedQualityFloor = 0.1;
+
 /// Potential-over-overall gap at/above which a player reads as a real
 /// prospect with genuine runway left -- full credit toward
 /// [_tradeValueNoUpsideEscapeRamp], tapering to none at gap 0 (a player
@@ -242,10 +252,34 @@ double _tradeValueEliteRamp(int overall) {
 /// OVR/86 POT) got torched for -- current overall alone
 /// ([kTradeValueFullWeightOverall]) was never the actual gate; it's
 /// "real remaining upside, or already a genuine star" that is.
+///
+/// [kTradeValueCappedQualityFloor] added 2026-08-29 -- "Rate 5 Even
+/// Trades"' new Pick Swap slot caught the same gap [kTradeValueEliteOverallStart]
+/// was lowered (85 -> 82) to fix 5 days earlier, just one band lower: a
+/// 77 OVR/79 POT/26-year-old (zero age risk, a tiny 2-point gap) computed
+/// to 61 -- barely above a 60 OVR/26 1-star plus an old, capped 70 OVR
+/// veteran *combined* (also 61). Direct GM reaction, as Team B: "I ain't
+/// doing this crap." A second, independent trade the same batch (a 72
+/// OVR/75 POT/28-year-old valued at 65, propping up a pick-swap the GM
+/// called "junk/old... but not a 1st") pointed the same direction.
+/// Simply lowering [kTradeValueEliteOverallStart] again would have
+/// fixed this the same blunt way twice already -- and would have
+/// meaningfully reshuffled the freshly-calibrated Pick Check ladder's
+/// own "starter"/"strong_starter" rungs (both already anchored in this
+/// exact zone) in the process. A [kTradeValueCappedQualityFloor] floor
+/// instead only ever *raises* [runway]/[elite] when they're already
+/// lower than it -- Solano-style 85+ OVR cases (elite already 0.375+)
+/// and any real riser with a genuine gap (runway already past 0.1) are
+/// completely untouched; only the specific "decent overall, capped,
+/// barely any gap" band this was aimed at moves.
 double _tradeValueNoUpsideEscapeRamp(int overall, int potential) {
   final runway = _tradeValueUpsideRunwayRamp(overall, potential);
   final elite = _tradeValueEliteRamp(overall);
-  return runway > elite ? runway : elite;
+  final escape = runway > elite ? runway : elite;
+  if (overall < kTradeValueFullWeightOverall) return escape;
+  return escape > kTradeValueCappedQualityFloor
+      ? escape
+      : kTradeValueCappedQualityFloor;
 }
 
 /// What one player is worth in a trade -- [PlayerRatings.skillPoints]

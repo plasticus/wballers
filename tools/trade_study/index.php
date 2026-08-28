@@ -52,6 +52,9 @@ const AGE_RISK_MAX_DISCOUNT = 0.75;
 // re-synced alongside that constant's own real-game update; see its doc
 // comment in trade_value.dart for the full story/evidence.
 const REPLACEMENT_FLOOR_FRACTION = 0.04;
+// kTradeValueCappedQualityFloor -- 2026-08-29, synced; see that
+// constant's own doc comment in trade_value.dart.
+const CAPPED_QUALITY_FLOOR = 0.1;
 
 // kTradeValueNoUpsideRunwayGap / kTradeValueEliteOverallStart /
 // kTradeValueEliteOverallFull -- 2026-08-24, re-synced alongside that
@@ -106,7 +109,11 @@ function no_upside_escape_ramp(int $overall, int $potential): float {
     } else {
         $elite = ($overall - ELITE_OVERALL_START) / (ELITE_OVERALL_FULL - ELITE_OVERALL_START);
     }
-    return max($runway, $elite);
+    $escape = max($runway, $elite);
+    // CAPPED_QUALITY_FLOOR -- 2026-08-29, synced; see
+    // kTradeValueCappedQualityFloor's own doc comment in trade_value.dart.
+    if ($overall < FULL_WEIGHT_OVERALL) return $escape;
+    return max($escape, CAPPED_QUALITY_FLOOR);
 }
 
 /** Mirrors playerTradeValue() exactly -- skillPoints (discounted toward
