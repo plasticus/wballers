@@ -789,6 +789,50 @@ function try_build_pick_for_talent(int $swing): ?array {
     return null;
 }
 
+/** Study-only, "Rate 5 Even Trades"-only shape (2026-08-29, a direct GM
+ * ask, after the even-trades page caught the age-risk bug: "the next
+ * thing I really want to see... is some pick swapping. Like I'm giving
+ * you a 1st for a player, but he's worth less than a 1st, so you also
+ * send back a 2nd or 3rd to square it up"). One side sends a single
+ * bigger pick (round 1, mostly, sometimes round 2); the other sends
+ * back one real player plus a smaller pick, the smallest one (3rd
+ * before 2nd) that actually closes the gap -- not the widened
+ * EXTRA_PICK_TOLERANCE the other pick shapes get, ordinary swing only,
+ * since the whole point of this shape is a genuinely balanced swap, not
+ * a discount sale. */
+function try_build_pick_swap(int $swing): ?array {
+    $bigRound = (mt_rand(1, 100) <= 70) ? 1 : 2;
+    $kickerRounds = $bigRound === 1 ? [3, 2] : [3];
+    $bigPick = ['type' => 'pick', 'round' => $bigRound, 'season' => 2027, 'value' => DRAFT_PICK_VALUE[$bigRound]];
+
+    $candidates = [];
+    for ($i = 0; $i < 10; $i++) $candidates[] = generate_player();
+    // Closest below the big pick's own value first -- the smallest real
+    // kicker is most likely to actually close a small gap.
+    usort($candidates, fn($a, $b) => abs($bigPick['value'] - $b['value']) <=> abs($bigPick['value'] - $a['value']));
+
+    foreach ($candidates as $player) {
+        if ($player['value'] >= $bigPick['value']) continue; // no kicker needed -- not this shape
+        foreach ($kickerRounds as $kickerRound) {
+            $kicker = ['type' => 'pick', 'round' => $kickerRound, 'season' => 2028, 'value' => DRAFT_PICK_VALUE[$kickerRound]];
+            $sum = $player['value'] + $kicker['value'];
+            if (abs($sum - $bigPick['value']) <= $swing) {
+                return [
+                    'give' => [$bigPick],
+                    'get' => [$player, $kicker],
+                    'give_value' => $bigPick['value'],
+                    'get_value' => $sum,
+                    'swing' => $swing,
+                    'gap' => $sum - $bigPick['value'],
+                    'forced_pick' => true,
+                    'shape' => 'pick_swap',
+                ];
+            }
+        }
+    }
+    return null;
+}
+
 /** Mirrors trade_offer_generator.dart's _tryBuildConsolidationOffer --
  * the Offload Depth toggle's own dedicated shape: your own weakest 2
  * active players (always the bottom of the roster, never a random 2)
@@ -995,13 +1039,37 @@ function generate_batch(int $seed, int $count): array {
     return $trades;
 }
 
+/** The tightest (by relative gap) trade [build] can produce across
+ * several tries, or null if it never lands one within [swing]. Shared
+ * by [generate_even_batch]'s guaranteed slot and its competitive pool.
+ */
+function tightest_of(callable $build, int $swing, int $tries = 25): ?array {
+    $best = null;
+    $bestRelGap = null;
+    for ($i = 0; $i < $tries; $i++) {
+        $trade = $build();
+        if ($trade === null) continue;
+        $size = max($trade['give_value'], $trade['get_value'], 1);
+        $relGap = abs($trade['gap']) / $size;
+        if ($best === null || $relGap < $bestRelGap) {
+            $best = $trade;
+            $bestRelGap = $relGap;
+        }
+    }
+    if ($best !== null) $best['_rel_gap'] = $bestRelGap;
+    return $best;
+}
+
 /** [count] trades the current formula thinks are closest to dead-even --
- * one drawn from each of the same 6 real-shape buckets [generate_batch]
- * uses, but tries several candidates per bucket (not just the first
- * that lands within tolerance) and keeps only the tightest one by
- * *relative* gap (|gap| / the trade's own size, so a small trade
- * landing dead-on doesn't crowd out a big, meaningfully-balanced one).
- * Returns the [count] tightest of those 6 overall.
+ * 1 guaranteed [try_build_pick_swap] (2026-08-29, a direct GM ask, see
+ * that function's own doc comment -- guaranteed rather than left to
+ * compete on tightness, same "Going Big always gets its own slot"
+ * treatment [generate_batch] gives that shape), plus the tightest
+ * [count]-1 of the same 6 real-shape buckets [generate_batch] uses.
+ * Every bucket tries several candidates (not just the first that lands
+ * within tolerance) and keeps only the tightest one by *relative* gap
+ * (|gap| / the trade's own size, so a small trade landing dead-on
+ * doesn't crowd out a big, meaningfully-balanced one).
  *
  * 2026-08-27, a direct GM ask, after several rounds of retuning
  * constants in the abstract: "show me a page that shows me 5 trades
@@ -1012,6 +1080,10 @@ function generate_batch(int $seed, int $count): array {
 function generate_even_batch(int $seed, int $count = 5): array {
     mt_srand($seed);
     $swing = trade_swing(ASSUMED_MANAGEMENT);
+    $picked = [];
+    $swap = tightest_of(fn() => try_build_pick_swap($swing), $swing);
+    if ($swap !== null) $picked[] = $swap;
+
     $builders = [
         fn() => mt_rand(0, 1) === 0
             ? try_build_trade($swing)
@@ -1026,25 +1098,12 @@ function generate_even_batch(int $seed, int $count = 5): array {
     ];
     $candidates = [];
     foreach ($builders as $build) {
-        $best = null;
-        $bestRelGap = null;
-        for ($tries = 0; $tries < 25; $tries++) {
-            $trade = $build();
-            if ($trade === null) continue;
-            $size = max($trade['give_value'], $trade['get_value'], 1);
-            $relGap = abs($trade['gap']) / $size;
-            if ($best === null || $relGap < $bestRelGap) {
-                $best = $trade;
-                $bestRelGap = $relGap;
-            }
-        }
-        if ($best !== null) {
-            $best['_rel_gap'] = $bestRelGap;
-            $candidates[] = $best;
-        }
+        $best = tightest_of($build, $swing);
+        if ($best !== null) $candidates[] = $best;
     }
     usort($candidates, fn($a, $b) => $a['_rel_gap'] <=> $b['_rel_gap']);
-    $picked = array_slice($candidates, 0, $count);
+    $remaining = max(0, $count - count($picked));
+    $picked = array_merge($picked, array_slice($candidates, 0, $remaining));
     foreach ($picked as &$t) unset($t['_rel_gap']);
     unset($t);
     return $picked;
@@ -1160,7 +1219,9 @@ function trade_has_pick(array $give, array $get): bool {
  * etc." -- then, same day, "there should probably also be a tag for
  * like... going big"). `sell_for_picks`/`pick_upgrade` both tag as
  * "Gain Picks" -- they're 2 real shapes behind the same one toggle, not
- * 2 different toggles, so they share the one tag on purpose. */
+ * 2 different toggles, so they share the one tag on purpose.
+ * `pick_swap` (2026-08-29) is "Rate 5 Even Trades"-only, same as
+ * `going_big` -- not a real Trade Board toggle either. */
 function toggle_label(string $shape): string {
     return match ($shape) {
         'sell_for_picks', 'pick_upgrade' => 'Gain Picks',
@@ -1168,6 +1229,7 @@ function toggle_label(string $shape): string {
         'consolidation' => 'Offload Depth',
         'get_younger' => 'Get Younger',
         'going_big' => 'Going Big',
+        'pick_swap' => 'Pick Swap',
         default => 'Anything', // 'ordinary', 'forced_pick'
     };
 }
@@ -1625,7 +1687,7 @@ function h(string $s): string {
     // 25 trades predate entirely, so a separate |rating| average per
     // toggle matters here specifically.
     $byToggle = [];
-    foreach (['Anything', 'Gain Picks', 'Shed Picks', 'Offload Depth', 'Get Younger', 'Going Big'] as $toggle) {
+    foreach (['Anything', 'Gain Picks', 'Shed Picks', 'Offload Depth', 'Get Younger', 'Going Big', 'Pick Swap'] as $toggle) {
         $rows = array_filter($all, fn($r) => toggle_label($r['shape'] ?? 'ordinary') === $toggle);
         $byToggle[$toggle] = [
             'count' => count($rows),
@@ -1697,7 +1759,10 @@ function h(string $s): string {
       <?= count($trades) ?> trades, one per real Trade Board shape, each the tightest of
       several tries at that shape (coach Management <?= ASSUMED_MANAGEMENT ?>, swing
       tolerance ±<?= $swing ?>) -- the current formula's own best guess at "these 2 sides
-      are worth about the same." Not asking you to name a value this time -- just: does
+      are worth about the same." One slot is always a <span class="pick-badge shape-badge">PICK SWAP</span>
+      -- a bigger pick (mostly a 1st) for a real player plus a smaller pick sent back to
+      square it up, the exact shape a real trade-down often takes. Not asking you to name a
+      value this time -- just: does
       dead-even-by-the-numbers actually feel dead-even to you? Rate the same way as
       always (slide toward whichever side you think actually wins it, center for genuinely
       even); a consistent lean one direction across several of these is worth more than any

@@ -150,7 +150,17 @@ check catch anything the abstract numbers missed.
   `generate_batch()` uses, but tries ~25 candidates per shape and keeps
   only the tightest one by *relative* gap (`|gap| / trade size`, so a
   trivial trade landing dead-on doesn't crowd out a big, meaningfully-
-  balanced one) -- then returns the 5 tightest of those 6 overall.
+  balanced one) -- then returns the tightest 4 of those 6, plus 1
+  guaranteed **Pick Swap** slot (2026-08-29, a direct GM ask: "some
+  pick swapping... I'm giving you a 1st for a player, but he's worth
+  less than a 1st, so you also send back a 2nd or 3rd to square it up")
+  -- `try_build_pick_swap()`, a bigger pick (mostly a 1st) alone on one
+  side, a real player plus the smallest kicker pick that closes the gap
+  (3rd tried before 2nd) on the other. Guaranteed rather than left to
+  compete on tightness, same treatment `going_big` gets in the regular
+  batch. Ordinary swing tolerance, not the wide `EXTRA_PICK_TOLERANCE`
+  the other pick shapes get -- the whole point of this one is a
+  genuinely balanced swap.
 - Rating and saving reuses "Rate Trades" mode's own UI and
   `ratings.json` entirely (same slider, same notes field) -- each row
   just carries an extra `even_check: true` flag. "View Saved Data"'s
